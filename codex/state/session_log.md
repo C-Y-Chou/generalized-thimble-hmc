@@ -602,3 +602,26 @@ Use this file to append per-session notes.
 - Production next-step decision:
   - do not go directly to full production after kernel-adjacent code changes.
   - next step should be a small pushed-commit validation run, then full production if Zmean/rev_rej/runtime are stable.
+
+## 2026-05-07 JST
+- Stage3_4 pre-production validation submitted from pushed clean branch.
+- Git:
+  - branch: `codex/preprod-hardening`
+  - commit: `fe82bc433784991065db35b900325b1c87e096f0`
+  - remote worktree clean before `qsub`.
+- PBS:
+  - job id: `14130.anode01`
+  - queue: `C12`
+  - script: `codex/workspaces/stage3_4/tasks/pbs/preprod_validation_20260507_10seed_10k_p28_rg.pbs`
+  - job state at first check: `R`
+- Setup:
+  - config `docs/stage_3_4_t035_paired_10k_10seed.json`
+  - methods `both`
+  - 10 seeds x 10k cycles
+  - RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`
+- Output:
+  - `output/tests/stage3_4/preprod_validation_20260507_10seed_10k_p28_rg`
+  - `output/logs/stage3_4_preprod_validation/preprod_validation_20260507_10seed_10k_p28_rg`
+- Workflow fix found during submission:
+  - `refresh_live_board.sh` modifies volatile files that were tracked, which conflicts with clean production git gate.
+  - moved `codex/context/LAST_REFRESH.txt`, `codex/runbooks/LIVE_BOARD.md`, and `codex/state/job_tracker.tsv` out of git tracking and into `.gitignore`.

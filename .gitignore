@@ -29,6 +29,9 @@ docs/*.extract_head.txt
 # Codex volatile state
 codex/tmp/
 codex/logs/
+codex/context/LAST_REFRESH.txt
+codex/runbooks/LIVE_BOARD.md
+codex/state/job_tracker.tsv
 codex/state/run_manifest_latest.env
 codex/workspaces/*/state/job_tracker.tsv
 codex/workspaces/*/context/LAST_REFRESH.txt

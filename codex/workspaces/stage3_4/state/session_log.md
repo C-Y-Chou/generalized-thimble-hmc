@@ -145,3 +145,29 @@ Use this file to append per-session notes.
   - 13966 C16 s34r10k_fbr13 (withfb p28 refine, qn tol 1e-13)
   - 13967 C17 s34r10k_fbr14 (withfb p28 refine, qn tol 1e-14)
 - Status at submission check: all 5 in R.
+
+## 2026-05-07 22:10:44 JST
+- Submitted pre-production validation after pushed hardening branch.
+- Git gate:
+  - branch: `codex/preprod-hardening`
+  - pushed commit: `fe82bc433784991065db35b900325b1c87e096f0`
+  - remote working tree was clean before submission.
+  - PBS receives `TLTM_EXPECTED_GIT_COMMIT=fe82bc433784991065db35b900325b1c87e096f0` and self-checks branch/SHA/dirty state before running.
+- Job:
+  - `14130.anode01`
+  - queue: `C12`
+  - state at first check: `R`
+  - PBS: `codex/workspaces/stage3_4/tasks/pbs/preprod_validation_20260507_10seed_10k_p28_rg.pbs`
+- Validation setup:
+  - config: `docs/stage_3_4_t035_paired_10k_10seed.json`
+  - methods: `both` (`no_fb` + `fb`)
+  - 10 seeds x 10k cycles
+  - RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`
+  - `fb` method uses post-refine enabled, skip enabled, max iter 20.
+- Output:
+  - `output/tests/stage3_4/preprod_validation_20260507_10seed_10k_p28_rg`
+  - logs: `output/logs/stage3_4_preprod_validation/preprod_validation_20260507_10seed_10k_p28_rg`
+- Gate for production:
+  - inspect report Zmean, rev_rej, unresolved failures, runtime.
+  - confirm per-seed `run_manifest.json` exists.
+  - only then submit full 1024-seed production.

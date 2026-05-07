@@ -1,20 +1,25 @@
 # Stage3_4 Task Status
 
-Updated: 2026-05-02 10:58:50 JST
+Updated: 2026-05-07 22:10:44 JST
 
 ## Active objective
-- Fix Stage3_4 p28+RG degradation versus nofb by enabling post-Newton refine on fallback accepts.
+- Pre-production validation after RG/path hardening before any full 1024-seed production run.
 
 ## Live jobs (current)
-- 13622[] on C12: main array chunk_00..23
-- 13623[] on C17: tail array chunk_24..31
-- 13624 on C8: merge hold afterok on both arrays
+- 14130.anode01 on C12: `s34_preval_p28rg`, running as of 2026-05-07 22:10 JST.
 
 ## Protocol
-- Method: fb only (for direct comparison against existing nofb reference)
-- Policy id: reverse_gate_p28_unifiedrg_refine
-- Key refinement: QN_POST_NEWTON_REFINE_ENABLED=1, QN_POST_NEWTON_REFINE_MAX_ITER=20
+- Validation label: `preprod_validation_20260507_10seed_10k_p28_rg`
+- Pushed branch: `codex/preprod-hardening`
+- Pushed commit: `fe82bc433784991065db35b900325b1c87e096f0`
+- Config: `docs/stage_3_4_t035_paired_10k_10seed.json`
+- Methods: `both` (`no_fb` + `fb`)
+- Key settings: RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`, post-refine enabled by `fb` method spec.
+- PBS: `codex/workspaces/stage3_4/tasks/pbs/preprod_validation_20260507_10seed_10k_p28_rg.pbs`
+- Output root: `output/tests/stage3_4/preprod_validation_20260507_10seed_10k_p28_rg`
+- Logs root: `output/logs/stage3_4_preprod_validation/preprod_validation_20260507_10seed_10k_p28_rg`
 
 ## Next actions
-1. Wait first completed chunks and compare seed-level Zmean trend against nofb baseline.
-2. If trend improves, keep full 1024 run; else tighten refine/RG settings and restart remaining chunks.
+1. Wait for job `14130.anode01` to finish.
+2. Inspect report `output/tests/stage3_4/preprod_validation_20260507_10seed_10k_p28_rg/s34_preprod_validation_20260507_p28_rg_report.md`.
+3. Gate full production on stable `Zmean`, `rev_rej`, unresolved failures, runtime, and presence of per-seed `run_manifest.json`.
