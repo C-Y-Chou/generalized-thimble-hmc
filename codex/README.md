@@ -22,6 +22,11 @@ bash tasks/refresh_live_board.sh
 ## Always-read live status
 - `/home/cychou/TLTM/codex/runbooks/LIVE_BOARD.md`
 
+## Always-read source audit context
+- `/home/cychou/TLTM/codex/runbooks/SOURCE_AUDIT_BOOTSTRAP.md`
+- `/home/cychou/TLTM/codex/knowledge/CODEBASE_SCAN_MANIFEST.md`
+- `/home/cychou/TLTM/codex/knowledge/FULL_PROGRAM_MAP_CHECK.md`
+
 ## Task entry
 1. Read `/home/cychou/TLTM/codex/context/HANDOFF_MIN.txt`
 2. Pick the target task from `/home/cychou/TLTM/codex/runbooks/task_registry.tsv`
@@ -30,5 +35,6 @@ bash tasks/refresh_live_board.sh
 ## Policy
 - Read `/home/cychou/TLTM/docs/AGENT_GUIDE.md` first.
 - Run heavy jobs only via PBS on compute nodes.
+- Commit and push production-relevant changes before validation or production submission.
 - Do not treat top-level `state/` as a single live run state.
 - Record task-specific execution in `workspaces/<task_slug>/state/`.

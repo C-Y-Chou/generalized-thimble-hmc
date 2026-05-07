@@ -1,0 +1,232 @@
+#!/bin/bash
+#PBS -N kvolEps
+#PBS -q C8
+#PBS -l select=1:ncpus=4:mpiprocs=4:mem=8gb
+#PBS -l walltime=00:45:00
+#PBS -o /lustre1/home/cychou/TLTM/output/logs/kernel_correctness_audit/qn_volume_eps_ladder_20260507.pbs.out
+#PBS -e /lustre1/home/cychou/TLTM/output/logs/kernel_correctness_audit/qn_volume_eps_ladder_20260507.pbs.err
+
+set -euo pipefail
+
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+
+export QN_REVERSE_GATE_ENABLED=1
+export QN_REVERSE_GATE_TOL=1e-8
+export QN_S1_PROBE_MAX_ITER=28
+export QN_S1_NEAR_RESCUE_ENABLED=0
+export QN_S1_NONNEAR_RESCUE_ENABLED=0
+export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
+export QN_QUASI_TOL_OVERRIDE=1e-13
+export QN_POST_NEWTON_REFINE_ENABLED=1
+export QN_POST_NEWTON_REFINE_MAX_ITER=20
+export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
+
+cd /lustre1/home/cychou/TLTM
+
+TLTM_ROOT=$(pwd)
+AUDIT_ROOT="output/tests/kernel_correctness_audit/qn_volume_eps_ladder_20260507"
+LOG_ROOT="output/logs/kernel_correctness_audit/qn_volume_eps_ladder_20260507"
+WORK_DIR="${AUDIT_ROOT}/work"
+
+rm -rf "${AUDIT_ROOT}" "${LOG_ROOT}"
+mkdir -p "${WORK_DIR}/data" "${LOG_ROOT}"
+
+python3 - <<'PY'
+from pathlib import Path
+
+src = Path("data/parameters.dat")
+dst = Path("output/tests/kernel_correctness_audit/qn_volume_eps_ladder_20260507/work/data/parameters.dat")
+updates = {
+    "trajectory_length": "2",
+    "integration_steps": "20",
+    "initial_flow_time": "0.35",
+    "constraint_tol": "1.0d-13",
+    "enable_quasi_fallback": "true",
+    "x_history_file": "./output/x_history.dat",
+    "z_history_file": "./output/z_history.dat",
+    "phi_history_file": "./output/phi_history.dat",
+}
+lines = []
+seen = set()
+for raw in src.read_text().splitlines():
+    stripped = raw.strip()
+    if "=" not in stripped or stripped.startswith("#"):
+        lines.append(raw)
+        continue
+    key, _ = stripped.split("=", 1)
+    key = key.strip()
+    if key in updates:
+        lines.append(f"{key} = {updates[key]}")
+        seen.add(key)
+    else:
+        lines.append(raw)
+for key, value in updates.items():
+    if key not in seen:
+        lines.append(f"{key} = {value}")
+dst.write_text("\n".join(lines) + "\n")
+PY
+
+make -C build OMP=0 ../bin/probe_hmc_volume > "${LOG_ROOT}/build_probe_hmc_volume.log" 2>&1
+
+for eps in 1e-6 3e-7 1e-7; do
+  label=$(echo "${eps}" | sed 's/+//g; s/-/m/g; s/\./p/g')
+  (
+    cd "${WORK_DIR}"
+    HMC_VOLUME_OUT_CSV="${TLTM_ROOT}/${AUDIT_ROOT}/qn_volume_eps_${label}.csv" \
+    HMC_VOLUME_SAMPLE_LIMIT=20 \
+    HMC_VOLUME_CANDIDATE_LIMIT=500 \
+    HMC_VOLUME_REQUIRE_QUASI_STABLE=1 \
+    HMC_VOLUME_FD_EPS="${eps}" \
+    HMC_VOLUME_FLOW_TIME=0.35 \
+    HMC_VOLUME_Q_SPAN=1.5 \
+    HMC_VOLUME_C_SPAN=1.0 \
+    "${TLTM_ROOT}/bin/probe_hmc_volume" \
+      > "${TLTM_ROOT}/${LOG_ROOT}/qn_volume_eps_${label}.out" \
+      2> "${TLTM_ROOT}/${LOG_ROOT}/qn_volume_eps_${label}.err"
+  )
+done
+
+python3 - <<'PY'
+import csv
+import json
+import math
+from pathlib import Path
+
+root = Path("output/tests/kernel_correctness_audit/qn_volume_eps_ladder_20260507")
+metric_tol = 1.0e-4
+min_qn_stable_per_eps = 20
+
+per_eps = {}
+for path in sorted(root.glob("qn_volume_eps_*.csv")):
+    eps_label = path.stem.replace("qn_volume_eps_", "")
+    rows = []
+    with path.open(newline="") as fobj:
+        reader = csv.DictReader(fobj)
+        for row in reader:
+            row["eps_label"] = eps_label
+            for key in ("case_idx", "attempt", "rg_candidate_delta", "rg_pass_delta", "rg_reject_delta"):
+                row[key] = int(row[key])
+            for key in (
+                "q0",
+                "c0",
+                "raw_det",
+                "raw_logabsdet",
+                "metric_logvol",
+                "jac_in_abs",
+                "jac_out_abs",
+                "q_out",
+                "c_out",
+            ):
+                row[key] = float(row[key].replace("D", "E"))
+            rows.append(row)
+    per_eps[eps_label] = rows
+
+def is_true(row, key):
+    return row.get(key) == "T"
+
+summary = {}
+attempt_rows = {}
+for eps_label, rows in sorted(per_eps.items()):
+    qn_stable = [
+        r
+        for r in rows
+        if is_true(r, "base_ok")
+        and is_true(r, "fd_ok")
+        and is_true(r, "branch_stable")
+        and is_true(r, "base_used_quasi")
+        and math.isfinite(r["metric_logvol"])
+    ]
+    bad_metric = [r for r in qn_stable if abs(r["metric_logvol"]) > metric_tol]
+    summary[eps_label] = {
+        "rows": len(rows),
+        "qn_stable": len(qn_stable),
+        "max_abs_metric_logvol": max((abs(r["metric_logvol"]) for r in qn_stable), default=math.nan),
+        "max_abs_raw_logabsdet": max((abs(r["raw_logabsdet"]) for r in qn_stable), default=math.nan),
+        "bad_metric_rows": len(bad_metric),
+        "last_attempt": max((r["attempt"] for r in rows), default=0),
+    }
+    for row in qn_stable:
+        attempt_rows.setdefault(row["attempt"], {})[eps_label] = row
+
+focus_attempts = sorted(
+    attempt_rows,
+    key=lambda attempt: max(abs(row["metric_logvol"]) for row in attempt_rows[attempt].values()),
+    reverse=True,
+)[:8]
+
+status = "PASS"
+if not per_eps or any(item["qn_stable"] < min_qn_stable_per_eps for item in summary.values()):
+    status = "INCONCLUSIVE"
+elif any(item["bad_metric_rows"] > 0 for item in summary.values()):
+    status = "TREND_FAIL"
+
+payload = {
+    "status": status,
+    "metric_tol": metric_tol,
+    "min_qn_stable_per_eps": min_qn_stable_per_eps,
+    "summary": summary,
+    "focus_attempts": {
+        str(attempt): {
+            eps_label: {
+                "metric_logvol": row["metric_logvol"],
+                "raw_logabsdet": row["raw_logabsdet"],
+                "q0": row["q0"],
+                "c0": row["c0"],
+                "q_out": row["q_out"],
+                "c_out": row["c_out"],
+            }
+            for eps_label, row in sorted(attempt_rows[attempt].items())
+        }
+        for attempt in focus_attempts
+    },
+}
+root.joinpath("qn_volume_eps_ladder_results.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+lines = [
+    "# QN Volume Smaller-Eps Ladder Report",
+    "",
+    f"status: `{status}`",
+    f"metric-corrected tolerance reference: `{metric_tol:.1e}`",
+    f"min QN-stable rows per eps: `{min_qn_stable_per_eps}`",
+    "",
+    "## Scope",
+    "- Same QN-used branch-stable local-volume filter as Probe 4b.",
+    "- Smaller finite-difference eps values to test whether Probe 4b failures converge away.",
+    "- This is a diagnostic trend report; `TREND_FAIL` means at least one row remains above the reference tolerance.",
+    "",
+    "## Per-Epsilon Summary",
+]
+for eps_label, item in sorted(summary.items()):
+    lines.append(
+        "- {eps}: rows={rows} qn_stable={qn_stable} last_attempt={last_attempt} "
+        "max_abs_metric={max_abs_metric_logvol:.3e} max_abs_raw={max_abs_raw_logabsdet:.3e} "
+        "bad_metric={bad_metric_rows}".format(eps=eps_label, **item)
+    )
+
+lines.extend(["", "## Focus Attempts"])
+for attempt in focus_attempts:
+    lines.append(f"- attempt {attempt}:")
+    for eps_label, row in sorted(attempt_rows[attempt].items()):
+        lines.append(
+            "  - {eps}: metric_logvol={metric:.6e}, raw_logabsdet={raw:.6e}, "
+            "q0={q0:.6e}, c0={c0:.6e}, q_out={q_out:.6e}, c_out={c_out:.6e}".format(
+                eps=eps_label,
+                metric=row["metric_logvol"],
+                raw=row["raw_logabsdet"],
+                q0=row["q0"],
+                c0=row["c0"],
+                q_out=row["q_out"],
+                c_out=row["c_out"],
+            )
+        )
+
+root.joinpath("qn_volume_eps_ladder_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+PY

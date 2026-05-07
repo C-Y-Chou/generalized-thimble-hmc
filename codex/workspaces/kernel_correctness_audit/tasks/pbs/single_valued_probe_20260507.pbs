@@ -1,0 +1,213 @@
+#!/bin/bash
+#PBS -N ksingleF
+#PBS -q C8
+#PBS -l select=1:ncpus=4:mpiprocs=4:mem=8gb
+#PBS -l walltime=00:30:00
+#PBS -o /lustre1/home/cychou/TLTM/output/logs/kernel_correctness_audit/single_valued_probe_20260507.pbs.out
+#PBS -e /lustre1/home/cychou/TLTM/output/logs/kernel_correctness_audit/single_valued_probe_20260507.pbs.err
+
+set -euo pipefail
+
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+
+export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
+export TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-13
+export QN_REVERSE_GATE_ENABLED=1
+export QN_REVERSE_GATE_TOL=1e-8
+export QN_S1_PROBE_MAX_ITER=28
+export QN_S1_NEAR_RESCUE_ENABLED=0
+export QN_S1_NONNEAR_RESCUE_ENABLED=0
+export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
+export QN_QUASI_TOL_OVERRIDE=1e-13
+
+cd /lustre1/home/cychou/TLTM
+
+TLTM_ROOT=$(pwd)
+AUDIT_ROOT="output/tests/kernel_correctness_audit/single_valued_probe_20260507"
+LOG_ROOT="output/logs/kernel_correctness_audit/single_valued_probe_20260507"
+CAPTURE_ROOT="output/tests/stage3_4/post_refine_fail_replay_capture/withfb_p28_refine_rg_ct1e13_qn1e13_10seed_10k/fb/seed_20260421"
+CAPTURE_OUT="${CAPTURE_ROOT}/output"
+CAPTURE_WORK="output/tests/stage3_4/post_refine_fail_replay_capture/withfb_p28_refine_rg_ct1e13_qn1e13_10seed_10k/_work/fb/seed_20260421"
+
+rm -rf "${AUDIT_ROOT}" "${LOG_ROOT}"
+mkdir -p "${AUDIT_ROOT}" "${LOG_ROOT}"
+
+run_full_probe() {
+  local label="$1"
+  python3 scripts/run_stage3_3_multiseed.py \
+    --repo-root . \
+    --config docs/stage_3_4_t035_smoke_post_newton_refine_500.json \
+    --methods fb \
+    --max-seeds 1 \
+    --output-subdir "${AUDIT_ROOT}/full_run_${label}" \
+    --logs-subdir "${LOG_ROOT}/full_run_${label}" \
+    --log-prefix "single_valued_${label}" \
+    --report-title "Kernel single-valued full-run probe ${label}" \
+    --schedule task \
+    --task-method-order fb_first \
+    --jobs 1 \
+    --stage2-threads 1 \
+    --eval-threads 1 \
+    --skip-build
+}
+
+run_full_probe a
+run_full_probe b
+
+REPLAY_WORK="${AUDIT_ROOT}/replay_work"
+mkdir -p "${REPLAY_WORK}/data"
+cp "${CAPTURE_WORK}/data/parameters.dat" "${REPLAY_WORK}/data/parameters.dat"
+
+(
+  cd "${REPLAY_WORK}"
+  export QN_REPLAY_TRACE_CSV="${TLTM_ROOT}/${AUDIT_ROOT}/replay_a_trace.csv"
+  "${TLTM_ROOT}/bin/replay_quasi_failures" \
+    1e-13 28 \
+    "${TLTM_ROOT}/${CAPTURE_OUT}/constraint_solver_fail_z0.dat" \
+    "${TLTM_ROOT}/${CAPTURE_OUT}/constraint_solver_fail_delz.dat" \
+    "${TLTM_ROOT}/${CAPTURE_OUT}/constraint_solver_fail_x0.dat" \
+    "${TLTM_ROOT}/${AUDIT_ROOT}/replay_a.csv"
+)
+
+(
+  cd "${REPLAY_WORK}"
+  export QN_REPLAY_TRACE_CSV="${TLTM_ROOT}/${AUDIT_ROOT}/replay_b_trace.csv"
+  "${TLTM_ROOT}/bin/replay_quasi_failures" \
+    1e-13 28 \
+    "${TLTM_ROOT}/${CAPTURE_OUT}/constraint_solver_fail_z0.dat" \
+    "${TLTM_ROOT}/${CAPTURE_OUT}/constraint_solver_fail_delz.dat" \
+    "${TLTM_ROOT}/${CAPTURE_OUT}/constraint_solver_fail_x0.dat" \
+    "${TLTM_ROOT}/${AUDIT_ROOT}/replay_b.csv"
+)
+
+python3 - <<'PY'
+import csv
+import hashlib
+import json
+from pathlib import Path
+
+root = Path("output/tests/kernel_correctness_audit/single_valued_probe_20260507")
+seed_rel = Path("fb/seed_20260421")
+
+def sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fobj:
+        for chunk in iter(lambda: fobj.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+def compare_pair(label: str, rel: str):
+    a = root / "full_run_a" / seed_rel / rel
+    b = root / "full_run_b" / seed_rel / rel
+    return {
+        "label": label,
+        "a": str(a),
+        "b": str(b),
+        "a_exists": a.exists(),
+        "b_exists": b.exists(),
+        "a_sha256": sha256(a) if a.exists() else None,
+        "b_sha256": sha256(b) if b.exists() else None,
+        "equal": a.exists() and b.exists() and sha256(a) == sha256(b),
+    }
+
+file_checks = [
+    compare_pair("replica0_z", "all_replica_history/replica_000/output/z_history.dat"),
+    compare_pair("replica0_phi", "all_replica_history/replica_000/output/phi_history.dat"),
+    compare_pair("replica1_z", "all_replica_history/replica_001/output/z_history.dat"),
+    compare_pair("replica1_phi", "all_replica_history/replica_001/output/phi_history.dat"),
+    compare_pair("label_trace", "tltm_stage2_label_trace.dat"),
+    compare_pair("eval_virial", "eval_multichain/virial.dat"),
+    compare_pair("eval_multichain_expectations", "eval_multichain/multichain_expectations.dat"),
+]
+
+def read_first_row(path: Path) -> dict[str, str]:
+    with path.open(newline="") as fobj:
+        reader = csv.DictReader(fobj)
+        return next(reader)
+
+summary_a = read_first_row(root / "full_run_a" / "per_seed_summary_table.csv")
+summary_b = read_first_row(root / "full_run_b" / "per_seed_summary_table.csv")
+ignore_columns = {
+    "runtime_total",
+    "runtime_per_cycle",
+    "summary_file",
+    "label_trace_file",
+    "stage2_log",
+    "eval_log",
+    "multichain_meta_file",
+    "all_replica_history_dir",
+}
+summary_diffs = []
+for key in sorted(set(summary_a) | set(summary_b)):
+    if key in ignore_columns:
+        continue
+    if summary_a.get(key) != summary_b.get(key):
+        summary_diffs.append({"column": key, "a": summary_a.get(key), "b": summary_b.get(key)})
+
+replay_checks = []
+for stem in ("replay", "replay_trace"):
+    if stem == "replay":
+        a = root / "replay_a.csv"
+        b = root / "replay_b.csv"
+    else:
+        a = root / "replay_a_trace.csv"
+        b = root / "replay_b_trace.csv"
+    replay_checks.append({
+        "label": stem,
+        "a_sha256": sha256(a) if a.exists() else None,
+        "b_sha256": sha256(b) if b.exists() else None,
+        "equal": a.exists() and b.exists() and sha256(a) == sha256(b),
+    })
+
+all_file_equal = all(item["equal"] for item in file_checks)
+all_replay_equal = all(item["equal"] for item in replay_checks)
+summary_equal = len(summary_diffs) == 0
+status = "PASS" if all_file_equal and all_replay_equal and summary_equal else "FAIL"
+
+payload = {
+    "status": status,
+    "file_checks": file_checks,
+    "summary_equal_excluding_runtime_and_paths": summary_equal,
+    "summary_diffs": summary_diffs,
+    "replay_checks": replay_checks,
+}
+(root / "single_valued_probe_results.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+lines = [
+    "# Single-Valued Probe Report",
+    "",
+    f"status: `{status}`",
+    "",
+    "## Scope",
+    "- Full-run repeatability checks one seed, 500 cycles, withfb p28 RG post-refine path.",
+    "- Replay repeatability checks existing seed_20260421 captured failure cases.",
+    "- This does not test volume preservation or proposal-density symmetry.",
+    "",
+    "## Full-Run File Hash Checks",
+]
+for item in file_checks:
+    lines.append(f"- {item['label']}: equal={item['equal']} a={item['a_sha256']} b={item['b_sha256']}")
+lines.extend([
+    "",
+    "## Summary CSV Check",
+    f"- excluding runtime/path columns equal: {summary_equal}",
+    f"- differing columns: {len(summary_diffs)}",
+    "",
+    "## Replay Hash Checks",
+])
+for item in replay_checks:
+    lines.append(f"- {item['label']}: equal={item['equal']} a={item['a_sha256']} b={item['b_sha256']}")
+lines.append("")
+(root / "single_valued_probe_report.md").write_text("\n".join(lines), encoding="utf-8")
+
+if status != "PASS":
+    raise SystemExit(2)
+PY

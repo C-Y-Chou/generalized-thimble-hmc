@@ -1,0 +1,213 @@
+#!/bin/bash
+#PBS -N kbrstab
+#PBS -q C8
+#PBS -l select=1:ncpus=4:mpiprocs=4:mem=8gb
+#PBS -l walltime=01:00:00
+#PBS -o /lustre1/home/cychou/TLTM/output/logs/kernel_correctness_audit/branch_stability_probe_20260507.pbs.out
+#PBS -e /lustre1/home/cychou/TLTM/output/logs/kernel_correctness_audit/branch_stability_probe_20260507.pbs.err
+
+set -euo pipefail
+
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+
+export QN_REVERSE_GATE_ENABLED=1
+export QN_REVERSE_GATE_TOL=1e-8
+export QN_S1_PROBE_MAX_ITER=28
+export QN_S1_NEAR_RESCUE_ENABLED=0
+export QN_S1_NONNEAR_RESCUE_ENABLED=0
+export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
+export QN_QUASI_TOL_OVERRIDE=1e-13
+export QN_POST_NEWTON_REFINE_ENABLED=1
+export QN_POST_NEWTON_REFINE_MAX_ITER=20
+export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
+
+cd /lustre1/home/cychou/TLTM
+
+TLTM_ROOT=$(pwd)
+AUDIT_ROOT="output/tests/kernel_correctness_audit/branch_stability_probe_20260507"
+LOG_ROOT="output/logs/kernel_correctness_audit/branch_stability_probe_20260507"
+WORK_DIR="${AUDIT_ROOT}/work"
+
+rm -rf "${AUDIT_ROOT}" "${LOG_ROOT}"
+mkdir -p "${WORK_DIR}/data" "${LOG_ROOT}"
+
+python3 - <<'PY'
+from pathlib import Path
+
+src = Path("data/parameters.dat")
+dst = Path("output/tests/kernel_correctness_audit/branch_stability_probe_20260507/work/data/parameters.dat")
+updates = {
+    "trajectory_length": "2",
+    "integration_steps": "20",
+    "initial_flow_time": "0.35",
+    "constraint_tol": "1.0d-13",
+    "enable_quasi_fallback": "true",
+    "x_history_file": "./output/x_history.dat",
+    "z_history_file": "./output/z_history.dat",
+    "phi_history_file": "./output/phi_history.dat",
+}
+lines = []
+seen = set()
+for raw in src.read_text().splitlines():
+    stripped = raw.strip()
+    if "=" not in stripped or stripped.startswith("#"):
+        lines.append(raw)
+        continue
+    key, _ = stripped.split("=", 1)
+    key = key.strip()
+    if key in updates:
+        lines.append(f"{key} = {updates[key]}")
+        seen.add(key)
+    else:
+        lines.append(raw)
+for key, value in updates.items():
+    if key not in seen:
+        lines.append(f"{key} = {value}")
+dst.write_text("\n".join(lines) + "\n")
+PY
+
+make -C build OMP=0 ../bin/probe_hmc_volume > "${LOG_ROOT}/build_probe_hmc_volume.log" 2>&1
+
+for eps in 1e-5 1e-6 1e-7; do
+  label=$(echo "${eps}" | sed 's/+//g; s/-/m/g; s/\./p/g')
+  (
+    cd "${WORK_DIR}"
+    HMC_VOLUME_OUT_CSV="${TLTM_ROOT}/${AUDIT_ROOT}/branch_stability_eps_${label}.csv" \
+    HMC_VOLUME_SAMPLE_LIMIT=200 \
+    HMC_VOLUME_CANDIDATE_LIMIT=1000 \
+    HMC_VOLUME_FD_EPS="${eps}" \
+    HMC_VOLUME_FLOW_TIME=0.35 \
+    HMC_VOLUME_Q_SPAN=1.5 \
+    HMC_VOLUME_C_SPAN=1.0 \
+    "${TLTM_ROOT}/bin/probe_hmc_volume" \
+      > "${TLTM_ROOT}/${LOG_ROOT}/branch_stability_eps_${label}.out" \
+      2> "${TLTM_ROOT}/${LOG_ROOT}/branch_stability_eps_${label}.err"
+  )
+done
+
+python3 - <<'PY'
+import csv
+import json
+import math
+from pathlib import Path
+
+root = Path("output/tests/kernel_correctness_audit/branch_stability_probe_20260507")
+summary = {}
+examples = {}
+
+def truth(row, key):
+    return row.get(key) == "T"
+
+def ratio(num, den):
+    return None if den == 0 else num / den
+
+for path in sorted(root.glob("branch_stability_eps_*.csv")):
+    eps_label = path.stem.replace("branch_stability_eps_", "")
+    rows = []
+    with path.open(newline="") as fobj:
+        reader = csv.DictReader(fobj)
+        for row in reader:
+            for key in ("case_idx", "attempt"):
+                row[key] = int(row[key])
+            for key in (
+                "metric_logvol",
+                "raw_logabsdet",
+                "q0",
+                "c0",
+                "q_out",
+                "c_out",
+            ):
+                row[key] = float(row[key].replace("D", "E"))
+            rows.append(row)
+
+    fd_ok = [r for r in rows if truth(r, "fd_ok")]
+    weak_stable = [r for r in fd_ok if truth(r, "branch_stable")]
+    strong_stable = [r for r in fd_ok if truth(r, "strong_branch_stable")]
+    qn_fd = [r for r in fd_ok if truth(r, "base_used_quasi")]
+    qn_weak = [r for r in qn_fd if truth(r, "branch_stable")]
+    qn_strong = [r for r in qn_fd if truth(r, "strong_branch_stable")]
+    nt_fd = [r for r in fd_ok if not truth(r, "base_used_quasi")]
+    nt_strong = [r for r in nt_fd if truth(r, "strong_branch_stable")]
+
+    unstable = [r for r in fd_ok if not truth(r, "strong_branch_stable")]
+    examples[eps_label] = unstable[:8]
+    summary[eps_label] = {
+        "rows": len(rows),
+        "fd_ok": len(fd_ok),
+        "weak_stable": len(weak_stable),
+        "strong_stable": len(strong_stable),
+        "strong_unstable_fraction": ratio(len(fd_ok) - len(strong_stable), len(fd_ok)),
+        "qn_fd_ok": len(qn_fd),
+        "qn_weak_stable": len(qn_weak),
+        "qn_strong_stable": len(qn_strong),
+        "qn_strong_unstable_fraction": ratio(len(qn_fd) - len(qn_strong), len(qn_fd)),
+        "nt_fd_ok": len(nt_fd),
+        "nt_strong_stable": len(nt_strong),
+        "nt_strong_unstable_fraction": ratio(len(nt_fd) - len(nt_strong), len(nt_fd)),
+        "max_abs_metric_strong_stable": max(
+            (abs(r["metric_logvol"]) for r in strong_stable if math.isfinite(r["metric_logvol"])),
+            default=math.nan,
+        ),
+    }
+
+payload = {
+    "status": "DIAGNOSTIC",
+    "summary": summary,
+    "first_strong_unstable_examples": examples,
+}
+root.joinpath("branch_stability_probe_results.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+lines = [
+    "# Branch Stability Probe Report",
+    "",
+    "status: `DIAGNOSTIC`",
+    "",
+    "## Scope",
+    "- Strong branch-stability census for the local tangent-bundle map.",
+    "- Uses the same withfb p28 RG settings as Probe 4b/4c.",
+    "- `branch_stable` means only the weak `used_quasi` flag is unchanged under perturbations.",
+    "- `strong_branch_stable` additionally requires matching aggregate solver route counters.",
+    "",
+    "## Per-Epsilon Summary",
+]
+for eps_label, item in sorted(summary.items()):
+    lines.append(
+        "- {eps}: rows={rows} fd_ok={fd_ok} weak_stable={weak_stable} "
+        "strong_stable={strong_stable} strong_unstable_fraction={strong_unstable_fraction} "
+        "qn_fd_ok={qn_fd_ok} qn_strong_stable={qn_strong_stable} "
+        "qn_strong_unstable_fraction={qn_strong_unstable_fraction} "
+        "nt_fd_ok={nt_fd_ok} nt_strong_stable={nt_strong_stable} "
+        "nt_strong_unstable_fraction={nt_strong_unstable_fraction} "
+        "max_abs_metric_strong_stable={max_abs_metric_strong_stable:.3e}".format(eps=eps_label, **item)
+    )
+
+lines.extend(["", "## First Strong-Unstable Examples"])
+for eps_label, rows in sorted(examples.items()):
+    lines.append(f"- {eps_label}:")
+    if not rows:
+        lines.append("  - none")
+    for row in rows[:5]:
+        lines.append(
+            "  - attempt={attempt} qn={qn} weak={weak} metric={metric:.3e} "
+            "q0={q0:.3e} c0={c0:.3e} q_out={q_out:.3e} c_out={c_out:.3e}".format(
+                attempt=row["attempt"],
+                qn=row.get("base_used_quasi"),
+                weak=row.get("branch_stable"),
+                metric=row["metric_logvol"],
+                q0=row["q0"],
+                c0=row["c0"],
+                q_out=row["q_out"],
+                c_out=row["c_out"],
+            )
+        )
+
+root.joinpath("branch_stability_probe_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+PY

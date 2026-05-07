@@ -5,8 +5,12 @@ Read in this order:
 2) /home/cychou/TLTM/codex/runbooks/GLOBAL_STATUS.md
 3) /home/cychou/TLTM/codex/runbooks/task_registry.tsv
 4) /home/cychou/TLTM/codex/context/CONTEXT_STACK.md
-5) Refresh live board: bash /home/cychou/TLTM/codex/tasks/refresh_live_board.sh
-6) Read /home/cychou/TLTM/codex/runbooks/LIVE_BOARD.md
+5) /home/cychou/TLTM/codex/runbooks/SOURCE_AUDIT_BOOTSTRAP.md
+6) /home/cychou/TLTM/codex/knowledge/CODEBASE_SCAN_MANIFEST.md
+7) /home/cychou/TLTM/codex/knowledge/FULL_PROGRAM_MAP_CHECK.md
+8) /home/cychou/TLTM/codex/workspaces/kernel_correctness_audit/runbooks/STATUS.md
+9) Refresh live board if queue/output state matters: bash /home/cychou/TLTM/codex/tasks/refresh_live_board.sh
+10) Read /home/cychou/TLTM/codex/runbooks/LIVE_BOARD.md if refreshed
 
 Then choose exactly one task workspace and continue there.
 If the task is one of these, use:

@@ -1,6 +1,6 @@
 # Decisions and Risks
 
-Updated: 2026-05-01 JST
+Updated: 2026-05-07 JST
 
 ## Confirmed decisions
 - Keep codex workspace isolated at `TLTM/codex`.
@@ -11,6 +11,18 @@ Updated: 2026-05-01 JST
 ## Key technical decision
 - Reverse gate must not depend on whether fallback was triggered.
 - Rationale: experiment intent requires comparable RG enforcement for nofb/withfb accepted proposals.
+- Production solver/fallback/post-refine counters must describe only the forward proposal path, not internal RG diagnostic replay.
+- Reverse gate must check the full carried local state used downstream: `x`, `z`, `jac`, and momentum.
+- Stage3 production configs currently require `warmup_cycles_optional = 0`; nonzero warmup must be implemented explicitly before use.
+- Each Stage3 seed/method output should include `run_manifest.json` so env-driven algorithm settings are reproducible outside chat context.
+
+## Pre-production hardening on 2026-05-07
+- Added stats suppression around reverse-gate internal replay to prevent counter contamination.
+- Replaced Metropolis `h_final == 0` failure sentinel with explicit `proposal_ok` plus NaN/Inf guards.
+- Added RG `jac` consistency check.
+- Added Stage3 multiseed warmup fail-fast guard.
+- Added Stage3 per-seed/method run manifests.
+- Added merged CSV post-refine columns so downstream analysis can read the same fields shown in reports.
 
 ## Operational risks
 1. Queue congestion can dominate wall-clock completion.

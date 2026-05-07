@@ -1,0 +1,246 @@
+#!/bin/bash
+#PBS -N kskipEQ
+#PBS -q C8
+#PBS -l select=1:ncpus=4:mpiprocs=4:mem=8gb
+#PBS -l walltime=00:45:00
+#PBS -o /lustre1/home/cychou/TLTM/output/logs/kernel_correctness_audit/post_refine_skip_equivalence_probe_20260507.pbs.out
+#PBS -e /lustre1/home/cychou/TLTM/output/logs/kernel_correctness_audit/post_refine_skip_equivalence_probe_20260507.pbs.err
+
+set -euo pipefail
+
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+
+export QN_REVERSE_GATE_ENABLED=1
+export QN_REVERSE_GATE_TOL=1e-8
+export QN_S1_PROBE_MAX_ITER=28
+export QN_S1_NEAR_RESCUE_ENABLED=0
+export QN_S1_NONNEAR_RESCUE_ENABLED=0
+export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
+export QN_QUASI_TOL_OVERRIDE=1e-13
+export QN_POST_NEWTON_REFINE_ENABLED=1
+export QN_POST_NEWTON_REFINE_MAX_ITER=20
+export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
+
+cd /lustre1/home/cychou/TLTM
+
+TLTM_ROOT=$(pwd)
+AUDIT_ROOT="output/tests/kernel_correctness_audit/post_refine_skip_equivalence_probe_20260507"
+LOG_ROOT="output/logs/kernel_correctness_audit/post_refine_skip_equivalence_probe_20260507"
+WORK_DIR="${AUDIT_ROOT}/work"
+
+rm -rf "${AUDIT_ROOT}" "${LOG_ROOT}"
+mkdir -p "${WORK_DIR}/data" "${LOG_ROOT}"
+
+python3 - <<'PY'
+from pathlib import Path
+
+src = Path("data/parameters.dat")
+dst = Path("output/tests/kernel_correctness_audit/post_refine_skip_equivalence_probe_20260507/work/data/parameters.dat")
+updates = {
+    "trajectory_length": "2",
+    "integration_steps": "20",
+    "initial_flow_time": "0.35",
+    "constraint_tol": "1.0d-13",
+    "enable_quasi_fallback": "true",
+    "x_history_file": "./output/x_history.dat",
+    "z_history_file": "./output/z_history.dat",
+    "phi_history_file": "./output/phi_history.dat",
+}
+lines = []
+seen = set()
+for raw in src.read_text().splitlines():
+    stripped = raw.strip()
+    if "=" not in stripped or stripped.startswith("#"):
+        lines.append(raw)
+        continue
+    key, _ = stripped.split("=", 1)
+    key = key.strip()
+    if key in updates:
+        lines.append(f"{key} = {updates[key]}")
+        seen.add(key)
+    else:
+        lines.append(raw)
+for key, value in updates.items():
+    if key not in seen:
+        lines.append(f"{key} = {value}")
+dst.write_text("\n".join(lines) + "\n")
+PY
+
+make -C build OMP=0 ../bin/probe_hmc_volume > "${LOG_ROOT}/build_probe_hmc_volume.log" 2>&1
+
+for mode in skip_on skip_off; do
+  if [[ "${mode}" == "skip_on" ]]; then
+    skip_enabled=1
+  else
+    skip_enabled=0
+  fi
+  (
+    cd "${WORK_DIR}"
+    QN_POST_NEWTON_REFINE_SKIP_ENABLED="${skip_enabled}" \
+    HMC_VOLUME_OUT_CSV="${TLTM_ROOT}/${AUDIT_ROOT}/${mode}_eps_1em7.csv" \
+    HMC_VOLUME_DETAIL_CSV="${TLTM_ROOT}/${AUDIT_ROOT}/${mode}_detail_eps_1em7.csv" \
+    HMC_VOLUME_DETAIL_ALL=1 \
+    HMC_VOLUME_SAMPLE_LIMIT=300 \
+    HMC_VOLUME_CANDIDATE_LIMIT=1200 \
+    HMC_VOLUME_FD_EPS=1e-7 \
+    HMC_VOLUME_FLOW_TIME=0.35 \
+    HMC_VOLUME_Q_SPAN=1.5 \
+    HMC_VOLUME_C_SPAN=1.0 \
+    "${TLTM_ROOT}/bin/probe_hmc_volume" \
+      > "${TLTM_ROOT}/${LOG_ROOT}/${mode}_eps_1em7.out" \
+      2> "${TLTM_ROOT}/${LOG_ROOT}/${mode}_eps_1em7.err"
+  )
+done
+
+python3 - <<'PY'
+import csv
+import json
+import math
+from pathlib import Path
+
+root = Path("output/tests/kernel_correctness_audit/post_refine_skip_equivalence_probe_20260507")
+tol_state = 1.0e-8
+
+float_cols = ["q_in", "c_in", "raw_det", "metric_logvol", "q_out", "c_out", "jac_out_abs"]
+int_cols = [
+    "case_idx",
+    "attempt",
+    "newton_delta",
+    "quasi_delta",
+    "failed_delta",
+    "post_refine_attempt_delta",
+    "post_refine_skip_delta",
+    "post_refine_success_delta",
+    "post_refine_fail_delta",
+    "rg_candidate_delta",
+    "rg_pass_delta",
+    "rg_reject_delta",
+]
+
+def parse_detail(path):
+    rows = {}
+    with path.open(newline="") as fobj:
+        reader = csv.DictReader(fobj)
+        for row in reader:
+            for col in int_cols:
+                row[col] = int(row[col])
+            for col in float_cols:
+                row[col] = float(row[col].replace("D", "E"))
+            rows[(row["attempt"], row["point_label"])] = row
+    return rows
+
+def truth(row, key):
+    return row.get(key) == "T"
+
+skip_on = parse_detail(root / "skip_on_detail_eps_1em7.csv")
+skip_off = parse_detail(root / "skip_off_detail_eps_1em7.csv")
+common_keys = sorted(set(skip_on) & set(skip_off))
+
+rows = []
+for key in common_keys:
+    lhs = skip_on[key]
+    rhs = skip_off[key]
+    if not (truth(lhs, "ok") and truth(rhs, "ok")):
+        continue
+    if not (truth(lhs, "used_quasi") or truth(rhs, "used_quasi")):
+        continue
+    item = {
+        "attempt": key[0],
+        "point_label": key[1],
+        "used_quasi_on": truth(lhs, "used_quasi"),
+        "used_quasi_off": truth(rhs, "used_quasi"),
+        "dq_out": rhs["q_out"] - lhs["q_out"],
+        "dc_out": rhs["c_out"] - lhs["c_out"],
+        "djac_out_abs": rhs["jac_out_abs"] - lhs["jac_out_abs"],
+        "dmetric_logvol": rhs["metric_logvol"] - lhs["metric_logvol"],
+        "on_counters": {col: lhs[col] for col in int_cols[2:]},
+        "off_counters": {col: rhs[col] for col in int_cols[2:]},
+    }
+    item["state_inf"] = max(abs(item["dq_out"]), abs(item["dc_out"]), abs(item["djac_out_abs"]))
+    rows.append(item)
+
+bad = [row for row in rows if row["state_inf"] > tol_state]
+max_state = max((row["state_inf"] for row in rows), default=math.nan)
+max_dq = max((abs(row["dq_out"]) for row in rows), default=math.nan)
+max_dc = max((abs(row["dc_out"]) for row in rows), default=math.nan)
+max_djac = max((abs(row["djac_out_abs"]) for row in rows), default=math.nan)
+max_dmetric = max((abs(row["dmetric_logvol"]) for row in rows), default=math.nan)
+
+counter_transition_counts = {}
+for row in rows:
+    transitions = []
+    for col in int_cols[2:]:
+        if row["on_counters"][col] != row["off_counters"][col]:
+            transitions.append(f"{col}:{row['on_counters'][col]}->{row['off_counters'][col]}")
+    key = "|".join(transitions) if transitions else "same"
+    counter_transition_counts[key] = counter_transition_counts.get(key, 0) + 1
+
+status = "PASS" if rows and not bad else "FAIL"
+payload = {
+    "status": status,
+    "tol_state": tol_state,
+    "skip_on_detail_rows": len(skip_on),
+    "skip_off_detail_rows": len(skip_off),
+    "common_detail_rows": len(common_keys),
+    "compared_qn_rows": len(rows),
+    "bad_rows": len(bad),
+    "max_state_inf": max_state,
+    "max_abs_dq_out": max_dq,
+    "max_abs_dc_out": max_dc,
+    "max_abs_djac_out_abs": max_djac,
+    "max_abs_dmetric_logvol": max_dmetric,
+    "counter_transition_counts": counter_transition_counts,
+    "first_bad_rows": bad[:20],
+    "largest_rows": sorted(rows, key=lambda row: row["state_inf"], reverse=True)[:20],
+}
+root.joinpath("post_refine_skip_equivalence_results.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+lines = [
+    "# Post-Refine Skip Equivalence Probe Report",
+    "",
+    f"status: `{status}`",
+    f"state tolerance: `{tol_state:.1e}`",
+    "",
+    "## Scope",
+    "- Compare deterministic map outputs with post-refine skip enabled vs disabled.",
+    "- Uses the same withfb p28 RG settings and eps `1e-7` as the branch-stability probes.",
+    "- Detail rows include base and finite-difference perturbation points for each kept candidate.",
+    "- Primary comparison uses `q_out`, `c_out`, and `jac_out_abs` in the local tangent chart.",
+    "",
+    "## Summary",
+    f"- skip_on detail rows: {len(skip_on)}",
+    f"- skip_off detail rows: {len(skip_off)}",
+    f"- common detail rows: {len(common_keys)}",
+    f"- compared QN rows: {len(rows)}",
+    f"- rows above tolerance: {len(bad)}",
+    f"- max state_inf: {max_state:.3e}",
+    f"- max |dq_out|: {max_dq:.3e}",
+    f"- max |dc_out|: {max_dc:.3e}",
+    f"- max |djac_out_abs|: {max_djac:.3e}",
+    f"- max |dmetric_logvol|: {max_dmetric:.3e}",
+    "",
+    "## Counter Transitions",
+]
+for transition, count in sorted(counter_transition_counts.items(), key=lambda item: (-item[1], item[0])):
+    lines.append(f"- {count}: {transition}")
+
+lines.extend(["", "## Largest State Differences"])
+for row in payload["largest_rows"][:10]:
+    lines.append(
+        "- attempt={attempt} point={point_label} state_inf={state_inf:.3e} "
+        "dq={dq_out:.3e} dc={dc_out:.3e} djac={djac_out_abs:.3e} dmetric={dmetric_logvol:.3e}".format(**row)
+    )
+
+root.joinpath("post_refine_skip_equivalence_probe_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+if status != "PASS":
+    raise SystemExit(2)
+PY

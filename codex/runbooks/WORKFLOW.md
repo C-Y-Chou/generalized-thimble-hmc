@@ -24,16 +24,31 @@ Write task-specific execution state into:
 - `workspaces/<task_slug>/state/session_log.md`
 - `workspaces/<task_slug>/state/ownership.tsv`
 
-## 4. Execute on compute nodes
+## 4. Git gate before validation/production
+- Commit production-relevant code/config/PBS/docs changes before submitting jobs.
+- Push the current branch to `origin` before submitting validation or production jobs.
+- Record the pushed branch and commit SHA in the task workspace.
+- Follow `/home/cychou/TLTM/codex/runbooks/GIT_WORKFLOW.md`.
+
+Required checks:
+```bash
+git status -sb
+git rev-parse --abbrev-ref HEAD
+git rev-parse HEAD
+git ls-remote origin "$(git rev-parse --abbrev-ref HEAD)"
+```
+
+## 5. Execute on compute nodes
 - Use PBS templates or task-local scripts.
 - Submit via `qsub`.
 - Monitor via `qstat`.
 
-## 5. Continuous state maintenance
+## 6. Continuous state maintenance
 - After every submit/cancel/requeue/merge action, run:
   - `bash /home/cychou/TLTM/codex/tasks/refresh_live_board.sh`
 - If a task-specific status changed, append the change to that workspace `state/session_log.md`.
 
-## 6. Reproducibility rule
+## 7. Reproducibility rule
 - No ad-hoc hidden knobs.
 - Every task env var must be recorded in that task's `run_manifest.env`.
+- Every production run must record the pushed git commit SHA.

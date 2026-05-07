@@ -14,6 +14,9 @@ __pycache__/
 # Runtime outputs / large artifacts
 output/
 
+# Local document extraction scratch files
+docs/*.extract_head.txt
+
 # PBS runtime stdout/stderr artifacts
 *.pbs.out
 *.pbs.err

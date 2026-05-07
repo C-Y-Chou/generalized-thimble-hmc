@@ -1,0 +1,198 @@
+#!/bin/bash
+#PBS -N krevS
+#PBS -q C8
+#PBS -l select=1:ncpus=4:mpiprocs=4:mem=8gb
+#PBS -l walltime=00:30:00
+#PBS -o /lustre1/home/cychou/TLTM/output/logs/kernel_correctness_audit/successful_reversibility_probe_20260507.pbs.out
+#PBS -e /lustre1/home/cychou/TLTM/output/logs/kernel_correctness_audit/successful_reversibility_probe_20260507.pbs.err
+
+set -euo pipefail
+
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+
+export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
+export TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-13
+export QN_REVERSE_GATE_ENABLED=1
+export QN_REVERSE_GATE_TOL=1e-8
+export QN_S1_PROBE_MAX_ITER=28
+export QN_S1_NEAR_RESCUE_ENABLED=0
+export QN_S1_NONNEAR_RESCUE_ENABLED=0
+export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
+export QN_QUASI_TOL_OVERRIDE=1e-13
+export QN_POST_NEWTON_REFINE_ENABLED=1
+export QN_POST_NEWTON_REFINE_MAX_ITER=20
+
+export HMC_REVERSIBILITY_PROBE_LIMIT=100
+export HMC_REVERSIBILITY_PROBE_FALLBACK_ONLY=0
+
+cd /lustre1/home/cychou/TLTM
+
+AUDIT_ROOT="output/tests/kernel_correctness_audit/successful_reversibility_probe_20260507"
+LOG_ROOT="output/logs/kernel_correctness_audit/successful_reversibility_probe_20260507"
+
+rm -rf "${AUDIT_ROOT}" "${LOG_ROOT}"
+mkdir -p "${AUDIT_ROOT}" "${LOG_ROOT}"
+
+python3 scripts/run_stage3_3_multiseed.py \
+  --repo-root . \
+  --config docs/stage_3_4_t035_smoke_post_newton_refine_500.json \
+  --methods fb \
+  --max-seeds 1 \
+  --output-subdir "${AUDIT_ROOT}/full_run" \
+  --logs-subdir "${LOG_ROOT}/full_run" \
+  --log-prefix "successful_rev" \
+  --report-title "Kernel successful-proposal reversibility probe" \
+  --schedule task \
+  --task-method-order fb_first \
+  --jobs 1 \
+  --stage2-threads 1 \
+  --eval-threads 1
+
+python3 - <<'PY'
+import json
+import math
+import re
+from pathlib import Path
+
+root = Path("output/tests/kernel_correctness_audit/successful_reversibility_probe_20260507")
+log_root = Path("output/logs/kernel_correctness_audit/successful_reversibility_probe_20260507")
+rev_tol = 1.0e-8
+
+value_re = re.compile(r"([A-Za-z_]+)=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[EeDd][+-]?\d+)?|[TF])")
+
+def parse_value(text):
+    if text == "T":
+        return True
+    if text == "F":
+        return False
+    if any(ch in text for ch in ".EeDd"):
+        return float(text.replace("D", "E").replace("d", "e"))
+    return int(text)
+
+records = []
+seen = set()
+for base in (log_root, root):
+    if not base.exists():
+        continue
+    for path in sorted(p for p in base.rglob("*") if p.is_file()):
+        try:
+            content = path.read_text(errors="replace")
+        except OSError:
+            continue
+        for line in content.splitlines():
+            if "[REVCHK]" not in line:
+                continue
+            key = (str(path), line)
+            if key in seen:
+                continue
+            seen.add(key)
+            rec = {"source": str(path), "line": line}
+            for name, value in value_re.findall(line):
+                rec[name] = parse_value(value)
+            records.append(rec)
+
+def finite_float(rec, name):
+    value = rec.get(name, math.inf)
+    return isinstance(value, (int, float)) and math.isfinite(float(value))
+
+def below_tol(rec, name):
+    return finite_float(rec, name) and abs(float(rec[name])) <= rev_tol
+
+bad = []
+for rec in records:
+    ok = (
+        rec.get("forward_ok") is True
+        and rec.get("reverse_ok") is True
+        and below_tol(rec, "dx_inf")
+        and below_tol(rec, "dz_inf")
+        and below_tol(rec, "dj_inf")
+        and below_tol(rec, "dp_inf")
+    )
+    rec["rev_metric_ok"] = ok
+    if not ok:
+        bad.append(rec)
+
+fallback_records = [r for r in records if r.get("fallback_used") is True]
+nonfallback_records = [r for r in records if r.get("fallback_used") is False]
+
+def max_field(name):
+    vals = [abs(float(r[name])) for r in records if finite_float(r, name)]
+    return max(vals) if vals else math.nan
+
+if not records:
+    status = "INCONCLUSIVE"
+elif bad:
+    status = "FAIL"
+else:
+    status = "PASS"
+
+payload = {
+    "status": status,
+    "rev_tol": rev_tol,
+    "total_revchk_records": len(records),
+    "fallback_used_records": len(fallback_records),
+    "nonfallback_records": len(nonfallback_records),
+    "bad_records": len(bad),
+    "max_dx_inf": max_field("dx_inf"),
+    "max_dz_inf": max_field("dz_inf"),
+    "max_dj_inf": max_field("dj_inf"),
+    "max_dp_inf": max_field("dp_inf"),
+    "first_bad_records": bad[:10],
+    "records": records,
+}
+root.joinpath("successful_reversibility_probe_results.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+lines = [
+    "# Successful-Proposal Reversibility Probe Report",
+    "",
+    f"status: `{status}`",
+    f"rev_tol: `{rev_tol:.1e}`",
+    "",
+    "## Scope",
+    "- Uses the main HMC `REVCHK` hook after successful forward proposals.",
+    "- Checks `R(F(y)) = y` through `dx_inf`, `dz_inf`, `dj_inf`, and `dp_inf`.",
+    "- Current settings: withfb, RG enabled, p28, `cttol=1e-13`, `QN tol=1e-13`, post-refine enabled.",
+    "- This does not test volume preservation or proposal-density / branch-measure symmetry.",
+    "",
+    "## Totals",
+    f"- REVCHK records: {len(records)}",
+    f"- fallback_used records: {len(fallback_records)}",
+    f"- nonfallback records: {len(nonfallback_records)}",
+    f"- bad records: {len(bad)}",
+    f"- max dx_inf: {max_field('dx_inf'):.16e}",
+    f"- max dz_inf: {max_field('dz_inf'):.16e}",
+    f"- max dj_inf: {max_field('dj_inf'):.16e}",
+    f"- max dp_inf: {max_field('dp_inf'):.16e}",
+]
+if bad:
+    lines.extend(["", "## First Bad Records"])
+    for rec in bad[:10]:
+        lines.append(
+            "- probe={probe} fallback_used={fallback_used} forward_ok={forward_ok} reverse_ok={reverse_ok} "
+            "dx={dx_inf:.3e} dz={dz_inf:.3e} dj={dj_inf:.3e} dp={dp_inf:.3e} source={source}".format(
+                probe=rec.get("probe", "?"),
+                fallback_used=rec.get("fallback_used", "?"),
+                forward_ok=rec.get("forward_ok", "?"),
+                reverse_ok=rec.get("reverse_ok", "?"),
+                dx_inf=float(rec.get("dx_inf", math.nan)),
+                dz_inf=float(rec.get("dz_inf", math.nan)),
+                dj_inf=float(rec.get("dj_inf", math.nan)),
+                dp_inf=float(rec.get("dp_inf", math.nan)),
+                source=rec.get("source", "?"),
+            )
+        )
+root.joinpath("successful_reversibility_probe_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+if status == "FAIL":
+    raise SystemExit(2)
+if status == "INCONCLUSIVE":
+    raise SystemExit(3)
+PY

@@ -1,0 +1,218 @@
+#!/bin/bash
+#PBS -N kvol
+#PBS -q C8
+#PBS -l select=1:ncpus=4:mpiprocs=4:mem=8gb
+#PBS -l walltime=01:00:00
+#PBS -o /lustre1/home/cychou/TLTM/output/logs/kernel_correctness_audit/volume_probe_20260507.pbs.out
+#PBS -e /lustre1/home/cychou/TLTM/output/logs/kernel_correctness_audit/volume_probe_20260507.pbs.err
+
+set -euo pipefail
+
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+
+export QN_REVERSE_GATE_ENABLED=1
+export QN_REVERSE_GATE_TOL=1e-8
+export QN_S1_PROBE_MAX_ITER=28
+export QN_S1_NEAR_RESCUE_ENABLED=0
+export QN_S1_NONNEAR_RESCUE_ENABLED=0
+export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
+export QN_QUASI_TOL_OVERRIDE=1e-13
+export QN_POST_NEWTON_REFINE_ENABLED=1
+export QN_POST_NEWTON_REFINE_MAX_ITER=20
+export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
+
+cd /lustre1/home/cychou/TLTM
+
+TLTM_ROOT=$(pwd)
+AUDIT_ROOT="output/tests/kernel_correctness_audit/volume_probe_20260507"
+LOG_ROOT="output/logs/kernel_correctness_audit/volume_probe_20260507"
+WORK_DIR="${AUDIT_ROOT}/work"
+
+rm -rf "${AUDIT_ROOT}" "${LOG_ROOT}"
+mkdir -p "${WORK_DIR}/data" "${LOG_ROOT}"
+
+python3 - <<'PY'
+from pathlib import Path
+
+src = Path("data/parameters.dat")
+dst = Path("output/tests/kernel_correctness_audit/volume_probe_20260507/work/data/parameters.dat")
+updates = {
+    "trajectory_length": "2",
+    "integration_steps": "20",
+    "initial_flow_time": "0.35",
+    "constraint_tol": "1.0d-13",
+    "enable_quasi_fallback": "true",
+    "x_history_file": "./output/x_history.dat",
+    "z_history_file": "./output/z_history.dat",
+    "phi_history_file": "./output/phi_history.dat",
+}
+lines = []
+seen = set()
+for raw in src.read_text().splitlines():
+    stripped = raw.strip()
+    if "=" not in stripped or stripped.startswith("#"):
+        lines.append(raw)
+        continue
+    key, _ = stripped.split("=", 1)
+    key = key.strip()
+    if key in updates:
+        lines.append(f"{key} = {updates[key]}")
+        seen.add(key)
+    else:
+        lines.append(raw)
+for key, value in updates.items():
+    if key not in seen:
+        lines.append(f"{key} = {value}")
+dst.write_text("\n".join(lines) + "\n")
+PY
+
+make -C build OMP=0 ../bin/probe_hmc_volume > "${LOG_ROOT}/build_probe_hmc_volume.log" 2>&1
+
+for eps in 3e-5 1e-5 3e-6; do
+  label=$(echo "${eps}" | sed 's/+//g; s/-/m/g; s/\\./p/g')
+  (
+    cd "${WORK_DIR}"
+    HMC_VOLUME_OUT_CSV="${TLTM_ROOT}/${AUDIT_ROOT}/volume_eps_${label}.csv" \
+    HMC_VOLUME_SAMPLE_LIMIT=16 \
+    HMC_VOLUME_CANDIDATE_LIMIT=600 \
+    HMC_VOLUME_FD_EPS="${eps}" \
+    HMC_VOLUME_FLOW_TIME=0.35 \
+    HMC_VOLUME_Q_SPAN=1.5 \
+    HMC_VOLUME_C_SPAN=1.0 \
+    "${TLTM_ROOT}/bin/probe_hmc_volume" \
+      > "${TLTM_ROOT}/${LOG_ROOT}/volume_eps_${label}.out" \
+      2> "${TLTM_ROOT}/${LOG_ROOT}/volume_eps_${label}.err"
+  )
+done
+
+python3 - <<'PY'
+import csv
+import json
+import math
+from pathlib import Path
+
+root = Path("output/tests/kernel_correctness_audit/volume_probe_20260507")
+metric_tol = 1.0e-4
+min_stable_per_eps = 4
+
+all_rows = []
+per_eps = {}
+for path in sorted(root.glob("volume_eps_*.csv")):
+    eps_label = path.stem.replace("volume_eps_", "")
+    rows = []
+    with path.open(newline="") as fobj:
+        reader = csv.DictReader(fobj)
+        for row in reader:
+            row["eps_label"] = eps_label
+            for key in ("case_idx", "attempt", "rg_candidate_delta", "rg_pass_delta", "rg_reject_delta"):
+                row[key] = int(row[key])
+            for key in (
+                "q0",
+                "c0",
+                "raw_det",
+                "raw_logabsdet",
+                "metric_logvol",
+                "jac_in_abs",
+                "jac_out_abs",
+                "q_out",
+                "c_out",
+            ):
+                row[key] = float(row[key].replace("D", "E"))
+            rows.append(row)
+            all_rows.append(row)
+    per_eps[eps_label] = rows
+
+def is_true(row, key):
+    return row.get(key) == "T"
+
+def finite(value):
+    return math.isfinite(float(value))
+
+summary = {}
+bad_rows = []
+status = "PASS"
+for eps_label, rows in sorted(per_eps.items()):
+    base_ok = [r for r in rows if is_true(r, "base_ok")]
+    fd_ok = [r for r in rows if is_true(r, "fd_ok")]
+    stable = [
+        r
+        for r in rows
+        if is_true(r, "base_ok")
+        and is_true(r, "fd_ok")
+        and is_true(r, "branch_stable")
+        and finite(r["metric_logvol"])
+    ]
+    used_quasi = [r for r in stable if is_true(r, "base_used_quasi")]
+    max_metric = max((abs(r["metric_logvol"]) for r in stable), default=math.nan)
+    max_raw = max((abs(r["raw_logabsdet"]) for r in stable), default=math.nan)
+    bad_metric = [r for r in stable if abs(r["metric_logvol"]) > metric_tol]
+    if len(stable) < min_stable_per_eps:
+        status = "INCONCLUSIVE"
+    if bad_metric:
+        status = "FAIL"
+        bad_rows.extend(bad_metric[:10])
+    summary[eps_label] = {
+        "rows": len(rows),
+        "base_ok": len(base_ok),
+        "fd_ok": len(fd_ok),
+        "stable": len(stable),
+        "stable_used_quasi": len(used_quasi),
+        "max_abs_metric_logvol": max_metric,
+        "max_abs_raw_logabsdet": max_raw,
+        "bad_metric_rows": len(bad_metric),
+    }
+
+if not per_eps:
+    status = "INCONCLUSIVE"
+
+payload = {
+    "status": status,
+    "metric_tol": metric_tol,
+    "min_stable_per_eps": min_stable_per_eps,
+    "summary": summary,
+    "bad_rows": bad_rows[:20],
+}
+root.joinpath("volume_probe_results.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+lines = [
+    "# Local Volume Probe Report",
+    "",
+    f"status: `{status}`",
+    f"metric-corrected tolerance: `{metric_tol:.1e}`",
+    "",
+    "## Scope",
+    "- 1D tangent-bundle finite-difference audit of the full withfb p28 RG trajectory map.",
+    "- Local coordinates are `(q, c)` with tangent momentum `p = J(q) c`.",
+    "- Reports raw `log|det d(q',c')/d(q,c)|` and metric-corrected `log|det| + 2log|J_out| - 2log|J_in|`.",
+    "- The metric-corrected value is the primary volume-preservation diagnostic in these coordinates.",
+    "",
+    "## Per-Epsilon Summary",
+]
+for eps_label, item in sorted(summary.items()):
+    lines.append(
+        "- {eps}: rows={rows} base_ok={base_ok} fd_ok={fd_ok} stable={stable} stable_used_quasi={stable_used_quasi} "
+        "max_abs_metric={max_abs_metric_logvol:.3e} max_abs_raw={max_abs_raw_logabsdet:.3e} bad_metric={bad_metric_rows}".format(
+            eps=eps_label, **item
+        )
+    )
+
+if bad_rows:
+    lines.extend(["", "## First Bad Rows"])
+    for row in bad_rows[:10]:
+        lines.append(json.dumps(row, sort_keys=True))
+
+root.joinpath("volume_probe_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+if status == "FAIL":
+    raise SystemExit(2)
+if status == "INCONCLUSIVE":
+    raise SystemExit(3)
+PY
