@@ -35,6 +35,7 @@ METHOD_SPECS = {
         "fallback_enabled": True,
         "env_overrides": {
             "QN_POST_NEWTON_REFINE_ENABLED": "1",
+            "QN_POST_NEWTON_REFINE_SKIP_ENABLED": "1",
             "QN_POST_NEWTON_REFINE_MAX_ITER": "20",
         },
     },
@@ -255,6 +256,11 @@ def read_protocol(repo_root, config_path):
         raise ValueError("cycles_per_seed must be >= 1.")
     if warmup < 0:
         raise ValueError("warmup_cycles_optional must be >= 0.")
+    if warmup != 0:
+        raise ValueError(
+            "warmup_cycles_optional must be 0 for Stage3 multiseed runs; "
+            "run_tltm_stage2 does not discard/evaluate a separate warmup window."
+        )
 
     setup = {
         "ladder": [float(x) for x in frozen["flow_time_ladder"]],
@@ -314,6 +320,28 @@ def configure_thread_env(env, n_threads):
     env["MKL_NUM_THREADS"] = str(n_threads)
     env.setdefault("OMP_PROC_BIND", "true")
     env.setdefault("OMP_PLACES", "cores")
+
+
+def selected_manifest_env(env):
+    selected = {}
+    exact_keys = {
+        "CHAIN_RNG_SEED",
+        "OMP_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+    }
+    prefixes = (
+        "TLTM_STAGE2_",
+        "QN_",
+        "S1_",
+        "CONSTRAINT_",
+    )
+    for key, value in sorted(env.items()):
+        if key in exact_keys or any(key.startswith(prefix) for prefix in prefixes):
+            selected[key] = value
+    return selected
 
 
 def render_parameters_text(
@@ -850,6 +878,34 @@ def run_one_seed(
         env_stage2["TLTM_STAGE2_INIT_MODE"] = setup["stage2_init_mode"]
     if setup.get("write_all_replica_history", False):
         env_stage2["TLTM_STAGE2_ALL_REPLICA_HISTORY_DIR"] = str(all_replica_history_dir)
+
+    manifest = {
+        "method": method_name,
+        "fallback_enabled": bool(fallback_enabled),
+        "seed": int(seed_id),
+        "config_file": str(setup["config_file"]),
+        "schedule": schedule_name,
+        "stage2_threads": int(stage2_threads),
+        "eval_threads": int(eval_threads),
+        "setup": {
+            "ladder": setup["ladder"],
+            "max_flow_time": setup["max_flow_time"],
+            "trajectory_length": setup["trajectory_length"],
+            "integration_steps": setup["integration_steps"],
+            "local_updates_per_cycle": setup["local_updates_per_cycle"],
+            "cycles_per_seed": setup["cycles_per_seed"],
+            "warmup_cycles": setup["warmup_cycles"],
+        },
+        "stage2_env": selected_manifest_env(env_stage2),
+        "paths": {
+            "summary_file": str(summary_file),
+            "label_trace_file": str(label_trace_file),
+            "cold_z_history_file": str(cold_z_history_file),
+            "cold_phi_history_file": str(cold_phi_history_file),
+            "parameters_file": str(work_data_dir / "parameters.dat"),
+        },
+    }
+    (out_root / "run_manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
     run_command([str(repo_root / "bin" / "run_tltm_stage2")], env_stage2, work_build_dir, stage2_log)
 

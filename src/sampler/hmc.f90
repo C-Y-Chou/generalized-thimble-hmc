@@ -13,7 +13,7 @@ module hmc
 contains
 
    subroutine integrate_hmc_proposal(state_x, state_z, step_size, num_steps, &
-                                     final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf)
+                                     final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok)
       implicit none
       real(dp), intent(in) :: state_x(:)
       complex(dp), intent(in) :: state_z(:)
@@ -25,8 +25,11 @@ contains
       complex(dp), intent(out) :: final_z(:)
       real(dp), intent(out) :: initial_hamiltonian
       real(dp), intent(out) :: final_hamiltonian
+      logical, intent(out), optional :: proposal_ok
+      logical :: local_ok
 
-      call rattle(state_x, state_z, step_size, num_steps, final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf)
+      call rattle(state_x, state_z, step_size, num_steps, final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, local_ok)
+      if (present(proposal_ok)) proposal_ok = local_ok
    end subroutine integrate_hmc_proposal
 
    subroutine integrate_hmc_warmup(state_x, state_z, step_size, num_steps, &
@@ -47,7 +50,7 @@ contains
    end subroutine integrate_hmc_warmup
 
    subroutine rattle(state_x, state_z, step_size, num_steps, &
-                     final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf)
+                     final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -61,6 +64,7 @@ contains
       complex(dp), intent(out) :: final_z(:)
       real(dp), intent(out) :: initial_hamiltonian
       real(dp), intent(out) :: final_hamiltonian
+      logical, intent(out) :: proposal_ok
 
       integer :: step, state_size
       real(dp) :: integration_step_size
@@ -84,9 +88,11 @@ contains
 
       has_error = .false.
       method_converged = .false.
+      proposal_ok = .false.
       state_size = size(state_z)
 
       if (size(final_x) /= size(state_x) .or. size(final_z) /= state_size) then
+         initial_hamiltonian = 0.0_dp
          final_hamiltonian = 0.0_dp
          jacf = jaci
          return
@@ -175,6 +181,7 @@ contains
                                          final_hamiltonian - initial_hamiltonian, reverse_final_hamiltonian - reverse_initial_hamiltonian, &
                                          dx_inf, dz_inf, dj_inf, dp_inf)
       end if
+      proposal_ok = .true.
       call deallocate_all()
       return
 

@@ -108,8 +108,26 @@ module constraint_solver_stats_mod
    integer(int64), save :: reverse_gate_candidate_count(constraint_reverse_gate_path_count) = 0_int64
    integer(int64), save :: reverse_gate_pass_count(constraint_reverse_gate_path_count) = 0_int64
    integer(int64), save :: reverse_gate_reject_count(constraint_reverse_gate_path_count) = 0_int64
+   integer, save :: constraint_solver_stats_suppression_depth = 0
 
 contains
+
+   subroutine push_constraint_solver_stats_suppression()
+      implicit none
+      constraint_solver_stats_suppression_depth = constraint_solver_stats_suppression_depth + 1
+   end subroutine push_constraint_solver_stats_suppression
+
+   subroutine pop_constraint_solver_stats_suppression()
+      implicit none
+      if (constraint_solver_stats_suppression_depth > 0) then
+         constraint_solver_stats_suppression_depth = constraint_solver_stats_suppression_depth - 1
+      end if
+   end subroutine pop_constraint_solver_stats_suppression
+
+   logical function constraint_solver_stats_are_suppressed() result(is_suppressed)
+      implicit none
+      is_suppressed = (constraint_solver_stats_suppression_depth > 0)
+   end function constraint_solver_stats_are_suppressed
 
    subroutine reset_constraint_solver_stats()
       implicit none
@@ -172,31 +190,37 @@ contains
 
    subroutine record_constraint_solver_newton_success()
       implicit none
+      if (constraint_solver_stats_are_suppressed()) return
       newton_success_count = newton_success_count + 1_int64
    end subroutine record_constraint_solver_newton_success
 
    subroutine record_constraint_solver_quasi_success()
       implicit none
+      if (constraint_solver_stats_are_suppressed()) return
       quasi_success_count = quasi_success_count + 1_int64
    end subroutine record_constraint_solver_quasi_success
 
    subroutine record_constraint_solver_post_refine_attempt()
       implicit none
+      if (constraint_solver_stats_are_suppressed()) return
       post_refine_attempt_count = post_refine_attempt_count + 1_int64
    end subroutine record_constraint_solver_post_refine_attempt
 
    subroutine record_constraint_solver_post_refine_skip()
       implicit none
+      if (constraint_solver_stats_are_suppressed()) return
       post_refine_skip_count = post_refine_skip_count + 1_int64
    end subroutine record_constraint_solver_post_refine_skip
 
    subroutine record_constraint_solver_post_refine_success()
       implicit none
+      if (constraint_solver_stats_are_suppressed()) return
       post_refine_success_count = post_refine_success_count + 1_int64
    end subroutine record_constraint_solver_post_refine_success
 
    subroutine record_constraint_solver_post_refine_fail()
       implicit none
+      if (constraint_solver_stats_are_suppressed()) return
       post_refine_fail_count = post_refine_fail_count + 1_int64
    end subroutine record_constraint_solver_post_refine_fail
 
@@ -213,6 +237,7 @@ contains
       logical, intent(in), optional :: quasi_accepted(:), quasi_eval_ok(:)
       real(dp), intent(in), optional :: trace_valid_fraction, trace_progress_ratio, trace_regress_ratio, trace_best_over_tol
 
+      if (constraint_solver_stats_are_suppressed()) return
       if (has_complete_quasi_trace(quasi_z_proposed, quasi_z_flowed, quasi_res_norm, quasi_alpha, &
                                    quasi_iter, quasi_backtrack, quasi_attempt, quasi_accepted, quasi_eval_ok)) then
          call capture_constraint_failure_sample(z0, del_z, x0, quasi_z_proposed, quasi_z_flowed, quasi_res_norm, quasi_alpha, &
@@ -235,6 +260,7 @@ contains
       implicit none
       integer, intent(in) :: stage_code
 
+      if (constraint_solver_stats_are_suppressed()) return
       select case (stage_code)
       case (constraint_quasi_stage_probe)
          quasi_probe_attempt_count = quasi_probe_attempt_count + 1_int64
@@ -247,6 +273,7 @@ contains
       implicit none
       integer, intent(in) :: stage_code
 
+      if (constraint_solver_stats_are_suppressed()) return
       select case (stage_code)
       case (constraint_quasi_stage_probe)
          quasi_probe_success_count = quasi_probe_success_count + 1_int64
@@ -259,6 +286,7 @@ contains
       implicit none
       integer, intent(in) :: class_code
 
+      if (constraint_solver_stats_are_suppressed()) return
       select case (class_code)
       case (constraint_quasi_class_local)
          quasi_class_local_count = quasi_class_local_count + 1_int64
@@ -273,6 +301,7 @@ contains
       implicit none
       integer, intent(in) :: route_code
 
+      if (constraint_solver_stats_are_suppressed()) return
       select case (route_code)
       case (constraint_quasi_far_route_skip)
          quasi_far_route_skip_count = quasi_far_route_skip_count + 1_int64
@@ -317,6 +346,7 @@ contains
       logical, intent(in), optional :: final_resort_budget_hit
       integer, intent(in), optional :: final_resort_budget_used, final_resort_budget_limit
 
+      if (constraint_solver_stats_are_suppressed()) return
       fail_count = fail_count + 1_int64
       if (present(z0) .and. present(del_z) .and. present(x0)) then
          if (has_complete_quasi_trace(quasi_z_proposed, quasi_z_flowed, quasi_res_norm, quasi_alpha, &
@@ -356,36 +386,43 @@ contains
 
    subroutine record_constraint_near_fail_candidate()
       implicit none
+      if (constraint_solver_stats_are_suppressed()) return
       near_fail_candidate_count = near_fail_candidate_count + 1_int64
    end subroutine record_constraint_near_fail_candidate
 
    subroutine record_constraint_far_fail()
       implicit none
+      if (constraint_solver_stats_are_suppressed()) return
       far_fail_count = far_fail_count + 1_int64
    end subroutine record_constraint_far_fail
 
    subroutine record_constraint_near_rescue_attempt()
       implicit none
+      if (constraint_solver_stats_are_suppressed()) return
       near_rescue_attempt_count = near_rescue_attempt_count + 1_int64
    end subroutine record_constraint_near_rescue_attempt
 
    subroutine record_constraint_near_rescue_success()
       implicit none
+      if (constraint_solver_stats_are_suppressed()) return
       near_rescue_success_count = near_rescue_success_count + 1_int64
    end subroutine record_constraint_near_rescue_success
 
    subroutine record_constraint_near_unusable()
       implicit none
+      if (constraint_solver_stats_are_suppressed()) return
       near_unusable_count = near_unusable_count + 1_int64
    end subroutine record_constraint_near_unusable
 
    subroutine record_constraint_near_fail_fast()
       implicit none
+      if (constraint_solver_stats_are_suppressed()) return
       near_fail_fast_count = near_fail_fast_count + 1_int64
    end subroutine record_constraint_near_fail_fast
 
    subroutine record_constraint_far_fail_fast()
       implicit none
+      if (constraint_solver_stats_are_suppressed()) return
       far_fail_fast_count = far_fail_fast_count + 1_int64
    end subroutine record_constraint_far_fail_fast
 
@@ -395,6 +432,7 @@ contains
       integer, intent(in) :: flowzr_used, final_resort_used
       integer :: flow_use, final_use
 
+      if (constraint_solver_stats_are_suppressed()) return
       flow_use = max(0, flowzr_used)
       final_use = max(0, final_resort_used)
 
@@ -420,6 +458,7 @@ contains
       implicit none
       logical, intent(in) :: local_success
 
+      if (constraint_solver_stats_are_suppressed()) return
       quasi_global_filter_candidate_count = quasi_global_filter_candidate_count + 1_int64
       if (local_success) then
          quasi_global_filter_pass_count = quasi_global_filter_pass_count + 1_int64
@@ -439,6 +478,7 @@ contains
       logical, intent(in) :: used_class_local, used_class_mid, used_class_global
       logical, intent(in) :: used_far_skip, used_far_light, used_far_anchor
 
+      if (constraint_solver_stats_are_suppressed()) return
       call record_constraint_solver_reverse_gate_path(constraint_reverse_gate_path_total, local_success)
       if (used_probe_only) then
          call record_constraint_solver_reverse_gate_path(constraint_reverse_gate_path_probe_only, local_success)
@@ -477,6 +517,7 @@ contains
       integer, intent(in) :: path_code
       logical, intent(in) :: local_success
 
+      if (constraint_solver_stats_are_suppressed()) return
       if (path_code < 1 .or. path_code > constraint_reverse_gate_path_count) return
       reverse_gate_candidate_count(path_code) = reverse_gate_candidate_count(path_code) + 1_int64
       if (local_success) then

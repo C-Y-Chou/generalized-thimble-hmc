@@ -30,6 +30,8 @@ module hmc_integrator_core
                                            record_constraint_solver_post_refine_fail, &
                                            record_constraint_solver_post_refine_fail_capture, &
                                            record_constraint_solver_reverse_gate, &
+                                           push_constraint_solver_stats_suppression, &
+                                           pop_constraint_solver_stats_suppression, &
                                            constraint_quasi_stage_probe, constraint_quasi_stage_full, &
                                            constraint_quasi_class_local, constraint_quasi_class_mid, &
                                            constraint_quasi_class_global, &
@@ -56,6 +58,7 @@ module hmc_integrator_core
    logical, save :: s1_near_rescue_enabled = .false.
    logical, save :: s1_nonnear_rescue_enabled = .false.
    logical, save :: qn_post_newton_refine_enabled = .false.
+   logical, save :: qn_post_newton_refine_skip_enabled = .true.
    integer, save :: qn_post_newton_refine_max_iter = qn_post_newton_refine_max_iter_default
    logical, save :: qn_reverse_gate_enabled = .false.
    logical, save :: qn_reverse_gate_active = .false.
@@ -426,7 +429,7 @@ contains
                                         (.not. reverse_gate_used_near_rescue) .and. &
                                         (.not. reverse_gate_used_nonnear_route)
          reverse_gate_passed = qn_reverse_gate_accepts(state_x, state_z, initial_momentum_for_gate, &
-                                                       final_x, final_z, ws%temp_jac, momentum, step_size)
+                                                       final_x, final_z, jaci, ws%temp_jac, momentum, step_size)
          call record_constraint_solver_reverse_gate(reverse_gate_passed, reverse_gate_used_probe_only, &
                                                     reverse_gate_used_full_stage, reverse_gate_used_near_rescue, &
                                                     reverse_gate_used_nonnear_route, reverse_gate_used_class_local, &
@@ -453,37 +456,42 @@ contains
       call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
    end subroutine rattle_step_core
 
-   logical function qn_reverse_gate_accepts(state_x, state_z, initial_momentum, final_x, final_z, final_jac, final_momentum, &
-                                            step_size) result(accepts)
+   logical function qn_reverse_gate_accepts(state_x, state_z, initial_momentum, final_x, final_z, initial_jac, final_jac, &
+                                            final_momentum, step_size) result(accepts)
       implicit none
       real(dp), intent(in) :: state_x(:), initial_momentum(:), final_x(:), final_momentum(:), step_size
-      complex(dp), intent(in) :: state_z(:), final_z(:), final_jac(:, :)
+      complex(dp), intent(in) :: state_z(:), final_z(:), initial_jac(:, :), final_jac(:, :)
 
       real(dp), allocatable :: reverse_x(:), reverse_momentum(:)
       complex(dp), allocatable :: reverse_z(:), reverse_jac(:, :)
       type(rattle_step_workspace_t) :: reverse_ws
       logical :: reverse_ok
-      real(dp) :: dx_inf, dz_inf, dp_inf
+      real(dp) :: dx_inf, dz_inf, dj_inf, dp_inf
 
       accepts = .false.
       if (size(initial_momentum) /= size(final_momentum)) return
       if (size(state_x) /= size(final_x)) return
       if (size(state_z) /= size(final_z)) return
+      if (size(initial_jac, 1) /= size(final_jac, 1) .or. size(initial_jac, 2) /= size(final_jac, 2)) return
 
       allocate (reverse_x(size(final_x)), reverse_momentum(size(final_momentum)))
       allocate (reverse_z(size(final_z)), reverse_jac(size(final_jac, 1), size(final_jac, 2)))
 
       reverse_momentum = -final_momentum
       qn_reverse_gate_active = .true.
+      call push_constraint_solver_stats_suppression()
       call rattle_step_core(final_x, final_z, step_size, reverse_x, reverse_z, final_jac, reverse_jac, reverse_momentum, &
                             reverse_ok, reverse_ws)
+      call pop_constraint_solver_stats_suppression()
       qn_reverse_gate_active = .false.
 
       if (reverse_ok) then
          dx_inf = max_abs_real_local(reverse_x - state_x)
          dz_inf = max_abs_complex_local(reverse_z - state_z)
+         dj_inf = maxval(abs(reverse_jac - initial_jac))
          dp_inf = max_abs_real_local(reverse_momentum + initial_momentum)
-         accepts = (dx_inf <= qn_reverse_gate_tol .and. dz_inf <= qn_reverse_gate_tol .and. dp_inf <= qn_reverse_gate_tol)
+         accepts = (dx_inf <= qn_reverse_gate_tol .and. dz_inf <= qn_reverse_gate_tol .and. &
+                    dj_inf <= qn_reverse_gate_tol .and. dp_inf <= qn_reverse_gate_tol)
       end if
 
       call release_rattle_step_workspace(reverse_ws)
@@ -547,7 +555,7 @@ contains
       allocate (post_refine_seed_zprop(size(ws%temp_z)))
 
       call build_post_refine_seed_from_qn(ws%temp_x, final_x, qn_solution_xi, post_refine_seed, seed_ready)
-      if (seed_ready) then
+      if (qn_post_newton_refine_skip_enabled .and. seed_ready) then
          call evaluate_constraint_residual_newton_loss(ws%temp_x, ws%temp_z, post_refine_seed, post_refine_seed_residual, &
                                                        ws%del_z, seed_eval_error, refined_jl, ws%temp_jac)
          if (.not. seed_eval_error) then
@@ -921,6 +929,7 @@ contains
       s1_near_rescue_enabled = .false.
       s1_nonnear_rescue_enabled = .false.
       qn_post_newton_refine_enabled = .false.
+      qn_post_newton_refine_skip_enabled = .true.
       qn_post_newton_refine_max_iter = qn_post_newton_refine_max_iter_default
       qn_reverse_gate_enabled = .false.
       qn_reverse_gate_tol = qn_reverse_gate_tol_default
@@ -997,6 +1006,16 @@ contains
          end if
       end if
 
+      call get_environment_variable("QN_POST_NEWTON_REFINE_SKIP_ENABLED", env_value, length=env_len, status=env_stat)
+      if (env_stat == 0 .and. env_len > 0) then
+         select case (trim(adjustl(env_value(1:env_len))))
+         case ("0", "false", "FALSE", "False", "off", "OFF", "Off", "no", "NO", "No")
+            qn_post_newton_refine_skip_enabled = .false.
+         case default
+            qn_post_newton_refine_skip_enabled = .true.
+         end select
+      end if
+
       call get_environment_variable("QN_REVERSE_GATE_ENABLED", env_value, length=env_len, status=env_stat)
       if (env_stat == 0 .and. env_len > 0) then
          select case (trim(adjustl(env_value(1:env_len))))
@@ -1025,12 +1044,16 @@ contains
          end if
       end if
 
-      write (*, '(A,I0,A,I0,A,I0,A,L1,A,L1,A,L1,A,I0,A,L1,A,ES10.3,A,ES10.3)') "[INFO] s1 fallback controls: probe_iter=", s1_probe_max_iter, &
-         " near_full_iter=", s1_near_full_max_iter, " nonnear_cheap_iter=", s1_non_near_cheap_full_max_iter, &
-         " near_rescue_enabled=", s1_near_rescue_enabled, " nonnear_rescue_enabled=", s1_nonnear_rescue_enabled, &
+      write (*, *) "[INFO] s1 fallback controls: probe_iter=", s1_probe_max_iter, &
+         " near_full_iter=", s1_near_full_max_iter, &
+         " nonnear_cheap_iter=", s1_non_near_cheap_full_max_iter, &
+         " near_rescue_enabled=", s1_near_rescue_enabled, &
+         " nonnear_rescue_enabled=", s1_nonnear_rescue_enabled, &
          " post_newton_refine_enabled=", qn_post_newton_refine_enabled, &
+         " post_newton_refine_skip_enabled=", qn_post_newton_refine_skip_enabled, &
          " post_newton_refine_max_iter=", qn_post_newton_refine_max_iter, &
-         " reverse_gate_enabled=", qn_reverse_gate_enabled, " reverse_gate_tol=", qn_reverse_gate_tol, &
+         " reverse_gate_enabled=", qn_reverse_gate_enabled, &
+         " reverse_gate_tol=", qn_reverse_gate_tol, &
          " quasi_tol_override=", qn_quasi_tol_override
    end subroutine load_s1_fallback_policy
 

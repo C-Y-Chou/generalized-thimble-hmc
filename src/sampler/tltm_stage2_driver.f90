@@ -52,7 +52,15 @@ module tltm_stage2_driver
       integer(int64) :: far_route_anchor_count = 0_int64
       integer(int64) :: near_attempt_count = 0_int64
       integer(int64) :: near_success_count = 0_int64
+      integer(int64) :: reverse_gate_candidate_total = 0_int64
+      integer(int64) :: reverse_gate_pass_total = 0_int64
+      integer(int64) :: reverse_gate_reject_total = 0_int64
    end type solver_counter_snapshot_t
+
+   logical, save :: rg_reject_audit_loaded = .false.
+   logical, save :: rg_reject_audit_enabled = .false.
+   integer, save :: rg_reject_audit_unit = -1
+   character(len=512), save :: rg_reject_audit_file = ""
 
    type :: local_accept_census_t
       integer(int64) :: accepted_total = 0_int64
@@ -279,7 +287,7 @@ contains
       do cycle_idx = 1, cycle_count
          do i = 1, n_slots
             slot_t0 = wall_time_seconds()
-            call run_local_updates(slots(i), local_updates, local_accept_census(i))
+            call run_local_updates(slots(i), local_updates, local_accept_census(i), cycle_idx)
             slots(i)%local_runtime = slots(i)%local_runtime + (wall_time_seconds() - slot_t0)
             call measure_slot(slots(i))
          end do
@@ -392,6 +400,7 @@ contains
       if (write_all_history) then
          write (*, '(A,1X,A)') "[DONE][TLTM-S2] All-replica histories written under", trim(all_history_dir)
       end if
+      call close_rg_reject_audit()
    end subroutine execute_tltm_stage2
 
    subroutine initialize_slot(slot, init_sigma, max_attempts, init_mode, ok)
@@ -443,22 +452,26 @@ contains
       if (allocated(x_seed)) deallocate (x_seed)
    end subroutine initialize_slot
 
-   subroutine run_local_updates(slot, local_updates, accept_census)
+   subroutine run_local_updates(slot, local_updates, accept_census, cycle_idx)
       type(tltm_slot_t), intent(inout) :: slot
       integer, intent(in) :: local_updates
       type(local_accept_census_t), intent(inout) :: accept_census
+      integer, intent(in) :: cycle_idx
 
       integer :: update_idx, z_size
-      real(dp), allocatable :: x_new(:)
-      complex(dp), allocatable :: z_new(:), j_new(:, :)
+      real(dp), allocatable :: x_new(:), x_before(:)
+      complex(dp), allocatable :: z_new(:), j_new(:, :), z_before(:), j_before(:, :)
       logical :: accepted, proposal_failed
       type(solver_counter_snapshot_t) :: solver_before, solver_after
 
       z_size = size(slot%z)
-      allocate (x_new(size(slot%x)))
-      allocate (z_new(z_size), j_new(z_size, z_size))
+      allocate (x_new(size(slot%x)), x_before(size(slot%x)))
+      allocate (z_new(z_size), z_before(z_size), j_new(z_size, z_size), j_before(z_size, z_size))
 
       do update_idx = 1, local_updates
+         x_before = slot%x
+         z_before = slot%z
+         j_before = slot%jac
          call snapshot_solver_counters(solver_before)
          call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
                               config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed)
@@ -473,18 +486,125 @@ contains
             slot%local_reject_count = slot%local_reject_count + 1
          end if
          if (proposal_failed) slot%projection_failure_count = slot%projection_failure_count + 1
+         call record_rg_reject_audit(cycle_idx, slot%slot_id, update_idx, x_before, z_before, j_before, &
+                                     slot%x, slot%z, slot%jac, x_new, z_new, j_new, accepted, proposal_failed, &
+                                     solver_before, solver_after)
       end do
 
       if (allocated(x_new)) deallocate (x_new)
+      if (allocated(x_before)) deallocate (x_before)
       if (allocated(z_new)) deallocate (z_new)
+      if (allocated(z_before)) deallocate (z_before)
       if (allocated(j_new)) deallocate (j_new)
+      if (allocated(j_before)) deallocate (j_before)
    end subroutine run_local_updates
+
+   subroutine record_rg_reject_audit(cycle_idx, slot_id, update_idx, x_before, z_before, j_before, &
+                                     x_after, z_after, j_after, x_proposal, z_proposal, j_proposal, &
+                                     accepted, proposal_failed, solver_before, solver_after)
+      integer, intent(in) :: cycle_idx, slot_id, update_idx
+      real(dp), intent(in) :: x_before(:), x_after(:), x_proposal(:)
+      complex(dp), intent(in) :: z_before(:), z_after(:), z_proposal(:)
+      complex(dp), intent(in) :: j_before(:, :), j_after(:, :), j_proposal(:, :)
+      logical, intent(in) :: accepted, proposal_failed
+      type(solver_counter_snapshot_t), intent(in) :: solver_before, solver_after
+
+      integer(int64) :: rg_candidate_delta, rg_pass_delta, rg_reject_delta
+      real(dp) :: slot_dx, slot_dz, slot_dj
+      real(dp) :: proposal_dx, proposal_dz, proposal_dj
+
+      call load_rg_reject_audit_config()
+      if (.not. rg_reject_audit_enabled) return
+
+      rg_candidate_delta = solver_after%reverse_gate_candidate_total - solver_before%reverse_gate_candidate_total
+      rg_pass_delta = solver_after%reverse_gate_pass_total - solver_before%reverse_gate_pass_total
+      rg_reject_delta = solver_after%reverse_gate_reject_total - solver_before%reverse_gate_reject_total
+      if ((.not. proposal_failed) .and. rg_reject_delta <= 0_int64) return
+
+      slot_dx = maxabs_real_stage2(x_after - x_before)
+      slot_dz = maxabs_complex_vec_stage2(z_after - z_before)
+      slot_dj = maxabs_complex_mat_stage2(j_after - j_before)
+      proposal_dx = maxabs_real_stage2(x_proposal - x_before)
+      proposal_dz = maxabs_complex_vec_stage2(z_proposal - z_before)
+      proposal_dj = maxabs_complex_mat_stage2(j_proposal - j_before)
+
+      write (rg_reject_audit_unit, &
+             '(I0,",",I0,",",I0,",",L1,",",L1,",",I0,",",I0,",",I0,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16)') &
+         cycle_idx, slot_id, update_idx, accepted, proposal_failed, rg_candidate_delta, rg_pass_delta, rg_reject_delta, &
+         slot_dx, slot_dz, slot_dj, proposal_dx, proposal_dz, proposal_dj
+      flush (rg_reject_audit_unit)
+   end subroutine record_rg_reject_audit
+
+   subroutine load_rg_reject_audit_config()
+      character(len=512) :: env_value
+      integer :: env_len, env_status, io_status
+
+      if (rg_reject_audit_loaded) return
+      rg_reject_audit_loaded = .true.
+
+      call get_environment_variable("TLTM_RG_REJECT_AUDIT_FILE", env_value, length=env_len, status=env_status)
+      if (env_status /= 0 .or. env_len <= 0) return
+
+      rg_reject_audit_file = env_value(1:env_len)
+      open (newunit=rg_reject_audit_unit, file=trim(rg_reject_audit_file), status='replace', action='write', iostat=io_status)
+      if (io_status /= 0) then
+         write (*, '(A,1X,A)') "[WARN][TLTM-S2] Cannot open RG reject audit file:", trim(rg_reject_audit_file)
+         rg_reject_audit_enabled = .false.
+         rg_reject_audit_unit = -1
+         return
+      end if
+
+      rg_reject_audit_enabled = .true.
+      write (rg_reject_audit_unit, '(A)') &
+         "cycle,slot_id,update_idx,accepted,proposal_failed,rg_candidate_delta,rg_pass_delta,rg_reject_delta,"// &
+         "slot_dx,slot_dz,slot_dj,proposal_dx,proposal_dz,proposal_dj"
+      flush (rg_reject_audit_unit)
+      write (*, '(A,1X,A)') "[INFO][TLTM-S2] RG reject audit file:", trim(rg_reject_audit_file)
+   end subroutine load_rg_reject_audit_config
+
+   subroutine close_rg_reject_audit()
+      if (rg_reject_audit_enabled .and. rg_reject_audit_unit > 0) then
+         close (rg_reject_audit_unit)
+      end if
+      rg_reject_audit_enabled = .false.
+      rg_reject_audit_unit = -1
+   end subroutine close_rg_reject_audit
+
+   pure real(dp) function maxabs_real_stage2(vec)
+      real(dp), intent(in) :: vec(:)
+      if (size(vec) <= 0) then
+         maxabs_real_stage2 = 0.0_dp
+      else
+         maxabs_real_stage2 = maxval(abs(vec))
+      end if
+   end function maxabs_real_stage2
+
+   pure real(dp) function maxabs_complex_vec_stage2(vec)
+      complex(dp), intent(in) :: vec(:)
+      if (size(vec) <= 0) then
+         maxabs_complex_vec_stage2 = 0.0_dp
+      else
+         maxabs_complex_vec_stage2 = maxval(abs(vec))
+      end if
+   end function maxabs_complex_vec_stage2
+
+   pure real(dp) function maxabs_complex_mat_stage2(mat)
+      complex(dp), intent(in) :: mat(:, :)
+      if (size(mat) <= 0) then
+         maxabs_complex_mat_stage2 = 0.0_dp
+      else
+         maxabs_complex_mat_stage2 = maxval(abs(mat))
+      end if
+   end function maxabs_complex_mat_stage2
 
    subroutine snapshot_solver_counters(snapshot)
       type(solver_counter_snapshot_t), intent(out) :: snapshot
 
       integer(int64) :: total_count, failed_count
       integer(int64) :: near_candidate_count, far_count, near_unusable_count
+      integer(int64) :: rg_candidate_counts(constraint_reverse_gate_path_count)
+      integer(int64) :: rg_pass_counts(constraint_reverse_gate_path_count)
+      integer(int64) :: rg_reject_counts(constraint_reverse_gate_path_count)
       real(dp) :: ratio_newton, ratio_quasi, ratio_fail
 
       call get_constraint_solver_stats(total_count, snapshot%newton_count, snapshot%quasi_count, failed_count, &
@@ -497,6 +617,10 @@ contains
                                                  snapshot%far_route_anchor_count)
       call get_constraint_near_rescue_stats(near_candidate_count, far_count, snapshot%near_attempt_count, &
                                             snapshot%near_success_count, near_unusable_count)
+      call get_constraint_solver_reverse_gate_stats(rg_candidate_counts, rg_pass_counts, rg_reject_counts)
+      snapshot%reverse_gate_candidate_total = rg_candidate_counts(constraint_reverse_gate_path_total)
+      snapshot%reverse_gate_pass_total = rg_pass_counts(constraint_reverse_gate_path_total)
+      snapshot%reverse_gate_reject_total = rg_reject_counts(constraint_reverse_gate_path_total)
    end subroutine snapshot_solver_counters
 
    subroutine accumulate_accepted_local_census(census, before, after)
