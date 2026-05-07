@@ -1,0 +1,291 @@
+{
+  "stage_3_3_todo": {
+    "version": "0.1",
+    "name": "multiseed_matched_control_comparison_on_1d_model",
+    "goal": "Evaluate fallback-enabled vs fallback-disabled under matched controls using multiple independent TLTM runs on the 1d model.",
+    "frozen_setup": {
+      "model": "1d_toy_model",
+      "flow_time_ladder": [
+        0,
+        0.05,
+        0.1,
+        0.2,
+        0.3
+      ],
+      "trajectory_length_L": 2,
+      "nstep": 20,
+      "local_updates_per_cycle": 1,
+      "swap_scheme": "adjacent_pair",
+      "swap_schedule": "odd_even_alternating",
+      "exchange_frequency": "once_per_global_cycle",
+      "all_replicas_share_same_local_parameters": true
+    },
+    "comparison_policy": {
+      "matched_controls": true,
+      "same_seed_set_for_both_methods": true,
+      "same_initialization_policy": true,
+      "same_cycle_count": true,
+      "same_measurement_protocol": true,
+      "only_difference_is_fallback": true
+    },
+    "observable_definition": {
+      "observable_name": "virial",
+      "exact_re": 0.0,
+      "exact_im": 0.0,
+      "error_source": "error_robust_virial_re_im",
+      "error_source_note": "Use robust component-wise error from multichain expectations metadata.",
+      "zp_component_definition": {
+        "Zp_re": "(Re<Ohat> - Re<O_exact>) / err_re",
+        "Zp_im": "(Im<Ohat> - Im<O_exact>) / err_im"
+      },
+      "zp_joint_definition": "Zp = max(|Zp_re|, |Zp_im|)"
+    },
+    "sampling_plan": {
+      "independent_runs_unit": "seed",
+      "n_seeds": 10,
+      "seed_list": [
+        20260421,
+        20260518,
+        20260615,
+        20260712,
+        20260809,
+        20260906,
+        20261003,
+        20261100,
+        20261197,
+        20261294
+      ],
+      "cycles_per_seed": 50000,
+      "warmup_cycles_optional": 0,
+      "measurement_stride": 1,
+      "diagnostic_stride": 1
+    },
+    "run_outputs_per_seed": {
+      "local_numerical_metrics": [
+        "projection_failure_count",
+        "fallback_trigger_count",
+        "quasi_probe_success_count",
+        "full_stage_trigger_count",
+        "unresolved_failure_count",
+        "local_accept_rate_by_slot"
+      ],
+      "transport_metrics": [
+        "pairwise_swap_acceptance_by_pair",
+        "pair0_accept_rate",
+        "total_round_trip",
+        "avg_round_trip_cycles_if_observed",
+        "hot_end_hit_count_label0_to_hot_slot",
+        "farthest_slot_reached_by_label"
+      ],
+      "observable_metrics": [
+        "cold_slot_observable_estimate_re_im",
+        "observable_error_estimate_re_im",
+        "normalized_bias_Zp_re",
+        "normalized_bias_Zp_im",
+        "normalized_bias_Zp_joint_maxabs"
+      ],
+      "cost_metrics": [
+        "runtime_total",
+        "runtime_per_cycle"
+      ]
+    },
+    "aggregated_outputs": {
+      "correctness_summary": [
+        "P68",
+        "P95",
+        "mean_Zp",
+        "median_abs_Zp",
+        "mean_Zp_re",
+        "mean_Zp_im"
+      ],
+      "local_summary": [
+        "mean_projection_failure_count",
+        "mean_unresolved_failure_count",
+        "total_unresolved_failure_count",
+        "mean_quasi_probe_success_count",
+        "mean_full_stage_trigger_count"
+      ],
+      "transport_summary": [
+        "mean_pair0_accept_rate",
+        "mean_total_round_trip",
+        "mean_hot_end_hit_count"
+      ],
+      "cost_summary": [
+        "mean_runtime_total",
+        "median_runtime_total"
+      ]
+    },
+    "todo": [
+      {
+        "id": "s33_01",
+        "task": "Freeze the stage-3.3 protocol",
+        "details": [
+          "Freeze seed list",
+          "Freeze cycle count",
+          "Freeze ladder",
+          "Freeze all local-update parameters",
+          "Freeze initialization policy before running comparisons"
+        ]
+      },
+      {
+        "id": "s33_02",
+        "task": "Prepare exact-observable comparison rule",
+        "details": [
+          "Exact observable fixed: Re<virial>=0, Im<virial>=0",
+          "Error source fixed: error_robust_virial_re_im",
+          "Define Zp_re and Zp_im component-wise",
+          "Define joint Zp = max(|Zp_re|, |Zp_im|)",
+          "Use identical Zp rules for fallback on and off"
+        ]
+      },
+      {
+        "id": "s33_03",
+        "task": "Run fallback-disabled jobs for all seeds",
+        "details": [
+          "One independent TLTM run per seed",
+          "Use the frozen protocol exactly",
+          "Store full per-seed summaries"
+        ]
+      },
+      {
+        "id": "s33_04",
+        "task": "Run fallback-enabled jobs for all seeds",
+        "details": [
+          "Use the same seed list",
+          "Use the same protocol as fallback-disabled",
+          "Store full per-seed summaries"
+        ]
+      },
+      {
+        "id": "s33_05",
+        "task": "Compute per-seed local numerical metrics",
+        "details": [
+          "projection_failure_count",
+          "fallback_trigger_count",
+          "quasi_probe_success_count",
+          "full_stage_trigger_count",
+          "unresolved_failure_count"
+        ]
+      },
+      {
+        "id": "s33_06",
+        "task": "Compute per-seed transport metrics",
+        "details": [
+          "pairwise_swap_acceptance",
+          "pair0_accept_rate",
+          "total_round_trip",
+          "hot_end_hit_count",
+          "farthest_slot_reached_by_label"
+        ]
+      },
+      {
+        "id": "s33_07",
+        "task": "Compute per-seed observable metrics",
+        "details": [
+          "cold_slot_observable_estimate_re_im",
+          "observable_error_estimate_re_im",
+          "normalized_bias_Zp_re",
+          "normalized_bias_Zp_im",
+          "normalized_bias_Zp_joint_maxabs"
+        ]
+      },
+      {
+        "id": "s33_08",
+        "task": "Aggregate correctness statistics across seeds",
+        "details": [
+          "Compute P68 = fraction of seeds with joint Zp <= 1",
+          "Compute P95 = fraction of seeds with joint Zp <= 2",
+          "Compute mean_Zp (joint)",
+          "Compute median_abs_Zp (joint)",
+          "Report mean_Zp_re and mean_Zp_im"
+        ]
+      },
+      {
+        "id": "s33_09",
+        "task": "Aggregate local and transport summaries across seeds",
+        "details": [
+          "Compare total unresolved failures",
+          "Compare mean pair0 acceptance",
+          "Compare mean round-trip count",
+          "Compare mean hot-end hit count"
+        ]
+      },
+      {
+        "id": "s33_10",
+        "task": "Aggregate runtime summaries across seeds",
+        "details": [
+          "Compare mean total runtime",
+          "Compare median total runtime",
+          "Check whether fallback introduces clear cost inflation"
+        ]
+      },
+      {
+        "id": "s33_11",
+        "task": "Write the stage-3.3 interpretation in three layers",
+        "details": [
+          "Layer 1: local numerical effect",
+          "Layer 2: transport effect",
+          "Layer 3: final observable correctness"
+        ]
+      },
+      {
+        "id": "s33_12",
+        "task": "Decide readiness for Stephanov-stage transfer",
+        "details": [
+          "If fallback robustly reduces unresolved failures and improves or preserves correctness under matched controls, mark the protocol ready for higher-dimensional testing",
+          "If the result is ambiguous, revise cycle count or seed count before scaling up"
+        ]
+      }
+    ],
+    "minimum_tables_to_produce": [
+      {
+        "name": "per_seed_summary_table",
+        "columns": [
+          "seed_id",
+          "method",
+          "projection_failure_count",
+          "unresolved_failure_count",
+          "quasi_probe_success_count",
+          "full_stage_trigger_count",
+          "pair0_accept_rate",
+          "total_round_trip",
+          "hot_end_hit_count",
+          "runtime_total",
+          "Ohat_re",
+          "Ohat_im",
+          "err_Ohat_re",
+          "err_Ohat_im",
+          "Zp_re",
+          "Zp_im",
+          "Zp"
+        ]
+      },
+      {
+        "name": "aggregated_summary_table",
+        "columns": [
+          "method",
+          "P68",
+          "P95",
+          "mean_Zp",
+          "median_abs_Zp",
+          "total_unresolved_failure_count",
+          "mean_pair0_accept_rate",
+          "mean_total_round_trip",
+          "mean_hot_end_hit_count",
+          "mean_runtime_total"
+        ]
+      }
+    ],
+    "success_criteria": [
+      "fallback_enabled_reduces_unresolved_failures_across_seeds",
+      "fallback_enabled_preserves_or_improves_transport_summary",
+      "fallback_enabled_preserves_or_improves_P68_P95_or_abs_Z_metrics",
+      "fallback_enabled_does_not_show_unacceptable_runtime_penalty"
+    ],
+    "notes": {
+      "raw_sample_count_warning": "Do not compare TLTM and fixed-flow setups by raw sample count. Use independent runs, cycle count, transport quality, and runtime-aware summaries instead.",
+      "transport_caveat": "The frozen ladder is usable but not fully optimized. Pair0 may remain a bottleneck, so transport should be reported explicitly together with correctness metrics.",
+      "role_of_stage_3_3": "This stage establishes multiseed robustness on the 1d model before any move to Stephanov."
+    }
+  }
+}

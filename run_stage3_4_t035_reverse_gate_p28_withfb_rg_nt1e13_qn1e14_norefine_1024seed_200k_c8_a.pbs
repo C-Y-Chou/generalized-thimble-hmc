@@ -1,0 +1,74 @@
+#!/bin/bash
+#PBS -N s34p28a
+#PBS -q C8
+#PBS -J 0-7
+#PBS -l select=1:ncpus=32:mpiprocs=32:mem=8gb
+#PBS -l walltime=10:00:00
+#PBS -o /lustre1/home/cychou/TLTM/output/logs/stage3_4_reverse_gate_p28_withfb_rg_nt1e13_qn1e14_norefine_1024seed_200k_c8_a.pbs.out
+#PBS -e /lustre1/home/cychou/TLTM/output/logs/stage3_4_reverse_gate_p28_withfb_rg_nt1e13_qn1e14_norefine_1024seed_200k_c8_a.pbs.err
+
+set -euo pipefail
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
+
+export QN_S1_PROBE_MAX_ITER=28
+export QN_S1_NEAR_RESCUE_ENABLED=0
+export QN_S1_NEAR_FULL_MAX_ITER=100
+export QN_S1_NONNEAR_RESCUE_ENABLED=0
+export QN_S1_NONNEAR_CHEAP_MAX_ITER=36
+export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
+export QN_REVERSE_GATE_ENABLED=1
+export QN_REVERSE_GATE_TOL=1e-8
+export QN_POST_NEWTON_REFINE_ENABLED=0
+export TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-13
+export QN_QUASI_TOL_OVERRIDE=1e-14
+export QN_FORCE_BEST_PROPOSAL_ENABLED=1
+export QN_FORCE_BEST_PROPOSAL_TOL=1e-14
+unset QN_POST_NEWTON_REFINE_MAX_ITER
+unset QN_ACCEPTED_ITER_BUDGET
+unset QUASI_ACCEPTED_ITER_BUDGET
+unset QUASI_FINAL_RESORT_BUDGET
+
+cd /lustre1/home/cychou/TLTM
+ARRAY_INDEX="${PBS_ARRAY_INDEX:-0}"
+CHUNK_INDEX="${ARRAY_INDEX}"
+POLICY_ID="reverse_gate_p28_withfb_rg_nt1e13_qn1e14_norefine"
+METHODS="fb"
+SEEDS_PER_CHUNK=32
+JOBS=32
+SEED_OFFSET=$((CHUNK_INDEX * SEEDS_PER_CHUNK))
+printf -v CHUNK_TAG "chunk_%02d" "${CHUNK_INDEX}"
+
+OUT_CHUNK_DIR="output/tests/stage3_4/reverse_gate_p28_withfb_rg_nt1e13_qn1e14_norefine_1024seed_200k_t035/${POLICY_ID}/${CHUNK_TAG}"
+if [ -f "${OUT_CHUNK_DIR}/per_seed_summary_table.csv" ]; then
+  rows=$(($(wc -l < "${OUT_CHUNK_DIR}/per_seed_summary_table.csv") - 1))
+  if [ "$rows" -eq 32 ]; then
+    echo "[SKIP] ${CHUNK_TAG} already complete"
+    exit 0
+  fi
+fi
+
+python3 scripts/run_stage3_3_multiseed.py \
+  --repo-root . \
+  --config docs/stage_3_4_t035_probe_only_1024seed_200k.json \
+  --seed-offset "${SEED_OFFSET}" \
+  --max-seeds "${SEEDS_PER_CHUNK}" \
+  --methods "${METHODS}" \
+  --output-subdir "${OUT_CHUNK_DIR}" \
+  --logs-subdir "output/logs/stage3_4_reverse_gate_p28_withfb_rg_nt1e13_qn1e14_norefine_1024seed_200k_t035/${POLICY_ID}/${CHUNK_TAG}" \
+  --log-prefix "stage3_4_t035_${POLICY_ID}_1024seed_200k_${CHUNK_TAG}" \
+  --report-title "TLTM Stage-3.4 t=0.35 ${POLICY_ID} 1024-Seed 200k ${CHUNK_TAG}" \
+  --schedule task \
+  --task-method-order fb_first \
+  --jobs "${JOBS}" \
+  --stage2-threads 1 \
+  --eval-threads 1 \
+  --skip-build

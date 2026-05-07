@@ -1,0 +1,31 @@
+# Build artifacts
+build/
+bin/
+*.o
+*.mod
+*.smod
+*.a
+*.so
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Runtime outputs / large artifacts
+output/
+
+# PBS runtime stdout/stderr artifacts
+*.pbs.out
+*.pbs.err
+*.o[0-9]*
+*.e[0-9]*
+
+# macOS
+.DS_Store
+
+# Codex volatile state
+codex/tmp/
+codex/logs/
+codex/state/run_manifest_latest.env
+codex/workspaces/*/state/job_tracker.tsv
+codex/workspaces/*/context/LAST_REFRESH.txt

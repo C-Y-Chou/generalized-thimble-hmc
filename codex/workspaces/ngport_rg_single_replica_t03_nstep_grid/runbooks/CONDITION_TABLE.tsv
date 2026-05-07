@@ -1,0 +1,15 @@
+condition_id	family	tau	nstep	L	method
+c01	tau_scan	0.20	20	2	no_fb
+c02	tau_scan	0.20	20	2	fb
+c03	step_scan	0.30	10	2	no_fb
+c04	step_scan	0.30	10	2	fb
+c05	step_scan	0.30	15	2	no_fb
+c06	step_scan	0.30	15	2	fb
+c07	step_scan	0.30	20	2	no_fb
+c08	step_scan	0.30	20	2	fb
+c09	step_scan	0.30	30	2	no_fb
+c10	step_scan	0.30	30	2	fb
+c11	step_scan	0.30	40	2	no_fb
+c12	step_scan	0.30	40	2	fb
+c13	tau_scan	0.35	20	2	no_fb
+c14	tau_scan	0.35	20	2	fb

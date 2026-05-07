@@ -1,0 +1,7 @@
+kind	path	mode
+workspace	/home/cychou/TLTM/codex/workspaces/fortran_modernization	write
+shared	/home/cychou/TLTM/codex/runbooks/GLOBAL_STATUS.md	read
+shared	/home/cychou/TLTM/codex/runbooks/task_registry.tsv	read
+repo	/home/cychou/TLTM/src	read
+repo	/home/cychou/TLTM/tests	read
+repo	/home/cychou/TLTM/docs	read

@@ -1,0 +1,345 @@
+{
+  "tltm_stage_todo": {
+    "version": "0.1",
+    "scope": "only_stage_1_and_stage_2",
+    "design_rules": {
+      "reuse_existing_fixed_flow_code": true,
+      "all_replicas_share_same_local_update_parameters": true,
+      "no_method_specific_optimization_yet": true,
+      "focus_on_correctness_before_optimization": true
+    },
+    "stage_1": {
+      "name": "multi_replica_without_swap",
+      "goal": "Introduce replica structure with different flow times, but no replica exchange yet.",
+      "state": {
+        "run_level_fields": [
+          "run_id",
+          "global_seed",
+          "num_replicas",
+          "flow_time_ladder"
+        ],
+        "replica_level_fields": [
+          "replica_id",
+          "flow_time",
+          "configuration",
+          "momentum_optional",
+          "rng_seed",
+          "local_accept_count",
+          "local_reject_count",
+          "projection_failure_count",
+          "observable_accumulators"
+        ]
+      },
+      "controls": {
+        "flow_time_ladder": {
+          "type": "manual",
+          "examples": [
+            [
+              0,
+              0.1
+            ],
+            [
+              0,
+              0.1,
+              0.2
+            ],
+            [
+              0,
+              0.1,
+              0.2,
+              0.3
+            ]
+          ]
+        },
+        "shared_local_parameters": {
+          "trajectory_length_L": "global",
+          "nstep": "global",
+          "step_size": "global_or_derived",
+          "solver_tolerance": "global",
+          "projection_cap": "global"
+        },
+        "measurement_stride": 1,
+        "diagnostic_stride": 1
+      },
+      "execution_schedule": [
+        "initialize_all_replicas",
+        "for_each_global_cycle_do_local_update_on_all_replicas",
+        "measure_replica_observables",
+        "log_diagnostics"
+      ],
+      "todo": [
+        {
+          "id": "s1_01",
+          "task": "Create multi-replica container",
+          "details": [
+            "Store multiple replicas in one run",
+            "Each replica has its own flow time",
+            "Reuse existing fixed-flow update kernel"
+          ]
+        },
+        {
+          "id": "s1_02",
+          "task": "Implement replica initialization",
+          "details": [
+            "Support independent initialization per replica",
+            "Support same initialization policy across replicas",
+            "Record seed for reproducibility"
+          ]
+        },
+        {
+          "id": "s1_03",
+          "task": "Run local update on each replica independently",
+          "details": [
+            "No swap yet",
+            "All replicas use same local-update parameter set",
+            "Local update order can be fixed"
+          ]
+        },
+        {
+          "id": "s1_04",
+          "task": "Implement replica-wise measurement",
+          "details": [
+            "Measure observables for each replica separately",
+            "Store acceptance and failure statistics separately",
+            "Keep cold-replica estimate easy to read"
+          ]
+        },
+        {
+          "id": "s1_05",
+          "task": "Implement stage-1 logging",
+          "details": [
+            "Per-replica acceptance",
+            "Per-replica rejection",
+            "Per-replica projection failure burden",
+            "Per-replica runtime",
+            "Per-replica observables"
+          ]
+        },
+        {
+          "id": "s1_06",
+          "task": "Validate stage-1 correctness",
+          "details": [
+            "Check each replica runs stably",
+            "Check no cross-replica contamination",
+            "Check output reproducibility under fixed seed"
+          ]
+        }
+      ],
+      "required_outputs": [
+        "replica_wise_observable_estimates",
+        "replica_wise_acceptance_rates",
+        "replica_wise_failure_counts",
+        "replica_wise_runtime"
+      ],
+      "exit_criteria": [
+        "All replicas run successfully in one job",
+        "Replica-wise measurements are stored correctly",
+        "No swap logic is needed yet",
+        "Existing fixed-flow kernel is reused without ambiguity"
+      ]
+    },
+    "stage_2": {
+      "name": "minimal_tltm_with_adjacent_swap",
+      "goal": "Enable nearest-neighbor replica exchange and minimal transport diagnostics.",
+      "state": {
+        "run_level_fields": [
+          "run_id",
+          "global_seed",
+          "num_replicas",
+          "flow_time_ladder",
+          "global_cycle_index",
+          "swap_schedule_mode"
+        ],
+        "slot_level_fields": [
+          "slot_id",
+          "flow_time",
+          "current_label_id",
+          "configuration",
+          "momentum_optional"
+        ],
+        "label_tracking_fields": [
+          "label_id",
+          "current_slot",
+          "last_extreme_visited",
+          "round_trip_count",
+          "last_round_trip_start_cycle",
+          "completed_round_trip_times"
+        ],
+        "swap_stats_fields": [
+          "pair_id",
+          "proposal_count",
+          "accept_count",
+          "reject_count",
+          "last_accept_probability"
+        ]
+      },
+      "controls": {
+        "flow_time_ladder": {
+          "type": "manual_small_ladder",
+          "examples": [
+            [
+              0,
+              0.1,
+              0.2
+            ],
+            [
+              0,
+              0.1,
+              0.2,
+              0.3
+            ]
+          ]
+        },
+        "shared_local_parameters": {
+          "trajectory_length_L": "global",
+          "nstep": "global",
+          "step_size": "global_or_derived",
+          "solver_tolerance": "global",
+          "projection_cap": "global"
+        },
+        "swap_parameters": {
+          "scheme": "adjacent_pair",
+          "schedule": "odd_even_alternating",
+          "exchange_frequency": "once_per_global_cycle"
+        },
+        "measurement_stride": 1,
+        "diagnostic_stride": 1
+      },
+      "execution_schedule": [
+        "initialize_slots_and_labels",
+        "for_each_global_cycle_do_local_update_on_all_slots",
+        "perform_one_swap_sweep",
+        "measure_observables",
+        "update_round_trip_bookkeeping",
+        "log_diagnostics"
+      ],
+      "swap_schedule_definition": {
+        "odd_cycle_pairs": "[(0,1),(2,3),(4,5),...]",
+        "even_cycle_pairs": "[(1,2),(3,4),(5,6),...]"
+      },
+      "round_trip_definition": {
+        "cold_slot": 0,
+        "hot_slot": "num_replicas_minus_1",
+        "event": "cold_to_hot_to_cold"
+      },
+      "todo": [
+        {
+          "id": "s2_01",
+          "task": "Refactor replica container into slot-based structure",
+          "details": [
+            "Separate ladder position from tracked configuration identity",
+            "Allow label movement across slots after swap"
+          ]
+        },
+        {
+          "id": "s2_02",
+          "task": "Add label tracking",
+          "details": [
+            "Assign one label to each initial configuration",
+            "Track current slot of each label",
+            "Track whether label last visited cold or hot end"
+          ]
+        },
+        {
+          "id": "s2_03",
+          "task": "Implement adjacent swap proposal",
+          "details": [
+            "Only propose swaps between neighboring slots",
+            "Use odd-even alternating sweep",
+            "Keep one swap sweep per global cycle"
+          ]
+        },
+        {
+          "id": "s2_04",
+          "task": "Implement swap acceptance/rejection",
+          "details": [
+            "Use TLTM swap Metropolis rule",
+            "Record acceptance probability for each proposal",
+            "Record hard reject reason if special cases exist"
+          ]
+        },
+        {
+          "id": "s2_05",
+          "task": "Update slot content after accepted swap",
+          "details": [
+            "Exchange labels and associated states consistently",
+            "Verify no mismatch between slot state and label state"
+          ]
+        },
+        {
+          "id": "s2_06",
+          "task": "Implement pairwise swap statistics",
+          "details": [
+            "Proposal count by adjacent pair",
+            "Accept count by adjacent pair",
+            "Acceptance rate by adjacent pair"
+          ]
+        },
+        {
+          "id": "s2_07",
+          "task": "Implement minimal round-trip bookkeeping",
+          "details": [
+            "When a label reaches hot end after coming from cold, mark hot reached",
+            "When the same label returns to cold end, increment round-trip count",
+            "Store round-trip duration in global cycles"
+          ]
+        },
+        {
+          "id": "s2_08",
+          "task": "Implement transport logging",
+          "details": [
+            "Store slot trajectory of each label",
+            "Store total round-trip count",
+            "Store average round-trip time",
+            "Store per-label round-trip times"
+          ]
+        },
+        {
+          "id": "s2_09",
+          "task": "Keep stage-1 replica-wise local diagnostics",
+          "details": [
+            "Per-slot local acceptance",
+            "Per-slot projection failure count",
+            "Per-slot observable estimates"
+          ]
+        },
+        {
+          "id": "s2_10",
+          "task": "Validate stage-2 correctness",
+          "details": [
+            "Check swaps actually occur",
+            "Check labels move across ladder",
+            "Check round-trip counter changes when expected",
+            "Check no-swap mode can be reproduced by setting exchange off"
+          ]
+        }
+      ],
+      "required_outputs": [
+        "swap_acceptance_rate_by_adjacent_pair",
+        "label_slot_trajectories",
+        "farthest_slot_reached_by_each_label",
+        "round_trip_count",
+        "round_trip_time_distribution",
+        "per_slot_local_acceptance",
+        "per_slot_failure_count",
+        "cold_slot_observable_estimate"
+      ],
+      "handoff_to_stage_2p5": {
+        "purpose": "Stage-2 provides mechanism and baseline transport diagnostics for stage-2.5 tuning.",
+        "must_be_available": [
+          "adjacent swap with odd-even schedule",
+          "swap on/off toggle",
+          "pairwise acceptance logs",
+          "label current slot and farthest-slot tracking",
+          "round-trip bookkeeping"
+        ]
+      },
+      "exit_criteria": [
+        "Adjacent swap works and is logged correctly",
+        "At least some labels move across more than one slot",
+        "Round-trip bookkeeping is internally consistent",
+        "Stage-2 can serve as the minimal TLTM baseline for later comparison"
+      ]
+    }
+  }
+}

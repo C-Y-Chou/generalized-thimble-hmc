@@ -1,0 +1,172 @@
+{
+  "tltm_build_workflow": {
+    "version": "0.5",
+    "as_of": "2026-04-21",
+    "source_inputs": {
+      "stage12": "docs/stage12.json",
+      "stage2p5": "docs/stage_2p5_todo.json",
+      "exchange_reference": "docs/1912.13303 Implementation of the HMC algorithm on the tempered Lefschetz thimble method.pdf"
+    },
+    "current_status": {
+      "stage_1": {
+        "implemented": true,
+        "entry": "src/apps/run_tltm_stage1.f90",
+        "target": "make tltm_stage1",
+        "summary_output": "output/tests/tltm_stage1_summary.dat"
+      },
+      "stage_2": {
+        "implemented": true,
+        "entry": "src/apps/run_tltm_stage2.f90",
+        "target": "make tltm_stage2",
+        "summary_output": "output/tests/tltm_stage2_summary.dat",
+        "label_trace_output": "output/tests/tltm_stage2_label_trace.dat",
+        "swap_rule": "adjacent_pair + odd_even_alternating + once_per_global_cycle"
+      },
+      "code_components": {
+        "types": "src/sampler/tltm_types.f90",
+        "stage1_driver": "src/sampler/tltm_stage1_driver.f90",
+        "stage2_driver": "src/sampler/tltm_stage2_driver.f90",
+        "swap_energy_backend": "ReS(z) - Re(log_determinant(J))",
+        "stage2p5_scan_script": "scripts/run_stage2p5_ladder_scan.py"
+      },
+      "known_gap_for_stage_2p5": [],
+      "stage2p5_short_scan_latest": {
+        "status": "completed_first_pass",
+        "cycles": 60,
+        "artifacts": {
+          "scan_table_csv": "output/tests/stage2p5_scan/candidate_ladder_scan_table.csv",
+          "scan_summary_md": "output/tests/stage2p5_scan/candidate_ladder_scan_summary.md"
+        },
+        "quick_read": [
+          "baseline pair0 accept ~0.067",
+          "candidate 0,0.05,0.1,0.2,0.3 improved pair0 accept to ~0.133",
+          "candidate 0,0.01,0.03,0.05,0.1,0.2,0.3 improved pair0 accept to ~0.100"
+        ]
+      },
+      "stage2p5_long_check_latest": {
+        "status": "completed",
+        "cycles": 300,
+        "artifacts": {
+          "long_check_table_csv": "output/tests/stage2p5_long/long_check_table.csv",
+          "long_check_summary_md": "output/tests/stage2p5_long/long_check_summary.md",
+          "completion_note": "docs/stage_2p5_completion.md"
+        },
+        "selected_reference": {
+          "candidate": "cand_a",
+          "ladder": [0.0, 0.05, 0.1, 0.2, 0.3],
+          "reference_file": "docs/stage_2p5_reference_ladder.json"
+        }
+      },
+      "stage3_1_latest": {
+        "status": "completed",
+        "seed": 20260421,
+        "cycles": 120,
+        "artifacts": {
+          "comparison_csv": "output/tests/stage3_1/s3_1_comparison.csv",
+          "report_md": "output/tests/stage3_1/s3_1_report.md"
+        },
+        "quick_read": [
+          "fallback triggers observed in fb run (quasi stage attempts = 4)",
+          "unresolved failures reduced (4 -> 0)",
+          "projection failures reduced (4 -> 0)"
+        ],
+        "next": "stage-3.2 longer-run stability/runtime check"
+      },
+      "stage3_2_latest": {
+        "status": "completed",
+        "seed": 20260421,
+        "cycles": 1000,
+        "artifacts": {
+          "no_fb_summary": "output/tests/stage3_2/no_fb_summary.dat",
+          "fb_summary": "output/tests/stage3_2/fb_summary.dat"
+        },
+        "quick_read": [
+          "unresolved failures reduced (26 -> 0)",
+          "fallback probe successes observed (22/22) with no full-stage retry",
+          "t=0.3 local acceptance improved (0.938 -> 0.960)"
+        ],
+        "next": "stage-3.3 multiseed matched-control evaluation"
+      },
+      "stage3_3_ready": {
+        "status": "protocol_frozen_and_runner_ready",
+        "protocol_file": "docs/stage_3_3_todo.json",
+        "runner_script": "scripts/run_stage3_3_multiseed.py",
+        "make_target": "make stage3_3",
+        "expected_outputs": {
+          "per_seed_table": "output/tests/stage3_3/per_seed_summary_table.csv",
+          "aggregated_table": "output/tests/stage3_3/aggregated_summary_table.csv",
+          "report_md": "output/tests/stage3_3/stage3_3_report.md"
+        }
+      }
+    },
+    "stage_boundary_check": {
+      "goal": "ensure stage-2 and stage-2.5 are connected without duplicated ownership",
+      "ownership": {
+        "stage_2_owns": [
+          "mechanism implementation",
+          "swap correctness",
+          "label tracking and round-trip bookkeeping implementation",
+          "base transport logging surfaces"
+        ],
+        "stage_2p5_owns": [
+          "ladder design and scan",
+          "transport diagnosis across candidate ladders",
+          "selection and freeze of stage-2.5 reference ladder"
+        ]
+      },
+      "duplicate_role_check": {
+        "result": "no conflicting ownership after boundary clarification",
+        "notes": [
+          "stage-2.5 uses stage-2 mechanism as-is",
+          "stage-2.5 does not re-implement swap/label/round-trip core"
+        ]
+      },
+      "handoff_contract": {
+        "stage_2_outputs_required_by_stage_2p5": [
+          "per-pair proposal/accept/reject/accept_rate",
+          "per-label current_slot",
+          "per-label farthest_slot_reached",
+          "round_trip_count",
+          "swap-enabled and swap-disabled run modes"
+        ],
+        "status": "ready"
+      }
+    },
+    "exchange_probability_spec": {
+      "recommended_log_form": {
+        "effective_energy": "E_t(x) = ReS(z_t(x)) - log|detJ_t(x)|",
+        "delta": "Delta = E_ta(y) + E_tb(x) - E_ta(x) - E_tb(y)",
+        "accept": "acc = min(1, exp(-Delta))"
+      },
+      "hard_reject_conditions": [
+        "flow failure in any required swapped evaluation",
+        "log_determinant failure in any required Jacobian"
+      ]
+    },
+    "execution_workflow": {
+      "baseline_regression": [
+        "make test1",
+        "make test2"
+      ],
+      "stage2_sanity": [
+        "make test_tltm_stage2",
+        "TLTM_STAGE2_SWAP_ENABLED=0 make tltm_stage2"
+      ],
+      "stage2p5_short_scan": [
+        "fix one global local-update parameter set",
+        "run candidate ladders near low-flow bottleneck",
+        "compare pairwise acceptance and label transport"
+      ],
+      "stage2p5_long_check": [
+        "extend cycles on 1-2 promising ladders",
+        "check hot-end reachability and round-trip emergence",
+        "freeze one reference ladder for stage-3 (completed: docs/stage_2p5_reference_ladder.json)"
+      ]
+    },
+    "default_smoke_parameters": {
+      "max_flow_time": 0.3,
+      "integration_steps": 20,
+      "trajectory_length_L": 2
+    }
+  }
+}

@@ -1,0 +1,15 @@
+Use /home/cychou/TLTM/codex as the shared control-plane entrypoint.
+
+Read in this order:
+1) /home/cychou/TLTM/codex/context/CORE.md
+2) /home/cychou/TLTM/codex/runbooks/GLOBAL_STATUS.md
+3) /home/cychou/TLTM/codex/runbooks/task_registry.tsv
+4) /home/cychou/TLTM/codex/context/CONTEXT_STACK.md
+5) Refresh live board: bash /home/cychou/TLTM/codex/tasks/refresh_live_board.sh
+6) Read /home/cychou/TLTM/codex/runbooks/LIVE_BOARD.md
+
+Then choose exactly one task workspace and continue there.
+If the task is one of these, use:
+- /home/cychou/TLTM/codex/workspaces/stage3_4
+- /home/cychou/TLTM/codex/workspaces/stage3_3_rg_redo
+- /home/cychou/TLTM/codex/workspaces/ngport_rg_single_replica_t03_nstep_grid

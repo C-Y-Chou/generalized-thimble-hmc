@@ -1,0 +1,168 @@
+{
+  "stage_3_4_todo": {
+    "version": "0.2-t035-nofb-adaptive-minimal-ladder",
+    "name": "t035_minimal_ladder_before_matched_control",
+    "goal": "Retarget stage 3.4 to max flow time t=0.35 and use the smallest no-feedback transport ladder that remains usable with adaptive stage-2 initialization.",
+    "candidate_setup": {
+      "model": "1d_toy_model",
+      "flow_time_ladder": [
+        0.05,
+        0.35
+      ],
+      "max_flow_time": 0.35,
+      "trajectory_length_L": 2,
+      "nstep": 20,
+      "local_updates_per_cycle": 1,
+      "swap_scheme": "adjacent_pair",
+      "swap_schedule": "odd_even_alternating",
+      "exchange_frequency": "once_per_global_cycle",
+      "fallback_for_ladder_probe": false,
+      "stage2_init_mode": "adaptive",
+      "stage2_init_mode_env": "TLTM_STAGE2_INIT_MODE=adaptive",
+      "all_replicas_share_same_local_parameters": true
+    },
+    "ladder_probe_evidence": {
+      "status": "adaptive_init_minimal_ladder_frozen",
+      "selection_rule": "Prefer usable candidates with fewer slots first, then higher round trips and min-pair acceptance.",
+      "usability_rule": "min_pair_accept_rate >= 0.10 and total_round_trip > 0",
+      "seed": 20260421,
+      "fallback": false,
+      "max_flow_time": 0.35,
+      "fast_scan": {
+        "cycles": 500,
+        "report": "output/tests/stage3_4/ladder_minimal_nofb_t035/adaptive_fast500/t035_nofb_adaptive_fast500_report.md",
+        "summary_csv": "output/tests/stage3_4/ladder_minimal_nofb_t035/adaptive_fast500/t035_nofb_adaptive_fast500_summary.csv",
+        "selected_candidate": "pos2_050_35",
+        "selected_ladder": [
+          0.05,
+          0.35
+        ],
+        "selected_metrics": {
+          "cycles": 500,
+          "pair_accept_rates": [
+            0.392
+          ],
+          "min_pair_accept_rate": 0.392,
+          "total_round_trip": 97,
+          "constraint_failed": 40
+        }
+      },
+      "confirm_scan": {
+        "cycles": 5000,
+        "report": "output/tests/stage3_4/ladder_minimal_nofb_t035/adaptive_confirm5000/t035_nofb_adaptive_confirm5000_report.md",
+        "summary_csv": "output/tests/stage3_4/ladder_minimal_nofb_t035/adaptive_confirm5000/t035_nofb_adaptive_confirm5000_summary.csv",
+        "selected_candidate": "pos2_050_35",
+        "selected_ladder": [
+          0.05,
+          0.35
+        ],
+        "selected_candidate_summary": "output/tests/stage3_4/ladder_minimal_nofb_t035/adaptive_confirm5000/pos2_050_35/tltm_stage2_summary.dat",
+        "selected_candidate_log": "output/logs/stage3_4_ladder_minimal_nofb_t035/adaptive_confirm5000/pos2_050_35.stage2.log",
+        "selected_metrics": {
+          "cycles": 5000,
+          "pair_accept_rates": [
+            0.424
+          ],
+          "min_pair_accept_rate": 0.424,
+          "total_round_trip": 1059,
+          "constraint_failed": 406,
+          "projection_fail_total": 406,
+          "elapsed_sec": 305.630233
+        },
+        "confirm_candidates": [
+          {
+            "name": "pos2_050_35",
+            "ladder": [
+              0.05,
+              0.35
+            ],
+            "slots": 2,
+            "min_pair_accept_rate": 0.424,
+            "total_round_trip": 1059,
+            "constraint_failed": 406,
+            "elapsed_sec": 305.630233
+          },
+          {
+            "name": "pos2_020_35",
+            "ladder": [
+              0.02,
+              0.35
+            ],
+            "slots": 2,
+            "min_pair_accept_rate": 0.3024,
+            "total_round_trip": 755,
+            "constraint_failed": 355,
+            "elapsed_sec": 264.430838
+          },
+          {
+            "name": "pos2_010_35",
+            "ladder": [
+              0.01,
+              0.35
+            ],
+            "slots": 2,
+            "min_pair_accept_rate": 0.2404,
+            "total_round_trip": 600,
+            "constraint_failed": 372,
+            "elapsed_sec": 322.660915
+          },
+          {
+            "name": "pos3_020_15_35",
+            "ladder": [
+              0.02,
+              0.15,
+              0.35
+            ],
+            "slots": 3,
+            "min_pair_accept_rate": 0.5156,
+            "pair_accept_rates": [
+              0.5156,
+              0.618
+            ],
+            "total_round_trip": 924,
+            "constraint_failed": 349,
+            "elapsed_sec": 326.145568
+          }
+        ]
+      },
+      "interpretation": "For the t=0.35 nofb ladder-fix step, [0.05, 0.35] is the minimal usable ladder: it has one swap pair, good acceptance, and the highest confirmed round-trip count among the two-slot candidates. The 3-slot [0.02, 0.15, 0.35] has higher pair acceptance but costs another replica and produced fewer round trips in the 5000-cycle confirmation run.",
+      "obsolete_pre_initialization_fix_scan": {
+        "status": "obsolete_reference_only",
+        "fast_scan_report": "output/tests/stage3_4/ladder_minimal_nofb_t035/fast500/t035_nofb_fast500_scan_report.md",
+        "confirm_scan_report": "output/tests/stage3_4/ladder_minimal_nofb_t035/confirm5000/t035_nofb_confirm5000_report.md",
+        "note": "These results used direct random initialization before adaptive preflow was enabled; do not freeze stage 3.4 from them."
+      }
+    },
+    "initialization_update": {
+      "status": "adaptive_preflow_enabled_in_stage2",
+      "code": "src/sampler/tltm_stage2_driver.f90",
+      "default_init_mode": "adaptive",
+      "legacy_init_mode": "TLTM_STAGE2_INIT_MODE=direct",
+      "smoke_probe": {
+        "ladder": [
+          0.01,
+          0.05,
+          0.15,
+          0.35
+        ],
+        "seed": 20260421,
+        "cycles": 20,
+        "fallback": false,
+        "summary": "output/tests/stage3_4/ladder_minimal_nofb_t035/init_probe_adaptive/tltm_stage2_summary.dat",
+        "log": "output/logs/stage3_4_ladder_minimal_nofb_t035/init_probe_adaptive.stage2.log",
+        "result": "The previously failing t=0.35 slot initialized successfully with adaptive preflow and the run completed."
+      }
+    },
+    "next_validation": {
+      "recommended_before_withfb_comparison": [
+        "Use [0.05, 0.35] as the fixed t=0.35 stage-3.4 ladder for the next nofb vs withfb run.",
+        "Use adaptive stage-2 initialization for both nofb and withfb so initialization is not a confounder.",
+        "If the analysis later requires a cold endpoint near t=0.01, rerun with [0.01, 0.35] or a 3-slot ladder and treat it as a different ladder choice."
+      ],
+      "selected_ladder_for_next_step": [
+        0.05,
+        0.35
+      ]
+    }
+  }
+}

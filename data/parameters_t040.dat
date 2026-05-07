@@ -1,0 +1,38 @@
+# Runtime flags
+istest = false
+tra2 = false
+eo = false
+
+# Markov chain control
+chain_length = 10000000
+hmc_repeat = 1
+warmup = 0
+
+# Integrator control
+trajectory_length = 2   
+integration_steps = 20
+initial_flow_time = 0.40
+integrator_method = rattle
+
+# State layout (must be explicit; includes flow-time slot)
+x_size = 2
+
+# Model parameters
+alpha = (1.0,0.0)
+beta = (1.0,0.0)
+derivative_mode = generated
+
+# Recommended "publication" baseline
+abs_tol = 3.0d-14
+rel_tol = 3.0d-14
+constraint_tol = 1.0d-13
+enable_quasi_fallback = true
+
+# Expectation analysis
+# 0 => auto-tuned by sample count and block structure
+bootstrap_samples = 0
+
+# Files
+x_history_file = ../output/production/x_history.dat
+z_history_file = ../output/production/z_history.dat
+phi_history_file = ../output/production/phi_history.dat

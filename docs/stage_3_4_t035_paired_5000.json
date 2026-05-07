@@ -1,0 +1,61 @@
+{
+  "stage_3_4_todo": {
+    "version": "0.5-t035-paired-50seed-5000",
+    "name": "stage3_4_t035_adaptive_minimal_2slot_50seed_5000",
+    "goal": "Short ablation run for the frozen adaptive minimal stage-3.4 ladder at t=0.35.",
+    "frozen_setup": {
+      "model": "1d_toy_model",
+      "flow_time_ladder": [0.05, 0.35],
+      "max_flow_time": 0.35,
+      "trajectory_length_L": 2,
+      "nstep": 20,
+      "local_updates_per_cycle": 1,
+      "swap_scheme": "adjacent_pair",
+      "swap_schedule": "odd_even_alternating",
+      "exchange_frequency": "once_per_global_cycle",
+      "stage2_init_mode": "adaptive",
+      "write_all_replica_history": true,
+      "all_replicas_share_same_local_parameters": true
+    },
+    "comparison_policy": {
+      "matched_controls": true,
+      "same_seed_set_for_both_methods": true,
+      "same_initialization_policy": true,
+      "same_cycle_count": true,
+      "same_measurement_protocol": true,
+      "only_difference_is_fallback": true
+    },
+    "observable_definition": {
+      "observable_name": "virial",
+      "exact_re": 0.0,
+      "exact_im": 0.0,
+      "error_source": "error_robust_virial_re_im",
+      "error_source_note": "Use robust component-wise error from multichain expectations metadata.",
+      "zp_component_definition": {
+        "Zp_re": "(Re<Ohat> - Re<O_exact>) / err_re",
+        "Zp_im": "(Im<Ohat> - Im<O_exact>) / err_im"
+      },
+      "zp_joint_definition": "Zp = max(|Zp_re|, |Zp_im|)"
+    },
+    "sampling_plan": {
+      "independent_runs_unit": "seed",
+      "n_seeds": 50,
+      "seed_list": [
+        20260421, 20260518, 20260615, 20260712, 20260809,
+        20260906, 20261003, 20261100, 20261197, 20261294,
+        20261391, 20261488, 20261585, 20261682, 20261779,
+        20261876, 20261973, 20262070, 20262167, 20262264,
+        20262361, 20262458, 20262555, 20262652, 20262749,
+        20262846, 20262943, 20263040, 20263137, 20263234,
+        20263331, 20263428, 20263525, 20263622, 20263719,
+        20263816, 20263913, 20264010, 20264107, 20264204,
+        20264301, 20264398, 20264495, 20264592, 20264689,
+        20264786, 20264883, 20264980, 20265077, 20265174
+      ],
+      "cycles_per_seed": 5000,
+      "warmup_cycles_optional": 0,
+      "measurement_stride": 1,
+      "diagnostic_stride": 1
+    }
+  }
+}
