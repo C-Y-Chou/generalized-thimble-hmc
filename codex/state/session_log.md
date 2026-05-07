@@ -211,3 +211,13 @@ Use this file to append per-session notes.
 - Created baseline commit: `0057dec`.
 - Established local bare origin: `/home/cychou/git/TLTM.git`.
 - Added runbook: `codex/runbooks/GIT_WORKFLOW.md`.
+
+## 2026-05-07 JST
+- User requested stage3_4 reset to 10k baseline only.
+- Cleaned `/home/cychou/TLTM/output/tests/stage3_4` and kept only:
+  - `post_refine_fail_replay_capture/*10k*` (6 groups)
+- Cleaned `/home/cychou/TLTM/output/logs` stage3_4 groups and kept only:
+  - `stage3_4_post_refine_fail_replay_capture/*10k*` (6 groups)
+- Result footprint:
+  - tests/stage3_4: ~173M
+  - logs/stage3_4_post_refine_fail_replay_capture: ~4.4M
