@@ -204,3 +204,10 @@ Use this file to append per-session notes.
     - 13961.anode01 (C8) s34r10k_nofb
     - 13962.anode01 (C8-LONG) s34r10k_fbnr14
 - Current: both reruns are R.
+
+## 2026-05-07 JST
+- Completed git bootstrap on `/home/cychou/TLTM`.
+- Added `.gitignore` with heavy/runtime artifact exclusions (`output/`, `build/`, `bin/`, PBS runtime dumps).
+- Created baseline commit: `0057dec`.
+- Established local bare origin: `/home/cychou/git/TLTM.git`.
+- Added runbook: `codex/runbooks/GIT_WORKFLOW.md`.
