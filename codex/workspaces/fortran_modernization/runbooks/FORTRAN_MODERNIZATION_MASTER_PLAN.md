@@ -75,3 +75,23 @@ Turn the TLTM Fortran codebase into a mature, maintainable, verifiable, and publ
 - reference outputs are preserved or changes are explicitly justified
 - new contributors can navigate and modify the code without re-discovery
 - the project can support publication, reuse, and long-term maintenance
+
+## Product Interface Direction - 2026-05-08
+- Current Stage2/Stage3/Stage3_4 workflows are transitional experiment/debug scaffolding.
+- After TLTM construction and Stage3_4 judgment complete, the modernization target is a unified TLTM wrapper/runner.
+- Stage-specific scripts should become compatibility layers or internal implementation details.
+- The final publishable project should expose a coherent config-driven TLTM product interface with versioned output schema and reproducible provenance.
+
+## Flow Backend Direction Decision - 2026-05-08
+- Tentative long-term publishable target: ODEX-only flow backend.
+- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are legacy robustness layers/deletion candidates.
+- Do not remove or change them before Stage3_4/TLTM judgment completes.
+- After judgment, regenerate clean baselines, record current rescue counters, and run an ODEX-only comparison before deletion.
+- If ODEX-only failure rate is unacceptable, prefer improving ODEX/step control/failure handling over preserving a hidden secondary integrator stack.
+
+## Thread-Safety / Reentrancy Decision - 2026-05-08
+- Long-term modernization target: support in-process parallelism/OpenMP-capable TLTM execution.
+- Hidden module-level `save` workspaces, counters, RNG state, traces, and solver policies should be progressively moved behind explicit context/workspace objects.
+- Short-term production behavior remains serial/process-level until Stage3_4/TLTM judgment and fresh baselines are complete.
+- No source-level context refactor should start until affected baseline rows are covered.
+- Final wrapper design should make per-run/per-replica state explicit enough for deterministic parallel execution.

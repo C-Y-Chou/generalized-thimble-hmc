@@ -29,3 +29,10 @@ At present, several critical procedures combine numerical mechanism, policy deci
 - `src/sampler/quasi_newton_solver.f90`
 - `src/physics/solve_flow.f90`
 - `src/config/param_mod.f90`
+
+## Thread-Safety / Reentrancy Decision - 2026-05-08
+- Long-term modernization target: support in-process parallelism/OpenMP-capable TLTM execution.
+- Hidden module-level `save` workspaces, counters, RNG state, traces, and solver policies should be progressively moved behind explicit context/workspace objects.
+- Short-term production behavior remains serial/process-level until Stage3_4/TLTM judgment and fresh baselines are complete.
+- No source-level context refactor should start until affected baseline rows are covered.
+- Final wrapper design should make per-run/per-replica state explicit enough for deterministic parallel execution.
