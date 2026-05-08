@@ -128,7 +128,7 @@ Active code mapping:
 - Primary standard solve is `solve_constraint_newton`, already mapped above.
 - QN rescue residual `evaluate_constraint_residual` builds `ztrial = z + del_z + J*(i*xi1 + xi2)` and returns `[Imag(flowzr(ztrial)), xi2]`.
 - Current code sign convention: with `F=iJ`, BTN Eq. (22) uses `ztilde - J*a - iJ*b`, while current code uses `ztilde + J*(i*xi1 + xi2)`. Therefore current code has `xi1=-b` and `xi2=-a`.
-- Decision: future modernization should switch to paper variables directly: `xi1=b`, `xi2=a`, and compute the correction as `-J*(xi2 + i*xi1)` so the residual is `Imag fBTN(ztilde - J*a - iJ*b)` with `xi2=a`.
+- Decision: future modernization may either keep this internal negative-coordinate convention and document it, or switch to paper variables directly. If it switches to paper variables, use `xi1=b`, `xi2=a`, and compute the correction as `-J*(xi2 + i*xi1)` so the residual is `Imag fBTN(ztilde - J*a - iJ*b)` with `xi2=a`.
 - `run_dfo_ls_attempt` is a finite-difference nonlinear least-squares trust-region/LM solver around the residual callback, not the exact external DFO-LS package, but it matches the intended solver-layer role of minimizing the project-defined residual.
 - `initial_guess_from_jacobian` solves `J dz = -del_z` and maps `xi1=Imag(dz)`, `xi2=Real(dz)`, which is a plausible linearized seed for the BTN residual under the code's sign convention.
 
@@ -143,8 +143,10 @@ Reference-backed findings:
 Required before long validation:
 
 - Rename/document p28 residual as BTN rescue, not standard residual.
-- Implement paper-variable sign convention: `residual_jlc = -matmul(jac, xi2 + i*xi1)`, with `xi1=b`, `xi2=a`.
-- Change `initial_guess_from_jacobian` consistently from solving `J dz = -del_z` to `J dz = +del_z`; otherwise the initial iterate remains in the old negative coordinate convention and the initial loss does not expose the intended `||xi2||` structure.
+- Decide implementation convention explicitly:
+  - If retaining the current negative-coordinate convention, do not change the initial guess sign; current `J dz=-del_z` is consistent and gives `ztrial=z` at the linear seed, so the initial loss is approximately `||xi2||` in the current `xi2=-a` convention.
+  - If switching to paper variables, implement `residual_jlc = -matmul(jac, xi2 + i*xi1)`, with `xi1=b`, `xi2=a`, and change `initial_guess_from_jacobian` to solve `J dz = +del_z`. Changing only one of residual sign or seed sign would create a mixed convention.
+- Confirm downstream code treats `Jl` as the actual correction added to `z+del_z`; then recovery/replay paths do not need a separate sign change. Re-audit post-refine seed mapping separately if post-refine is retained.
 - Unit test `evaluate_constraint_residual` on a tiny case against BTN Eq. (22)/(25), including initial guess sign and the expected initial loss behavior.
 - Fixed-seed route-census comparison for `Nprobe=28` and any allowed follow-up budgets.
 
@@ -214,5 +216,6 @@ Future paper-variable target:
 - Implement the trial correction as `residual_jlc = -J*(xi2 + i*xi1)`.
 - Keep `fq(n+1:)=xi2`, which then directly enforces the paper condition `a=0`.
 - Change `initial_guess_from_jacobian` consistently: solve `J dz = +del_z` instead of `J dz = -del_z`, then set `xi1=Im(dz)`, `xi2=Re(dz)`.
-- The expected diagnostic is that the initial BTN loss exposes the `||xi2||`/`||a||` component rather than hiding it behind the old negative coordinate convention.
-- `Jl` should continue to mean the actual correction vector added to `z+del_z`; after the sign change it stores `-J*(a+i*b)`.
+- The pair above is coupled. If residual remains in the current convention, the initial guess must also remain `J dz=-del_z`; changing only the initial guess would seed `ztrial` near `z+2*del_z`, not near `z`.
+- Once the residual sign is changed to paper variables, the initial guess is the only seed-generation change required for the canonical p28 path; `Jl` should continue to mean the actual correction vector added to `z+del_z`, so recovery/replay can keep using `del_z + Jl`.
+- Post-refine is off the canonical route and a deletion candidate. If retained, `build_post_refine_seed_from_qn` must be re-audited because it interprets the first block of `qn_solution_xi` by sign.

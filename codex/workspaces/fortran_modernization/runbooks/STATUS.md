@@ -151,12 +151,13 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 ## QN p28 BTN sign convention - 2026-05-08 JST
 - User confirmed p28 should be treated as BTN/backflow rescue after standard Newton failure.
 - Current sign convention confirmed against BTN Eq. (22): current code has `xi1=-b`, `xi2=-a`; future modernization target is paper variables `xi1=b`, `xi2=a`.
-- Future implementation must change the correction to `-J*(xi2+i*xi1)` and change `initial_guess_from_jacobian` to solve `J dz=+del_z`, so the initial loss exposes the intended `||xi2||`/`||a||` component.
+- If switching to paper variables, future implementation must change the correction to `-J*(xi2+i*xi1)` and change `initial_guess_from_jacobian` to solve `J dz=+del_z`; if retaining the current negative-coordinate convention, the current `J dz=-del_z` seed is already consistent.
 - Older planning text saying p28 is a standard `(u,lambda)` residual is superseded by the reference-backed audit.
 
 ## QN p28 paper-variable decision - 2026-05-08 JST
 - User requested BTN variables follow the paper directly.
 - Future target: `xi1=b`, `xi2=a`.
-- Future residual correction: `residual_jlc = -J*(xi2 + i*xi1)`.
-- Future initial guess: solve `J dz = +del_z`, then `xi1=Im(dz)`, `xi2=Re(dz)`.
-- This sign change must be implemented together; changing only the residual or only the initial guess would put the solver in mixed conventions.
+- Future residual correction, if adopting paper variables: `residual_jlc = -J*(xi2 + i*xi1)`.
+- Future initial guess, if adopting paper variables: solve `J dz = +del_z`, then `xi1=Im(dz)`, `xi2=Re(dz)`.
+- This sign change must be implemented together. For the canonical p28 path, once the residual sign is changed, only `initial_guess_from_jacobian` needs a paired seed-generation sign change; `Jl`/recovery can keep treating `Jl` as the actual correction added to `z+del_z`.
+- Changing only the initial guess while leaving the current residual convention would be wrong: it would seed the trial point near `z+2*del_z` instead of near `z`.
