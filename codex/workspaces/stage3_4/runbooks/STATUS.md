@@ -51,8 +51,9 @@ Updated: 2026-05-08 16:30 JST
 - Methods: `no_fb`, `fb_norefine`
 - Scale: 128 matched seeds x 100k cycles per method.
 - Seed generation: `seed_start=20260421`, `seed_stride=97`, `n_seeds=128`.
-- Chunking plan: 6 mixed-size chunks per method.
-- Chunk sizes/queues per method: `32@C36`, `32@C36`, `24@C24`, `24@C24`, `8@C8`, `8@C12`.
+- Chunking plan: 8 chunks per method, 16 seeds/chunk, 16 workers/chunk.
+- Queue plan avoids multi-node C24/C36 queues because this runner is single-node/non-MPI.
+- Queue distribution: `C8 x6`, `C12 x6`, `G x3`, `F x1` across both methods.
 - Common settings: RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`, near/non-near/global rescue off.
 - Output root: `output/tests/stage3_4/judgment_20260508_128seed_100k_p28_rg_nofb_fbnorefine`
 - Logs root: `output/logs/stage3_4_judgment_20260508_128seed_100k_p28_rg_nofb_fbnorefine`

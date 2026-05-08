@@ -324,6 +324,8 @@ Use this file to append per-session notes.
   - `codex/workspaces/stage3_4/tasks/pbs/judgment_20260508_128seed_100k_p28_rg_merge.pbs`
 - Submission plan:
   - methods: `no_fb`, `fb_norefine`.
-  - mixed chunk plan per method after checking PBS queue `nodect` limits: `32@C36`, `32@C36`, `24@C24`, `24@C24`, `8@C8`, `8@C12`.
+  - queue check found C24/C36 are multi-node queues with `resources_min.nodect`, unsuitable for this non-MPI runner.
+  - final chunk plan: 8 chunks per method, 16 seeds/chunk, 16 workers/chunk.
+  - queue distribution across both methods: `C8 x6`, `C12 x6`, `G x3`, `F x1`.
   - compute jobs will be submitted with `TLTM_EXPECTED_GIT_COMMIT` pinned to the commit containing this protocol and PBS setup.
   - merge job will run after all compute chunks finish and will produce `REPORT.md` under the campaign output root.
