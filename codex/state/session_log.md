@@ -662,3 +662,17 @@ Use this file to append per-session notes.
 - Output:
   - `output/tests/stage3_4/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine`
   - `output/logs/stage3_4_preprod_validation/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine`
+
+## 2026-05-08 12:38 JST
+- Stage3_4 supplemental pre-production validation `fb_norefine` completed.
+- Output:
+  - `output/tests/stage3_4/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine`
+  - report: `s34_preprod_validation_20260508_p28_rg_fb_norefine_report.md`
+- Result:
+  - `fb_norefine`: `Zmean_re=-0.337600`, `Zmean_im=1.729899`, unresolved failures `1769`, RG rejects `1585`, mean runtime `961.7s`, post-refine `0/0`.
+- Comparison vs previous same-seed `fb` refine validation:
+  - `fb`: `Zmean_re=-0.214364`, `Zmean_im=1.386588`, failures `1787`, RG rejects `1594`, mean runtime `956.9s`.
+  - `fb_norefine` has nearly identical/slightly better geometry counters but worse `Zmean_im` and no runtime benefit.
+- Current production candidate:
+  - Keep `fb` with post-refine enabled.
+  - Treat `fb_norefine` as diagnostic/control only unless user explicitly wants it in production.

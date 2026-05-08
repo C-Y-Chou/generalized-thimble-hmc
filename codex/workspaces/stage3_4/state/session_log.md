@@ -214,3 +214,26 @@ Use this file to append per-session notes.
 - Output:
   - `output/tests/stage3_4/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine`
   - logs: `output/logs/stage3_4_preprod_validation/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine`
+
+## 2026-05-08 12:38 JST
+- Supplemental `fb_norefine` validation completed and inspected.
+- Job:
+  - `14175.anode01`
+  - queue: `C12`
+  - PBS state at inspection: `E`
+  - `Exit_status=0`
+- Report:
+  - `output/tests/stage3_4/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine/s34_preprod_validation_20260508_p28_rg_fb_norefine_report.md`
+- Aggregated result:
+  - `fb_norefine`: `Zmean_re=-0.337600`, `Zmean_im=1.729899`, `mean_Re=-0.0157643`, `mean_Im=0.0471401`, `std_Re=0.147663`, `std_Im=0.0861727`, unresolved failures `1769`, RG rejects `1585`, mean runtime `961.7s`.
+- Checks:
+  - 10 per-seed rows present.
+  - 10 per-seed `run_manifest.json` files present.
+  - Manifest env values checked: RG enabled, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`, `QN_POST_NEWTON_REFINE_ENABLED=0`.
+  - `projection_failure_count = unresolved_failure_count + reverse_gate_total_reject_count` for every row.
+- Paired comparison vs previous `fb` refine validation on the same 10 seeds:
+  - Mean delta `fb_norefine - fb`: `dRe=-0.00540`, `dIm=+0.00966`, `dRuntime=+4.87s`, `dUnresolved=-1.8`, `dRG=-0.9`.
+  - Geometry counters are nearly unchanged/slightly better, but `Zmean_im` worsens from `1.3866` to `1.7299` and runtime does not improve.
+- Interim decision:
+  - Do not switch production candidate to `fb_norefine`.
+  - Keep `fb` with post-refine enabled as current production candidate unless user requests an explicit diagnostic/control production branch.
