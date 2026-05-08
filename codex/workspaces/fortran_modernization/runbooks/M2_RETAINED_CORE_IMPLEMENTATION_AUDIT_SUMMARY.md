@@ -82,26 +82,28 @@ Discussion decision needed:
 - Either cite the intended ODEX sequence and keep it, or make the sequence explicit as a TLTM implementation choice.
 - Required test: analytic scalar/linear ODE convergence-order smoke test.
 
-### F3. Simplified Newton residual/update sign convention needs derivation signoff
+### F3. Simplified Newton residual/update sign matches GT-HMC equations, pending deterministic replay tests
 
-State: `needs-derivation`, P0/P1 depending on derivation.
+State: `reference-matched-needs-tests`, P1.
+
+Reference mapping:
+
+- GT-HMC Eq. (3.37) defines the first RATTLE projection by `zt(x+u) = zt(x) + Delta z - lambda`.
+- Eq. (3.40) defines `B = z + Delta z - lambda - znew`, with `znew = zt(x+u)`.
+- The simplified Newton equation Eq. (3.41) replaces the current Jacobian by the base Jacobian and solves `E Delta u + Delta lambda = B`.
+- Eqs. (3.42)-(3.44) decompose `B = E B0,v + Bn` and set `Delta u = B0,v`, `Delta lambda = Bn`.
 
 Observed code:
 
-- Zero seed starts with `B = del_z`.
-- Seeded and iterated residual is `B = real(z - flowz(xt+u) - ld) + del_z`.
-- `solve_projected_step` solves `jacr * dxi = B`, projects `dxi` into a real component, and sets `av = B - jacr*au`.
-- The update is `u += dxi(real slots)` and `ld += av`.
+- Code residual `B = real(z - flowz(xt+u) - ld) + del_z` is equivalent to `B = z + Delta z - lambda - znew` when `del_z = Delta z` and `ld = lambda`.
+- `solve_projected_step` solves `J^{-1} B`, zeroes the imaginary coordinates to obtain the tangent/base component, and computes `av = B - J*au`.
+- The update `u += tangent component` and `ld += av` matches `Delta u = B0,v` and `Delta lambda = Bn`.
 
-Why this matters:
+What remains to verify:
 
-- The code is internally consistent with the existing `decompose2` projection pattern, but the audit did not yet prove that this is the exact simplified Newton equation from the reference/project formulation.
-- A sign error here could be stable-looking but wrong because QN/RG/Metropolis can mask the issue as a route-frequency or acceptance shift.
-
-Discussion decision needed:
-
-- Write the intended residual equation in variables `(u, lambda, del_z, J)` and match every term to `B`, `dxi`, `av`, and `ld`.
-- Required test: deterministic accepted Newton solutions must satisfy the written residual equation and have residual norm <= `cttol`.
+- `del_z = step_size*momentum - step_size**2*dV` must match the project's normalization of `Delta z` and `partial V`.
+- The Jacobian passed to `solve_constraint_newton` must be the base `E = J(x)` at the current surface point, not the updated `Enew`.
+- Deterministic accepted Newton solutions should replay to residual norm <= `cttol` and should preserve the expected `lambda = O(step_size**2)` scaling.
 
 ### F4. RATTLE `state_has_progress` checks only `x(2)`
 
@@ -217,7 +219,7 @@ These are minimum checks, not the full test suite.
 | ODEX analytic ODE smoke tests | Verify scalar exponential and 2D linear/rotation systems against tolerance | F1, F2 |
 | Flow round-trip replay | `flowz` then `flowzr` returns representative TLTM state within tolerance | F1, F2, F5 |
 | Jacobian finite-difference check | Propagated Jacobian agrees with finite-difference flow map | ODEX/RATTLE/HMC |
-| Newton residual derivation replay | Accepted Newton solution satisfies the written residual equation | F3 |
+| Newton residual replay | Accepted Newton solution satisfies GT-HMC Eq. (3.37)/(3.40) with code variables | F3 |
 | QN p28 residual construction test | Tiny deterministic case validates `xi=(u,lambda_prime)` mapping and residual vector | F5 |
 | RATTLE one-step reversibility | One accepted step followed by reverse step returns state/momentum/Jacobian within RG tolerance | F3, F4, F5 |
 | Failed proposal state identity | Failed/RG-rejected proposals leave live slot unchanged | C1 |
@@ -226,7 +228,7 @@ These are minimum checks, not the full test suite.
 ## Recommended discussion order
 
 1. ODEX signed-work clarification: current inverse flow uses reverse RHS with nonnegative flow time; decide whether to patch `calculate_wk` for negative-interval robustness.
-2. Simplified Newton residual equation: derive and sign off signs/variables.
+2. Simplified Newton follow-up: residual sign matches GT-HMC; verify `del_z` normalization, base-Jacobian use, and deterministic residual replay.
 3. QN p28 residual: confirm standard formulation and `lambda_prime` semantics.
 4. RATTLE progress guard: decide one-dimensional invariant vs general norm check.
 5. Reverse-gate diagnostic accounting: decide whether to split/suppress replay ODE counters.
@@ -237,4 +239,4 @@ The canonical route is structurally much clearer than before:
 
 `Newton -> QN p28 standard residual when Newton fails -> reverse gate -> Metropolis`, with ODEX-only flow as the target backend.
 
-But the retained implementation is **not yet accepted for staged validation**. After the inverse-flow clarification, F1 is no longer evidence that current `flowzr` is wrong under nonnegative production flow time, but F2-F6 still require signoff/tests before touching long Monte Carlo jobs.
+But the retained implementation is **not yet accepted for staged validation**. After the inverse-flow clarification, F1 is no longer evidence that current `flowzr` is wrong under nonnegative production flow time, but F2 and F4-F6 still require signoff/tests before touching long Monte Carlo jobs; F3 is reference-matched but still needs deterministic replay tests.

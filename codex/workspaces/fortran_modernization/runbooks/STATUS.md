@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-08 21:05 JST
+Updated: 2026-05-08 21:20 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -25,7 +25,7 @@ Updated: 2026-05-08 21:05 JST
 - `tltm_stage2_driver.f90` owns production orchestration and output/counter contracts used by Stage3_4 interpretation.
 
 ## Next action
-Discuss and resolve `runbooks/M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`, especially clarified inverse-flow/ODEX signed-interval semantics, simplified Newton sign derivation, QN p28 residual signoff, RATTLE progress criteria, and reverse-gate diagnostic accounting.
+Discuss and resolve `runbooks/M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`, especially clarified inverse-flow/ODEX signed-interval semantics, simplified Newton GT-HMC residual replay/normalization, QN p28 residual signoff, RATTLE progress criteria, and reverse-gate diagnostic accounting.
 
 ## After confirmation
 - Build baseline harness design first.
@@ -120,10 +120,16 @@ Discuss and resolve `runbooks/M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`,
 - Added `runbooks/M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`.
 - Static source-level retained-core audit is complete enough for user discussion.
 - ODEX-only staged validation remains blocked until the identified bug candidates and derivation/signoff items are resolved.
-- Key blockers/signoff items: inverse-flow semantics are clarified as reversed RHS under nonnegative production flow time; remaining items are ODEX signed-interval robustness, simplified Newton residual/update derivation, QN p28 residual signoff against the original formulation, `x(2)`-only RATTLE progress guard, and reverse-gate replay diagnostic accounting.
+- Key blockers/signoff items: inverse-flow semantics are clarified as reversed RHS under nonnegative production flow time; remaining items are ODEX signed-interval robustness, simplified Newton residual/update now matched to GT-HMC but still needing replay/normalization tests, QN p28 residual signoff against the original formulation, `x(2)`-only RATTLE progress guard, and reverse-gate replay diagnostic accounting.
 - No production job was submitted for this audit.
 
 ## Inverse-flow clarification - 2026-05-08 JST
 - User confirmed `flowzr` is the inverse flow of `flow`.
 - Audit wording was corrected: current `flowzr` reverses the RHS with nonnegative production flow time, so signed `calculate_wk` is not evidence of wrong current inverse-flow behavior.
 - `calculate_wk` remains a latent/general ODEX robustness issue if negative integration intervals are ever supported.
+
+## Simplified Newton GT-HMC mapping - 2026-05-08 JST
+- Checked GT-HMC simplified RATTLE equations from `2311.10663v4.pdf`, especially Eqs. (3.37)-(3.44).
+- Code residual `B = z + del_z - ld - flowz(xt+u)` matches the paper's `B = z + Delta z - lambda - znew` when `del_z=Delta z` and `ld=lambda`.
+- `solve_projected_step` matches the paper decomposition `B = E B0,v + Bn`, with `Delta u = B0,v` and `Delta lambda = Bn`.
+- Remaining checks are deterministic residual replay, `del_z`/`partial V` normalization, and ensuring the Jacobian is the fixed base Jacobian required by simplified Newton.
