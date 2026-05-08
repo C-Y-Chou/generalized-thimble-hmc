@@ -195,3 +195,8 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - User selected synchronous cleanup for ODEX canonicalization: Hairer `IWORK(3)=3` sequence, matching `calculate_ak`, and signed-interval/work-estimate robustness should be handled together.
 - Pre-long-validation test target is ODE solver self-consistency, not old/new trajectory equality: analytic ODE convergence/order sanity, step subdivision consistency, inverse/round-trip checks where applicable, and failure classification sanity.
 - Radau/JFNK/final-resort legacy code should be arranged in the most convenient later-deletion form: isolated quarantine with explicit disabled entry points/switches and no hidden production fallback.
+
+## Current discussion scope - 2026-05-08 JST
+- User narrowed the active discussion scope back to the five retained core numerical blocks.
+- Typed state API redesign, diagnostics context redesign, repo-wide module/API cleanup, utilities/RNG/I/O/output-schema modernization, and broader productization remain recorded as future modernization blocks, but should not drive the immediate discussion sequence.
+- Immediate priority: complete decisions/signoff prerequisites for ODEX, simplified Newton, RATTLE, QN p28/BTN, and HMC/Metropolis/reverse-gate before moving to other cross-cutting refactors.

@@ -181,10 +181,12 @@ Required before long validation:
 
 ## Revised discussion order
 
+Scope note: active discussion is limited to the five retained core numerical blocks. Broader typed-state, diagnostics, repo/API, utilities/RNG/I/O, and productization refactors remain future blocks.
+
 1. ODEX implementation canonicalization: switch to Hairer ODEX `IWORK(3)=3`, update matching work estimates, clean signed-interval robustness, and test ODE solver self-consistency before any ODEX-only validation.
 2. QN p28 implementation: switch BTN rescue to paper variables (`xi1=b`, `xi2=a`) and flip the initial-guess RHS consistently.
-3. RATTLE failure/progress policy: treat `state_has_progress` as a symptom of the current `x(1)=flow_time`, `x(2:)=seed` layout; defer real cleanup to state API redesign and document failure-as-rejection as the project MCMC boundary.
-4. Deterministic replay tests: Newton residual, BTN residual, RATTLE reverse gate, flow round-trip, ODE analytic checks.
+3. RATTLE/HMC proposal boundary: keep `state_has_progress` legacy/diagnostic until state redesign, define failure-as-rejection, and treat reverse gate as part of the proposal definition.
+4. Deterministic core tests: Newton residual, BTN residual contract, RATTLE/reverse-gate behavior, flow round-trip, ODE analytic/self-consistency checks.
 5. Only after these are resolved should ODEX-only 10k -> 50k -> 100k physical validation begin.
 
 ## Bottom line
