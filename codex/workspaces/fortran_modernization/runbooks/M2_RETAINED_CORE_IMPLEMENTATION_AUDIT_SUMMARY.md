@@ -1,5 +1,7 @@
 # M2 Retained Core Numerical Implementation Audit Summary
 
+> Supersession note (2026-05-08): This document is retained as the first source-level risk scan. For reference-backed signoff, use `M2_REFERENCE_BACKED_CORE_AUDIT.md`, which corrects and refines several source-first conclusions.
+
 Updated: 2026-05-08
 Scope: static source-level correctness audit of the retained canonical numerical cores before ODEX-only staged validation.
 

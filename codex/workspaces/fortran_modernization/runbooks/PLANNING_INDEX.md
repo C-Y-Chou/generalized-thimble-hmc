@@ -52,3 +52,4 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 - Next gate: retained-core implementation correctness audit before ODEX-only 10k -> 50k -> 100k physical checks.
 
 - `M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`: completed static audit findings and discussion blockers for retained ODEX/Newton/RATTLE/QN/HMC code.
+- `M2_REFERENCE_BACKED_CORE_AUDIT.md`: reference-first retained-core audit superseding the earlier source-level risk scan where conclusions differ.

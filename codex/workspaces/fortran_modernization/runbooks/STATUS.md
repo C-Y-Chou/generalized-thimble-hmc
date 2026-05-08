@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-08 21:20 JST
+Updated: 2026-05-08 21:50 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -25,7 +25,7 @@ Updated: 2026-05-08 21:20 JST
 - `tltm_stage2_driver.f90` owns production orchestration and output/counter contracts used by Stage3_4 interpretation.
 
 ## Next action
-Discuss and resolve `runbooks/M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`, especially clarified inverse-flow/ODEX signed-interval semantics, simplified Newton GT-HMC residual replay/normalization, QN p28 residual signoff, RATTLE progress criteria, and reverse-gate diagnostic accounting.
+Discuss and resolve `runbooks/M2_REFERENCE_BACKED_CORE_AUDIT.md`, especially ODEX step-sequence policy, QN p28 as BTN rescue, RATTLE failure/progress semantics, deterministic replay tests, and reverse-gate diagnostic accounting.
 
 ## After confirmation
 - Build baseline harness design first.
@@ -133,3 +133,11 @@ Discuss and resolve `runbooks/M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`,
 - Code residual `B = z + del_z - ld - flowz(xt+u)` matches the paper's `B = z + Delta z - lambda - znew` when `del_z=Delta z` and `ld=lambda`.
 - `solve_projected_step` matches the paper decomposition `B = E B0,v + Bn`, with `Delta u = B0,v` and `Delta lambda = Bn`.
 - Remaining checks are deterministic residual replay, `del_z`/`partial V` normalization, and ensuring the Jacobian is the fixed base Jacobian required by simplified Newton.
+
+## Reference-backed retained-core re-audit - 2026-05-08 JST
+- Added `runbooks/M2_REFERENCE_BACKED_CORE_AUDIT.md`.
+- The earlier retained-core audit is now explicitly marked as a source-level risk scan, not final reference-backed signoff.
+- Key correction: simplified Newton signs and `Delta z` normalization match GT-HMC/TLTM for unit mass.
+- Key correction: active p28 QN residual is BTN/backflow rescue after standard Newton failure, not standard `(u,lambda)` residual.
+- Key new blocker: current ODEX step sequence is not one of the Hairer ODEX listed sequences and needs policy decision or tests.
+- ODEX-only long validation remains blocked pending these decisions and deterministic replay tests.

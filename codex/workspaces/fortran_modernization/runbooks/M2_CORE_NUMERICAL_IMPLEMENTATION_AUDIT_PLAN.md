@@ -195,11 +195,11 @@ Minimal checks before staged validation:
 
 | Core | Current state | Notes |
 |---|---|---|
-| ODEX flow integration | `latent-controller-bug-needs-test` | ODEX-only routing is implemented. `flowzr` is inverse flow via reversed RHS under nonnegative production flow time; `calculate_wk` still appears signed if negative integration intervals are ever supported. |
-| Simplified Newton | `reference-matched-needs-tests` | GT-HMC Eqs. (3.37)-(3.44) match code residual/update signs when `del_z=Delta z` and `ld=lambda`; remaining checks are normalization, base-Jacobian use, and deterministic replay. |
-| RATTLE proposal structure | `needs-derivation-plus-bug-candidate` | Step boundary is coherent, but `state_has_progress` only checks `x(2)` and must be accepted as a one-dimensional invariant or redesigned. |
-| QN p28 projection loss | `intentional-deviation-needs-user-signoff` | Active residual is project-specific standard p28 loss using `xi=(u,lambda_prime)` and DFO-LS machinery; it needs signoff against `new_algorithm__Copy_.pdf`. |
-| HMC/Metropolis/RG boundary | `accepted-with-diagnostic-risk` | Live-state preservation and Metropolis rejection boundary look correct; reverse-gate replay diagnostic accounting is not fully isolated from ODE/global counters. |
+| ODEX flow integration | `reference-deviation-needs-decision` | Explicit midpoint/extrapolation structure matches Hairer style, but current `2,4,6,12,18,36,...` step sequence is not one of the Hairer ODEX listed sequences. |
+| Simplified Newton | `matched-needs-deterministic-tests` | GT-HMC Eqs. (3.37)-(3.44) and TLTM unit-mass `Delta z` formula match code residual/update signs and normalization; add replay tests. |
+| RATTLE proposal structure | `mostly-matched-with-implementation-guards` | Main TLTM complex RATTLE order matches; `state_has_progress` and failure-as-rejection vs paper momentum-flip semantics need explicit policy/test coverage. |
+| QN p28 projection loss | `matched-as-BTN-rescue-needs-naming-tests` | Active p28 residual is BTN/backflow rescue after standard Newton failure, not standard `(u,lambda)`; document `xi1=-b`, `xi2=a` sign convention and test Eq. (22)/(25). |
+| HMC/Metropolis/RG boundary | `matched-if-proposal-boundary-is-reversible` | Metropolis/live-state boundary matches if RATTLE/RG proposal is reversible; replay diagnostics and failure semantics need deterministic tests. |
 
 ## Immediate next deliverable
 
@@ -216,3 +216,7 @@ The first practical audit target should be `src/physics/solve_flow.f90` because 
 ## Static audit completion note - 2026-05-08 JST
 
 The first retained-core static audit has been completed and summarized in `M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`. It found no evidence that failed/RG-rejected proposals mutate live Markov state, but it did identify several blockers before ODEX-only staged validation: inverse-flow/ODEX signed-interval semantics, simplified Newton residual replay/normalization checks, QN p28 residual signoff, `x(2)`-only RATTLE progress guard, and reverse-gate replay diagnostic accounting.
+
+## Reference-backed re-audit note - 2026-05-08 JST
+
+The second-pass audit is recorded in `M2_REFERENCE_BACKED_CORE_AUDIT.md`. It supersedes source-first signoff states where they differ. Long ODEX-only validation remains blocked until ODEX sequence policy, QN p28 BTN naming/sign tests, RATTLE failure/progress semantics, and deterministic replay tests are resolved.
