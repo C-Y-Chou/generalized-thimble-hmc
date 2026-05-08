@@ -183,3 +183,9 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - User confirmed reverse gate is part of the proposal definition, not a debug-only diagnostic.
 - Reverse-gate failure is handled as proposal failure and therefore as failure-as-rejection/stay-put in the marginal chain.
 - Accepted proposals must satisfy the reverse-gate contract; rejected/RG-failed proposals must not update live chain state.
+
+## Diagnostics/counters modernization decision - 2026-05-08 JST
+- User confirmed diagnostic accounting must be repaired, but not as a narrow reverse-gate replay patch.
+- The current count/capture/switch design is patchwork across ODE, QN, RATTLE, reverse gate, probes, rescue/failure paths, and Stage2 output contracts.
+- Future modernization should introduce a typed diagnostics/accounting context that separates forward proposal work, reverse-gate replay, probes/debug, rescue attempts, failed proposal work, accepted-proposal counters, and output-schema reporting.
+- Until the redesign, benchmark/validation reports must state whether counters include replay/probe/failure work.

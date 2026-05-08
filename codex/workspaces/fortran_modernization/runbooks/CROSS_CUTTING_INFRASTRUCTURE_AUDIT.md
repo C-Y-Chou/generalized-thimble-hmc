@@ -150,3 +150,15 @@ Blocked until after Stage3_4/TLTM judgment and characterization baseline:
 - `OUTPUT_SCHEMA_DESIGN.md`
 - `DIAGNOSTICS_AND_COUNTER_CONTRACT.md`
 - `WRAPPER_INTERFACE_DESIGN.md`
+
+## Diagnostics / Accounting Context
+
+Status: modernization target.
+
+The current counter/capture/switch design is scattered across global ODE counters, quasi-Newton traces, reverse-gate replay/probe accounting, rescue/failure counters, Stage2 accepted-route census, and output/reporting code. This makes benchmark interpretation fragile because forward proposal work can be mixed with replay/probe/debug/failure work.
+
+Modernization target:
+
+- Introduce a typed diagnostics/accounting context instead of scattered global counters and suppression flags.
+- Classify work by role: forward proposal, reverse-gate replay, debug/probe, rescue attempt, failed proposal, accepted proposal, rejected/stay-put event, and output-summary aggregation.
+- Keep output schema versioned so historical Stage3_4 comparisons remain interpretable while publishable counters become explicit.
