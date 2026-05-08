@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-08 22:20 JST
+Updated: 2026-05-08 22:35 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -150,6 +150,13 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 
 ## QN p28 BTN sign convention - 2026-05-08 JST
 - User confirmed p28 should be treated as BTN/backflow rescue after standard Newton failure.
-- Sign convention confirmed against BTN Eq. (22) and `evaluate_constraint_residual`: `xi1=-b`, `xi2=-a`; equivalently `a=-xi2`, `b=-xi1`.
-- `fq(n+1:)=xi2` enforces `a=0`; `Jl=J*(i*xi1+xi2)` is the trial correction added to `z+del_z` before inverse flow.
+- Current sign convention confirmed against BTN Eq. (22): current code has `xi1=-b`, `xi2=-a`; future modernization target is paper variables `xi1=b`, `xi2=a`.
+- Future implementation must change the correction to `-J*(xi2+i*xi1)` and change `initial_guess_from_jacobian` to solve `J dz=+del_z`, so the initial loss exposes the intended `||xi2||`/`||a||` component.
 - Older planning text saying p28 is a standard `(u,lambda)` residual is superseded by the reference-backed audit.
+
+## QN p28 paper-variable decision - 2026-05-08 JST
+- User requested BTN variables follow the paper directly.
+- Future target: `xi1=b`, `xi2=a`.
+- Future residual correction: `residual_jlc = -J*(xi2 + i*xi1)`.
+- Future initial guess: solve `J dz = +del_z`, then `xi1=Im(dz)`, `xi2=Re(dz)`.
+- This sign change must be implemented together; changing only the residual or only the initial guess would put the solver in mixed conventions.
