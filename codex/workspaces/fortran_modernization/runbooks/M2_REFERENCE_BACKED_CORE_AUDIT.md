@@ -147,7 +147,7 @@ Required before long validation:
   - If retaining the current negative-coordinate convention, do not change the initial guess sign; current `J dz=-del_z` is consistent and gives `ztrial=z` at the linear seed, so the initial loss is approximately `||xi2||` in the current `xi2=-a` convention.
   - If switching to paper variables, implement `residual_jlc = -matmul(jac, xi2 + i*xi1)`, with `xi1=b`, `xi2=a`, and change `initial_guess_from_jacobian` to solve `J dz = +del_z`. Changing only one of residual sign or seed sign would create a mixed convention.
 - Confirm downstream code treats `Jl` as the actual correction added to `z+del_z`; then recovery/replay paths do not need a separate sign change. Re-audit post-refine seed mapping separately if post-refine is retained.
-- Unit test `evaluate_constraint_residual` on a tiny case against BTN Eq. (22)/(25), including initial guess sign and the expected initial loss behavior.
+- Unit test `evaluate_constraint_residual` against the BTN contract, not against old/new convention equivalence: after solver convergence, construct `ztrial = z + del_z + Jl`, verify `Imag(flowzr(ztrial))` is small, and verify the second residual block (`a`, or current-convention `xi2`) is small.
 - Fixed-seed route-census comparison for `Nprobe=28` and any allowed follow-up budgets.
 
 ## Core 5: HMC / Metropolis / reverse gate

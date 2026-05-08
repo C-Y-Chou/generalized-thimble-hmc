@@ -161,3 +161,8 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - Future initial guess, if adopting paper variables: solve `J dz = +del_z`, then `xi1=Im(dz)`, `xi2=Re(dz)`.
 - This sign change must be implemented together. For the canonical p28 path, once the residual sign is changed, only `initial_guess_from_jacobian` needs a paired seed-generation sign change; `Jl`/recovery can keep treating `Jl` as the actual correction added to `z+del_z`.
 - Changing only the initial guess while leaving the current residual convention would be wrong: it would seed the trial point near `z+2*del_z` instead of near `z`.
+
+## BTN validation policy - 2026-05-08 JST
+- User decided not to require old-convention/new-convention regression equivalence for BTN variable cleanup.
+- Required validation is the BTN residual contract itself: after convergence, build `ztrial = z + del_z + Jl`, verify `Imag(flowzr(ztrial))` is small, and verify the second residual block is small (`a` in paper variables, current-convention `xi2` before cleanup).
+- `Jl`/recovery should be judged by whether this reconstructed `ztrial` satisfies the inverse-flow manifold condition, not by matching a previous coordinate convention.
