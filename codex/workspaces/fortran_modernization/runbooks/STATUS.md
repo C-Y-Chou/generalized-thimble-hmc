@@ -243,3 +243,17 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - Projection/unresolved failures increased relative to the closest baseline (`2519` vs `1769` unresolved; mean projection failures/seed `408.5` vs `335.4`), so these are required 50k watch items.
 - ODEX-only fallback semantics are active as expected: fallback success is `0`, invalid fallback count is `0`, and fallback failures are almost entirely h-min classified (`21761/21762`) with one max-step-classified failure.
 - Judgment recorded in `runbooks/ODEX_10K_VALIDATION_RESULT_20260508.md`: provisional pass to matching 50k validation, not final physics signoff.
+
+## ODEX 50k/100k validation submission - 2026-05-08 JST
+- Added and submitted matching ODEX-only `fb_norefine` scale-up jobs from commit `4b5b99a`.
+- 50k job: `14306.anode01`, PBS `codex/workspaces/fortran_modernization/tasks/pbs/odex_50k_validation_20260508_fb_norefine.pbs`, config `docs/stage_3_4_t035_paired_10seed_50k_rg.json`.
+- 100k job: `14307.anode01`, PBS `codex/workspaces/fortran_modernization/tasks/pbs/odex_100k_validation_20260508_fb_norefine.pbs`, config `docs/stage_3_4_t035_paired_10seed_100k_rg.json`.
+- Both jobs use 10 matched seeds, p28, reverse gate on, post-refine off, `ct=1e-13`, `QN=1e-13`, `jobs=20`, `stage2_threads=1`, `eval_threads=1`.
+- Output directories:
+  - `output/tests/odex_validation/20260508_10seed_50k_fb_norefine_ct1e13_qn1e13`
+  - `output/tests/odex_validation/20260508_10seed_100k_fb_norefine_ct1e13_qn1e13`
+- Log directories:
+  - `output/logs/odex_validation/20260508_10seed_50k_fb_norefine_ct1e13_qn1e13`
+  - `output/logs/odex_validation/20260508_10seed_100k_fb_norefine_ct1e13_qn1e13`
+- At submission check, both jobs were running on C12 with start time `2026-05-08 23:44 JST`; requested walltimes are 4h for 50k and 8h for 100k.
+- ETA from the 10k measured walltime is approximately 60-75 minutes for 50k and 2-2.5 hours for 100k, assuming similar node behavior.
