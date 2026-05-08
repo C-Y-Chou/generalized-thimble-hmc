@@ -60,3 +60,23 @@
 - Characterization is explicitly temporary and not the official canonical baseline freeze.
 - Main observed effect: `fb_norefine` sharply reduces unresolved failures versus `no_fb`, increases RG rejects modestly relative to candidates, and increases runtime.
 
+## 2026-05-08 JST - M2a decision: fb_norefine canonical
+- User confirmed `fb_norefine` as the canonical p28 production route.
+- Canonical route is Newton -> QN S1 p28 DFO-LS standard residual -> RG -> Metropolis.
+- Post-refine is a deletion candidate and should not remain in final canonical route unless explicitly re-promoted later.
+
+## 2026-05-08 JST - M2a decision: ODEX-only canonical flow backend
+- User confirmed ODEX-only as canonical long-term flow backend target.
+- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are deletion candidates.
+- Implementation still requires flow-level characterization and ODEX-only comparison coverage before removal/disablement.
+
+## 2026-05-08 JST - M2a decision: non-p28 routes legacy first
+- User clarified non-p28 quasi routes should first be marked legacy, not deleted immediately.
+- Deletion waits until staged 10k -> 50k -> 100k checks show no major physical-observable issue for canonical p28 route.
+- Applies to DFO-GN paper, Broyden/line-search, global continuation/restart, and non-p28 variants.
+
+## 2026-05-08 JST - M2 execution policy before ODEX-only
+- User confirmed the next action order: finish everything except ODEX-only first, then change ODEX-only and validate through 10k -> 50k -> 100k.
+- Clarified policy: non-ODEX cleanup before ODEX-only must not change current produced data or physical behavior; it is limited to canonical route documentation, legacy/quarantine labeling, dependency inventory, and test planning.
+- Added `M2_NON_ODEX_CANONICAL_CLEANUP_PLAN.md` and `ODEX_ONLY_STAGED_VALIDATION_PLAN.md`.
+- ODEX-only remains the first numerical canonicalization step expected to allow trajectory changes; validation will judge physical observables and diagnostics, not exact trajectory identity.

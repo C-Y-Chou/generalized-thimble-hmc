@@ -29,3 +29,7 @@
 - 2026-05-08 JST: corrected roadmap scope: five core algorithm audits are safety gates, not the center; full modernization is repo-wide and now includes cross-cutting infrastructure such as utils, RNG, config, I/O, build/test tooling, diagnostics, scripts, and workspace/state ownership.
 - 2026-05-08 JST: completed pre-Stage3_4 planning artifacts and corrected stage order to characterization baseline -> core canonicalization -> official baseline freeze -> repo-wide modernization.
 - 2026-05-08 JST: created M1 temporary characterization baseline from completed Stage3_4 128seed/100k p28 RG report and created M2 core canonicalization decision queue.
+- 2026-05-08 JST: M2a decision recorded: `fb_norefine` is canonical p28 route; post-refine is deletion candidate.
+- 2026-05-08 JST: M2a decision recorded: canonical long-term flow backend is ODEX-only; Radau/JFNK/final-resort rescue stack is deletion candidate.
+- 2026-05-08 JST: M2a decision recorded: non-p28 quasi routes are legacy/quarantine first; deletion waits for staged 10k->50k->100k physical validation.
+- 2026-05-08 JST: M2 execution policy recorded: non-ODEX cleanup is behavior-neutral quarantine/inventory only; ODEX-only gets staged 10k->50k->100k physical validation before legacy deletion.

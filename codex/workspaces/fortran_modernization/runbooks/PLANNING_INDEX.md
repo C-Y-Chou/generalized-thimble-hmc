@@ -29,6 +29,8 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 - `M1_TEMPORARY_CHARACTERIZATION_BASELINE.md`
 - `M2_CORE_CANONICALIZATION_QUEUE.md`
+- `M2_NON_ODEX_CANONICAL_CLEANUP_PLAN.md`
+- `ODEX_ONLY_STAGED_VALIDATION_PLAN.md`
 - `BASELINE_VERIFICATION_MATRIX.md`
 - `LEGACY_DELETION_CANDIDATES.md`
 
@@ -44,6 +46,6 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 ## Current Position
 
-- Current phase: M0 planning freeze and decision capture.
-- Stage3_4/TLTM judgment is a hard boundary before source modernization.
-- Next post-judgment sequence: characterization baseline, core numerical canonicalization, official baseline freeze, then repo-wide modernization.
+- Current phase: M2 canonicalization planning after Stage3_4 characterization.
+- Non-ODEX cleanup is behavior-neutral quarantine/inventory only before ODEX-only.
+- Next implementation discussion: ODEX-only staged validation with 10k -> 50k -> 100k physical checks.

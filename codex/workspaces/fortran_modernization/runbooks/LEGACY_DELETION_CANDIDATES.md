@@ -89,3 +89,20 @@ Deletion/deprecation gate:
 - Unused config keys after config audit.
 - Deprecated output/report fields after wrapper schema design.
 - Duplicate scripts after wrapper migration.
+
+## Canonical p28 route decision - 2026-05-08
+- User confirmed `fb_norefine` as the canonical p28 production route.
+- Canonical route: Newton -> QN S1 p28 DFO-LS standard residual -> reverse gate -> Metropolis.
+- Post-refine is a deletion candidate and should not be part of the final canonical p28 route unless explicitly re-promoted later.
+- M2c implementation may remove or disable post-refine after comparison harness coverage.
+
+## Canonical flow backend decision - 2026-05-08
+- User confirmed ODEX-only as the canonical long-term flow backend target.
+- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are deletion candidates.
+- M2c implementation may remove or disable the rescue stack after flow-level characterization and ODEX-only comparison coverage.
+- If ODEX-only failure rate is unacceptable, improve ODEX/step control/failure handling rather than preserving a hidden secondary integrator stack by default.
+
+## Non-p28 quasi route staging decision - 2026-05-08
+- User confirmed non-p28 quasi routes should be marked legacy first, not immediately deleted.
+- Deletion requires staged physical validation: 10k -> 50k -> 100k checks must show no major physical-observable problem for the canonical p28 path.
+- Until that validation gate passes, DFO-GN paper, Broyden/line-search, global continuation/restart, and non-p28 variants remain legacy/quarantine candidates rather than approved deletions.

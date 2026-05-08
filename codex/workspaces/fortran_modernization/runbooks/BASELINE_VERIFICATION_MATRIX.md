@@ -94,7 +94,7 @@ No modernization refactor should be implemented until the affected row below has
 - Any future wrapper should expose this as part of the canonical p28 algorithm contract, not as an experimental add-on.
 
 ## Flow Backend Direction Decision - 2026-05-08
-- Tentative long-term publishable target: ODEX-only flow backend.
+- Canonical long-term publishable target: ODEX-only flow backend.
 - Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are legacy robustness layers/deletion candidates.
 - Do not remove or change them before Stage3_4/TLTM judgment completes.
 - After judgment, regenerate clean baselines, record current rescue counters, and run an ODEX-only comparison before deletion.
@@ -106,3 +106,9 @@ No modernization refactor should be implemented until the affected row below has
 - Short-term production behavior remains serial/process-level until Stage3_4/TLTM judgment and fresh baselines are complete.
 - No source-level context refactor should start until affected baseline rows are covered.
 - Final wrapper design should make per-run/per-replica state explicit enough for deterministic parallel execution.
+
+## Canonical flow backend decision - 2026-05-08
+- User confirmed ODEX-only as the canonical long-term flow backend target.
+- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are deletion candidates.
+- M2c implementation may remove or disable the rescue stack after flow-level characterization and ODEX-only comparison coverage.
+- If ODEX-only failure rate is unacceptable, improve ODEX/step control/failure handling rather than preserving a hidden secondary integrator stack by default.

@@ -140,8 +140,14 @@ Before implementation, create `BASELINE_VERIFICATION_MATRIX.md` to define the ex
 In parallel planning order, the next low-level algorithm note should be `SIMPLIFIED_NEWTON_RATTLE_REVIEW_NOTES.md`, using `2311.10663v4.pdf` as the defining reference and mapping it to `hmc_integrator_core.f90`, `hmc_constraints.f90`, `hmc.f90`, and flow calls.
 
 ## Flow Backend Direction Decision - 2026-05-08
-- Tentative long-term publishable target: ODEX-only flow backend.
+- Canonical long-term publishable target: ODEX-only flow backend.
 - Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are legacy robustness layers/deletion candidates.
 - Do not remove or change them before Stage3_4/TLTM judgment completes.
 - After judgment, regenerate clean baselines, record current rescue counters, and run an ODEX-only comparison before deletion.
 - If ODEX-only failure rate is unacceptable, prefer improving ODEX/step control/failure handling over preserving a hidden secondary integrator stack.
+
+## Canonical flow backend decision - 2026-05-08
+- User confirmed ODEX-only as the canonical long-term flow backend target.
+- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are deletion candidates.
+- M2c implementation may remove or disable the rescue stack after flow-level characterization and ODEX-only comparison coverage.
+- If ODEX-only failure rate is unacceptable, improve ODEX/step control/failure handling rather than preserving a hidden secondary integrator stack by default.

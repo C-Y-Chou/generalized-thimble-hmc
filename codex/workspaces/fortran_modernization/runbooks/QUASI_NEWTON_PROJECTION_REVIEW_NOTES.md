@@ -139,3 +139,14 @@ Blocked until Stage3_4 completion or explicit approval:
 - Confirm after Stage3_4 whether post-refine remains in production or is removed.
 - Should global fallback remain research-only and disabled by default?
 - Should route thresholds become named config parameters later, or remain compiled constants for reproducibility?
+
+## Canonical p28 route decision - 2026-05-08
+- User confirmed `fb_norefine` as the canonical p28 production route.
+- Canonical route: Newton -> QN S1 p28 DFO-LS standard residual -> reverse gate -> Metropolis.
+- Post-refine is a deletion candidate and should not be part of the final canonical p28 route unless explicitly re-promoted later.
+- M2c implementation may remove or disable post-refine after comparison harness coverage.
+
+## Non-p28 quasi route staging decision - 2026-05-08
+- User confirmed non-p28 quasi routes should be marked legacy first, not immediately deleted.
+- Deletion requires staged physical validation: 10k -> 50k -> 100k checks must show no major physical-observable problem for the canonical p28 path.
+- Until that validation gate passes, DFO-GN paper, Broyden/line-search, global continuation/restart, and non-p28 variants remain legacy/quarantine candidates rather than approved deletions.
