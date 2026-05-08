@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-09 01:25 JST
+Updated: 2026-05-09 00:58 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -242,6 +242,17 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - The QN-clean 10k result was copied into the active ODEX validation namespace at `/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation/output/tests/odex_validation/20260509_10seed_10k_qnclean_fb_norefine_ct1e13_qn1e13`.
 - Added `runbooks/ODEX_10K_VALIDATION_RESULT_20260509_QNCLEAN.md` as the active 10k ODEX baseline for the next 50k gate.
 - Raw historical output was not deleted; a supersession marker was written beside the old 2026-05-08 output so future work does not confuse it with the active baseline.
+
+## QN-clean promotion and ODEX scale-up submission - 2026-05-09 JST
+- Promoted QN-clean state into the canonical `codex/preprod-hardening` branch without force-pushing. Merge/promotion commit: `4bd26b3`; PBS scale-up commit: `5b93aaa`.
+- Updated the production worktree `/lustre1/home/cychou/TLTM` (`/home/cychou/TLTM` resolves to the same path) to `5b93aaa`.
+- Copied the active QN-clean 10k baseline into the production ODEX namespace: `/lustre1/home/cychou/TLTM/output/tests/odex_validation/20260509_10seed_10k_qnclean_fb_norefine_ct1e13_qn1e13`.
+- Cleaned stale build module/object cache and rebuilt `bin/run_tltm_stage2` plus `bin/evaluate_expectations` with `compiler/2025.3.0`, `mpi/2021.17`, and `mkl/2025.3`.
+- Submitted refreshed QN-clean ODEX scale-up jobs from the canonical production worktree:
+  - 32seed x 50k job: `14324.anode01`, output `output/tests/odex_validation/20260509_32seed_50k_qnclean_fb_norefine_ct1e13_qn1e13`.
+  - 128seed x 100k chunks: `14325.anode01` through `14332.anode01`, offsets `0,16,32,48,64,80,96,112`.
+  - 100k merge dependency job: `14333.anode01`, held on `afterok` of all eight chunks.
+- The side worktree `/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation` is no longer the active source of truth; it remains only as temporary historical/backup context until the refreshed ODEX validation finishes.
 
 ## QN p28 BTN source cleanup - 2026-05-08 JST
 - Implemented the first M2 core source patch for QN p28/BTN paper variables.

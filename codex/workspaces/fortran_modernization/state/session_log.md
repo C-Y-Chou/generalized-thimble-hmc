@@ -11,6 +11,12 @@
 - Do not create a separate `code_refine` workspace unless the scope later splits into a concrete implementation sprint.
 - Use this workspace for behavior-preserving code cleanup/refactor planning and execution guardrails.
 
+## 2026-05-09 JST - QN-clean promoted and ODEX scale-up submitted
+- Promoted QN-clean modernization state into canonical `codex/preprod-hardening` without force-pushing; production worktree `/lustre1/home/cychou/TLTM` now points to `5b93aaa`.
+- Copied the QN-clean 10k ODEX baseline into the production output namespace so future validation no longer depends on the side worktree.
+- Rebuilt `run_tltm_stage2` and `evaluate_expectations` after cleaning stale compiler module artifacts.
+- Submitted refreshed ODEX validation: `14324` for 32seed x 50k, `14325`-`14332` for 128seed x 100k chunks, and `14333` as the afterok merge job.
+
 ## 2026-05-08 JST - Planning information collection complete
 - Read relevant Fortran source sections for ODEX/flow, Newton/RATTLE, quasi-Newton projection, HMC/Metropolis, Stage2 driver, tests, and existing program-map docs.
 - Added low-level review notes for ODEX, simplified Newton/RATTLE, quasi-Newton projection, and HMC/Metropolis/TLTM driver.
