@@ -625,3 +625,19 @@ Use this file to append per-session notes.
 - Workflow fix found during submission:
   - `refresh_live_board.sh` modifies volatile files that were tracked, which conflicts with clean production git gate.
   - moved `codex/context/LAST_REFRESH.txt`, `codex/runbooks/LIVE_BOARD.md`, and `codex/state/job_tracker.tsv` out of git tracking and into `.gitignore`.
+
+## 2026-05-08 JST
+- Stage3_4 pre-production validation completed and inspected.
+- Report:
+  - `output/tests/stage3_4/preprod_validation_20260507_10seed_10k_p28_rg/s34_preprod_validation_20260507_p28_rg_report.md`
+- Key results:
+  - `fb`: `Zmean_re=-0.214`, `Zmean_im=1.387`, mean Re `<O>=-0.01037`, mean Im `<O>=0.03748`, failures `1787`, RG rejects `1594`, mean runtime `956.9s`.
+  - `no_fb`: `Zmean_re=1.133`, `Zmean_im=-0.594`, mean Re `<O>=0.06561`, mean Im `<O>=-0.02009`, failures `7451`, RG rejects `1132`, mean runtime `817.5s`.
+- Validation checks:
+  - 20 per-seed rows present.
+  - 20 per-seed `run_manifest.json` files present.
+  - manifest env check passed for RG/p28/tol settings.
+  - `projection_failure_count = unresolved_failure_count + reverse_gate_total_reject_count` for all rows.
+- Decision:
+  - PASS for proceeding to full production planning, with small-sample caveat.
+  - Do not treat this 10seed/10k validation as a final scientific claim.

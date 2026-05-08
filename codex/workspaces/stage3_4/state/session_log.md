@@ -171,3 +171,24 @@ Use this file to append per-session notes.
   - inspect report Zmean, rev_rej, unresolved failures, runtime.
   - confirm per-seed `run_manifest.json` exists.
   - only then submit full 1024-seed production.
+
+## 2026-05-08 JST
+- Pre-production validation completed and inspected.
+- Report:
+  - `output/tests/stage3_4/preprod_validation_20260507_10seed_10k_p28_rg/s34_preprod_validation_20260507_p28_rg_report.md`
+- Completion artifacts:
+  - `aggregated_summary_table.csv`
+  - `per_seed_summary_table.csv`
+  - 20 per-seed `run_manifest.json` files.
+- Aggregated results:
+  - `fb`: `Zmean_re=-0.214`, `Zmean_im=1.387`, failures `1787`, RG rejects `1594`, mean runtime `956.9s`.
+  - `no_fb`: `Zmean_re=1.133`, `Zmean_im=-0.594`, failures `7451`, RG rejects `1132`, mean runtime `817.5s`.
+- Checks:
+  - 20 per-seed rows present.
+  - 20 run manifests present.
+  - required env values present in manifests: RG enabled, p28, `QN_QUASI_TOL_OVERRIDE=1e-13`, `TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-13`.
+  - `projection_failure_count = unresolved_failure_count + reverse_gate_total_reject_count` for every seed/method row.
+- Interpretation:
+  - PASS for proceeding to full production planning.
+  - Small-sample caveat: 10 seeds x 10k is only a validation gate, not a final scientific claim.
+  - `fb` reduces unresolved failures strongly; runtime cost is about 17%; RG rejects are slightly higher but not a blocker.
