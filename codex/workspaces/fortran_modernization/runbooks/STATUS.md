@@ -280,3 +280,12 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
   - Output root: `output/tests/odex_validation/20260508_128seed_100k_fb_norefine_ct1e13_qn1e13`
   - Logs root: `output/logs/odex_validation/20260508_128seed_100k_fb_norefine_ct1e13_qn1e13`
 - At submission check, `14308` and all 8 compute chunks `14309`-`14316` were running; merge job `14317` was held by dependency as intended.
+
+## QN invalid-evaluation handling and ODEX scale-up stop - 2026-05-09 JST
+- User clarified that QN/DFOLS trust-region failures are valid trial failures, but must not be encoded as artificial residuals that can pollute the model or progress logic.
+- Implemented QN evaluator contract cleanup: invalid constraint/flow evaluations now return neutral `fq=0`, `Jl=0`, and `ierr=.true.` via `mark_constraint_eval_invalid`; solver logic must branch on `ierr`/`eval_ok`, not sentinel residual magnitude.
+- Changed the non-paper-exact initial-evaluation retry seed in DFO-LS, DFO-GN/Broyden, and non-paper DFO-GN paper-attempt fallback from `x=xt` to `x=0`.
+- Preserved trace semantics: failed trials are still recorded as `eval_ok=.false.` and cannot count as accepted progress.
+- Local verification: rebuilt `../bin/run_tltm_stage2` successfully in the dedicated QN validation worktree.
+- Stopped the in-flight ODEX-only scale-up because QN error handling changes invalidate it as the next comparison gate. Cancelled `14308`-`14316`; cancelled held merge `14318`. The scale-up will be rerun from the QN-cleaned state after a fresh 10k validation.
+- Added PBS `codex/workspaces/fortran_modernization/tasks/pbs/qn_error_handling_10k_validation_20260509_fb_norefine.pbs` for a fresh 10seed x 10k `fb_norefine`, p28, reverse-gate, post-refine-off validation at `ct=1e-13`, `QN=1e-13`.
