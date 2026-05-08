@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-09 01:05 JST
+Updated: 2026-05-09 01:25 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -8,6 +8,7 @@ Updated: 2026-05-09 01:05 JST
 
 ## Current state
 - Initial modernization governance set established.
+- User-confirmed alias: "code refine" means this `fortran_modernization` task, not a separate workspace.
 - Algorithm reference bundle is collected under `references/`, including TLTM HMC, simplified Newton/RATTLE/HMC, DFO-GN/DFO-LS, Hairer ODEX, and the user original quasi-Newton projection formulation.
 - Planning-only low-level algorithm review set is complete enough for user discussion:
   - `runbooks/ODEX_FLOW_REVIEW_NOTES.md`

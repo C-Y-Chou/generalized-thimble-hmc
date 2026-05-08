@@ -6,6 +6,11 @@
 - Key principle: physics and approved outputs must be preserved during engineering refactors unless a scientific change is explicitly approved.
 - Next action: perform the formal architecture audit and baseline verification plan.
 
+## 2026-05-08 JST - Scope alias clarified
+- User clarified that the desired "code refine" task is `fortran_modernization`.
+- Do not create a separate `code_refine` workspace unless the scope later splits into a concrete implementation sprint.
+- Use this workspace for behavior-preserving code cleanup/refactor planning and execution guardrails.
+
 ## 2026-05-08 JST - Planning information collection complete
 - Read relevant Fortran source sections for ODEX/flow, Newton/RATTLE, quasi-Newton projection, HMC/Metropolis, Stage2 driver, tests, and existing program-map docs.
 - Added low-level review notes for ODEX, simplified Newton/RATTLE, quasi-Newton projection, and HMC/Metropolis/TLTM driver.

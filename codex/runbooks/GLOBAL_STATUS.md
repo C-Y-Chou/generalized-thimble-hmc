@@ -13,6 +13,7 @@ Updated: 2026-05-01 10:22 JST
 
 ## Governance task
 - `fortran_modernization`: behavior-preserving modernization planning.
+- `repo_cleanup`: planned cleanup/restructure of local and remote roots, `docs/`, logs, PBS scripts, reports, and archives after the current Stage3_4 test finishes.
 
 ## Required live status source
 - Always refresh and read `/home/cychou/TLTM/codex/runbooks/LIVE_BOARD.md` via:
@@ -22,3 +23,4 @@ Updated: 2026-05-01 10:22 JST
 - Use PBS-only execution for heavy runs.
 - Do not treat top-level `state/` as a single live run source.
 - Record manifests, job trackers, and session logs in the matching workspace.
+- Do not modify `/home/cychou/TLTM` root cleanup while active jobs/merge gates expect a pinned commit; use `repo_cleanup` workspace after the current test completes.
