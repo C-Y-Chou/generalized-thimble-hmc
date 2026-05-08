@@ -195,7 +195,7 @@ Minimal checks before staged validation:
 
 | Core | Current state | Notes |
 |---|---|---|
-| ODEX flow integration | `reference-deviation-needs-decision` | Explicit midpoint/extrapolation structure matches Hairer style, but current `2,4,6,12,18,36,...` step sequence is not one of the Hairer ODEX listed sequences. |
+| ODEX flow integration | `decision-use-hairer-iwork3` | Canonical sequence is Hairer ODEX `IWORK(3)=3`: `2,4,6,8,12,16,24,32,...`; current sequence is legacy until updated/tested. |
 | Simplified Newton | `matched-needs-deterministic-tests` | GT-HMC Eqs. (3.37)-(3.44) and TLTM unit-mass `Delta z` formula match code residual/update signs and normalization; add replay tests. |
 | RATTLE proposal structure | `mostly-matched-with-implementation-guards` | Main TLTM complex RATTLE order matches; `state_has_progress` and failure-as-rejection vs paper momentum-flip semantics need explicit policy/test coverage. |
 | QN p28 projection loss | `matched-as-BTN-rescue-needs-naming-tests` | Active p28 residual is BTN/backflow rescue after standard Newton failure, not standard `(u,lambda)`; document `xi1=-b`, `xi2=a` sign convention and test Eq. (22)/(25). |
@@ -219,4 +219,4 @@ The first retained-core static audit has been completed and summarized in `M2_RE
 
 ## Reference-backed re-audit note - 2026-05-08 JST
 
-The second-pass audit is recorded in `M2_REFERENCE_BACKED_CORE_AUDIT.md`. It supersedes source-first signoff states where they differ. Long ODEX-only validation remains blocked until ODEX sequence policy, QN p28 BTN naming/sign tests, RATTLE failure/progress semantics, and deterministic replay tests are resolved.
+The second-pass audit is recorded in `M2_REFERENCE_BACKED_CORE_AUDIT.md`. It supersedes source-first signoff states where they differ. Long ODEX-only validation remains blocked until the ODEX `IWORK(3)=3` implementation/test patch, QN p28 BTN naming/sign tests, RATTLE failure/progress semantics, and deterministic replay tests are resolved.

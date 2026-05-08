@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-08 21:50 JST
+Updated: 2026-05-08 22:05 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -25,7 +25,7 @@ Updated: 2026-05-08 21:50 JST
 - `tltm_stage2_driver.f90` owns production orchestration and output/counter contracts used by Stage3_4 interpretation.
 
 ## Next action
-Discuss and resolve `runbooks/M2_REFERENCE_BACKED_CORE_AUDIT.md`, especially ODEX step-sequence policy, QN p28 as BTN rescue, RATTLE failure/progress semantics, deterministic replay tests, and reverse-gate diagnostic accounting.
+Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failure/progress semantics, deterministic replay tests, and reverse-gate diagnostic accounting.
 
 ## After confirmation
 - Build baseline harness design first.
@@ -139,5 +139,11 @@ Discuss and resolve `runbooks/M2_REFERENCE_BACKED_CORE_AUDIT.md`, especially ODE
 - The earlier retained-core audit is now explicitly marked as a source-level risk scan, not final reference-backed signoff.
 - Key correction: simplified Newton signs and `Delta z` normalization match GT-HMC/TLTM for unit mass.
 - Key correction: active p28 QN residual is BTN/backflow rescue after standard Newton failure, not standard `(u,lambda)` residual.
-- Key new blocker: current ODEX step sequence is not one of the Hairer ODEX listed sequences and needs policy decision or tests.
+- ODEX sequence decision: use Hairer ODEX `IWORK(3)=3` (`2,4,6,8,12,16,24,32,...`); current sequence is legacy until updated/tested.
 - ODEX-only long validation remains blocked pending these decisions and deterministic replay tests.
+
+## ODEX sequence decision - 2026-05-08 JST
+- User selected Hairer ODEX `IWORK(3)=3` as the canonical modernization sequence.
+- Target sequence: `2,4,6,8,12,16,24,32,...`.
+- Current code sequence `2,4,6,12,18,36,...` is now legacy.
+- Future implementation must update `build_nsteps` and `calculate_ak` together and run deterministic ODE/flow tests before ODEX-only long validation.

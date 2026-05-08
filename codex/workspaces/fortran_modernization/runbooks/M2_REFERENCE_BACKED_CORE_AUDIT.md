@@ -18,7 +18,7 @@ Audit rule used here:
 
 | Core | Reference-backed state | Decision before long validation |
 |---|---|---|
-| ODEX flow integration | `reference-deviation-needs-decision` | Code implements GBS-like explicit midpoint extrapolation, but its step-number sequence is not one of the Hairer ODEX listed sequences. Decide whether to change sequence or document/test it as TLTM-specific. |
+| ODEX flow integration | `decision-use-hairer-iwork3` | Canonical modernization target is Hairer ODEX `IWORK(3)=3`: `2,4,6,8,12,16,24,32,...`; current code sequence is legacy and must be changed/tested before ODEX-only validation. |
 | Simplified Newton | `matched-needs-deterministic-tests` | Residual sign, update decomposition, base-Jacobian use, and `Delta z` normalization match GT-HMC/TLTM for unit mass. Add deterministic replay tests. |
 | RATTLE integrator | `mostly-matched-with-implementation-guards` | Main update order matches TLTM complex RATTLE. `state_has_progress` and failure-as-rejection vs paper momentum-flip/replacement need explicit policy/test coverage. |
 | QN p28 / BTN rescue | `matched-as-BTN-rescue-needs-naming-tests` | The p28 residual is not the standard `(u,lambda)` residual; it matches a BTN/backflow rescue formulation with sign convention `b=-xi1` and `a=xi2`. Rename/document/test this. |
@@ -44,13 +44,14 @@ Reference-backed findings:
 
 - Matched: the basic explicit midpoint plus smoothing plus extrapolation structure is reference-consistent.
 - Reference deviation: `build_nsteps` generates `2,4,6,12,18,36,...`, which is not one of the Hairer ODEX Appendix `IWORK(3)` sequences and not the standard II.9 examples.
-- Open: `calculate_ak` mirrors the nonstandard sequence, so order/cost selection is internally consistent with the code but not reference-signed.
+- Decision: canonical modernization target is Hairer ODEX `IWORK(3)=3`, i.e. `2,4,6,8,12,16,24,32,...`.
+- Required implementation change later: update both `build_nsteps` and `calculate_ak` so the sequence and work estimate remain consistent.
 - Latent issue: `calculate_wk` divides by signed `hk`; current production nonnegative flow time avoids this for `flowzr`, but a general ODEX routine should use a positive work measure if negative integration intervals are supported.
 - Open: the code omits several Hairer ODEX controls such as explicit stability checks and dense output, which may be acceptable for TLTM but should be documented as a reduced ODEX-like integrator rather than full ODEX.
 
 Required before ODEX-only validation:
 
-- Decide whether to switch `build_nsteps` to a Hairer-listed sequence or document the current sequence as intentional.
+- Implement Hairer ODEX `IWORK(3)=3` sequence in `build_nsteps` and the matching work estimate in `calculate_ak`.
 - Add analytic ODE smoke tests for convergence and forward/inverse flow round-trip.
 - Add a negative-interval microtest only if negative intervals are intended to be supported.
 
@@ -174,7 +175,7 @@ Required before long validation:
 
 ## Revised discussion order
 
-1. ODEX sequence decision: switch to a Hairer-listed sequence or document current sequence as intentional TLTM-specific ODEX-like behavior.
+1. ODEX sequence implementation: switch to Hairer ODEX `IWORK(3)=3` and test before any ODEX-only validation.
 2. QN p28 naming/contract: confirm it is BTN rescue after standard Newton failure, not standard residual.
 3. RATTLE failure/progress policy: decide `state_has_progress` and failure-as-rejection documentation.
 4. Deterministic replay tests: Newton residual, BTN residual, RATTLE reverse gate, flow round-trip, ODE analytic checks.
@@ -186,6 +187,10 @@ This second pass changes the risk profile:
 
 - Simplified Newton is stronger than the first audit claimed: its signs match GT-HMC.
 - RATTLE's main update order is also largely reference-matched.
-- ODEX is less signed-off than previously implied because the step sequence is not one of the Hairer ODEX sequences.
+- ODEX sequence decision is now fixed: use Hairer ODEX `IWORK(3)=3`; current sequence is legacy until updated/tested.
 - QN p28 must be described as BTN rescue, not standard `(u,lambda)` QN.
 - HMC/Metropolis is acceptable only if reverse gate and failure semantics are treated as part of the proposal contract and tested deterministically.
+
+## ODEX sequence decision - 2026-05-08 JST
+
+User selected Hairer ODEX `IWORK(3)=3` as the canonical modernization target: `2,4,6,8,12,16,24,32,...`. The existing `2,4,6,12,18,36,...` sequence is therefore legacy. The future source change must update both `build_nsteps` and `calculate_ak`, then run analytic ODE and TLTM flow round-trip tests before long validation.
