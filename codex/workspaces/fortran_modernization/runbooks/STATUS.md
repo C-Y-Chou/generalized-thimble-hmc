@@ -257,3 +257,26 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
   - `output/logs/odex_validation/20260508_10seed_100k_fb_norefine_ct1e13_qn1e13`
 - At submission check, both jobs were running on C12 with start time `2026-05-08 23:44 JST`; requested walltimes are 4h for 50k and 8h for 100k.
 - ETA from the 10k measured walltime is approximately 60-75 minutes for 50k and 2-2.5 hours for 100k, assuming similar node behavior.
+
+## ODEX 50k/100k scale-up correction - 2026-05-08 JST
+- Correction: the first submitted 50k/100k jobs used only 10 seeds and did not match the original Stage3_4 scale-up seed counts.
+- Cancelled incorrect jobs:
+  - `14306.anode01` (`odex50k_fbnr`), cancelled after about 2m48s, `Exit_status=271`.
+  - `14307.anode01` (`odex100k_fbnr`), cancelled after about 2m48s, `Exit_status=271`.
+- Removed the incorrect 10seed scale-up PBS/config files from HEAD and cleaned their partial 10seed 50k/100k output/log directories.
+- Corrected script commit: `334e114`.
+- Correct 50k validation now matches the original intermediate scale: 32 seeds x 50k cycles, `fb_norefine` only.
+  - Job: `14308.anode01`
+  - PBS: `codex/workspaces/fortran_modernization/tasks/pbs/odex_32seed_50k_validation_20260508_fb_norefine.pbs`
+  - Config: `docs/stage_3_4_t035_paired_32seed_50k_rg.json`
+  - Output: `output/tests/odex_validation/20260508_32seed_50k_fb_norefine_ct1e13_qn1e13`
+  - Logs: `output/logs/odex_validation/20260508_32seed_50k_fb_norefine_ct1e13_qn1e13`
+- Correct 100k validation now matches the original final gate seed count: 128 seeds x 100k cycles, `fb_norefine` only, split into 8 chunks x 16 seeds.
+  - Chunks: `14309.anode01` offset 0 C8, `14310.anode01` offset 16 C8, `14311.anode01` offset 32 C8, `14312.anode01` offset 48 C8, `14313.anode01` offset 64 G, `14314.anode01` offset 80 G, `14315.anode01` offset 96 G, `14316.anode01` offset 112 F.
+  - Merge dependency job: `14317.anode01`, `afterok` on all 8 chunks.
+  - PBS: `codex/workspaces/fortran_modernization/tasks/pbs/odex_128seed_100k_validation_20260508_fb_norefine_chunk.pbs`
+  - Merge PBS: `codex/workspaces/fortran_modernization/tasks/pbs/odex_128seed_100k_validation_20260508_fb_norefine_merge.pbs`
+  - Config: `docs/stage_3_4_t035_paired_128seed_100k_rg_nofb_fbnorefine.json`
+  - Output root: `output/tests/odex_validation/20260508_128seed_100k_fb_norefine_ct1e13_qn1e13`
+  - Logs root: `output/logs/odex_validation/20260508_128seed_100k_fb_norefine_ct1e13_qn1e13`
+- At submission check, `14308` and all 8 compute chunks `14309`-`14316` were running; merge job `14317` was held by dependency as intended.
