@@ -1,15 +1,15 @@
 # Stage3_4 Task Status
 
-Updated: 2026-05-08 12:54 JST
+Updated: 2026-05-08 16:30 JST
 
 ## Active objective
-- Run minimal 32seed/50k judgment experiment for three sets before choosing production seed/cycle counts.
+- Interpret completed minimal 32seed/50k judgment experiment before choosing production seed/cycle counts.
 
 ## Live jobs (current)
-- `14180.anode01`: `fb_refine`, queue `G`, state `R`, 20 workers, started 2026-05-08 12:53 JST.
-- `14181.anode01`: `fb_norefine`, queue `C8`, state `R`, 20 workers, started 2026-05-08 12:49 JST.
-- `14182.anode01`: `no_fb`, queue `F`, state `R`, 20 workers, started 2026-05-08 12:53 JST.
-- Merge/report job: resubmitted from latest status commit after compute jobs were confirmed running; see `codex/runbooks/LIVE_BOARD.md` for current live job id.
+- `14180.anode01`: `fb_refine`, queue `G`, completed successfully.
+- `14181.anode01`: `fb_norefine`, queue `C8`, completed successfully.
+- `14182.anode01`: `no_fb`, queue `F`, completed successfully.
+- Merge/report job `14189.anode01`: completed successfully with `Exit_status=0`.
 - Invalid launch kept for traceability: `14179.anode01` (`no_fb` on C17) exited immediately with `Exit_status=127`; it is not part of the valid dataset.
 
 ## Current judgment experiment
@@ -27,9 +27,23 @@ Updated: 2026-05-08 12:54 JST
 - Output root: `output/tests/stage3_4/judgment_20260508_32seed_50k_p28_rg`
 - Logs root: `output/logs/stage3_4_judgment_20260508_32seed_50k_p28_rg`
 - Combined report after dependency job: `output/tests/stage3_4/judgment_20260508_32seed_50k_p28_rg/REPORT.md`
-- ETA:
-  - Based on 10seed/10k measured runtime scaled to 50k and two waves, expected compute finish is around 2026-05-08 15:50-16:20 JST.
-  - Merge/report should finish a few minutes after all three compute jobs exit successfully.
+- Completion:
+  - 32/32 seeds completed for each set.
+  - Combined report: `output/tests/stage3_4/judgment_20260508_32seed_50k_p28_rg/REPORT.md`
+
+## Current judgment result
+- `no_fb`: `Zmean_re=0.367395`, `Zmean_im=-0.897098`, mean Re `<O>=0.00454804`, mean Im `<O>=-0.00646140`, failures `118503`, RG rejects `17228`, mean runtime `5048.5s`.
+- `fb_refine`: `Zmean_re=-0.161417`, `Zmean_im=0.346142`, mean Re `<O>=-0.00201207`, mean Im `<O>=0.00240530`, failures `28393`, RG rejects `25044`, mean runtime `6059.6s`, post-refine `49321/49634`, skip `80576`.
+- `fb_norefine`: `Zmean_re=0.0697449`, `Zmean_im=-0.0671524`, mean Re `<O>=0.000888348`, mean Im `<O>=-0.000457797`, failures `28182`, RG rejects `24909`, mean runtime `5535.3s`, post-refine `0/0`.
+- Paired seed check:
+  - `fb_refine - no_fb`: paired mean diff `dRe=-0.006560`, `dIm=+0.008867`; absolute closer-to-zero wins `17/32` Re and `16/32` Im.
+  - `fb_norefine - no_fb`: paired mean diff `dRe=-0.003660`, `dIm=+0.006004`; absolute closer-to-zero wins `17/32` Re and `18/32` Im.
+  - `fb_refine - fb_norefine`: paired mean diff `dRe=-0.002900`, `dIm=+0.002863`; absolute closer-to-zero wins `17/32` Re and `14/32` Im.
+- Interpretation:
+  - Both fallback variants reduce unresolved failures by about `90k` events versus `no_fb`.
+  - Both fallback variants increase total RG rejects by about `7.7k-7.8k` versus `no_fb`, but RG reject rate remains about `3.9e-4`.
+  - In this 32seed/50k judgment run, `fb_norefine` is the cleanest aggregate Zmean and is faster than `fb_refine`.
+  - This reverses the earlier 10seed/10k preference for `fb_refine`; do not commit to full production until we decide whether this is finite-sample noise, post-refine side effect, or expected behavior.
 
 ## Protocol
 - Validation label: `preprod_validation_20260507_10seed_10k_p28_rg`

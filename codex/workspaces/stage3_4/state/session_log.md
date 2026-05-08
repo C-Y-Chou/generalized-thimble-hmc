@@ -265,3 +265,33 @@ Use this file to append per-session notes.
 - ETA:
   - Based on 10seed/10k runtime scaled to 50k with two worker waves, expected compute finish is around 2026-05-08 15:50-16:20 JST.
   - Merge/report should complete a few minutes after all compute jobs succeed.
+
+## 2026-05-08 16:30 JST
+- Stage3_4 judgment run completed and inspected.
+- Jobs:
+  - `14180.anode01`: `fb_refine`, completed.
+  - `14181.anode01`: `fb_norefine`, completed.
+  - `14182.anode01`: `no_fb`, completed.
+  - `14189.anode01`: merge/report, completed with `Exit_status=0`.
+  - invalid excluded job: `14179.anode01` exited immediately with `Exit_status=127`.
+- Output:
+  - root: `output/tests/stage3_4/judgment_20260508_32seed_50k_p28_rg`
+  - report: `output/tests/stage3_4/judgment_20260508_32seed_50k_p28_rg/REPORT.md`
+  - logs: `output/logs/stage3_4_judgment_20260508_32seed_50k_p28_rg`
+- Completion checks:
+  - `no_fb`: 32 manifests, 32 stage2 summaries.
+  - `fb_refine`: 32 manifests, 32 stage2 summaries.
+  - `fb_norefine`: 32 manifests, 32 stage2 summaries.
+- Aggregated results:
+  - `no_fb`: `Zmean_re=0.367395`, `Zmean_im=-0.897098`, mean Re `<O>=0.00454804`, mean Im `<O>=-0.00646140`, std Re `0.0700271`, std Im `0.0407438`, failures `118503`, RG rejects `17228`, mean runtime `5048.5s`.
+  - `fb_refine`: `Zmean_re=-0.161417`, `Zmean_im=0.346142`, mean Re `<O>=-0.00201207`, mean Im `<O>=0.00240530`, std Re `0.0705127`, std Im `0.0393088`, failures `28393`, RG rejects `25044`, mean runtime `6059.6s`, post-refine `49321/49634`, skip `80576`.
+  - `fb_norefine`: `Zmean_re=0.0697449`, `Zmean_im=-0.0671524`, mean Re `<O>=0.000888348`, mean Im `<O>=-0.000457797`, std Re `0.0720519`, std Im `0.0385644`, failures `28182`, RG rejects `24909`, mean runtime `5535.3s`, post-refine `0/0`.
+- Paired seed checks:
+  - `fb_refine - no_fb`: paired mean diff `dRe=-0.006560`, `dIm=+0.008867`; closer-to-zero wins `17/32` Re and `16/32` Im.
+  - `fb_norefine - no_fb`: paired mean diff `dRe=-0.003660`, `dIm=+0.006004`; closer-to-zero wins `17/32` Re and `18/32` Im.
+  - `fb_refine - fb_norefine`: paired mean diff `dRe=-0.002900`, `dIm=+0.002863`; closer-to-zero wins `17/32` Re and `14/32` Im.
+- Interim interpretation:
+  - Fallback remains useful for reducing unresolved failures: both fallback variants reduce unresolved failures by about `90k` events versus `no_fb`.
+  - Fallback increases RG rejects by about `7.7k-7.8k`, but total RG reject rate remains small at about `3.9e-4`.
+  - Unlike the earlier 10seed/10k validation, this 32seed/50k judgment run favors `fb_norefine` over `fb_refine` on aggregate Zmean and runtime.
+  - Need discuss whether to run a larger intermediate scale or inspect post-refine side effects before full production.
