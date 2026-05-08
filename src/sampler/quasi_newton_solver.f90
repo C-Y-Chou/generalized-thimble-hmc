@@ -614,7 +614,7 @@ contains
       quasi_trace_iter = 0
       call f(xt, z, x, r, del_z, eval_error, Jl, jac)
       if (eval_error .or. .not. real_vector_is_finite(r)) then
-         x = xt
+         x = 0.0_dp
          quasi_trace_iter = 0
          call f(xt, z, x, r, del_z, eval_error, Jl, jac)
       end if
@@ -932,7 +932,7 @@ contains
       quasi_trace_iter = 0
       call f(xt, z, x, r, del_z, eval_error, Jl, jac)
       if (eval_error .or. .not. real_vector_is_finite(r)) then
-         x = xt
+         x = 0.0_dp
          quasi_trace_iter = 0
          call f(xt, z, x, r, del_z, eval_error, Jl, jac)
       end if
@@ -1203,7 +1203,7 @@ contains
       quasi_trace_iter = 0
       call f(xt, z, x, r, del_z, eval_error, Jl, jac)
       if ((.not. use_paper_exact) .and. (eval_error .or. .not. real_vector_is_finite(r))) then
-         x = xt
+         x = 0.0_dp
          quasi_trace_iter = 0
          call f(xt, z, x, r, del_z, eval_error, Jl, jac)
       end if
@@ -3186,6 +3186,20 @@ contains
       Jl_best = Jl_val
    end subroutine update_best_quasi_state
 
+   subroutine mark_constraint_eval_invalid(fq, Jl, ierr)
+      implicit none
+      real(dp), intent(out) :: fq(:), Jl(:)
+      logical, intent(out) :: ierr
+
+      ! Invalid flow evaluations are signaled by ierr, not by an artificial
+      ! large residual that could pollute trust-region or line-search state.
+      fq = 0.0_dp
+      Jl = 0.0_dp
+      ierr = .true.
+      quasi_eval_has_flowed = .false.
+      quasi_eval_flowed_is_inverse = .false.
+   end subroutine mark_constraint_eval_invalid
+
 
    subroutine evaluate_constraint_residual(xt, z, xi, fq, del_z, ierr, Jl, jac)
       implicit none
@@ -3198,9 +3212,7 @@ contains
 
       n = size(z)
       if (size(xt) /= n + 1 .or. size(xi) /= 2*n .or. size(del_z) /= 2*n .or. size(fq) /= 2*n .or. size(Jl) /= 2*n) then
-         fq = 1.0E+10_dp
-         Jl = 0.0_dp
-         ierr = .true.
+         call mark_constraint_eval_invalid(fq, Jl, ierr)
          return
       end if
 
@@ -3220,8 +3232,7 @@ contains
       quasi_eval_flowed_is_inverse = .false.
       call update_quasi_watchdog_scope()
       if (quasi_watchdog_scope_active .and. quasi_watchdog_hit) then
-         fq = 1.0E+10_dp
-         ierr = .true.
+         call mark_constraint_eval_invalid(fq, Jl, ierr)
          return
       end if
 
@@ -3229,18 +3240,12 @@ contains
       call set_intode_quasi_iter_trace(quasi_trace_iter)
       call flowzr(xt, residual_z_trial, ierr)
       if (ierr) then
-         fq = 1.0E+10_dp
-         ierr = .true.
-         quasi_eval_has_flowed = .false.
-         quasi_eval_flowed_is_inverse = .false.
+         call mark_constraint_eval_invalid(fq, Jl, ierr)
          return
       end if
       call update_quasi_watchdog_scope()
       if (quasi_watchdog_scope_active .and. quasi_watchdog_hit) then
-         fq = 1.0E+10_dp
-         ierr = .true.
-         quasi_eval_has_flowed = .false.
-         quasi_eval_flowed_is_inverse = .false.
+         call mark_constraint_eval_invalid(fq, Jl, ierr)
          return
       end if
       quasi_eval_z_flowed(1:n) = residual_z_trial(1:n)
@@ -3262,9 +3267,7 @@ contains
 
       n = size(z)
       if (size(xt) /= n + 1 .or. size(xi) /= 2*n .or. size(del_z) /= 2*n .or. size(fq) /= 2*n .or. size(Jl) /= 2*n) then
-         fq = 1.0E+10_dp
-         Jl = 0.0_dp
-         ierr = .true.
+         call mark_constraint_eval_invalid(fq, Jl, ierr)
          return
       end if
 
@@ -3288,8 +3291,7 @@ contains
       quasi_eval_flowed_is_inverse = .false.
       call update_quasi_watchdog_scope()
       if (quasi_watchdog_scope_active .and. quasi_watchdog_hit) then
-         fq = 1.0E+10_dp
-         ierr = .true.
+         call mark_constraint_eval_invalid(fq, Jl, ierr)
          return
       end if
 
@@ -3299,18 +3301,12 @@ contains
       call set_intode_quasi_iter_trace(quasi_trace_iter)
       call flowz(residual_xtu, residual_z_flowed, ierr)
       if (ierr) then
-         fq = 1.0E+10_dp
-         ierr = .true.
-         quasi_eval_has_flowed = .false.
-         quasi_eval_flowed_is_inverse = .false.
+         call mark_constraint_eval_invalid(fq, Jl, ierr)
          return
       end if
       call update_quasi_watchdog_scope()
       if (quasi_watchdog_scope_active .and. quasi_watchdog_hit) then
-         fq = 1.0E+10_dp
-         ierr = .true.
-         quasi_eval_has_flowed = .false.
-         quasi_eval_flowed_is_inverse = .false.
+         call mark_constraint_eval_invalid(fq, Jl, ierr)
          return
       end if
       quasi_eval_z_flowed(1:n) = residual_z_flowed(1:n)
