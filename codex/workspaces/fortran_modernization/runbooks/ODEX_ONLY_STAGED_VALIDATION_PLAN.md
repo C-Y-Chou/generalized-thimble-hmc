@@ -150,3 +150,12 @@ Preferred ODE solver-level check before tolerance tuning:
 - This exercises `intode` directly on analytic IVPs rather than going through TLTM flow wrappers.
 - Current coverage: scalar exponential forward/backward, harmonic oscillator forward/backward, full-step vs two-half-step consistency, and zero fallback accounting.
 - Current local result at `abs_tol=rel_tol=3.0e-14`: all checks pass; fallback attempts/failures are 0.
+
+Preferred TLTM-specific wrapper check before 10k validation:
+
+- Run `scripts/run_odex_flow_wrapper_check.sh`.
+- This exercises `flowz`, `flow`, and `flowzr` on the TLTM flow RHS at flow times 0.1 and 0.3.
+- Current local result: `flowz/flow` success 21/21 for both flow times; `flowzr` roundtrip success 81/81 for both flow times; fallback attempts/failures are 0.
+- Current max errors: `max|flowz-flow| = 5.00e-16` at t=0.1, `1.31e-13` at t=0.3; max roundtrip `4.42e-15` at t=0.1, `1.39e-14` at t=0.3.
+
+The 10k physical validation protocol is recorded in `runbooks/ODEX_10K_VALIDATION_PROTOCOL.md`.

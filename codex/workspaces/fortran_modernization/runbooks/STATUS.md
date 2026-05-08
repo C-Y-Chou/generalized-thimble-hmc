@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-08 23:15 JST
+Updated: 2026-05-08 23:25 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -208,6 +208,12 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - The test calls `intode` directly with module-level RHS callbacks to avoid GNU Fortran internal-procedure trampoline issues under `-Wl,-z,noexecstack`.
 - Coverage: scalar exponential forward/backward integration, harmonic oscillator forward/backward integration, full-step vs two-half-step consistency for both systems, and zero fallback attempts/failures.
 - Local run passed at `abs_tol=rel_tol=3.0e-14`: max observed analytic/split errors were `5.33e-15` or smaller for exponential/backward checks, `7.77e-16` or smaller for oscillator checks, and fallback attempts/failures were 0.
+
+## ODEX TLTM-wrapper preflight and 10k protocol - 2026-05-08 JST
+- Added `scripts/run_odex_flow_wrapper_check.sh` for TLTM-specific flow wrapper checks using existing `scan_flow_vs_flowz` and `scan_flowzr_stability` apps.
+- Local wrapper check passed for flow times `0.1` and `0.3`: `flowz/flow` success 21/21 for both, `flowzr` roundtrip success 81/81 for both, fallback attempts/failures 0/0.
+- Observed wrapper maxima: `max|flowz-flow| = 5.00e-16` at t=0.1 and `1.31e-13` at t=0.3; max roundtrip errors `4.42e-15` at t=0.1 and `1.39e-14` at t=0.3.
+- Added `runbooks/ODEX_10K_VALIDATION_PROTOCOL.md`; no production job was submitted.
 
 ## Current discussion scope - 2026-05-08 JST
 - User narrowed the active discussion scope back to the five retained core numerical blocks.
