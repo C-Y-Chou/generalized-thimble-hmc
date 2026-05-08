@@ -329,3 +329,17 @@ Use this file to append per-session notes.
   - queue distribution across both methods: `C8 x6`, `C12 x6`, `G x3`, `F x1`.
   - compute jobs will be submitted with `TLTM_EXPECTED_GIT_COMMIT` pinned to the commit containing this protocol and PBS setup.
   - merge job will run after all compute chunks finish and will produce `REPORT.md` under the campaign output root.
+
+## 2026-05-08 16:45 JST
+- Submitted Stage3_4 128seed/100k compute chunks.
+- First C12 submissions remained queued with `Qlist`, so they were cancelled and replaced.
+- Valid running compute jobs:
+  - `no_fb`: `14250`, `14251`, `14252`, `14266`, `14267`, `14255`, `14256`, `14268`.
+  - `fb_norefine`: `14258`, `14259`, `14260`, `14269`, `14270`, `14263`, `14264`, `14271`.
+- Cancelled/replaced C12 jobs:
+  - `14253`, `14254`, `14257`, `14261`, `14262`, `14265`.
+- Actual running queue distribution:
+  - `C8 x8`, `G x4`, `C8-LONG x3`, `F x1`.
+- All valid compute chunks are in `R`, so they have passed the git gate at commit `f5fd391`.
+- Next step:
+  - update this status to git/remote, then submit merge/report job with dependency on the 16 valid compute jobs.

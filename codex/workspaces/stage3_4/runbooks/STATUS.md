@@ -6,10 +6,27 @@ Updated: 2026-05-08 16:30 JST
 - Run next intermediate scale-up: `no_fb` vs `fb_norefine`, 128 matched seeds x 100k cycles.
 
 ## Live jobs (current)
-- `14180.anode01`: `fb_refine`, queue `G`, completed successfully.
-- `14181.anode01`: `fb_norefine`, queue `C8`, completed successfully.
-- `14182.anode01`: `no_fb`, queue `F`, completed successfully.
-- Merge/report job `14189.anode01`: completed successfully with `Exit_status=0`.
+- 128seed/100k compute chunks are running.
+- Valid `no_fb` chunks:
+  - `14250.anode01`: chunk `00`, queue `C8`, offset `0`, state `R`.
+  - `14251.anode01`: chunk `01`, queue `C8`, offset `16`, state `R`.
+  - `14252.anode01`: chunk `02`, queue `C8`, offset `32`, state `R`.
+  - `14266.anode01`: chunk `03`, queue `C8`, offset `48`, state `R`.
+  - `14267.anode01`: chunk `04`, queue `C8`, offset `64`, state `R`.
+  - `14255.anode01`: chunk `05`, queue `G`, offset `80`, state `R`.
+  - `14256.anode01`: chunk `06`, queue `F`, offset `96`, state `R`.
+  - `14268.anode01`: chunk `07`, queue `G`, offset `112`, state `R`.
+- Valid `fb_norefine` chunks:
+  - `14258.anode01`: chunk `00`, queue `C8`, offset `0`, state `R`.
+  - `14259.anode01`: chunk `01`, queue `C8`, offset `16`, state `R`.
+  - `14260.anode01`: chunk `02`, queue `C8`, offset `32`, state `R`.
+  - `14269.anode01`: chunk `03`, queue `C8-LONG`, offset `48`, state `R`.
+  - `14270.anode01`: chunk `04`, queue `C8-LONG`, offset `64`, state `R`.
+  - `14263.anode01`: chunk `05`, queue `G`, offset `80`, state `R`.
+  - `14264.anode01`: chunk `06`, queue `G`, offset `96`, state `R`.
+  - `14271.anode01`: chunk `07`, queue `C8-LONG`, offset `112`, state `R`.
+- Initial C12 attempts were cancelled/replaced because they remained queued with `Qlist`: `14253`, `14254`, `14257`, `14261`, `14262`, `14265`.
+- Merge/report job: pending submission after this status update.
 - Invalid launch kept for traceability: `14179.anode01` (`no_fb` on C17) exited immediately with `Exit_status=127`; it is not part of the valid dataset.
 
 ## Current judgment experiment
@@ -54,6 +71,7 @@ Updated: 2026-05-08 16:30 JST
 - Chunking plan: 8 chunks per method, 16 seeds/chunk, 16 workers/chunk.
 - Queue plan avoids multi-node C24/C36 queues because this runner is single-node/non-MPI.
 - Queue distribution: `C8 x6`, `C12 x6`, `G x3`, `F x1` across both methods.
+- Actual running distribution after C12 requeue: `C8 x8`, `G x4`, `C8-LONG x3`, `F x1`.
 - Common settings: RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`, near/non-near/global rescue off.
 - Output root: `output/tests/stage3_4/judgment_20260508_128seed_100k_p28_rg_nofb_fbnorefine`
 - Logs root: `output/logs/stage3_4_judgment_20260508_128seed_100k_p28_rg_nofb_fbnorefine`
