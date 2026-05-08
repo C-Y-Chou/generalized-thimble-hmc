@@ -104,14 +104,14 @@ Reference-backed findings:
 
 - Matched: main position/momentum update order matches TLTM complex RATTLE.
 - Matched: momentum projection via `decompose2` corresponds to the reference tangent projection `J Re(J^{-1} v)`.
-- Intentional implementation boundary: code treats failed proposal as `proposal_ok=.false.` and lets Metropolis/driver reject without updating live state; the paper's failure discussion uses a reversible momentum flip/replacement map. Because momentum is auxiliary and discarded after a proposal, this can be acceptable, but it needs a detailed-balance/reversibility argument and deterministic replay tests.
+- Intentional implementation boundary: code treats failed proposal as `proposal_ok=.false.` and lets Metropolis/driver reject without updating live state; the paper's failure discussion uses a reversible momentum flip/replacement map. User decision: failure-as-rejection is a valid MCMC boundary when failure is part of the proposal kernel, the live chain state remains unchanged on failure, diagnostics do not mutate the state, and successful proposals still pass the reversibility/constraint checks used by the Metropolis step.
 - Reference deviation / guard: `state_has_progress` only checks `x(2)`. This is not in the reference algorithm and is dimension-fragile. The deeper issue is state representation: current `x(:)` stores flow time in `x(1)` and physical coordinates in `x(2:)`, so many APIs rely on implicit positional layout rather than a typed state boundary.
 
 Required before long validation:
 
 - Deterministic one-step forward/reverse replay for Newton-only and QN-rescued proposals.
 - Do not treat `state_has_progress` as an isolated local fix. Short term: mark the `x(2)`-only progress guard as legacy/diagnostic and rely on solver convergence, constraint residuals, reverse gate, and Metropolis rejection for proposal validity. Long term: redesign state APIs so flow time and physical seed/state are separate typed fields, then remove implicit `x(1)`/`x(2:)` indexing from numerical kernels.
-- Document failure-as-rejection vs paper momentum-flip semantics.
+- Document failure-as-rejection as the project policy: failed projection/integration/reverse-gate proposals are rejected/stay-put events in the marginal chain. The failed proposal output buffers need not equal the old state, but callers must never commit them unless `accepted=.true.`.
 
 ## Core 4: QN p28 / BTN rescue
 
@@ -182,7 +182,7 @@ Required before long validation:
 
 1. ODEX sequence implementation: switch to Hairer ODEX `IWORK(3)=3` and test before any ODEX-only validation.
 2. QN p28 implementation: switch BTN rescue to paper variables (`xi1=b`, `xi2=a`) and flip the initial-guess RHS consistently.
-3. RATTLE failure/progress policy: treat `state_has_progress` as a symptom of the current `x(1)=flow_time`, `x(2:)=seed` layout; defer real cleanup to state API redesign and document failure-as-rejection semantics.
+3. RATTLE failure/progress policy: treat `state_has_progress` as a symptom of the current `x(1)=flow_time`, `x(2:)=seed` layout; defer real cleanup to state API redesign and document failure-as-rejection as the project MCMC boundary.
 4. Deterministic replay tests: Newton residual, BTN residual, RATTLE reverse gate, flow round-trip, ODE analytic checks.
 5. Only after these are resolved should ODEX-only 10k -> 50k -> 100k physical validation begin.
 

@@ -172,3 +172,9 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - Current `x(2)`-only progress guard is therefore a state-layout symptom and should be marked legacy/diagnostic, not promoted as a publishable algorithmic criterion.
 - Short-term proposal validity should rely on solver convergence, constraint residual contract, reverse gate, and Metropolis rejection boundary.
 - Long-term modernization should introduce typed state/workspace APIs separating `flow_time` from physical coordinates, then migrate kernels away from implicit positional indexing.
+
+## Failure-as-rejection MCMC policy - 2026-05-08 JST
+- User decided failure-as-rejection is the project policy and can be a valid MCMC transition boundary.
+- Conditions to preserve: failed proposal/integration/projection/RG paths set `accept=.false.` or `proposal_ok=.false.`, live chain state is updated only when `accepted=.true.`, and successful proposals retain the required constraint/reverse-gate checks before Metropolis acceptance.
+- Failed proposal output buffers may contain partial/intermediate values; this is acceptable only because callers must not commit them to live state on rejection.
+- Publishable documentation should phrase failure as a stay-put event in the marginal chain, replacing the paper's momentum-flip/replacement fallback at the implementation boundary.
