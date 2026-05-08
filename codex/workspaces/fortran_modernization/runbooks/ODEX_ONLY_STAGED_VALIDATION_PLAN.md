@@ -91,3 +91,13 @@ Only after 10k -> 50k -> 100k passes:
 - Start broader repo-wide source modernization against those baselines.
 
 Status: ready for implementation discussion. No ODEX-only source change has been made by this runbook.
+
+## Source implementation note - 2026-05-08
+
+Initial ODEX-only implementation uses explicit policy gates in `src/physics/solve_flow.f90`:
+
+- `intode_enable_stiff_rescue = .false.` disables Radau rescue entry from `intode_stiff_rescue`.
+- `intode_enable_final_resort = .false.` disables final-resort acceptance.
+- `intode_fast_hmin_bypass = .false.` prevents the h-min path from trying final-resort before the normal failure classification path.
+
+The Radau/JFNK routines are intentionally retained as legacy/quarantine code until 10k -> 50k -> 100k validation decides whether to delete them.

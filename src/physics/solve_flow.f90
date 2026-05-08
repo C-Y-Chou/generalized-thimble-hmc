@@ -68,8 +68,9 @@ module solve_flow
    integer, save :: intode_radau_fixed_tol_fail = 0
    integer, save :: intode_radau_chunked_fail = 0
    integer, save :: intode_final_resort_fail = 0
-   logical, parameter :: intode_enable_final_resort = .true.
-   logical, parameter :: intode_fast_hmin_bypass = .true.
+   logical, parameter :: intode_enable_stiff_rescue = .false.
+   logical, parameter :: intode_enable_final_resort = .false.
+   logical, parameter :: intode_fast_hmin_bypass = .false.
    logical, parameter :: intode_verbose_logs = .false.
    ! <= 0 means unlimited final-resort uses (still context-gated).
    integer, parameter :: intode_final_resort_max_uses = 0
@@ -709,6 +710,12 @@ contains
       logical, intent(out) :: error_flag
 
       logical :: failed_local
+
+      if (.not. intode_enable_stiff_rescue) then
+         res = y
+         error_flag = .true.
+         return
+      end if
 
       call intode_radau5(f, y, t, res, failed_local)
       if (.not. failed_local) then

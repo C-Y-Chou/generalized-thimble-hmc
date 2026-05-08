@@ -110,3 +110,8 @@ Discuss and confirm `runbooks/PLANNING_DISCUSSION_BRIEF.md`, especially:
 - ODEX-only is the first numerical canonicalization step expected to possibly change trajectories; it requires staged 10k -> 50k -> 100k validation focused on physical observables and diagnostics.
 - Added `runbooks/M2_NON_ODEX_CANONICAL_CLEANUP_PLAN.md` and `runbooks/ODEX_ONLY_STAGED_VALIDATION_PLAN.md`.
 - No Fortran source edits have been performed for this policy step.
+
+## ODEX-only source policy change - 2026-05-08 JST
+- Updated `src/physics/solve_flow.f90` so the production `intode` failure path no longer enables Radau rescue or final-resort acceptance.
+- Legacy Radau/JFNK routines remain in source as quarantine/reference code until staged validation approves deletion.
+- No production job was submitted for this change.
