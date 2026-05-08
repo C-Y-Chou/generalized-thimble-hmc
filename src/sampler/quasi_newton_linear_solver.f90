@@ -71,12 +71,12 @@ contains
       call ensure_complex_vec_workspace(guess_z, n)
 
       guess_jac_fact = jac
-      call real_to_complex(-del_z, guess_z)
+      call real_to_complex(del_z, guess_z)
       call zgesv(n, 1, guess_jac_fact, n, guess_ipiv, guess_z, n, info)
 
       if (info /= 0) then
          ! If J is singular/ill-conditioned, solve a lightly regularized system
-         ! (J + lambda*I) * dz = -del_z to avoid a zero seed (which starts at z+del_z).
+         ! (J + lambda*I) * dz = del_z, matching the BTN paper-variable seed.
          max_abs_jac = max(1.0_dp, maxval(abs(jac)))
          base_shift = max(1.0e-14_dp, sqrt(epsilon(1.0_dp))*max_abs_jac)
          ridge = base_shift
@@ -85,7 +85,7 @@ contains
             do i = 1, n
                guess_jac_fact(i, i) = guess_jac_fact(i, i) + cmplx(ridge, 0.0_dp, dp)
             end do
-            call real_to_complex(-del_z, guess_z)
+            call real_to_complex(del_z, guess_z)
             call zgesv(n, 1, guess_jac_fact, n, guess_ipiv, guess_z, n, info)
             if (info == 0) exit
             ridge = ridge*10.0_dp

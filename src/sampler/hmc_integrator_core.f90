@@ -661,11 +661,11 @@ contains
       if (size(x_base) /= n + 1 .or. size(x_qn) /= n + 1) return
       if (size(qn_solution_xi) /= 2*n) return
 
-      ! Seed rule requested by design:
+      ! Post-refine seed from BTN paper variables:
       !   u0  = Re(zinv_qn) - x0
-      !   ld0 = -u_qn
+      !   ld0 = b_qn
       seed_xi(1:n) = x_qn(2:) - x_base(2:)
-      seed_xi(n + 1:2*n) = -qn_solution_xi(1:n)
+      seed_xi(n + 1:2*n) = qn_solution_xi(1:n)
       ready = all(ieee_is_finite(seed_xi))
    end subroutine build_post_refine_seed_from_qn
 

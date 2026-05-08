@@ -21,7 +21,7 @@ Audit rule used here:
 | ODEX flow integration | `decision-use-hairer-iwork3` | Canonical modernization target is Hairer ODEX `IWORK(3)=3`: `2,4,6,8,12,16,24,32,...`; current code sequence is legacy and must be changed/tested before ODEX-only validation. |
 | Simplified Newton | `matched-needs-deterministic-tests` | Residual sign, update decomposition, base-Jacobian use, and `Delta z` normalization match GT-HMC/TLTM for unit mass. Add deterministic replay tests. |
 | RATTLE integrator | `mostly-matched-with-implementation-guards` | Main update order matches TLTM complex RATTLE. `state_has_progress` and failure-as-rejection vs paper momentum-flip/replacement need explicit policy/test coverage. |
-| QN p28 / BTN rescue | `decision-use-paper-btn-variables` | p28 is BTN/backflow rescue. Future source should use paper variables directly: `xi1=b`, `xi2=a`, with correction `-J*(a+i*b)` and matching initial guess sign. |
+| QN p28 / BTN rescue | `implemented-paper-btn-variables-needs-contract-tests` | p28 is BTN/backflow rescue. Source now uses paper variables directly: `xi1=b`, `xi2=a`, with correction `-J*(a+i*b)` and matching `J dz=+del_z` initial guess. |
 | HMC / Metropolis / RG boundary | `matched-if-proposal-boundary-is-reversible` | Metropolis rule matches reference if RATTLE/RG proposal is reversible and state preserving. Reverse-gate and failure boundary need deterministic detailed-balance/replay checks. |
 
 ## Core 1: ODEX flow integration
@@ -127,29 +127,27 @@ Reference contract:
 Active code mapping:
 
 - Primary standard solve is `solve_constraint_newton`, already mapped above.
-- QN rescue residual `evaluate_constraint_residual` builds `ztrial = z + del_z + J*(i*xi1 + xi2)` and returns `[Imag(flowzr(ztrial)), xi2]`.
-- Current code sign convention: with `F=iJ`, BTN Eq. (22) uses `ztilde - J*a - iJ*b`, while current code uses `ztilde + J*(i*xi1 + xi2)`. Therefore current code has `xi1=-b` and `xi2=-a`.
-- Decision: future modernization may either keep this internal negative-coordinate convention and document it, or switch to paper variables directly. If it switches to paper variables, use `xi1=b`, `xi2=a`, and compute the correction as `-J*(xi2 + i*xi1)` so the residual is `Imag fBTN(ztilde - J*a - iJ*b)` with `xi2=a`.
+- QN rescue residual `evaluate_constraint_residual` now uses BTN paper variables: `xi1=b`, `xi2=a`, builds `ztrial = z + del_z - J*(xi2 + i*xi1)`, and returns `[Imag(flowzr(ztrial)), xi2]`.
+- `initial_guess_from_jacobian` now solves `J dz = +del_z` and maps `xi1=Imag(dz)`, `xi2=Real(dz)`, so the linear seed gives the same actual correction `Jl=-del_z` under paper variables.
+- `Jl` continues to mean the actual correction added to `z+del_z`; recovery therefore keeps reconstructing `ztrial = z + del_z + Jl` without an extra sign flip.
+- Optional post-refine seed mapping was updated so `ld0=b_qn` under paper variables; the canonical p28 route remains `fb_norefine`.
 - `run_dfo_ls_attempt` is a finite-difference nonlinear least-squares trust-region/LM solver around the residual callback, not the exact external DFO-LS package, but it matches the intended solver-layer role of minimizing the project-defined residual.
-- `initial_guess_from_jacobian` solves `J dz = -del_z` and maps `xi1=Imag(dz)`, `xi2=Real(dz)`, which is a plausible linearized seed for the BTN residual under the code's sign convention.
 
 Reference-backed findings:
 
 - Important correction: the active p28 residual is not the standard `(u,lambda)` residual. It is a BTN/backflow rescue residual used after the primary standard solve fails.
 - Matched-as-BTN: `Imag(flowzr(...))` and the explicit second block enforcing `xi2=0` match the BTN idea of making manifold membership explicit in backflow variables.
-- Implementation decision: code variable names should be changed/aligned so `xi1=b` and `xi2=a`. The residual block `fq(n+1:)=xi2` then directly enforces paper condition `a=0`.
+- Implemented: code variables are aligned so `xi1=b` and `xi2=a`. The residual block `fq(n+1:)=xi2` now directly enforces paper condition `a=0`.
 - Open policy check: current route budgets and extra near/far rescue logic must be compared line-by-line to Appendix B before saying the implemented policy exactly matches the manuscript.
 - Open solver check: the trust-region/LM machinery is acceptable as implementation choice only if fixed-seed route/reconstruction tests show it preserves the proposal boundary and residual contract.
 
 Required before long validation:
 
 - Rename/document p28 residual as BTN rescue, not standard residual.
-- Decide implementation convention explicitly:
-  - If retaining the current negative-coordinate convention, do not change the initial guess sign; current `J dz=-del_z` is consistent and gives `ztrial=z` at the linear seed, so the initial loss is approximately `||xi2||` in the current `xi2=-a` convention.
-  - If switching to paper variables, implement `residual_jlc = -matmul(jac, xi2 + i*xi1)`, with `xi1=b`, `xi2=a`, and change `initial_guess_from_jacobian` to solve `J dz = +del_z`. Changing only one of residual sign or seed sign would create a mixed convention.
-- Confirm downstream code treats `Jl` as the actual correction added to `z+del_z`; then recovery/replay paths do not need a separate sign change. Re-audit post-refine seed mapping separately if post-refine is retained.
-- Unit test `evaluate_constraint_residual` against the BTN contract, not against old/new convention equivalence: after solver convergence, construct `ztrial = z + del_z + Jl`, verify `Imag(flowzr(ztrial))` is small, and verify the second residual block (`a`, or current-convention `xi2`) is small.
-- Fixed-seed route-census comparison for `Nprobe=28` and any allowed follow-up budgets.
+- Implemented paper-variable source cleanup: `residual_jlc = -matmul(jac, xi2 + i*xi1)`, `xi1=b`, `xi2=a`, and `initial_guess_from_jacobian` solves `J dz = +del_z`.
+- Confirmed source design: `Jl` is still the actual correction added to `z+del_z`; recovery/replay paths do not apply an extra sign flip.
+- Still required: unit test `evaluate_constraint_residual` against the BTN contract, not against old/new convention equivalence. After solver convergence, construct `ztrial = z + del_z + Jl`, verify `Imag(flowzr(ztrial))` is small, and verify the second residual block `a` is small.
+- Still required: fixed-seed route-census comparison for `Nprobe=28` and any allowed follow-up budgets.
 
 ## Core 5: HMC / Metropolis / reverse gate
 
@@ -184,7 +182,7 @@ Required before long validation:
 Scope note: active discussion is limited to the five retained core numerical blocks. Broader typed-state, diagnostics, repo/API, utilities/RNG/I/O, and productization refactors remain future blocks.
 
 1. ODEX implementation canonicalization: switch to Hairer ODEX `IWORK(3)=3`, update matching work estimates, clean signed-interval robustness, and test ODE solver self-consistency before any ODEX-only validation.
-2. QN p28 implementation: switch BTN rescue to paper variables (`xi1=b`, `xi2=a`) and flip the initial-guess RHS consistently.
+2. QN p28 implementation: paper-variable source cleanup is implemented; next remaining QN work is BTN contract testing and fixed-seed route-census verification.
 3. RATTLE/HMC proposal boundary: keep `state_has_progress` legacy/diagnostic until state redesign, define failure-as-rejection, and treat reverse gate as part of the proposal definition.
 4. Deterministic core tests: Newton residual, BTN residual contract, RATTLE/reverse-gate behavior, flow round-trip, ODE analytic/self-consistency checks.
 5. Only after these are resolved should ODEX-only 10k -> 50k -> 100k physical validation begin.

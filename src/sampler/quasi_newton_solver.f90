@@ -3207,7 +3207,8 @@ contains
       call ensure_complex_workspace(residual_jlc, n)
       call ensure_complex_workspace(residual_z_trial, n)
 
-      residual_jlc = matmul(jac, cmplx(0.0_dp, 1.0_dp, dp)*xi(1:n) + xi(n + 1:))
+      ! BTN paper variables: xi(1:n)=b, xi(n+1:2*n)=a, ztrial = ztilde - J*(a+i*b).
+      residual_jlc = -matmul(jac, xi(n + 1:) + cmplx(0.0_dp, 1.0_dp, dp)*xi(1:n))
       call complex_to_real(residual_jlc, Jl)
 
       call real_to_complex(del_z, residual_z_trial)

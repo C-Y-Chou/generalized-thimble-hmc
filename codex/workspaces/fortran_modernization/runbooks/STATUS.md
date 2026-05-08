@@ -151,21 +151,21 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 
 ## QN p28 BTN sign convention - 2026-05-08 JST
 - User confirmed p28 should be treated as BTN/backflow rescue after standard Newton failure.
-- Current sign convention confirmed against BTN Eq. (22): current code has `xi1=-b`, `xi2=-a`; future modernization target is paper variables `xi1=b`, `xi2=a`.
-- If switching to paper variables, future implementation must change the correction to `-J*(xi2+i*xi1)` and change `initial_guess_from_jacobian` to solve `J dz=+del_z`; if retaining the current negative-coordinate convention, the current `J dz=-del_z` seed is already consistent.
+- Historical sign convention before the source cleanup had `xi1=-b`, `xi2=-a`; modernization target is paper variables `xi1=b`, `xi2=a`.
+- Source cleanup is now implemented: correction uses `-J*(xi2+i*xi1)`, and `initial_guess_from_jacobian` solves `J dz=+del_z`.
 - Older planning text saying p28 is a standard `(u,lambda)` residual is superseded by the reference-backed audit.
 
 ## QN p28 paper-variable decision - 2026-05-08 JST
 - User requested BTN variables follow the paper directly.
-- Future target: `xi1=b`, `xi2=a`.
-- Future residual correction, if adopting paper variables: `residual_jlc = -J*(xi2 + i*xi1)`.
-- Future initial guess, if adopting paper variables: solve `J dz = +del_z`, then `xi1=Im(dz)`, `xi2=Re(dz)`.
-- This sign change must be implemented together. For the canonical p28 path, once the residual sign is changed, only `initial_guess_from_jacobian` needs a paired seed-generation sign change; `Jl`/recovery can keep treating `Jl` as the actual correction added to `z+del_z`.
-- Changing only the initial guess while leaving the current residual convention would be wrong: it would seed the trial point near `z+2*del_z` instead of near `z`.
+- Implemented target: `xi1=b`, `xi2=a`.
+- Implemented residual correction: `residual_jlc = -J*(xi2 + i*xi1)`.
+- Implemented initial guess: solve `J dz = +del_z`, then `xi1=Im(dz)`, `xi2=Re(dz)`.
+- `Jl`/recovery continue treating `Jl` as the actual correction added to `z+del_z`; no extra recovery sign flip is applied.
+- Optional post-refine seed mapping was updated to use `ld0=b_qn` under paper variables; canonical p28 remains no-refine.
 
 ## BTN validation policy - 2026-05-08 JST
 - User decided not to require old-convention/new-convention regression equivalence for BTN variable cleanup.
-- Required validation is the BTN residual contract itself: after convergence, build `ztrial = z + del_z + Jl`, verify `Imag(flowzr(ztrial))` is small, and verify the second residual block is small (`a` in paper variables, current-convention `xi2` before cleanup).
+- Required validation is the BTN residual contract itself: after convergence, build `ztrial = z + del_z + Jl`, verify `Imag(flowzr(ztrial))` is small, and verify the second residual block `a` is small.
 - `Jl`/recovery should be judged by whether this reconstructed `ztrial` satisfies the inverse-flow manifold condition, not by matching a previous coordinate convention.
 
 ## State representation / RATTLE progress decision - 2026-05-08 JST
@@ -200,3 +200,11 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - User narrowed the active discussion scope back to the five retained core numerical blocks.
 - Typed state API redesign, diagnostics context redesign, repo-wide module/API cleanup, utilities/RNG/I/O/output-schema modernization, and broader productization remain recorded as future modernization blocks, but should not drive the immediate discussion sequence.
 - Immediate priority: complete decisions/signoff prerequisites for ODEX, simplified Newton, RATTLE, QN p28/BTN, and HMC/Metropolis/reverse-gate before moving to other cross-cutting refactors.
+
+## QN p28 BTN source cleanup - 2026-05-08 JST
+- Implemented the first M2 core source patch for QN p28/BTN paper variables.
+- Changed `evaluate_constraint_residual` to build `ztrial = z + del_z - J*(a+i*b)` with `xi1=b`, `xi2=a`.
+- Changed `initial_guess_from_jacobian` to solve `J dz=+del_z` for the paper-variable seed.
+- Kept `Jl` recovery semantics unchanged: `Jl` is the actual correction used in `ztrial = z + del_z + Jl`.
+- Updated optional post-refine seed mapping to use `ld0=b_qn`; canonical p28 remains no-refine.
+- Verified by rebuilding `../bin/replay_quasi_failures` and running a 2-cycle local `test_tltm_stage2` smoke; no production job was submitted.
