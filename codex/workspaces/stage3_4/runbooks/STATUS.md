@@ -1,12 +1,12 @@
 # Stage3_4 Task Status
 
-Updated: 2026-05-08 JST
+Updated: 2026-05-08 12:17 JST
 
 ## Active objective
-- Prepare full 1024-seed Stage3_4 production after pre-production validation passed.
+- Complete supplemental `fb_norefine` pre-production validation before full 1024-seed production planning.
 
 ## Live jobs (current)
-- No active Stage3_4 validation/production jobs.
+- 14175.anode01 on C12: `s34_preval_fbnr`, running as of 2026-05-08 12:17 JST.
 
 ## Protocol
 - Validation label: `preprod_validation_20260507_10seed_10k_p28_rg`
@@ -33,6 +33,18 @@ Updated: 2026-05-08 JST
   - `fb` has slightly higher RG rejects but still small relative to RG candidates.
 
 ## Next actions
-1. Create full 1024-seed production PBS from a pushed clean commit.
-2. Use the same production gate: branch/SHA/dirty-tree check inside PBS.
-3. Run queue optimization before submission; target fast completion but avoid per-user-limit workarounds.
+1. Wait for supplemental job `14175.anode01` to finish.
+2. Inspect report `output/tests/stage3_4/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine/s34_preprod_validation_20260508_p28_rg_fb_norefine_report.md`.
+3. Compare `fb_norefine` against prior `fb` and `no_fb` validation before full 1024-seed production.
+4. If still acceptable, create full production PBS from a pushed clean commit and optimize queues.
+
+## Supplemental validation in progress
+- Label: `preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine`
+- Pushed branch: `codex/preprod-hardening`
+- Pushed commit used by PBS gate: `6b552ffb64e606a919963128e9e55747eb75907b`
+- Config: `docs/stage_3_4_t035_paired_10k_10seed.json`
+- Method: `fb_norefine`
+- Key settings: RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`, `QN_POST_NEWTON_REFINE_ENABLED=0`.
+- PBS: `codex/workspaces/stage3_4/tasks/pbs/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine.pbs`
+- Output root: `output/tests/stage3_4/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine`
+- Logs root: `output/logs/stage3_4_preprod_validation/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine`

@@ -641,3 +641,24 @@ Use this file to append per-session notes.
 - Decision:
   - PASS for proceeding to full production planning, with small-sample caveat.
   - Do not treat this 10seed/10k validation as a final scientific claim.
+
+## 2026-05-08 JST
+- Submitted supplemental Stage3_4 `fb_norefine` validation at user's request.
+- Git:
+  - branch: `codex/preprod-hardening`
+  - pushed commit: `6b552ffb64e606a919963128e9e55747eb75907b`
+  - remote worktree clean before `qsub`.
+- PBS:
+  - job id: `14175.anode01`
+  - queue: `C12`
+  - script: `codex/workspaces/stage3_4/tasks/pbs/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine.pbs`
+  - job state at first check: `R`
+- Setup:
+  - config `docs/stage_3_4_t035_paired_10k_10seed.json`
+  - method `fb_norefine`
+  - 10 seeds x 10k cycles
+  - RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`
+  - `QN_POST_NEWTON_REFINE_ENABLED=0`
+- Output:
+  - `output/tests/stage3_4/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine`
+  - `output/logs/stage3_4_preprod_validation/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine`

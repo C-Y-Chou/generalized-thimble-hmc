@@ -192,3 +192,25 @@ Use this file to append per-session notes.
   - PASS for proceeding to full production planning.
   - Small-sample caveat: 10 seeds x 10k is only a validation gate, not a final scientific claim.
   - `fb` reduces unresolved failures strongly; runtime cost is about 17%; RG rejects are slightly higher but not a blocker.
+
+## 2026-05-08 12:17 JST
+- Submitted supplemental `fb_norefine` validation at user's request.
+- Git gate:
+  - branch: `codex/preprod-hardening`
+  - pushed commit: `6b552ffb64e606a919963128e9e55747eb75907b`
+  - remote working tree was clean before submission.
+  - PBS receives `TLTM_EXPECTED_GIT_COMMIT=6b552ffb64e606a919963128e9e55747eb75907b` and self-checks branch/SHA/dirty state.
+- Job:
+  - `14175.anode01`
+  - queue: `C12`
+  - state at first check: `R`
+  - PBS: `codex/workspaces/stage3_4/tasks/pbs/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine.pbs`
+- Validation setup:
+  - config: `docs/stage_3_4_t035_paired_10k_10seed.json`
+  - method: `fb_norefine`
+  - 10 seeds x 10k cycles
+  - RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`
+  - `QN_POST_NEWTON_REFINE_ENABLED=0`
+- Output:
+  - `output/tests/stage3_4/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine`
+  - logs: `output/logs/stage3_4_preprod_validation/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine`
