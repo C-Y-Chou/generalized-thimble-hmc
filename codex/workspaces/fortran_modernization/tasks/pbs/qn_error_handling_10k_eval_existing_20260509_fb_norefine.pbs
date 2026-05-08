@@ -1,13 +1,13 @@
 #!/bin/bash
-#PBS -N qn10k_fbnr
+#PBS -N qn10k_eval
 #PBS -q C12
 #PBS -l select=1:ncpus=20:mpiprocs=20:mem=8gb
-#PBS -l walltime=04:00:00
-#PBS -o /lustre1/home/cychou/TLTM/output/logs/qn_error_handling/qn10k_fb_norefine_ct1e13_qn1e13.pbs.out
-#PBS -e /lustre1/home/cychou/TLTM/output/logs/qn_error_handling/qn10k_fb_norefine_ct1e13_qn1e13.pbs.err
+#PBS -l walltime=01:00:00
+#PBS -o /lustre1/home/cychou/TLTM/output/logs/qn_error_handling/qn10k_fb_norefine_ct1e13_qn1e13_eval_existing.pbs.out
+#PBS -e /lustre1/home/cychou/TLTM/output/logs/qn_error_handling/qn10k_fb_norefine_ct1e13_qn1e13_eval_existing.pbs.err
 
 set -euo pipefail
-BOOT_LOG="/lustre1/home/cychou/TLTM/output/logs/qn_error_handling/qn10k_fb_norefine_ct1e13_qn1e13.boot.log"
+BOOT_LOG="/lustre1/home/cychou/TLTM/output/logs/qn_error_handling/qn10k_fb_norefine_ct1e13_qn1e13_eval_existing.boot.log"
 mkdir -p "$(dirname "${BOOT_LOG}")"
 exec > "${BOOT_LOG}" 2>&1
 
@@ -23,26 +23,18 @@ if [ -f /usr/share/Modules/init/bash ]; then
   # shellcheck source=/dev/null
   . /usr/share/Modules/init/bash
 fi
-type module
 module purge
 module load compiler/2025.3.0
 module load mpi/2021.17
 module load mkl/2025.3
 
 WORKTREE="/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation"
-EXPECTED_BRANCH="codex/qn-error-handling-validation"
-EXPECTED_COMMIT="${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
-
 cd "${WORKTREE}"
-CURRENT_BRANCH="${TLTM_EXPECTED_GIT_BRANCH:-${EXPECTED_BRANCH}}"
-CURRENT_COMMIT="${EXPECTED_COMMIT}"
-set +x
 
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export OMP_PROC_BIND=true
 export OMP_PLACES=cores
-export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
 
 export TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-13
 export QN_REVERSE_GATE_ENABLED=1
@@ -55,38 +47,29 @@ export QN_QUASI_TOL_OVERRIDE=1e-13
 
 OUT_SUBDIR="output/tests/qn_error_handling/20260509_10seed_10k_fb_norefine_ct1e13_qn1e13"
 LOG_SUBDIR="output/logs/qn_error_handling/20260509_10seed_10k_fb_norefine_ct1e13_qn1e13"
-rm -rf "${OUT_SUBDIR}" "${LOG_SUBDIR}"
-mkdir -p "${LOG_SUBDIR}"
 
 if [ ! -f build/makefile ]; then
   mkdir -p build
   cp /lustre1/home/cychou/TLTM/build/makefile build/makefile
 fi
-make -C build ../bin/run_tltm_stage2 ../bin/evaluate_expectations
+make -C build ../bin/evaluate_expectations
 
 {
-  echo "job_tag=qn_error_handling_10k_20260509_fb_norefine_ct1e13_qn1e13"
-  echo "submitted_for=fortran_modernization_QN_error_handling_10k_validation"
+  echo "job_tag=qn_error_handling_10k_eval_existing_20260509_fb_norefine_ct1e13_qn1e13"
+  echo "submitted_for=fortran_modernization_QN_error_handling_eval_salvage"
   echo "date_start=$(date -Is)"
   echo "hostname=$(hostname)"
   echo "pwd=$(pwd)"
-  echo "git_branch=${CURRENT_BRANCH}"
-  echo "git_commit=${CURRENT_COMMIT}"
-  echo "pbs_script=codex/workspaces/fortran_modernization/tasks/pbs/qn_error_handling_10k_validation_20260509_fb_norefine.pbs"
+  echo "pbs_script=codex/workspaces/fortran_modernization/tasks/pbs/qn_error_handling_10k_eval_existing_20260509_fb_norefine.pbs"
   echo "config=docs/stage_3_4_t035_paired_10k_10seed.json"
   echo "method=fb_norefine"
   echo "max_seeds=10"
   echo "cycles_per_seed=10000"
-  echo "constraint_tol_override=${TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE}"
-  echo "qn_quasi_tol_override=${QN_QUASI_TOL_OVERRIDE}"
-  echo "reverse_gate_enabled=${QN_REVERSE_GATE_ENABLED}"
-  echo "reverse_gate_tol=${QN_REVERSE_GATE_TOL}"
-  echo "qn_s1_probe_max_iter=${QN_S1_PROBE_MAX_ITER}"
   echo "output_subdir=${OUT_SUBDIR}"
   echo "logs_subdir=${LOG_SUBDIR}"
-} > "${LOG_SUBDIR}/run_manifest.txt"
+} > "${LOG_SUBDIR}/eval_existing_manifest.txt"
 
-python3 scripts/run_stage3_3_multiseed.py \
+python3 codex/workspaces/fortran_modernization/tasks/scripts/evaluate_existing_stage3_multiseed.py \
   --repo-root . \
   --config docs/stage_3_4_t035_paired_10k_10seed.json \
   --methods fb_norefine \
@@ -102,4 +85,4 @@ python3 scripts/run_stage3_3_multiseed.py \
   --eval-threads 1 \
   --skip-build
 
-echo "date_end=$(date -Is)" >> "${LOG_SUBDIR}/run_manifest.txt"
+echo "date_end=$(date -Is)" >> "${LOG_SUBDIR}/eval_existing_manifest.txt"
