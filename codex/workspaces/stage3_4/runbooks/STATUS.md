@@ -9,7 +9,7 @@ Updated: 2026-05-08 12:54 JST
 - `14180.anode01`: `fb_refine`, queue `G`, state `R`, 20 workers, started 2026-05-08 12:53 JST.
 - `14181.anode01`: `fb_norefine`, queue `C8`, state `R`, 20 workers, started 2026-05-08 12:49 JST.
 - `14182.anode01`: `no_fb`, queue `F`, state `R`, 20 workers, started 2026-05-08 12:53 JST.
-- `14188.anode01`: merge/report job, queue `C8`, state `H`, dependency `afterok:14180:14181:14182`.
+- Merge/report job: resubmitted from latest status commit after compute jobs were confirmed running; see `codex/runbooks/LIVE_BOARD.md` for current live job id.
 - Invalid launch kept for traceability: `14179.anode01` (`no_fb` on C17) exited immediately with `Exit_status=127`; it is not part of the valid dataset.
 
 ## Current judgment experiment

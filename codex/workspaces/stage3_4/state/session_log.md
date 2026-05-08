@@ -257,7 +257,7 @@ Use this file to append per-session notes.
     - `14181.anode01`: `fb_norefine`, queue `C8`, state `R`, started 2026-05-08 12:49 JST.
     - `14182.anode01`: `no_fb`, queue `F`, state `R`, started 2026-05-08 12:53 JST.
   - Merge/report job:
-    - `14188.anode01`, queue `C8`, state `H`, dependency `afterok:14180:14181:14182`.
+    - First hold job `14188.anode01` was removed before running because tracked status needed a follow-up commit; a replacement merge job is submitted from the latest status commit and is tracked in the live board.
 - Output:
   - root: `output/tests/stage3_4/judgment_20260508_32seed_50k_p28_rg`
   - logs: `output/logs/stage3_4_judgment_20260508_32seed_50k_p28_rg`

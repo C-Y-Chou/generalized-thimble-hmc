@@ -691,7 +691,8 @@ Use this file to append per-session notes.
   - `14182.anode01`: `no_fb`, queue `F`, running.
   - invalid initial attempt: `14179.anode01` on C17 exited immediately with `Exit_status=127`, excluded from dataset.
 - Merge/report:
-  - `14188.anode01`, held on dependency `afterok:14180:14181:14182`.
+  - First hold job `14188.anode01` was removed before running because tracked status needed a follow-up commit.
+  - Replacement merge job is submitted from the latest status commit and tracked in the live board.
   - expected report: `output/tests/stage3_4/judgment_20260508_32seed_50k_p28_rg/REPORT.md`
 - ETA:
   - expected compute finish around 2026-05-08 15:50-16:20 JST, with merge/report shortly afterward.
