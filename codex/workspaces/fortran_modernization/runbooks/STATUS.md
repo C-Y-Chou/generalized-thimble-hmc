@@ -166,3 +166,9 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - User decided not to require old-convention/new-convention regression equivalence for BTN variable cleanup.
 - Required validation is the BTN residual contract itself: after convergence, build `ztrial = z + del_z + Jl`, verify `Imag(flowzr(ztrial))` is small, and verify the second residual block is small (`a` in paper variables, current-convention `xi2` before cleanup).
 - `Jl`/recovery should be judged by whether this reconstructed `ztrial` satisfies the inverse-flow manifold condition, not by matching a previous coordinate convention.
+
+## State representation / RATTLE progress decision - 2026-05-08 JST
+- User identified that `state_has_progress` cannot be repaired cleanly as a single-line RATTLE fix because the whole codebase encodes `x(1)` as flow time and `x(2:)` as physical seed/state.
+- Current `x(2)`-only progress guard is therefore a state-layout symptom and should be marked legacy/diagnostic, not promoted as a publishable algorithmic criterion.
+- Short-term proposal validity should rely on solver convergence, constraint residual contract, reverse gate, and Metropolis rejection boundary.
+- Long-term modernization should introduce typed state/workspace APIs separating `flow_time` from physical coordinates, then migrate kernels away from implicit positional indexing.
