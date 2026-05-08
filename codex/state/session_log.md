@@ -676,3 +676,22 @@ Use this file to append per-session notes.
 - Current production candidate:
   - Keep `fb` with post-refine enabled.
   - Treat `fb_norefine` as diagnostic/control only unless user explicitly wants it in production.
+
+## 2026-05-08 12:54 JST
+- Submitted Stage3_4 minimal three-set judgment experiment before choosing full production scale.
+- Experiment:
+  - label: `judgment_20260508_32seed_50k_p28_rg`
+  - config: `docs/stage_3_4_t035_paired_32seed_50k_rg.json`
+  - sets: `no_fb`, `fb_refine`, `fb_norefine`
+  - budget: 32 matched seeds x 50k cycles per set
+  - common settings: RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`
+- Compute jobs:
+  - `14180.anode01`: `fb_refine`, queue `G`, running.
+  - `14181.anode01`: `fb_norefine`, queue `C8`, running.
+  - `14182.anode01`: `no_fb`, queue `F`, running.
+  - invalid initial attempt: `14179.anode01` on C17 exited immediately with `Exit_status=127`, excluded from dataset.
+- Merge/report:
+  - `14188.anode01`, held on dependency `afterok:14180:14181:14182`.
+  - expected report: `output/tests/stage3_4/judgment_20260508_32seed_50k_p28_rg/REPORT.md`
+- ETA:
+  - expected compute finish around 2026-05-08 15:50-16:20 JST, with merge/report shortly afterward.

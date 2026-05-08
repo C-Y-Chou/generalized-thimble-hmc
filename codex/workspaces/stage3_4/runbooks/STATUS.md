@@ -1,12 +1,35 @@
 # Stage3_4 Task Status
 
-Updated: 2026-05-08 12:38 JST
+Updated: 2026-05-08 12:54 JST
 
 ## Active objective
-- Decide final 1024-seed production settings after pre-production validation.
+- Run minimal 32seed/50k judgment experiment for three sets before choosing production seed/cycle counts.
 
 ## Live jobs (current)
-- No active stage3_4 pre-production validation jobs.
+- `14180.anode01`: `fb_refine`, queue `G`, state `R`, 20 workers, started 2026-05-08 12:53 JST.
+- `14181.anode01`: `fb_norefine`, queue `C8`, state `R`, 20 workers, started 2026-05-08 12:49 JST.
+- `14182.anode01`: `no_fb`, queue `F`, state `R`, 20 workers, started 2026-05-08 12:53 JST.
+- `14188.anode01`: merge/report job, queue `C8`, state `H`, dependency `afterok:14180:14181:14182`.
+- Invalid launch kept for traceability: `14179.anode01` (`no_fb` on C17) exited immediately with `Exit_status=127`; it is not part of the valid dataset.
+
+## Current judgment experiment
+- Label: `judgment_20260508_32seed_50k_p28_rg`
+- Pushed branch: `codex/preprod-hardening`
+- Pushed commit used by compute jobs: `c04100faea5da0cbad73b6528f2f69e0dcc87d7a`
+- Config: `docs/stage_3_4_t035_paired_32seed_50k_rg.json`
+- Methods/sets:
+  - `no_fb`
+  - `fb` as `fb_refine`
+  - `fb_norefine`
+- Common settings: RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`, near/non-near/global rescue off.
+- Budget: 32 matched seeds x 50k cycles per set.
+- Parallelism: 20 workers per set, so 32 seeds run as two waves.
+- Output root: `output/tests/stage3_4/judgment_20260508_32seed_50k_p28_rg`
+- Logs root: `output/logs/stage3_4_judgment_20260508_32seed_50k_p28_rg`
+- Combined report after dependency job: `output/tests/stage3_4/judgment_20260508_32seed_50k_p28_rg/REPORT.md`
+- ETA:
+  - Based on 10seed/10k measured runtime scaled to 50k and two waves, expected compute finish is around 2026-05-08 15:50-16:20 JST.
+  - Merge/report should finish a few minutes after all three compute jobs exit successfully.
 
 ## Protocol
 - Validation label: `preprod_validation_20260507_10seed_10k_p28_rg`

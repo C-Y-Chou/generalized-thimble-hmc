@@ -237,3 +237,31 @@ Use this file to append per-session notes.
 - Interim decision:
   - Do not switch production candidate to `fb_norefine`.
   - Keep `fb` with post-refine enabled as current production candidate unless user requests an explicit diagnostic/control production branch.
+
+## 2026-05-08 12:54 JST
+- User requested the next minimal judgment experiment before choosing full production seed/cycle count.
+- Experiment:
+  - label: `judgment_20260508_32seed_50k_p28_rg`
+  - config: `docs/stage_3_4_t035_paired_32seed_50k_rg.json`
+  - sets: `no_fb`, `fb_refine`, `fb_norefine`
+  - budget: 32 matched seeds x 50k cycles per set
+  - common settings: RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`, near/non-near/global rescue off.
+- PBS/config commit:
+  - `c04100faea5da0cbad73b6528f2f69e0dcc87d7a`
+- Submission / queue notes:
+  - Initial `no_fb` submission `14179.anode01` on C17 exited immediately with `Exit_status=127`; it is invalid and excluded.
+  - Initial `fb_refine` on C12 queued with `Qlist`; moved away.
+  - 20-core probes confirmed immediate starts on C8, C8-LONG, C17-LONG, G, and F.
+  - Final running compute jobs:
+    - `14180.anode01`: `fb_refine`, queue `G`, state `R`, started 2026-05-08 12:53 JST.
+    - `14181.anode01`: `fb_norefine`, queue `C8`, state `R`, started 2026-05-08 12:49 JST.
+    - `14182.anode01`: `no_fb`, queue `F`, state `R`, started 2026-05-08 12:53 JST.
+  - Merge/report job:
+    - `14188.anode01`, queue `C8`, state `H`, dependency `afterok:14180:14181:14182`.
+- Output:
+  - root: `output/tests/stage3_4/judgment_20260508_32seed_50k_p28_rg`
+  - logs: `output/logs/stage3_4_judgment_20260508_32seed_50k_p28_rg`
+  - combined report after merge: `output/tests/stage3_4/judgment_20260508_32seed_50k_p28_rg/REPORT.md`
+- ETA:
+  - Based on 10seed/10k runtime scaled to 50k with two worker waves, expected compute finish is around 2026-05-08 15:50-16:20 JST.
+  - Merge/report should complete a few minutes after all compute jobs succeed.
