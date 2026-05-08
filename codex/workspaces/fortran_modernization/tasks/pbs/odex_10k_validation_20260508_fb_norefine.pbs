@@ -27,6 +27,10 @@ export QN_S1_NONNEAR_RESCUE_ENABLED=0
 export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
 export QN_QUASI_TOL_OVERRIDE=1e-13
 
+: "${SUBMIT_BRANCH:=unknown}"
+: "${SUBMIT_COMMIT:=unknown}"
+: "${SUBMIT_TREE_STATUS:=unknown}"
+
 cd /lustre1/home/cychou/TLTM
 
 OUT_SUBDIR="output/tests/odex_validation/20260508_10seed_10k_fb_norefine_ct1e13_qn1e13"
@@ -40,11 +44,10 @@ mkdir -p "${LOG_SUBDIR}"
   echo "date_start=$(date -Is)"
   echo "hostname=$(hostname)"
   echo "pwd=$(pwd)"
-  echo "branch=$(git rev-parse --abbrev-ref HEAD)"
-  echo "commit=$(git rev-parse HEAD)"
-  echo "git_status_begin"
-  git status --short
-  echo "git_status_end"
+  echo "submit_branch=${SUBMIT_BRANCH}"
+  echo "submit_commit=${SUBMIT_COMMIT}"
+  echo "submit_tree_status=${SUBMIT_TREE_STATUS}"
+  echo "pbs_script=codex/workspaces/fortran_modernization/tasks/pbs/odex_10k_validation_20260508_fb_norefine.pbs"
   echo "config=docs/stage_3_4_t035_paired_10k_10seed.json"
   echo "method=fb_norefine"
   echo "max_seeds=10"
