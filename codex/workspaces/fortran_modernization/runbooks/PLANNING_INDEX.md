@@ -50,3 +50,5 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 - Current phase: M2 canonicalization planning after Stage3_4 characterization.
 - Non-ODEX cleanup is behavior-neutral quarantine/inventory only before ODEX-only.
 - Next gate: retained-core implementation correctness audit before ODEX-only 10k -> 50k -> 100k physical checks.
+
+- `M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`: completed static audit findings and discussion blockers for retained ODEX/Newton/RATTLE/QN/HMC code.

@@ -35,3 +35,8 @@
 - 2026-05-08 JST: M2 execution policy recorded: non-ODEX cleanup is behavior-neutral quarantine/inventory only; ODEX-only gets staged 10k->50k->100k physical validation before legacy deletion.
 - 2026-05-08 JST: Implemented ODEX-only source policy gates in `src/physics/solve_flow.f90`; Radau/final-resort acceptance disabled, legacy routines retained for quarantine and comparison.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
+
+## 2026-05-08 - M2 retained-core implementation audit
+- Completed static source-level audit of retained ODEX, simplified Newton, RATTLE, QN p28 residual, and HMC/Metropolis/RG boundary.
+- Wrote `runbooks/M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`.
+- Validation remains blocked pending user discussion of ODEX signed work estimate, Newton/QN derivations, RATTLE progress guard, and RG diagnostic accounting.

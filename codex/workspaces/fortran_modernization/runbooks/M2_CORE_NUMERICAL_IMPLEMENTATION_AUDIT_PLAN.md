@@ -195,11 +195,11 @@ Minimal checks before staged validation:
 
 | Core | Current state | Notes |
 |---|---|---|
-| ODEX flow integration | `unchecked-after-routing-change` | ODEX-only routing implemented, but retained ODEX kernel correctness still needs audit. |
-| Simplified Newton | `unchecked` | Existing planning notes map responsibilities, but do not prove residual/sign/tolerance correctness. |
-| RATTLE proposal structure | `unchecked` | Existing planning notes identify risk, but full step-order and state-mutation audit is pending. |
-| QN p28 projection loss | `unchecked` | Canonical route is decided; retained loss implementation correctness still needs reference/code audit. |
-| HMC/Metropolis/RG boundary | `unchecked` | RG permanence decided; implementation correctness and counter isolation audit still pending. |
+| ODEX flow integration | `bug-candidate` | ODEX-only routing is implemented, but `calculate_wk` appears to use signed `hk`; reverse-flow order/work selection must be fixed or justified before validation. |
+| Simplified Newton | `needs-derivation` | Residual/update path is internally consistent with projection code, but signs and variable roles need written derivation against the intended simplified Newton equation. |
+| RATTLE proposal structure | `needs-derivation-plus-bug-candidate` | Step boundary is coherent, but `state_has_progress` only checks `x(2)` and must be accepted as a one-dimensional invariant or redesigned. |
+| QN p28 projection loss | `intentional-deviation-needs-user-signoff` | Active residual is project-specific standard p28 loss using `xi=(u,lambda_prime)` and DFO-LS machinery; it needs signoff against `new_algorithm__Copy_.pdf`. |
+| HMC/Metropolis/RG boundary | `accepted-with-diagnostic-risk` | Live-state preservation and Metropolis rejection boundary look correct; reverse-gate replay diagnostic accounting is not fully isolated from ODE/global counters. |
 
 ## Immediate next deliverable
 
@@ -212,3 +212,7 @@ Before submitting any validation job, create a concise audit note for each core 
 - minimal pre-validation checks.
 
 The first practical audit target should be `src/physics/solve_flow.f90` because the ODEX-only source gate has already been implemented and any retained ODEX bug would directly affect the planned 10k validation.
+
+## Static audit completion note - 2026-05-08 JST
+
+The first retained-core static audit has been completed and summarized in `M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`. It found no evidence that failed/RG-rejected proposals mutate live Markov state, but it did identify several blockers before ODEX-only staged validation: signed ODEX work estimate for reverse flow, simplified Newton residual sign derivation, QN p28 residual signoff, `x(2)`-only RATTLE progress guard, and reverse-gate replay diagnostic accounting.

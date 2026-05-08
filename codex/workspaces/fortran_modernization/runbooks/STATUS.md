@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-08 19:20 JST
+Updated: 2026-05-08 20:55 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -16,7 +16,7 @@ Updated: 2026-05-08 19:20 JST
   - `runbooks/HMC_METROPOLIS_TLTM_REVIEW_NOTES.md`
   - `runbooks/BASELINE_VERIFICATION_MATRIX.md`
   - `runbooks/PLANNING_DISCUSSION_BRIEF.md`
-- No Fortran source edits, production job submissions, or production worktree mutations have been performed for this modernization task.
+- ODEX-only source policy has been implemented in `src/physics/solve_flow.f90`; no production job submissions have been performed for this modernization task.
 
 ## Current architecture understanding
 - `solve_flow.f90` is flow mapping plus ODEX-like integration plus Radau/JFNK/final-resort policy plus diagnostics.
@@ -25,13 +25,7 @@ Updated: 2026-05-08 19:20 JST
 - `tltm_stage2_driver.f90` owns production orchestration and output/counter contracts used by Stage3_4 interpretation.
 
 ## Next action
-Discuss and confirm `runbooks/PLANNING_DISCUSSION_BRIEF.md`, especially:
-- canonical BTN naming;
-- canonical quasi route set;
-- Stage2 output freeze policy;
-- whether existing `output/tests` artifacts can seed formal baselines;
-- reverse-gate and final-resort long-term status;
-- whether thread-safety/reentrancy is an explicit modernization goal.
+Discuss and resolve `runbooks/M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`, especially ODEX signed-work behavior, simplified Newton sign derivation, QN p28 residual signoff, RATTLE progress criteria, and reverse-gate diagnostic accounting.
 
 ## After confirmation
 - Build baseline harness design first.
@@ -121,3 +115,10 @@ Discuss and confirm `runbooks/PLANNING_DISCUSSION_BRIEF.md`, especially:
 - Added `runbooks/M2_CORE_NUMERICAL_IMPLEMENTATION_AUDIT_PLAN.md`.
 - ODEX-only 10k -> 50k -> 100k validation is now blocked until retained ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG boundary code are accepted for staged validation.
 - No production job was submitted for this correction.
+
+## M2 retained-core audit completion - 2026-05-08 JST
+- Added `runbooks/M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`.
+- Static source-level retained-core audit is complete enough for user discussion.
+- ODEX-only staged validation remains blocked until the identified bug candidates and derivation/signoff items are resolved.
+- Key blockers: signed ODEX `calculate_wk` work estimate under reverse flow, simplified Newton residual/update derivation, QN p28 residual signoff against the original formulation, `x(2)`-only RATTLE progress guard, and reverse-gate replay diagnostic accounting.
+- No production job was submitted for this audit.

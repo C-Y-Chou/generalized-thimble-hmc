@@ -90,3 +90,8 @@
 - User clarified that the audit must not only decide which legacy paths to disable; it must also check whether the retained five core numerical implementations are themselves correct.
 - Added `M2_CORE_NUMERICAL_IMPLEMENTATION_AUDIT_PLAN.md` covering ODEX, simplified Newton, RATTLE, QN p28 projection loss, and HMC/Metropolis/RG boundary.
 - ODEX-only validation jobs are blocked until this retained-core correctness audit accepts the active numerical cores for staged validation.
+
+## 2026-05-08 JST - Retained-core audit completed for discussion
+- User asked to audit the retained five numerical cores, not just disabled legacy paths.
+- Completed source-level audit and documented blockers in `runbooks/M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`.
+- No Fortran code changes or production jobs were performed in this audit step.
