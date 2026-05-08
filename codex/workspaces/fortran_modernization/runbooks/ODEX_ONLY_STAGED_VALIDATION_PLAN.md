@@ -113,7 +113,7 @@ Only after 10k -> 50k -> 100k passes:
 - Regenerate official modernization baselines.
 - Start broader repo-wide source modernization against those baselines.
 
-Status: ready for implementation discussion. No ODEX-only source change has been made by this runbook.
+Status: ODEX-only policy and ODEX sequence canonicalization have local smoke coverage. Long physical validation has not been submitted.
 
 ## Source implementation note - 2026-05-08
 
@@ -124,3 +124,22 @@ Initial ODEX-only implementation uses explicit policy gates in `src/physics/solv
 - `intode_fast_hmin_bypass = .false.` prevents the h-min path from trying final-resort before the normal failure classification path.
 
 The Radau/JFNK routines are intentionally retained as legacy/quarantine code until 10k -> 50k -> 100k validation decides whether to delete them. During ODEX canonicalization, keep them isolated behind explicit disabled entry points/switches so later deletion is mechanically simple.
+
+## Source implementation note - ODEX sequence canonicalization - 2026-05-08
+
+Implemented in `src/physics/solve_flow.f90`:
+
+- Hairer ODEX `IWORK(3)=3` sequence via shared `odex_iwork3_nstep`: `2,4,6,8,12,16,24,32,...`.
+- Matching `calculate_ak` cost model derived from the same sequence helper.
+- Positive work estimate in `calculate_wk` using `abs(h)` plus non-finite/tiny-step guard.
+- Signed `calculate_hk` preserved so step direction remains controlled by the integration interval.
+
+Local pre-validation checks performed after the patch:
+
+- `git diff --check`.
+- `make -C build ../bin/scan_flow_vs_flowz ../bin/scan_flowzr_stability`.
+- `./bin/scan_flow_vs_flowz output/tests/odex_canonical/flow_vs_flowz_ft0p1.csv -0.5 0.5 21 0.1 0.0`: 21/21 `flowz` OK, 21/21 `flow` OK, max `|flowz-flow| = 5.00e-16`.
+- `./bin/scan_flowzr_stability output/tests/odex_canonical/flowzr_roundtrip_ft0p1.csv -0.2 0.2 9 -0.2 0.2 9 0.1 0 1`: 81/81 `flowzr` OK, 81/81 signed roundtrip OK, max roundtrip `4.42e-15`.
+- `make -C build test_tltm_stage2 TLTM_STAGE2_CYCLES=2 TLTM_STAGE2_NUM_REPLICAS=2 TLTM_STAGE2_MAX_FLOW_TIME=0.1 TLTM_STAGE2_LOCAL_UPDATES=1`.
+
+These checks are smoke/self-consistency gates only. They do not replace the 10k -> 50k -> 100k physical-observable validation sequence.

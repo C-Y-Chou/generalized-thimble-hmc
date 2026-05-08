@@ -194,13 +194,13 @@ This second pass changes the risk profile:
 
 - Simplified Newton is stronger than the first audit claimed: its signs match GT-HMC.
 - RATTLE's main update order is also largely reference-matched.
-- ODEX sequence decision is now fixed: use Hairer ODEX `IWORK(3)=3`; current sequence is legacy until updated/tested.
+- ODEX sequence decision is now implemented: use Hairer ODEX `IWORK(3)=3`; the previous `2,4,6,12,18,36,...` sequence is legacy.
 - QN p28 must be described as BTN rescue, not standard `(u,lambda)` QN; future source should use paper variables `xi1=b`, `xi2=a`.
 - HMC/Metropolis is acceptable only if reverse gate and failure semantics are treated as part of the proposal contract and tested deterministically.
 
 ## ODEX sequence decision - 2026-05-08 JST
 
-User selected Hairer ODEX `IWORK(3)=3` as the canonical modernization target: `2,4,6,8,12,16,24,32,...`. The existing `2,4,6,12,18,36,...` sequence is therefore legacy. The future source change must update both `build_nsteps` and `calculate_ak`, clean signed-interval/work-estimate robustness in the same patch, then run ODE solver self-consistency tests before long validation. Radau/JFNK/final-resort code should remain only in the easiest later-deletion quarantine form until deletion is approved.
+User selected Hairer ODEX `IWORK(3)=3` as the canonical modernization target: `2,4,6,8,12,16,24,32,...`. The existing `2,4,6,12,18,36,...` sequence is therefore legacy. The source now updates both `build_nsteps` and `calculate_ak` through shared `odex_iwork3_nstep`, and `calculate_wk` uses a positive `abs(h)` work estimate while `calculate_hk` remains signed for direction. Local ODE self-consistency smoke passed, but long validation is still the staged 10k -> 50k -> 100k physical-observable sequence. Radau/JFNK/final-resort code should remain only in the easiest later-deletion quarantine form until deletion is approved.
 
 ## BTN sign convention and paper-variable decision - 2026-05-08 JST
 

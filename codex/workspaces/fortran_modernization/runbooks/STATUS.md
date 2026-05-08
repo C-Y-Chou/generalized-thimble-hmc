@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-08 22:35 JST
+Updated: 2026-05-08 23:05 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -195,6 +195,13 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - User selected synchronous cleanup for ODEX canonicalization: Hairer `IWORK(3)=3` sequence, matching `calculate_ak`, and signed-interval/work-estimate robustness should be handled together.
 - Pre-long-validation test target is ODE solver self-consistency, not old/new trajectory equality: analytic ODE convergence/order sanity, step subdivision consistency, inverse/round-trip checks where applicable, and failure classification sanity.
 - Radau/JFNK/final-resort legacy code should be arranged in the most convenient later-deletion form: isolated quarantine with explicit disabled entry points/switches and no hidden production fallback.
+
+## ODEX canonicalization implementation - 2026-05-08 JST
+- Implemented Hairer ODEX `IWORK(3)=3` step sequence in `src/physics/solve_flow.f90`: `2,4,6,8,12,16,24,32,...`.
+- `build_nsteps` and `calculate_ak` now share `odex_iwork3_nstep`, so the extrapolation sequence and work-estimate cost model cannot silently diverge.
+- `calculate_wk` now uses `abs(h)` for the positive work measure and guards non-finite/tiny candidate steps; `calculate_hk` remains signed so integration direction is unchanged.
+- Local checks passed: `git diff --check`; build of `../bin/scan_flow_vs_flowz` and `../bin/scan_flowzr_stability`; `flowz`/`flow` 21-point scan with max `|delta z| = 5.00e-16`; `flowzr` signed roundtrip 81/81 with max roundtrip `4.42e-15`; 2-cycle local `test_tltm_stage2` smoke.
+- No production job was submitted. Long ODEX-only validation still requires the planned 10k -> 50k -> 100k physical-observable sequence.
 
 ## Current discussion scope - 2026-05-08 JST
 - User narrowed the active discussion scope back to the five retained core numerical blocks.

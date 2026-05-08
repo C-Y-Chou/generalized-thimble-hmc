@@ -277,11 +277,16 @@ contains
       real(dp), intent(in) :: h, er1
       integer, intent(in) :: k
       integer :: kc
-      real(dp) :: hk, wk
+      real(dp) :: hk_abs, scale, wk
 
       kc = max(1, k)
-      hk = h*0.94_dp*(0.65_dp/max(er1, 1.0e-14_dp))**odex_invexp_cache(kc)
-      wk = odex_ak_cache(kc)/hk
+      scale = 0.94_dp*(0.65_dp/max(er1, 1.0e-14_dp))**odex_invexp_cache(kc)
+      hk_abs = abs(h)*scale
+      if (.not. ieee_is_finite(hk_abs) .or. hk_abs <= tiny(1.0_dp)) then
+         wk = huge(1.0_dp)
+      else
+         wk = odex_ak_cache(kc)/hk_abs
+      end if
    end function calculate_wk
 
    function calculate_hk(h, er1, k) result(hk)
@@ -298,30 +303,13 @@ contains
    function calculate_ak(k) result(ak)
       implicit none
       integer, intent(in) :: k
-      integer :: kc, i
-      integer :: wi_prev, wi_curr, wi_next, w_sum
+      integer :: kc, i, w_sum
       real(dp) :: ak
 
       kc = max(1, k)
-      wi_prev = 2
-      w_sum = wi_prev
-      if (kc == 1) then
-         ak = 1.0_dp + real(w_sum, dp)
-         return
-      end if
-
-      i = 2
-      do while (i <= kc)
-         wi_curr = wi_prev*2
-         w_sum = w_sum + wi_curr
-         if (i == kc) exit
-
-         wi_next = wi_prev*3
-         w_sum = w_sum + wi_next
-         if (i + 1 == kc) exit
-
-         wi_prev = wi_next
-         i = i + 2
+      w_sum = 0
+      do i = 1, kc
+         w_sum = w_sum + odex_iwork3_nstep(i)
       end do
 
       ak = 1.0_dp + real(w_sum, dp)
@@ -335,18 +323,23 @@ contains
 
       if (max_k < 1) return
       nsteps = 0
-      nsteps(1) = 2
-      if (max_k == 1) return
-
-      i = 2
-      do
-         nsteps(i) = nsteps(i - 1)*2
-         if (i == max_k) exit
-         nsteps(i + 1) = nsteps(i - 1)*3
-         if (i + 1 == max_k) exit
-         i = i + 2
+      do i = 1, max_k
+         nsteps(i) = odex_iwork3_nstep(i)
       end do
    end subroutine build_nsteps
+
+   integer function odex_iwork3_nstep(idx) result(nstep)
+      implicit none
+      integer, intent(in) :: idx
+
+      if (idx <= 1) then
+         nstep = 2
+      else if (mod(idx, 2) == 0) then
+         nstep = 2**(idx/2 + 1)
+      else
+         nstep = 3*2**((idx - 1)/2)
+      end if
+   end function odex_iwork3_nstep
 
    subroutine ensure_odex_tables()
       implicit none
