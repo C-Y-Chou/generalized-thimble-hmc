@@ -208,3 +208,10 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - Kept `Jl` recovery semantics unchanged: `Jl` is the actual correction used in `ztrial = z + del_z + Jl`.
 - Updated optional post-refine seed mapping to use `ld0=b_qn`; canonical p28 remains no-refine.
 - Verified by rebuilding `../bin/replay_quasi_failures` and running a 2-cycle local `test_tltm_stage2` smoke; no production job was submitted.
+
+## QN p28 BTN contract verification - 2026-05-08 JST
+- Added BTN contract diagnostics to `src/apps/replay_quasi_failures.f90`: `btn_contract_ok`, `btn_flow_im_norm`, and `btn_a_norm`.
+- Diagnostic reconstructs `ztrial = z + del_z + Jl`, calls `flowzr(ztrial)`, and reports `max|Imag(flowzr(ztrial))|` plus `max|a|` from the paper-variable solution.
+- Local replay on `output/production/constraint_solver_fail_{z0,delz,x0}.dat` with `tol=1e-13`, `max_iter=28` produced 26/26 solver successes and 26/26 BTN contract OK.
+- Observed maxima: `max|Imag(flowzr(ztrial))| = 6.77e-14`, `max|a| = 6.72e-16`, `max min_res = 6.77e-14`.
+- Output CSV was written under ignored test output (`output/tests/btn_contract/replay_btn_contract_p28.csv`); no production job was submitted.

@@ -2,7 +2,7 @@ program replay_quasi_failures_app
    use utils, only: dp, complex_to_real, real_to_complex
    use param_mod, only: read_parameters, x_history_file, config, quasi_fallback_enabled, &
                         model_alpha => alpha, model_beta => beta
-   use solve_flow, only: flow, flowz, set_intode_strict_mode
+   use solve_flow, only: flow, flowz, flowzr, set_intode_strict_mode
    use quasi_newton_solver_mod, only: solve_constraint_quasi_newton, evaluate_constraint_residual, &
                                       get_quasi_newton_last_trace_r2c
    use hmc_integrator_core, only: rattle_step_core
@@ -22,6 +22,7 @@ program replay_quasi_failures_app
    real(dp) :: rev_dx, rev_dz, rev_dp
    real(dp) :: rev_x2, rev_z_re, rev_z_im, rev_flow_res
    real(dp) :: nt_loss_norm
+   real(dp) :: btn_flow_im_norm, btn_a_norm
    integer :: max_iter
    integer :: unit_z0, unit_delz, unit_x0, unit_out, unit_trace
    integer :: ios, sid_z, sid_d, sid_x, nz, nd, nx
@@ -34,11 +35,12 @@ program replay_quasi_failures_app
    logical :: fd_enabled, fd_ok, fd_route_stable
    logical :: rev_enabled, rev_ok
    logical :: nt_loss_ok
+   logical :: btn_contract_ok
    logical :: trace_out_enabled
    character(len=512) :: trace_out_csv
 
    complex(dp), allocatable :: z0(:), z_flow(:), jac(:, :)
-   real(dp), allocatable :: delz(:), x0(:), Jl(:), x_new(:)
+   real(dp), allocatable :: delz(:), x0(:), Jl(:), x_new(:), x_best_solution(:)
    complex(dp), allocatable :: quasi_z_proposed(:), quasi_z_flowed(:)
    real(dp), allocatable :: quasi_res_norm(:), quasi_alpha(:)
    integer, allocatable :: quasi_iter(:), quasi_backtrack(:), quasi_attempt(:), quasi_route_code(:)
@@ -116,7 +118,7 @@ program replay_quasi_failures_app
       "converged_attempt_count,accepted_eval_count," // &
       "z_replay_error,first_dist_z0,first_dist_z1,min_z_prop_re,min_z_prop_im,min_z_flow_re,min_z_flow_im," // &
       "min_virial_flow_re,min_virial_flow_im,fd_ok,fd_det,fd_logabsdet,fd_route_stable,rev_ok,rev_dx,rev_dz,rev_dp," // &
-      "rev_x2,rev_z_re,rev_z_im,rev_flow_res,nt_loss_ok,nt_loss_norm"
+      "rev_x2,rev_z_re,rev_z_im,rev_flow_res,btn_contract_ok,btn_flow_im_norm,btn_a_norm,nt_loss_ok,nt_loss_norm"
 
    sample_count = 0
    success_count = 0
@@ -182,18 +184,23 @@ program replay_quasi_failures_app
       rev_flow_res = nanv
       nt_loss_ok = .false.
       nt_loss_norm = nanv
+      btn_contract_ok = .false.
+      btn_flow_im_norm = nanv
+      btn_a_norm = nanv
 
       if (size_ok) then
          if (allocated(jac)) deallocate (jac)
          if (allocated(z_flow)) deallocate (z_flow)
          if (allocated(Jl)) deallocate (Jl)
          if (allocated(x_new)) deallocate (x_new)
-         allocate (jac(nz, nz), z_flow(nz), Jl(nd), x_new(nx))
+         if (allocated(x_best_solution)) deallocate (x_best_solution)
+         allocate (jac(nz, nz), z_flow(nz), Jl(nd), x_new(nx), x_best_solution(nd))
          z_flow = z0
          call flow(x0, z_flow, jac, flow_error)
          if (.not. flow_error) then
             if (nz == 1) z_replay_error = abs(z_flow(1) - z0(1))
-            call solve_constraint_quasi_newton(evaluate_constraint_residual, tol, max_iter, x0, z0, delz, solver_error, Jl, x_new, jac)
+            call solve_constraint_quasi_newton(evaluate_constraint_residual, tol, max_iter, x0, z0, delz, solver_error, Jl, x_new, jac, &
+                                             x_best_solution=x_best_solution)
             call get_quasi_newton_last_trace_r2c(trace_available, proposal_count, quasi_z_proposed, quasi_z_flowed, quasi_res_norm, &
                                                  quasi_alpha, quasi_iter, quasi_backtrack, quasi_attempt, quasi_accepted, quasi_eval_ok, &
                                                  quasi_route_code)
@@ -224,6 +231,9 @@ program replay_quasi_failures_app
                   call virial_re_im(quasi_z_flowed(min_idx(1)), min_virial_flow_re, min_virial_flow_im)
                end if
             end if
+            if (.not. solver_error) then
+               call evaluate_btn_contract(x0, z0, delz, Jl, x_best_solution, btn_flow_im_norm, btn_a_norm, btn_contract_ok)
+            end if
             if (fd_enabled .and. nz == 1 .and. nd == 2 .and. (.not. solver_error)) then
                call finite_difference_delz_map(tol, max_iter, x0, z0, delz, fd_eps, min_route_code, &
                                                fd_ok, fd_det, fd_logabsdet, fd_route_stable)
@@ -248,14 +258,14 @@ program replay_quasi_failures_app
 
       sample_count = sample_count + 1
       if (.not. flow_error .and. .not. solver_error) success_count = success_count + 1
-      write (unit_out, '(I0,",",I0,",",I0,",",I0,",",I0,",",ES24.16,",",ES24.16,",",I0,",",I0,",",I0,",",I0,",",I0,",",I0,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",I0,",",ES24.16,",",ES24.16,",",I0,",",I0,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",I0,",",ES24.16)') &
+      write (unit_out, '(I0,",",I0,",",I0,",",I0,",",I0,",",ES24.16,",",ES24.16,",",I0,",",I0,",",I0,",",I0,",",I0,",",I0,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",I0,",",ES24.16,",",ES24.16,",",I0,",",I0,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",I0,",",ES24.16,",",ES24.16,",",I0,",",ES24.16)') &
          sid_z, merge(1, 0, size_ok), merge(1, 0, flow_error), merge(1, 0, (.not. solver_error)), nprop, min_res, last_res, &
          min_iter, min_backtrack, min_attempt, min_route_code, converged_attempt_count, accepted_eval_count, &
          z_replay_error, first_dist_z0, first_dist_z1, &
          min_z_prop_re, min_z_prop_im, min_z_flow_re, min_z_flow_im, min_virial_flow_re, min_virial_flow_im, &
          merge(1, 0, fd_ok), fd_det, fd_logabsdet, merge(1, 0, fd_route_stable), &
          merge(1, 0, rev_ok), rev_dx, rev_dz, rev_dp, rev_x2, rev_z_re, rev_z_im, rev_flow_res, &
-         merge(1, 0, nt_loss_ok), nt_loss_norm
+         merge(1, 0, btn_contract_ok), btn_flow_im_norm, btn_a_norm, merge(1, 0, nt_loss_ok), nt_loss_norm
    end do
 
    close (unit_z0)
@@ -270,6 +280,43 @@ program replay_quasi_failures_app
    if (trace_out_enabled) write (*, '(A,1X,A)') "[DONE] wrote trace:", trim(trace_out_csv)
 
 contains
+
+
+   subroutine evaluate_btn_contract(x0_in, z0_in, delz_in, jl_in, xi_solution, flow_im_norm, a_norm, ok)
+      implicit none
+      real(dp), intent(in) :: x0_in(:), delz_in(:), jl_in(:), xi_solution(:)
+      complex(dp), intent(in) :: z0_in(:)
+      real(dp), intent(out) :: flow_im_norm, a_norm
+      logical, intent(out) :: ok
+
+      integer :: n, n2
+      logical :: flow_err
+      complex(dp), allocatable :: z_trial(:)
+
+      flow_im_norm = ieee_value(0.0_dp, ieee_quiet_nan)
+      a_norm = ieee_value(0.0_dp, ieee_quiet_nan)
+      ok = .false.
+
+      n = size(z0_in)
+      n2 = 2*n
+      if (n <= 0) return
+      if (size(x0_in) /= n + 1) return
+      if (size(delz_in) /= n2 .or. size(jl_in) /= n2 .or. size(xi_solution) /= n2) return
+
+      allocate (z_trial(n))
+      call real_to_complex(delz_in + jl_in, z_trial)
+      z_trial = z0_in + z_trial
+      call flowzr(x0_in, z_trial, flow_err)
+      if (flow_err) then
+         deallocate (z_trial)
+         return
+      end if
+
+      flow_im_norm = maxval(abs(aimag(z_trial)))
+      a_norm = max_abs_real(xi_solution(n + 1:n2))
+      ok = ieee_is_finite(flow_im_norm) .and. ieee_is_finite(a_norm)
+      deallocate (z_trial)
+   end subroutine evaluate_btn_contract
 
    subroutine evaluate_nt_loss_from_solution(x0_in, z0_in, delz_in, x_new_in, jl_in, loss_norm, ok)
       implicit none

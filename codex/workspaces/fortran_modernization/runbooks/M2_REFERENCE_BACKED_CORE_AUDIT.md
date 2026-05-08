@@ -146,8 +146,9 @@ Required before long validation:
 - Rename/document p28 residual as BTN rescue, not standard residual.
 - Implemented paper-variable source cleanup: `residual_jlc = -matmul(jac, xi2 + i*xi1)`, `xi1=b`, `xi2=a`, and `initial_guess_from_jacobian` solves `J dz = +del_z`.
 - Confirmed source design: `Jl` is still the actual correction added to `z+del_z`; recovery/replay paths do not apply an extra sign flip.
-- Still required: unit test `evaluate_constraint_residual` against the BTN contract, not against old/new convention equivalence. After solver convergence, construct `ztrial = z + del_z + Jl`, verify `Imag(flowzr(ztrial))` is small, and verify the second residual block `a` is small.
-- Still required: fixed-seed route-census comparison for `Nprobe=28` and any allowed follow-up budgets.
+- Implemented diagnostic support in `replay_quasi_failures`: after solver convergence, construct `ztrial = z + del_z + Jl`, verify `Imag(flowzr(ztrial))`, and report `max|a|` from the paper-variable solution.
+- Local verification on `output/production` failure snapshots with `tol=1e-13`, `max_iter=28`: 26/26 solver successes, 26/26 BTN contract OK, `max|Imag(flowzr(ztrial))| = 6.77e-14`, and `max|a| = 6.72e-16`.
+- Still required: broader fixed-seed route-census comparison for `Nprobe=28` and any allowed follow-up budgets before long validation.
 
 ## Core 5: HMC / Metropolis / reverse gate
 
@@ -182,7 +183,7 @@ Required before long validation:
 Scope note: active discussion is limited to the five retained core numerical blocks. Broader typed-state, diagnostics, repo/API, utilities/RNG/I/O, and productization refactors remain future blocks.
 
 1. ODEX implementation canonicalization: switch to Hairer ODEX `IWORK(3)=3`, update matching work estimates, clean signed-interval robustness, and test ODE solver self-consistency before any ODEX-only validation.
-2. QN p28 implementation: paper-variable source cleanup is implemented; next remaining QN work is BTN contract testing and fixed-seed route-census verification.
+2. QN p28 implementation: paper-variable source cleanup and local BTN contract verification are implemented; next remaining QN work is fixed-seed route-census verification.
 3. RATTLE/HMC proposal boundary: keep `state_has_progress` legacy/diagnostic until state redesign, define failure-as-rejection, and treat reverse gate as part of the proposal definition.
 4. Deterministic core tests: Newton residual, BTN residual contract, RATTLE/reverse-gate behavior, flow round-trip, ODE analytic/self-consistency checks.
 5. Only after these are resolved should ODEX-only 10k -> 50k -> 100k physical validation begin.
