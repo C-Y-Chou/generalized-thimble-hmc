@@ -146,7 +146,8 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - User selected Hairer ODEX `IWORK(3)=3` as the canonical modernization sequence.
 - Target sequence: `2,4,6,8,12,16,24,32,...`.
 - Current code sequence `2,4,6,12,18,36,...` is now legacy.
-- Future implementation must update `build_nsteps` and `calculate_ak` together and run deterministic ODE/flow tests before ODEX-only long validation.
+- Future implementation must update `build_nsteps` and `calculate_ak` together, clean signed-interval/work-estimate robustness in the same patch, and run ODE solver self-consistency tests before ODEX-only long validation.
+- Radau/JFNK/final-resort code should be kept in the easiest later-deletion quarantine form: explicit disabled entry points/switches, no hidden production fallback.
 
 ## QN p28 BTN sign convention - 2026-05-08 JST
 - User confirmed p28 should be treated as BTN/backflow rescue after standard Newton failure.
@@ -189,3 +190,8 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - The current count/capture/switch design is patchwork across ODE, QN, RATTLE, reverse gate, probes, rescue/failure paths, and Stage2 output contracts.
 - Future modernization should introduce a typed diagnostics/accounting context that separates forward proposal work, reverse-gate replay, probes/debug, rescue attempts, failed proposal work, accepted-proposal counters, and output-schema reporting.
 - Until the redesign, benchmark/validation reports must state whether counters include replay/probe/failure work.
+
+## ODEX canonicalization scope decision - 2026-05-08 JST
+- User selected synchronous cleanup for ODEX canonicalization: Hairer `IWORK(3)=3` sequence, matching `calculate_ak`, and signed-interval/work-estimate robustness should be handled together.
+- Pre-long-validation test target is ODE solver self-consistency, not old/new trajectory equality: analytic ODE convergence/order sanity, step subdivision consistency, inverse/round-trip checks where applicable, and failure classification sanity.
+- Radau/JFNK/final-resort legacy code should be arranged in the most convenient later-deletion form: isolated quarantine with explicit disabled entry points/switches and no hidden production fallback.

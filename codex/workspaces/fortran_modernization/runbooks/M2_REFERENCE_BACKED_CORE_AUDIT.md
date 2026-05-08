@@ -46,14 +46,15 @@ Reference-backed findings:
 - Reference deviation: `build_nsteps` generates `2,4,6,12,18,36,...`, which is not one of the Hairer ODEX Appendix `IWORK(3)` sequences and not the standard II.9 examples.
 - Decision: canonical modernization target is Hairer ODEX `IWORK(3)=3`, i.e. `2,4,6,8,12,16,24,32,...`.
 - Required implementation change later: update both `build_nsteps` and `calculate_ak` so the sequence and work estimate remain consistent.
-- Latent issue: `calculate_wk` divides by signed `hk`; current production nonnegative flow time avoids this for `flowzr`, but a general ODEX routine should use a positive work measure if negative integration intervals are supported.
+- User decision: clean signed-interval/work-estimate robustness in the same ODEX canonicalization patch, rather than leaving it as a separate latent issue. `calculate_hk` may remain signed for direction, but work estimates and step/order controller quantities that assume positive work should use a positive measure.
 - Open: the code omits several Hairer ODEX controls such as explicit stability checks and dense output, which may be acceptable for TLTM but should be documented as a reduced ODEX-like integrator rather than full ODEX.
 
 Required before ODEX-only validation:
 
 - Implement Hairer ODEX `IWORK(3)=3` sequence in `build_nsteps` and the matching work estimate in `calculate_ak`.
-- Add analytic ODE smoke tests for convergence and forward/inverse flow round-trip.
-- Add a negative-interval microtest only if negative intervals are intended to be supported.
+- Clean signed-interval/work-estimate robustness in the same patch.
+- Add ODE solver self-consistency tests before long validation: deterministic analytic ODE convergence/order sanity, step subdivision consistency, forward/backward or inverse-flow round-trip where applicable, and failure classification sanity.
+- Keep Radau/JFNK/final-resort code in the easiest later-deletion form: isolated quarantine code with explicit disabled entry points/switches, no hidden production fallback.
 
 ## Core 2: Simplified Newton constraint solve
 
@@ -180,7 +181,7 @@ Required before long validation:
 
 ## Revised discussion order
 
-1. ODEX sequence implementation: switch to Hairer ODEX `IWORK(3)=3` and test before any ODEX-only validation.
+1. ODEX implementation canonicalization: switch to Hairer ODEX `IWORK(3)=3`, update matching work estimates, clean signed-interval robustness, and test ODE solver self-consistency before any ODEX-only validation.
 2. QN p28 implementation: switch BTN rescue to paper variables (`xi1=b`, `xi2=a`) and flip the initial-guess RHS consistently.
 3. RATTLE failure/progress policy: treat `state_has_progress` as a symptom of the current `x(1)=flow_time`, `x(2:)=seed` layout; defer real cleanup to state API redesign and document failure-as-rejection as the project MCMC boundary.
 4. Deterministic replay tests: Newton residual, BTN residual, RATTLE reverse gate, flow round-trip, ODE analytic checks.
@@ -198,7 +199,7 @@ This second pass changes the risk profile:
 
 ## ODEX sequence decision - 2026-05-08 JST
 
-User selected Hairer ODEX `IWORK(3)=3` as the canonical modernization target: `2,4,6,8,12,16,24,32,...`. The existing `2,4,6,12,18,36,...` sequence is therefore legacy. The future source change must update both `build_nsteps` and `calculate_ak`, then run analytic ODE and TLTM flow round-trip tests before long validation.
+User selected Hairer ODEX `IWORK(3)=3` as the canonical modernization target: `2,4,6,8,12,16,24,32,...`. The existing `2,4,6,12,18,36,...` sequence is therefore legacy. The future source change must update both `build_nsteps` and `calculate_ak`, clean signed-interval/work-estimate robustness in the same patch, then run ODE solver self-consistency tests before long validation. Radau/JFNK/final-resort code should remain only in the easiest later-deletion quarantine form until deletion is approved.
 
 ## BTN sign convention and paper-variable decision - 2026-05-08 JST
 

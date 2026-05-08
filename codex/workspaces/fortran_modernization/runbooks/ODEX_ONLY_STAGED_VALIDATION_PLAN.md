@@ -13,7 +13,7 @@ This is explicitly different from ordinary modernization refactors: trajectory i
 
 Long-term canonical flow backend:
 
-`ODEX only`
+`ODEX only`, using the Hairer ODEX `IWORK(3)=3` sequence with matching work estimates and signed-interval/work-estimate robustness cleaned in the same canonicalization patch.
 
 Legacy/deletion-candidate flow paths:
 
@@ -23,6 +23,8 @@ Legacy/deletion-candidate flow paths:
 - ODE final-resort acceptance or rescue acceptance policies.
 
 If ODEX-only reveals unacceptable failure behavior, the preferred fix is to improve ODEX step control, error reporting, or failure classification rather than silently restoring a secondary integrator stack as the default production route.
+
+Legacy Radau/JFNK/final-resort code should be arranged in the easiest later-deletion form: quarantined, explicitly disabled from production entry points, and not interleaved with the canonical ODEX path.
 
 
 ## Pre-validation blocker - retained core correctness audit
@@ -36,6 +38,14 @@ Do not submit the 10k -> 50k -> 100k ODEX-only validation jobs until the retaine
 - HMC / Metropolis / reverse-gate proposal boundary.
 
 The ODEX-only source gate changes routing, but it does not by itself prove the retained ODEX kernel or the surrounding proposal machinery is correct.
+
+Required ODEX self-consistency checks before long validation:
+
+- Analytic ODE convergence/order sanity for the ODEX kernel.
+- Step subdivision consistency for deterministic integrations.
+- Forward/backward or inverse-flow round-trip checks where applicable to TLTM flow semantics.
+- Signed-interval/work-estimate robustness checks for controller quantities that assume positive work.
+- Failure classification sanity: ODEX failure should be reported as failure, not silently rescued by Radau/JFNK/final-resort paths.
 
 ## Pre-change baseline
 
@@ -113,4 +123,4 @@ Initial ODEX-only implementation uses explicit policy gates in `src/physics/solv
 - `intode_enable_final_resort = .false.` disables final-resort acceptance.
 - `intode_fast_hmin_bypass = .false.` prevents the h-min path from trying final-resort before the normal failure classification path.
 
-The Radau/JFNK routines are intentionally retained as legacy/quarantine code until 10k -> 50k -> 100k validation decides whether to delete them.
+The Radau/JFNK routines are intentionally retained as legacy/quarantine code until 10k -> 50k -> 100k validation decides whether to delete them. During ODEX canonicalization, keep them isolated behind explicit disabled entry points/switches so later deletion is mechanically simple.
