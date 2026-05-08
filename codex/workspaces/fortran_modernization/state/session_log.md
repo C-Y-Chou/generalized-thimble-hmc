@@ -54,3 +54,9 @@
 - Corrected roadmap order: after Stage3_4/TLTM judgment, create a temporary characterization baseline, then canonicalize core numerical behavior, then freeze official canonical baseline, then proceed with repo-wide modernization.
 - No Fortran source edits, production jobs, or production worktree mutations were performed.
 
+## 2026-05-08 JST - M1 characterization baseline created
+- Read completed Stage3_4 128seed/100k p28 RG report and aggregate/per-seed CSVs.
+- Added `M1_TEMPORARY_CHARACTERIZATION_BASELINE.md`, `M2_CORE_CANONICALIZATION_QUEUE.md`, and `M1_CHARACTERIZATION_METRICS_20260508.tsv`.
+- Characterization is explicitly temporary and not the official canonical baseline freeze.
+- Main observed effect: `fb_norefine` sharply reduces unresolved failures versus `no_fb`, increases RG rejects modestly relative to candidates, and increases runtime.
+

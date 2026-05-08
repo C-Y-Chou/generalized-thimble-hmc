@@ -28,3 +28,4 @@
 - 2026-05-08 JST: added confirmed decisions and full modernization roadmap including code hygiene/sloppy artifact cleanup as a formal baseline-gated workstream.
 - 2026-05-08 JST: corrected roadmap scope: five core algorithm audits are safety gates, not the center; full modernization is repo-wide and now includes cross-cutting infrastructure such as utils, RNG, config, I/O, build/test tooling, diagnostics, scripts, and workspace/state ownership.
 - 2026-05-08 JST: completed pre-Stage3_4 planning artifacts and corrected stage order to characterization baseline -> core canonicalization -> official baseline freeze -> repo-wide modernization.
+- 2026-05-08 JST: created M1 temporary characterization baseline from completed Stage3_4 128seed/100k p28 RG report and created M2 core canonicalization decision queue.

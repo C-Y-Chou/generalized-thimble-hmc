@@ -27,6 +27,8 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 ## Baselines And Future Refactor Gates
 
+- `M1_TEMPORARY_CHARACTERIZATION_BASELINE.md`
+- `M2_CORE_CANONICALIZATION_QUEUE.md`
 - `BASELINE_VERIFICATION_MATRIX.md`
 - `LEGACY_DELETION_CANDIDATES.md`
 

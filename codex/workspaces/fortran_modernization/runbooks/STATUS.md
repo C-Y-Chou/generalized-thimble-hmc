@@ -79,3 +79,11 @@ Discuss and confirm `runbooks/PLANNING_DISCUSSION_BRIEF.md`, especially:
 - Added `PRE_STAGE3_4_COMPLETION_PLAN.md`, `CROSS_CUTTING_INFRASTRUCTURE_AUDIT.md`, `CODE_HYGIENE_AUDIT.md`, `LEGACY_DELETION_CANDIDATES.md`, and `PLANNING_INDEX.md`.
 - Roadmap sequence corrected: Stage3_4/TLTM judgment -> temporary characterization baseline -> core numerical canonicalization -> official canonical baseline freeze -> repo-wide modernization.
 - M0 planning artifacts are initially complete; no source edits or jobs were performed.
+
+## M1 characterization update - 2026-05-08 JST
+- Stage3_4 128seed/100k p28 RG report is available and characterized.
+- Added `runbooks/M1_TEMPORARY_CHARACTERIZATION_BASELINE.md`.
+- Added `runbooks/M2_CORE_CANONICALIZATION_QUEUE.md`.
+- Added `state/M1_CHARACTERIZATION_METRICS_20260508.tsv`.
+- Key primary characterization: `fb_norefine` reduces unresolved failures from 946129 to 224439 versus `no_fb`, increases RG rejects from 136997 to 200447, and increases mean runtime by about 1680 seconds per seed.
+- This is temporary characterization, not official canonical baseline freeze.
