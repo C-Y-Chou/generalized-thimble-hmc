@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-08 23:25 JST
+Updated: 2026-05-09 00:45 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -218,6 +218,21 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 ## Current discussion scope - 2026-05-08 JST
 - User narrowed the active discussion scope back to the five retained core numerical blocks.
 - Typed state API redesign, diagnostics context redesign, repo-wide module/API cleanup, utilities/RNG/I/O/output-schema modernization, and broader productization remain recorded as future modernization blocks, but should not drive the immediate discussion sequence.
+
+## QN invalid-evaluation handling - 2026-05-09 JST
+- Implemented QN/DFO failure signaling cleanup in `src/sampler/quasi_newton_solver.f90`: invalid constraint evaluations now return `ierr=.true.` with neutral `fq=0`/`Jl=0`, rather than artificial `fq=1e10`.
+- Initial evaluation retry seeds now use `x=0`, matching the user decision that failed trust-region attempts should not poison later retries.
+- This is an error-handling/code-design change, not a physics-model change; failed solver attempts remain proposal failures/rejections unless a later valid trial converges and passes reverse gate/Metropolis.
+- The pending ODEX scale-up jobs were stopped because they predated this QN change and must be regenerated after the new QN handling is validated.
+
+## QN error-handling 10k validation - 2026-05-09 JST
+- Dedicated validation branch/worktree: `codex/qn-error-handling-validation` at commit `7b2971c`.
+- Initial validation job completed the 10 seed x 10k stage2 trajectories but failed during final evaluation because the PBS script had built only `run_tltm_stage2`, not `evaluate_expectations`.
+- Workflow was fixed so future validation PBS builds both required binaries; an evaluation-only recovery wrapper was added to reuse completed stage2 outputs without rerunning trajectories.
+- Recovery PBS job `14323.anode01` completed successfully with `Exit_status=0`.
+- Artifacts: `/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation/output/tests/qn_error_handling/20260509_10seed_10k_fb_norefine_ct1e13_qn1e13/`.
+- Aggregate result: `mean Re<O>=-0.0386029170`, `mean Im<O>=0.0183377376`, `Zmean Re=-0.491730824`, `Zmean Im=0.576115891`, unresolved failures `2521`, projection failures mean `408.5`, reverse-gate rejects `1564`, pair0 accept rate `0.44008`.
+- This is the first 10k check after the QN invalid-evaluation cleanup. It is not a 50k/100k signoff.
 - Immediate priority: complete decisions/signoff prerequisites for ODEX, simplified Newton, RATTLE, QN p28/BTN, and HMC/Metropolis/reverse-gate before moving to other cross-cutting refactors.
 
 ## QN p28 BTN source cleanup - 2026-05-08 JST
