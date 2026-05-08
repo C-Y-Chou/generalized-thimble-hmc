@@ -115,7 +115,7 @@ Decision recorded: current stage-specific workflow is transitional. After TLTM c
 Decision recorded: official modernization baselines will be regenerated after Stage3_4/TLTM judgment completes. Existing `output/tests` artifacts are historical/reference evidence only, not official baselines.
 
 1. Canonical naming: should the fallback formulation be called BTN, with BTM recorded only as a historical typo?
-2. Canonical quasi route: resolved. p28 DFO-LS standard residual route is production-canonical; all other quasi routes are legacy/deletion candidates; post-refine is under observation.
+2. Canonical quasi route: resolved. p28 DFO-LS BTN/backflow rescue residual route is production-canonical; all other quasi routes are legacy/deletion candidates; post-refine is under observation.
 3. Output contract: short-term freeze current Stage3_4-facing outputs; long-term replace stage-specific contracts with a unified TLTM wrapper output schema.
 4. Baseline source: resolved. Regenerate fresh official baselines after Stage3_4/TLTM judgment; existing `output/tests` are historical/reference evidence only.
 5. Reverse gate status: resolved. Permanent algorithmic requirement for production/publishable p28 route.

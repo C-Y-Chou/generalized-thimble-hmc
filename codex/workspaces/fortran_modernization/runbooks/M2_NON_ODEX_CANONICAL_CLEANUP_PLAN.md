@@ -9,7 +9,7 @@ All non-ODEX M2 work before the ODEX-only transition must be behavior-neutral fo
 
 This means:
 
-- Do not change `evaluate_constraint_residual`, the p28 DFO-LS standard residual objective, RG semantics, Metropolis semantics, RNG order, or output schema.
+- Do not change `evaluate_constraint_residual`, the p28 DFO-LS BTN/backflow rescue residual objective, RG semantics, Metropolis semantics, RNG order, or output schema.
 - Do not delete solver code paths before dependency and comparison gates are satisfied.
 - Mark non-canonical paths as legacy/quarantine in planning first; remove source only after the staged validation gate approves deletion.
 - Keep current production defaults/data interpretation stable. Existing completed Stage3_4 outputs must remain interpretable as produced.
@@ -18,7 +18,7 @@ This means:
 
 Canonical p28 route:
 
-`Newton -> QN S1 p28 DFO-LS standard residual -> reverse gate -> Metropolis`
+`Newton -> QN S1 p28 DFO-LS BTN/backflow rescue residual -> reverse gate -> Metropolis`
 
 Canonical method label for the fallback route:
 

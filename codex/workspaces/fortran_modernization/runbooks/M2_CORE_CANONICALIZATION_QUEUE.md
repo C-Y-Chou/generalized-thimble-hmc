@@ -36,7 +36,7 @@ Required before deletion:
 
 Current direction:
 
-- p28 DFO-LS standard residual route is production-canonical.
+- p28 DFO-LS BTN/backflow rescue residual route is production-canonical.
 - DFO-GN paper, Broyden/line-search, global continuation/restart, and non-p28 variants are legacy/deletion candidates.
 
 Decision:
@@ -56,7 +56,7 @@ After decisions 1-3:
 
 ## Canonical p28 route decision - 2026-05-08
 - User confirmed `fb_norefine` as the canonical p28 production route.
-- Canonical route: Newton -> QN S1 p28 DFO-LS standard residual -> reverse gate -> Metropolis.
+- Canonical route: Newton -> QN S1 p28 DFO-LS BTN/backflow rescue residual -> reverse gate -> Metropolis.
 - Post-refine is a deletion candidate and should not be part of the final canonical p28 route unless explicitly re-promoted later.
 - M2c implementation may remove or disable post-refine after comparison harness coverage.
 

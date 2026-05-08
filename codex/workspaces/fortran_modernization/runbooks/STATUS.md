@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-08 22:05 JST
+Updated: 2026-05-08 22:20 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -32,7 +32,7 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - Do not start Fortran source modernization until affected baseline rows in `BASELINE_VERIFICATION_MATRIX.md` are satisfied.
 
 ## Quasi route decision - 2026-05-08 JST
-- Production-canonical quasi route: current p28 path (`QN_S1_PROBE_MAX_ITER=28`) using DFO-LS on `evaluate_constraint_residual` after Newton failure.
+- Production-canonical quasi route: current p28 path (`QN_S1_PROBE_MAX_ITER=28`) using DFO-LS BTN/backflow rescue on `evaluate_constraint_residual` after Newton failure.
 - Legacy/deletion candidates: non-p28 quasi routes, DFO-GN paper route, Broyden/line-search route, and global continuation/restart fallback routes outside current p28 production policy.
 - Post-refine remains under observation and may be removed after refine-vs-norefine evidence is reviewed.
 
@@ -84,7 +84,7 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 
 ## Canonical p28 route decision - 2026-05-08
 - User confirmed `fb_norefine` as the canonical p28 production route.
-- Canonical route: Newton -> QN S1 p28 DFO-LS standard residual -> reverse gate -> Metropolis.
+- Canonical route: Newton -> QN S1 p28 DFO-LS BTN/backflow rescue residual -> reverse gate -> Metropolis.
 - Post-refine is a deletion candidate and should not be part of the final canonical p28 route unless explicitly re-promoted later.
 - M2c implementation may remove or disable post-refine after comparison harness coverage.
 
@@ -147,3 +147,9 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - Target sequence: `2,4,6,8,12,16,24,32,...`.
 - Current code sequence `2,4,6,12,18,36,...` is now legacy.
 - Future implementation must update `build_nsteps` and `calculate_ak` together and run deterministic ODE/flow tests before ODEX-only long validation.
+
+## QN p28 BTN sign convention - 2026-05-08 JST
+- User confirmed p28 should be treated as BTN/backflow rescue after standard Newton failure.
+- Sign convention confirmed against BTN Eq. (22) and `evaluate_constraint_residual`: `xi1=-b`, `xi2=-a`; equivalently `a=-xi2`, `b=-xi1`.
+- `fq(n+1:)=xi2` enforces `a=0`; `Jl=J*(i*xi1+xi2)` is the trial correction added to `z+del_z` before inverse flow.
+- Older planning text saying p28 is a standard `(u,lambda)` residual is superseded by the reference-backed audit.

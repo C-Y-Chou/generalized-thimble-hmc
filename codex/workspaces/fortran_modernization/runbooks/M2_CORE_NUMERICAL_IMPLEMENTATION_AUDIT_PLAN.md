@@ -198,7 +198,7 @@ Minimal checks before staged validation:
 | ODEX flow integration | `decision-use-hairer-iwork3` | Canonical sequence is Hairer ODEX `IWORK(3)=3`: `2,4,6,8,12,16,24,32,...`; current sequence is legacy until updated/tested. |
 | Simplified Newton | `matched-needs-deterministic-tests` | GT-HMC Eqs. (3.37)-(3.44) and TLTM unit-mass `Delta z` formula match code residual/update signs and normalization; add replay tests. |
 | RATTLE proposal structure | `mostly-matched-with-implementation-guards` | Main TLTM complex RATTLE order matches; `state_has_progress` and failure-as-rejection vs paper momentum-flip semantics need explicit policy/test coverage. |
-| QN p28 projection loss | `matched-as-BTN-rescue-needs-naming-tests` | Active p28 residual is BTN/backflow rescue after standard Newton failure, not standard `(u,lambda)`; document `xi1=-b`, `xi2=a` sign convention and test Eq. (22)/(25). |
+| QN p28 projection loss | `matched-as-BTN-rescue-needs-naming-tests` | Active p28 residual is BTN/backflow rescue after standard Newton failure, not standard `(u,lambda)`; document `xi1=-b`, `xi2=-a` sign convention and test Eq. (22)/(25). |
 | HMC/Metropolis/RG boundary | `matched-if-proposal-boundary-is-reversible` | Metropolis/live-state boundary matches if RATTLE/RG proposal is reversible; replay diagnostics and failure semantics need deterministic tests. |
 
 ## Immediate next deliverable
