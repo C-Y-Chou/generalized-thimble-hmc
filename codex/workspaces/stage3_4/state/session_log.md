@@ -295,3 +295,22 @@ Use this file to append per-session notes.
   - Fallback increases RG rejects by about `7.7k-7.8k`, but total RG reject rate remains small at about `3.9e-4`.
   - Unlike the earlier 10seed/10k validation, this 32seed/50k judgment run favors `fb_norefine` over `fb_refine` on aggregate Zmean and runtime.
   - Need discuss whether to run a larger intermediate scale or inspect post-refine side effects before full production.
+
+## 2026-05-08 16:45 JST
+- User suggested using seed and cycle windows to help choose the next larger scale.
+- Created seed/cycle window diagnostics from existing cold-chain histories, without rerunning simulation:
+  - `output/tests/stage3_4/judgment_20260508_32seed_50k_p28_rg/window_diagnostics/REPORT.md`
+  - `cycle_window_aggregate.csv`
+  - `seed_window_aggregate.csv`
+  - `window_seed_estimates.csv`
+- Window findings for `no_fb` and `fb_norefine`:
+  - Prefix windows show `fb_norefine` Re bias moves from `Zmean_re=-1.420` at 10k to `0.070` at 50k.
+  - Non-overlap 10k cycle windows still fluctuate; `fb_norefine` Re window means span about `0.074`.
+  - Full-50k seed blocks of 8 still fluctuate; `fb_norefine` Re block means span about `0.048`.
+  - Therefore the next scale should increase both seed count and cycle length, not only one axis.
+- Recommended next intermediate scale:
+  - methods: `no_fb`, `fb_norefine` only.
+  - scale: `128 seeds x 100k cycles`.
+  - rationale: 4x seeds and 2x cycles versus 32x50k, total 8x information, still much cheaper than full production.
+  - expected per-seed runtime from measured 32x50k: `no_fb ~2.8h`, `fb_norefine ~3.1h`.
+  - suggested PBS layout: 8 chunks per method, 16 seeds per chunk, one wave per chunk; use 12h queues safely.
