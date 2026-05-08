@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-09 00:45 JST
+Updated: 2026-05-09 01:05 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -234,6 +234,13 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - Aggregate result: `mean Re<O>=-0.0386029170`, `mean Im<O>=0.0183377376`, `Zmean Re=-0.491730824`, `Zmean Im=0.576115891`, unresolved failures `2521`, projection failures mean `408.5`, reverse-gate rejects `1564`, pair0 accept rate `0.44008`.
 - This is the first 10k check after the QN invalid-evaluation cleanup. It is not a 50k/100k signoff.
 - Immediate priority: complete decisions/signoff prerequisites for ODEX, simplified Newton, RATTLE, QN p28/BTN, and HMC/Metropolis/reverse-gate before moving to other cross-cutting refactors.
+
+## ODEX 10k baseline supersession - 2026-05-09 JST
+- User correctly identified that the original `ODEX_10K_VALIDATION_RESULT_20260508.md` predates the QN invalid-evaluation handling cleanup and should not govern forward ODEX scale-up.
+- The 2026-05-08 ODEX 10k result is now marked superseded/historical only.
+- The QN-clean 10k result was copied into the active ODEX validation namespace at `/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation/output/tests/odex_validation/20260509_10seed_10k_qnclean_fb_norefine_ct1e13_qn1e13`.
+- Added `runbooks/ODEX_10K_VALIDATION_RESULT_20260509_QNCLEAN.md` as the active 10k ODEX baseline for the next 50k gate.
+- Raw historical output was not deleted; a supersession marker was written beside the old 2026-05-08 output so future work does not confuse it with the active baseline.
 
 ## QN p28 BTN source cleanup - 2026-05-08 JST
 - Implemented the first M2 core source patch for QN p28/BTN paper variables.

@@ -1,7 +1,14 @@
 # ODEX 10k Validation Result
 
 Updated: 2026-05-08 JST
-Status: provisional pass to 50k; not final physics signoff.
+Status: superseded for forward validation decisions by the QN-clean 2026-05-09 10k baseline.
+
+Supersession note:
+
+- This run predates the QN invalid-evaluation handling cleanup.
+- Keep this file and its raw output as historical evidence only.
+- Do not use this result as the active 10k gate for ODEX 50k/100k scale-up.
+- Active replacement: `ODEX_10K_VALIDATION_RESULT_20260509_QNCLEAN.md`.
 
 ## Run Identity
 
