@@ -1,0 +1,173 @@
+#!/bin/bash
+set -euo pipefail
+
+cd /lustre1/home/cychou/TLTM
+
+EXPECTED_BRANCH="codex/preprod-hardening"
+EXPECTED_COMMIT="${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+CURRENT_COMMIT="$(git rev-parse HEAD)"
+if [ "${CURRENT_BRANCH}" != "${EXPECTED_BRANCH}" ]; then
+  echo "[ERROR] expected branch ${EXPECTED_BRANCH}, got ${CURRENT_BRANCH}" >&2
+  exit 2
+fi
+if [ "${CURRENT_COMMIT}" != "${EXPECTED_COMMIT}" ]; then
+  echo "[ERROR] expected commit ${EXPECTED_COMMIT}, got ${CURRENT_COMMIT}" >&2
+  exit 2
+fi
+if [ -n "$(git status --porcelain)" ]; then
+  echo "[ERROR] working tree is dirty; refusing merge run" >&2
+  git status --short >&2
+  exit 2
+fi
+
+CONFIG_JSON="docs/stage_3_4_t035_paired_128seed_100k_rg_nofb_fbnorefine.json"
+ROOT="output/tests/stage3_4/judgment_20260508_128seed_100k_p28_rg_nofb_fbnorefine"
+mkdir -p "${ROOT}"
+
+python3 scripts/merge_stage3_multiseed_chunks.py \
+  --repo-root . \
+  --config "${CONFIG_JSON}" \
+  --output-subdir "${ROOT}/no_fb" \
+  --chunk-glob "chunk_*" \
+  --log-prefix "s34_judgment_20260508_128seed_100k_p28_rg_no_fb" \
+  --report-title "TLTM Stage-3.4 judgment 128seed 100k p28 RG no_fb" \
+  --expected-rows 128 \
+  --jobs-label "8 chunks x 16 workers" \
+  --requested-cpus 128
+
+python3 scripts/merge_stage3_multiseed_chunks.py \
+  --repo-root . \
+  --config "${CONFIG_JSON}" \
+  --output-subdir "${ROOT}/fb_norefine" \
+  --chunk-glob "chunk_*" \
+  --log-prefix "s34_judgment_20260508_128seed_100k_p28_rg_fb_norefine" \
+  --report-title "TLTM Stage-3.4 judgment 128seed 100k p28 RG fb_norefine" \
+  --expected-rows 128 \
+  --jobs-label "8 chunks x 16 workers" \
+  --requested-cpus 128
+
+python3 - <<'PY'
+import csv
+from pathlib import Path
+
+root = Path("output/tests/stage3_4/judgment_20260508_128seed_100k_p28_rg_nofb_fbnorefine")
+sets = [
+    ("no_fb", root / "no_fb"),
+    ("fb_norefine", root / "fb_norefine"),
+]
+
+rows = []
+per_seed_counts = {}
+for label, subroot in sets:
+    agg_path = subroot / "aggregated_summary_table.csv"
+    per_seed_path = subroot / "per_seed_summary_table.csv"
+    if not agg_path.exists():
+        raise SystemExit("missing aggregate: {0}".format(agg_path))
+    if not per_seed_path.exists():
+        raise SystemExit("missing per-seed table: {0}".format(per_seed_path))
+    with agg_path.open(newline="") as f:
+        agg_rows = list(csv.DictReader(f))
+    if len(agg_rows) != 1:
+        raise SystemExit("expected exactly one aggregate row in {0}, got {1}".format(agg_path, len(agg_rows)))
+    row = dict(agg_rows[0])
+    row["set_label"] = label
+    rows.append(row)
+    with per_seed_path.open(newline="") as f:
+        per_seed_counts[label] = sum(1 for _ in csv.DictReader(f))
+
+preferred = [
+    "set_label",
+    "method",
+    "n_seeds",
+    "P68_re",
+    "P95_re",
+    "P68_im",
+    "P95_im",
+    "mean_Ohat_re",
+    "mean_Ohat_im",
+    "std_Ohat_re",
+    "std_Ohat_im",
+    "Zmean_re",
+    "Zmean_im",
+    "total_unresolved_failure_count",
+    "total_reverse_gate_total_reject_count",
+    "mean_runtime_total",
+    "total_post_refine_skip_count",
+    "total_post_refine_success_count",
+    "total_post_refine_attempt_count",
+]
+extra = sorted(set().union(*(set(r.keys()) for r in rows)) - set(preferred))
+columns = preferred + extra
+
+with (root / "combined_summary_table.csv").open("w", newline="") as f:
+    writer = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(rows)
+
+def val(row, key, default=""):
+    return row.get(key, default)
+
+lines = [
+    "# Stage3_4 128seed 100k p28 RG Judgment Report",
+    "",
+    "Protocol:",
+    "- config: `docs/stage_3_4_t035_paired_128seed_100k_rg_nofb_fbnorefine.json`",
+    "- seeds: `128`; cycles per seed: `100000`",
+    "- methods: `no_fb`, `fb_norefine`",
+    "- common settings: RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`",
+    "",
+    "| set | method | n_seeds | P68 Re | P95 Re | P68 Im | P95 Im | mean Re<O> | mean Im<O> | std Re<O> | std Im<O> | Zmean Re<O> | Zmean Im<O> | failure | rev_rej | runtime | post-refine |",
+    "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+]
+for row in rows:
+    post = "{0}/{1}".format(
+        val(row, "total_post_refine_success_count", "0"),
+        val(row, "total_post_refine_attempt_count", "0"),
+    )
+    lines.append(
+        "| {set_label} | {method} | {n_seeds} | {P68_re} | {P95_re} | {P68_im} | {P95_im} | {mean_Ohat_re} | {mean_Ohat_im} | {std_Ohat_re} | {std_Ohat_im} | {Zmean_re} | {Zmean_im} | {total_unresolved_failure_count} | {total_reverse_gate_total_reject_count} | {mean_runtime_total} | {post} |".format(
+            post=post,
+            **row,
+        )
+    )
+
+if len(rows) == 2:
+    by_label = {row["set_label"]: row for row in rows}
+    no_fb = by_label["no_fb"]
+    fb_nr = by_label["fb_norefine"]
+    lines.extend([
+        "",
+        "Concise paired-scale comparison:",
+        "- mean shift `fb_norefine - no_fb`: Re `{0:+.6g}`, Im `{1:+.6g}`".format(
+            float(fb_nr["mean_Ohat_re"]) - float(no_fb["mean_Ohat_re"]),
+            float(fb_nr["mean_Ohat_im"]) - float(no_fb["mean_Ohat_im"]),
+        ),
+        "- Zmean shift `fb_norefine - no_fb`: Re `{0:+.6g}`, Im `{1:+.6g}`".format(
+            float(fb_nr["Zmean_re"]) - float(no_fb["Zmean_re"]),
+            float(fb_nr["Zmean_im"]) - float(no_fb["Zmean_im"]),
+        ),
+        "- unresolved failures `fb_norefine - no_fb`: `{0}`".format(
+            int(float(fb_nr["total_unresolved_failure_count"])) - int(float(no_fb["total_unresolved_failure_count"]))
+        ),
+        "- reverse-gate rejects `fb_norefine - no_fb`: `{0}`".format(
+            int(float(fb_nr["total_reverse_gate_total_reject_count"])) - int(float(no_fb["total_reverse_gate_total_reject_count"]))
+        ),
+    ])
+
+lines.extend([
+    "",
+    "Per-seed row counts:",
+])
+for label in ["no_fb", "fb_norefine"]:
+    lines.append("- `{0}`: `{1}`".format(label, per_seed_counts[label]))
+lines.extend([
+    "",
+    "Artifacts:",
+    "- `combined_summary_table.csv`",
+    "- per-set `aggregated_summary_table.csv` and `per_seed_summary_table.csv` under each set subdirectory",
+])
+(root / "REPORT.md").write_text("\n".join(lines) + "\n")
+print("[merge] wrote", root / "combined_summary_table.csv")
+print("[merge] wrote", root / "REPORT.md")
+PY

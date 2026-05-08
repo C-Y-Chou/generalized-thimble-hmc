@@ -3,7 +3,7 @@
 Updated: 2026-05-08 16:30 JST
 
 ## Active objective
-- Interpret completed minimal 32seed/50k judgment experiment before choosing production seed/cycle counts.
+- Run next intermediate scale-up: `no_fb` vs `fb_norefine`, 128 matched seeds x 100k cycles.
 
 ## Live jobs (current)
 - `14180.anode01`: `fb_refine`, queue `G`, completed successfully.
@@ -44,6 +44,20 @@ Updated: 2026-05-08 16:30 JST
   - Both fallback variants increase total RG rejects by about `7.7k-7.8k` versus `no_fb`, but RG reject rate remains about `3.9e-4`.
   - In this 32seed/50k judgment run, `fb_norefine` is the cleanest aggregate Zmean and is faster than `fb_refine`.
   - This reverses the earlier 10seed/10k preference for `fb_refine`; do not commit to full production until we decide whether this is finite-sample noise, post-refine side effect, or expected behavior.
+
+## Next intermediate scale-up
+- Label: `judgment_20260508_128seed_100k_p28_rg_nofb_fbnorefine`
+- Config: `docs/stage_3_4_t035_paired_128seed_100k_rg_nofb_fbnorefine.json`
+- Methods: `no_fb`, `fb_norefine`
+- Scale: 128 matched seeds x 100k cycles per method.
+- Seed generation: `seed_start=20260421`, `seed_stride=97`, `n_seeds=128`.
+- Chunking plan: 8 chunks per method, 16 seeds/chunk, 16 workers/chunk.
+- Common settings: RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`, near/non-near/global rescue off.
+- Output root: `output/tests/stage3_4/judgment_20260508_128seed_100k_p28_rg_nofb_fbnorefine`
+- Logs root: `output/logs/stage3_4_judgment_20260508_128seed_100k_p28_rg_nofb_fbnorefine`
+- Expected runtime:
+  - per chunk: `no_fb ~2.8h`, `fb_norefine ~3.1h` from measured 32seed/50k runtime.
+  - if all chunks start promptly, expected compute completion is about 3.5-4h after launch, plus merge/report.
 
 ## Protocol
 - Validation label: `preprod_validation_20260507_10seed_10k_p28_rg`

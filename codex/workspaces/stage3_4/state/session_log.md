@@ -314,3 +314,16 @@ Use this file to append per-session notes.
   - rationale: 4x seeds and 2x cycles versus 32x50k, total 8x information, still much cheaper than full production.
   - expected per-seed runtime from measured 32x50k: `no_fb ~2.8h`, `fb_norefine ~3.1h`.
   - suggested PBS layout: 8 chunks per method, 16 seeds per chunk, one wave per chunk; use 12h queues safely.
+
+## 2026-05-08 16:55 JST
+- Prepared the next intermediate scale-up for submission.
+- Added protocol:
+  - `docs/stage_3_4_t035_paired_128seed_100k_rg_nofb_fbnorefine.json`
+- Added reusable PBS templates:
+  - `codex/workspaces/stage3_4/tasks/pbs/judgment_20260508_128seed_100k_p28_rg_chunk.pbs`
+  - `codex/workspaces/stage3_4/tasks/pbs/judgment_20260508_128seed_100k_p28_rg_merge.pbs`
+- Submission plan:
+  - methods: `no_fb`, `fb_norefine`.
+  - 8 chunks per method, 16 seeds per chunk, 16 workers per chunk.
+  - compute jobs will be submitted with `TLTM_EXPECTED_GIT_COMMIT` pinned to the commit containing this protocol and PBS setup.
+  - merge job will run after all compute chunks finish and will produce `REPORT.md` under the campaign output root.
