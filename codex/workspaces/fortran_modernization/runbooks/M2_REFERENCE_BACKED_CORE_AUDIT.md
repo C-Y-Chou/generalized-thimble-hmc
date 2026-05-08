@@ -169,14 +169,14 @@ Reference-backed findings:
 
 - Matched: Metropolis probability boundary is reference-consistent if the proposal map is reversible/volume-preserving.
 - Matched: live-state preservation on failed/RG-rejected proposals is correct at the Markov state boundary.
-- Project-specific addition: reverse gate is stronger than the base paper algorithm and is appropriate as a production guard, but it must be considered part of the proposal definition.
+- Project-specific addition / user decision: reverse gate is part of the proposal definition, not a debug-only filter. A reverse-gate failure means the proposal kernel did not produce a valid proposal and therefore follows the same failure-as-rejection/stay-put boundary.
 - Diagnostic risk: reverse-gate replay suppresses constraint-solver stats but not all global ODE/intode counters, so diagnostic baselines may mix forward proposal work and replay work.
 
 Required before long validation:
 
-- Deterministic RG pass/reject replay proving live-state identity and reverse consistency.
+- Deterministic RG pass/reject replay proving reverse consistency for accepted proposals and live-state identity for RG-rejected proposals.
 - Decide diagnostic accounting for replay ODE calls.
-- Document proposal failure as rejection in the marginal chain and how that corresponds to or replaces the paper's momentum-flip fallback.
+- Document proposal failure, including reverse-gate failure, as rejection in the marginal chain and how that replaces the paper's momentum-flip fallback at the implementation boundary.
 
 ## Revised discussion order
 

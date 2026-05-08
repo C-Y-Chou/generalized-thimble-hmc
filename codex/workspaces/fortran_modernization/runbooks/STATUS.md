@@ -178,3 +178,8 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - Conditions to preserve: failed proposal/integration/projection/RG paths set `accept=.false.` or `proposal_ok=.false.`, live chain state is updated only when `accepted=.true.`, and successful proposals retain the required constraint/reverse-gate checks before Metropolis acceptance.
 - Failed proposal output buffers may contain partial/intermediate values; this is acceptable only because callers must not commit them to live state on rejection.
 - Publishable documentation should phrase failure as a stay-put event in the marginal chain, replacing the paper's momentum-flip/replacement fallback at the implementation boundary.
+
+## Reverse gate proposal-boundary decision - 2026-05-08 JST
+- User confirmed reverse gate is part of the proposal definition, not a debug-only diagnostic.
+- Reverse-gate failure is handled as proposal failure and therefore as failure-as-rejection/stay-put in the marginal chain.
+- Accepted proposals must satisfy the reverse-gate contract; rejected/RG-failed proposals must not update live chain state.
