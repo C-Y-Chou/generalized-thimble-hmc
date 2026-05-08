@@ -195,7 +195,7 @@ Minimal checks before staged validation:
 
 | Core | Current state | Notes |
 |---|---|---|
-| ODEX flow integration | `bug-candidate` | ODEX-only routing is implemented, but `calculate_wk` appears to use signed `hk`; reverse-flow order/work selection must be fixed or justified before validation. |
+| ODEX flow integration | `latent-controller-bug-needs-test` | ODEX-only routing is implemented. `flowzr` is inverse flow via reversed RHS under nonnegative production flow time; `calculate_wk` still appears signed if negative integration intervals are ever supported. |
 | Simplified Newton | `needs-derivation` | Residual/update path is internally consistent with projection code, but signs and variable roles need written derivation against the intended simplified Newton equation. |
 | RATTLE proposal structure | `needs-derivation-plus-bug-candidate` | Step boundary is coherent, but `state_has_progress` only checks `x(2)` and must be accepted as a one-dimensional invariant or redesigned. |
 | QN p28 projection loss | `intentional-deviation-needs-user-signoff` | Active residual is project-specific standard p28 loss using `xi=(u,lambda_prime)` and DFO-LS machinery; it needs signoff against `new_algorithm__Copy_.pdf`. |
@@ -215,4 +215,4 @@ The first practical audit target should be `src/physics/solve_flow.f90` because 
 
 ## Static audit completion note - 2026-05-08 JST
 
-The first retained-core static audit has been completed and summarized in `M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`. It found no evidence that failed/RG-rejected proposals mutate live Markov state, but it did identify several blockers before ODEX-only staged validation: signed ODEX work estimate for reverse flow, simplified Newton residual sign derivation, QN p28 residual signoff, `x(2)`-only RATTLE progress guard, and reverse-gate replay diagnostic accounting.
+The first retained-core static audit has been completed and summarized in `M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`. It found no evidence that failed/RG-rejected proposals mutate live Markov state, but it did identify several blockers before ODEX-only staged validation: inverse-flow/ODEX signed-interval semantics, simplified Newton residual sign derivation, QN p28 residual signoff, `x(2)`-only RATTLE progress guard, and reverse-gate replay diagnostic accounting.

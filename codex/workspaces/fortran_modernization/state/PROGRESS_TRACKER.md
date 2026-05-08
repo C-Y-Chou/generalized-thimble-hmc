@@ -40,3 +40,4 @@
 - Completed static source-level audit of retained ODEX, simplified Newton, RATTLE, QN p28 residual, and HMC/Metropolis/RG boundary.
 - Wrote `runbooks/M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`.
 - Validation remains blocked pending user discussion of ODEX signed work estimate, Newton/QN derivations, RATTLE progress guard, and RG diagnostic accounting.
+- 2026-05-08 JST: Clarified retained-core audit F1: `flowzr` is inverse flow via reversed RHS under nonnegative production flow time; signed `calculate_wk` is a latent negative-interval robustness issue, not proof of wrong current `flowzr`.

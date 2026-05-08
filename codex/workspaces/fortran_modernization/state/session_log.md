@@ -95,3 +95,4 @@
 - User asked to audit the retained five numerical cores, not just disabled legacy paths.
 - Completed source-level audit and documented blockers in `runbooks/M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`.
 - No Fortran code changes or production jobs were performed in this audit step.
+- 2026-05-08 JST: Clarified retained-core audit F1: `flowzr` is inverse flow via reversed RHS under nonnegative production flow time; signed `calculate_wk` is a latent negative-interval robustness issue, not proof of wrong current `flowzr`.

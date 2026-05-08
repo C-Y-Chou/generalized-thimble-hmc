@@ -37,26 +37,30 @@ Current gate decision:
 
 ## P0/P1 findings
 
-### F1. ODEX reverse-time work estimate uses signed `h`
+### F1. ODEX work estimate should be magnitude-based if negative integration intervals are ever allowed
 
-State: `bug-candidate`, P0 for ODEX-only validation.
+State: `latent-controller-bug`, P1 for current nonnegative-flow production; P0 only if negative `x(1)` / negative integration intervals are admitted.
 
 Observed code:
 
-- `flowzr` sets `flow_vec_rhs_scale = -1.0_dp` and calls `intode(..., t1, ...)`, so inverse flow enters ODEX with negative effective dynamics.
-- `calculate_hk(h, err, k)` preserves the sign of `h`, which is correct for step direction.
-- `calculate_wk(h, err, k)` computes `wk = odex_ak_cache(kc)/hk`, where `hk` can be negative.
-- `wk1`, `wk2` are compared to choose/reduce order.
+- `flowzr` is the inverse flow of `flow`: it sets `flow_vec_rhs_scale = -1.0_dp` and calls `intode(..., t1, ...)`.
+- That inverse-flow implementation reverses the vector field, not necessarily the integration-step sign.
+- Current Stage1/Stage2 production controls clamp flow ladders to nonnegative values, and `markovchain_mod` rejects negative `initial_flow_time`.
+- Therefore, for the present canonical production path, `flowzr` should normally enter ODEX with nonnegative `h` even though it integrates the inverse vector field.
+- Separately, `calculate_hk(h, err, k)` preserves the sign of `h`, which is correct for step direction if negative intervals are supported.
+- `calculate_wk(h, err, k)` computes `wk = odex_ak_cache(kc)/hk`, so `wk` would become negative if a future or test path used negative `h`.
 
 Why this matters:
 
-- Work/cost estimates should be positive quantities. If `wk` is negative in reverse-time integration, order-selection inequalities can be inverted or made meaningless.
-- This could affect `flowzr`, and `flowzr` is used directly by the p28 QN residual. That means the issue can affect solver route decisions, reverse gate outcomes, and eventually HMC acceptance.
+- Work/cost estimates should be positive quantities. If `wk` is negative under a negative integration interval, order-selection inequalities can be inverted or made meaningless.
+- This is not, by itself, evidence that the current `flowzr` production route is wrong, because inverse flow is implemented by reversing the RHS while keeping flow time nonnegative.
+- It remains a publishability/general-ODEX robustness issue and should be covered by deterministic signed-interval tests.
 
 Discussion decision needed:
 
-- Likely fix: compute work using `abs(hk)` while keeping `calculate_hk` signed.
-- Required test before validation: forward/reverse ODEX deterministic round-trip plus p28 residual replay before/after the fix.
+- Likely robustness fix: compute work using `abs(hk)` while keeping `calculate_hk` signed.
+- This should not change current nonnegative-flow production outputs, but it should still be tested.
+- Required test before broad ODEX cleanup: forward/inverse-flow round-trip, plus explicit negative-interval ODEX microtest if negative intervals are intended to be supported.
 
 ### F2. ODEX step sequence and extrapolation contract are not yet reference-signed
 
@@ -209,7 +213,7 @@ These are minimum checks, not the full test suite.
 
 | Check | Purpose | Blocks |
 |---|---|---|
-| ODEX signed-work microtest | Verify positive work estimate/order behavior for forward and reverse integration | F1 |
+| ODEX signed-interval microtest | Verify positive work estimate/order behavior if negative integration intervals are supported | F1 |
 | ODEX analytic ODE smoke tests | Verify scalar exponential and 2D linear/rotation systems against tolerance | F1, F2 |
 | Flow round-trip replay | `flowz` then `flowzr` returns representative TLTM state within tolerance | F1, F2, F5 |
 | Jacobian finite-difference check | Propagated Jacobian agrees with finite-difference flow map | ODEX/RATTLE/HMC |
@@ -221,7 +225,7 @@ These are minimum checks, not the full test suite.
 
 ## Recommended discussion order
 
-1. ODEX signed-work bug candidate: likely patch before any validation.
+1. ODEX signed-work clarification: current inverse flow uses reverse RHS with nonnegative flow time; decide whether to patch `calculate_wk` for negative-interval robustness.
 2. Simplified Newton residual equation: derive and sign off signs/variables.
 3. QN p28 residual: confirm standard formulation and `lambda_prime` semantics.
 4. RATTLE progress guard: decide one-dimensional invariant vs general norm check.
@@ -233,4 +237,4 @@ The canonical route is structurally much clearer than before:
 
 `Newton -> QN p28 standard residual when Newton fails -> reverse gate -> Metropolis`, with ODEX-only flow as the target backend.
 
-But the retained implementation is **not yet accepted for staged validation**. The most important immediate action is to discuss F1-F5 and decide which are true bugs, which are accepted TLTM-specific formulations, and which require deterministic tests before touching long Monte Carlo jobs.
+But the retained implementation is **not yet accepted for staged validation**. After the inverse-flow clarification, F1 is no longer evidence that current `flowzr` is wrong under nonnegative production flow time, but F2-F6 still require signoff/tests before touching long Monte Carlo jobs.
