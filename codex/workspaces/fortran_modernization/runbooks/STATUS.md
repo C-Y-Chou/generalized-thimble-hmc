@@ -234,3 +234,12 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - Local replay on `output/production/constraint_solver_fail_{z0,delz,x0}.dat` with `tol=1e-13`, `max_iter=28` produced 26/26 solver successes and 26/26 BTN contract OK.
 - Observed maxima: `max|Imag(flowzr(ztrial))| = 6.77e-14`, `max|a| = 6.72e-16`, `max min_res = 6.77e-14`.
 - Output CSV was written under ignored test output (`output/tests/btn_contract/replay_btn_contract_p28.csv`); no production job was submitted.
+
+## ODEX 10k validation result - 2026-05-08 JST
+- Completed ODEX-only 10seed/10k `fb_norefine` validation on commit `ae234a2` with p28, reverse gate on, post-refine off, `ct=1e-13`, `QN=1e-13`.
+- Result artifacts are under `output/tests/odex_validation/20260508_10seed_10k_fb_norefine_ct1e13_qn1e13`.
+- Aggregate observable readout remains compatible with the target: mean `Re<O> = -0.0386029`, mean `Im<O> = 0.0183377`, `Zmean Re = -0.491731`, `Zmean Im = 0.576116`.
+- Acceptance and reverse-gate diagnostics are stable relative to the closest 10seed/10k baseline: pair0 accept `0.44008` vs `0.43984`; reverse-gate rejects `1566` vs `1585`.
+- Projection/unresolved failures increased relative to the closest baseline (`2519` vs `1769` unresolved; mean projection failures/seed `408.5` vs `335.4`), so these are required 50k watch items.
+- ODEX-only fallback semantics are active as expected: fallback success is `0`, invalid fallback count is `0`, and fallback failures are almost entirely h-min classified (`21761/21762`) with one max-step-classified failure.
+- Judgment recorded in `runbooks/ODEX_10K_VALIDATION_RESULT_20260508.md`: provisional pass to matching 50k validation, not final physics signoff.
