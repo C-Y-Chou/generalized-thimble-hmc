@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-08 23:05 JST
+Updated: 2026-05-08 23:15 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -202,6 +202,12 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - `calculate_wk` now uses `abs(h)` for the positive work measure and guards non-finite/tiny candidate steps; `calculate_hk` remains signed so integration direction is unchanged.
 - Local checks passed: `git diff --check`; build of `../bin/scan_flow_vs_flowz` and `../bin/scan_flowzr_stability`; `flowz`/`flow` 21-point scan with max `|delta z| = 5.00e-16`; `flowzr` signed roundtrip 81/81 with max roundtrip `4.42e-15`; 2-cycle local `test_tltm_stage2` smoke.
 - No production job was submitted. Long ODEX-only validation still requires the planned 10k -> 50k -> 100k physical-observable sequence.
+
+## ODEX solver-level analytic check - 2026-05-08 JST
+- Added `tests/test_odex_solver.f90` plus `scripts/run_odex_solver_check.sh` as the preferred pre-tolerance-tuning ODE solver test.
+- The test calls `intode` directly with module-level RHS callbacks to avoid GNU Fortran internal-procedure trampoline issues under `-Wl,-z,noexecstack`.
+- Coverage: scalar exponential forward/backward integration, harmonic oscillator forward/backward integration, full-step vs two-half-step consistency for both systems, and zero fallback attempts/failures.
+- Local run passed at `abs_tol=rel_tol=3.0e-14`: max observed analytic/split errors were `5.33e-15` or smaller for exponential/backward checks, `7.77e-16` or smaller for oscillator checks, and fallback attempts/failures were 0.
 
 ## Current discussion scope - 2026-05-08 JST
 - User narrowed the active discussion scope back to the five retained core numerical blocks.

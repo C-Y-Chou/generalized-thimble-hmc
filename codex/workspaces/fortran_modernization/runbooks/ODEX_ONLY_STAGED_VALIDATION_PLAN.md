@@ -143,3 +143,10 @@ Local pre-validation checks performed after the patch:
 - `make -C build test_tltm_stage2 TLTM_STAGE2_CYCLES=2 TLTM_STAGE2_NUM_REPLICAS=2 TLTM_STAGE2_MAX_FLOW_TIME=0.1 TLTM_STAGE2_LOCAL_UPDATES=1`.
 
 These checks are smoke/self-consistency gates only. They do not replace the 10k -> 50k -> 100k physical-observable validation sequence.
+
+Preferred ODE solver-level check before tolerance tuning:
+
+- Run `scripts/run_odex_solver_check.sh`.
+- This exercises `intode` directly on analytic IVPs rather than going through TLTM flow wrappers.
+- Current coverage: scalar exponential forward/backward, harmonic oscillator forward/backward, full-step vs two-half-step consistency, and zero fallback accounting.
+- Current local result at `abs_tol=rel_tol=3.0e-14`: all checks pass; fallback attempts/failures are 0.
