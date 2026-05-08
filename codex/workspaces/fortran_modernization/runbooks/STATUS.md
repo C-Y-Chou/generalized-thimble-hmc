@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-08 18:45 JST
+Updated: 2026-05-08 19:20 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -115,3 +115,9 @@ Discuss and confirm `runbooks/PLANNING_DISCUSSION_BRIEF.md`, especially:
 - Updated `src/physics/solve_flow.f90` so the production `intode` failure path no longer enables Radau rescue or final-resort acceptance.
 - Legacy Radau/JFNK routines remain in source as quarantine/reference code until staged validation approves deletion.
 - No production job was submitted for this change.
+
+## Retained-core correctness audit correction - 2026-05-08 JST
+- User identified a critical gap: prior audits emphasized which legacy/rescue paths to disable, but did not yet prove that the retained five core numerical implementations are correct.
+- Added `runbooks/M2_CORE_NUMERICAL_IMPLEMENTATION_AUDIT_PLAN.md`.
+- ODEX-only 10k -> 50k -> 100k validation is now blocked until retained ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG boundary code are accepted for staged validation.
+- No production job was submitted for this correction.

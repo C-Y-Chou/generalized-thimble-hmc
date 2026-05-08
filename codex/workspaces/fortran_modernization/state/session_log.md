@@ -85,3 +85,8 @@
 - Implemented ODEX-only by disabling the Radau rescue entry and final-resort acceptance policy in `src/physics/solve_flow.f90`.
 - Kept legacy Radau/JFNK code in place for quarantine/reference until staged 10k -> 50k -> 100k validation approves deletion.
 - No production job was submitted.
+
+## 2026-05-08 JST - Retained-core correctness audit gap identified
+- User clarified that the audit must not only decide which legacy paths to disable; it must also check whether the retained five core numerical implementations are themselves correct.
+- Added `M2_CORE_NUMERICAL_IMPLEMENTATION_AUDIT_PLAN.md` covering ODEX, simplified Newton, RATTLE, QN p28 projection loss, and HMC/Metropolis/RG boundary.
+- ODEX-only validation jobs are blocked until this retained-core correctness audit accepts the active numerical cores for staged validation.

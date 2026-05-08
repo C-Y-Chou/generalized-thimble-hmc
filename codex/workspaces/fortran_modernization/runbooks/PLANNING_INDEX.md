@@ -20,6 +20,7 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 - `ALGORITHM_TO_IMPLEMENTATION_REVIEW_MAP.md`
 - `BEHAVIOR_PRESERVING_ALGORITHM_AUDIT_PLAN.md`
+- `M2_CORE_NUMERICAL_IMPLEMENTATION_AUDIT_PLAN.md`
 - `ODEX_FLOW_REVIEW_NOTES.md`
 - `SIMPLIFIED_NEWTON_RATTLE_REVIEW_NOTES.md`
 - `QUASI_NEWTON_PROJECTION_REVIEW_NOTES.md`
@@ -48,4 +49,4 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 - Current phase: M2 canonicalization planning after Stage3_4 characterization.
 - Non-ODEX cleanup is behavior-neutral quarantine/inventory only before ODEX-only.
-- Next implementation discussion: ODEX-only staged validation with 10k -> 50k -> 100k physical checks.
+- Next gate: retained-core implementation correctness audit before ODEX-only 10k -> 50k -> 100k physical checks.

@@ -24,6 +24,19 @@ Legacy/deletion-candidate flow paths:
 
 If ODEX-only reveals unacceptable failure behavior, the preferred fix is to improve ODEX step control, error reporting, or failure classification rather than silently restoring a secondary integrator stack as the default production route.
 
+
+## Pre-validation blocker - retained core correctness audit
+
+Do not submit the 10k -> 50k -> 100k ODEX-only validation jobs until the retained-core implementation correctness audit has at least accepted all five active numerical cores for staged validation:
+
+- ODEX flow integration.
+- Simplified Newton constraint solve.
+- RATTLE proposal/integrator structure.
+- Quasi-Newton p28 projection loss.
+- HMC / Metropolis / reverse-gate proposal boundary.
+
+The ODEX-only source gate changes routing, but it does not by itself prove the retained ODEX kernel or the surrounding proposal machinery is correct.
+
 ## Pre-change baseline
 
 Before changing source behavior, record the current reference point:

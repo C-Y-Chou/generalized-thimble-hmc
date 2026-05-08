@@ -16,6 +16,13 @@ The audit must be reference-driven. Engineering cleanup is only allowed after th
 - `nofb` means standard `(u, lambda)` formulation.
 - `fg` means standard formulation first; when standard fails, use BTM/BTN fallback formulation.
 
+
+## Audit scope correction - 2026-05-08
+
+This audit is not only a route-pruning or legacy-disablement exercise. For every retained core numerical block, the implementation itself must be checked against its reference contract and invariants. Disabling Radau, post-refine, or non-p28 routes is insufficient unless the remaining ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG code are also audited for implementation correctness.
+
+See `M2_CORE_NUMERICAL_IMPLEMENTATION_AUDIT_PLAN.md` for the retained-core correctness gate that must precede 10k -> 50k -> 100k validation.
+
 ## Deliverables from this audit phase
 1. Algorithm contract summary for each core area.
 2. Implementation responsibility map for each core module.
