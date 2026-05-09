@@ -26,6 +26,14 @@ module solve_flow
    integer, parameter :: intode_reason_max_steps = 1
    integer, parameter :: intode_reason_invalid = 2
    integer, parameter :: intode_reason_h_min = 3
+   integer, parameter :: intode_status_unknown = -1
+   integer, parameter :: intode_status_success = 0
+   integer, parameter :: intode_status_success_zero_time = 1
+   integer, parameter :: intode_status_success_stiff_rescue = 2
+   integer, parameter :: intode_status_success_solver_assist = 3
+   integer, parameter :: intode_status_failure_max_steps = 101
+   integer, parameter :: intode_status_failure_invalid = 102
+   integer, parameter :: intode_status_failure_h_min = 103
    integer, parameter :: intode_ctx_unknown = 0
    integer, parameter :: intode_ctx_flowz = 1
    integer, parameter :: intode_ctx_flowzr = 2
@@ -360,12 +368,13 @@ contains
       odex_tables_ready = .true.
    end subroutine ensure_odex_tables
 
-   subroutine intode(f, y, t, res, error_flag)
+   subroutine intode(f, y, t, res, error_flag, status)
       implicit none
       procedure(ode_rhs) :: f
       real(dp), intent(in) :: y(:), t
       real(dp), intent(out) :: res(:)
       logical, intent(out) :: error_flag
+      integer, intent(out), optional :: status
 
       real(dp) :: h, tc, er1, h_min, t_new
       integer :: state_size, k, step_count
@@ -377,10 +386,12 @@ contains
       real(dp) :: t_prof
 
       call perf_tic(t_prof)
+      call set_intode_status(status, intode_status_unknown)
       intode_calls_total = intode_calls_total + 1
       if (t == 0.0_dp) then
          res = y
          error_flag = .false.
+         call set_intode_status(status, intode_status_success_zero_time)
          call perf_toc(PERF_INTODE, t_prof)
          return
       end if
@@ -416,6 +427,7 @@ contains
                intode_fallback_success = intode_fallback_success + 1
                res = intode_yf(1:state_size)
                error_flag = .false.
+               call set_intode_status(status, intode_status_success_stiff_rescue)
             else
                call intode_try_final_resort(intode_yc(1:state_size), t - tc, intode_reason_max_steps, &
                                             intode_yf(1:state_size), final_resort_ok)
@@ -423,11 +435,13 @@ contains
                   intode_fallback_success = intode_fallback_success + 1
                   res = intode_yf(1:state_size)
                   error_flag = .false.
+                  call set_intode_status(status, intode_status_success_solver_assist)
                else
                   intode_fallback_failure = intode_fallback_failure + 1
                   call record_intode_fallback_failure_context(intode_current_context)
                   call record_intode_last_failure(intode_yc(1:state_size), t - tc, intode_reason_max_steps)
                   res = intode_yc(1:state_size)
+                  call set_intode_status(status, intode_status_failure_max_steps)
                end if
             end if
             call perf_toc(PERF_INTODE, t_prof)
@@ -453,6 +467,7 @@ contains
                intode_fallback_success = intode_fallback_success + 1
                res = intode_yf(1:state_size)
                error_flag = .false.
+               call set_intode_status(status, intode_status_success_stiff_rescue)
             else
                call intode_try_final_resort(intode_yc(1:state_size), t - tc, intode_reason_invalid, &
                                             intode_yf(1:state_size), final_resort_ok)
@@ -460,11 +475,13 @@ contains
                   intode_fallback_success = intode_fallback_success + 1
                   res = intode_yf(1:state_size)
                   error_flag = .false.
+                  call set_intode_status(status, intode_status_success_solver_assist)
                else
                   intode_fallback_failure = intode_fallback_failure + 1
                   call record_intode_fallback_failure_context(intode_current_context)
                   call record_intode_last_failure(intode_yc(1:state_size), t - tc, intode_reason_invalid)
                   res = intode_yc(1:state_size)
+                  call set_intode_status(status, intode_status_failure_invalid)
                end if
             end if
             call perf_toc(PERF_INTODE, t_prof)
@@ -488,6 +505,7 @@ contains
                   intode_fallback_success = intode_fallback_success + 1
                   res = intode_yf(1:state_size)
                   error_flag = .false.
+                  call set_intode_status(status, intode_status_success_solver_assist)
                   call perf_toc(PERF_INTODE, t_prof)
                   return
                end if
@@ -497,6 +515,7 @@ contains
                intode_fallback_success = intode_fallback_success + 1
                res = intode_yf(1:state_size)
                error_flag = .false.
+               call set_intode_status(status, intode_status_success_stiff_rescue)
             else
                call intode_try_final_resort(intode_yc(1:state_size), t - tc, intode_reason_h_min, &
                                             intode_yf(1:state_size), final_resort_ok)
@@ -504,11 +523,13 @@ contains
                   intode_fallback_success = intode_fallback_success + 1
                   res = intode_yf(1:state_size)
                   error_flag = .false.
+                  call set_intode_status(status, intode_status_success_solver_assist)
                else
                   intode_fallback_failure = intode_fallback_failure + 1
                   call record_intode_fallback_failure_context(intode_current_context)
                   call record_intode_last_failure(intode_yc(1:state_size), t - tc, intode_reason_h_min)
                   res = intode_yc(1:state_size)
+                  call set_intode_status(status, intode_status_failure_h_min)
                end if
             end if
             call perf_toc(PERF_INTODE, t_prof)
@@ -518,8 +539,17 @@ contains
 
       res = intode_yc(1:state_size)
       error_flag = .false.
+      call set_intode_status(status, intode_status_success)
       call perf_toc(PERF_INTODE, t_prof)
    end subroutine intode
+
+   subroutine set_intode_status(status, status_code)
+      implicit none
+      integer, intent(out), optional :: status
+      integer, intent(in) :: status_code
+
+      if (present(status)) status = status_code
+   end subroutine set_intode_status
 
    subroutine intode_try_final_resort(y_curr, t_remaining, reason_code, y_out, accepted)
       implicit none
@@ -2490,15 +2520,18 @@ contains
       end do
    end function vector_has_invalid
 
-   subroutine flowz(x, z, error)
+   subroutine flowz(x, z, error, status)
       real(dp), intent(in)::x(:)
       complex(dp), intent(inout)::z(:)
       logical, intent(out)::error
+      integer, intent(out), optional :: status
       integer::n, n_complex
+      integer :: flow_status_local
       real(dp)::t1
       real(dp) :: t_prof
 
       call perf_tic(t_prof)
+      call set_intode_status(status, intode_status_unknown)
       n = size(z)*2
       n_complex = size(z)
       t1 = x(1)
@@ -2513,8 +2546,9 @@ contains
       flow_vec_y(2:n:2) = 0.0_dp
       intode_current_context = intode_ctx_flowz
       flow_vec_rhs_scale = 1.0_dp
-      call intode(rhs_flow_vec, flow_vec_y(1:n), t1, flow_vec_yf(1:n), error)
+      call intode(rhs_flow_vec, flow_vec_y(1:n), t1, flow_vec_yf(1:n), error, flow_status_local)
       intode_current_context = intode_ctx_unknown
+      call set_intode_status(status, flow_status_local)
       if (error) then
          call perf_toc(PERF_FLOWZ, t_prof)
          return
@@ -2523,15 +2557,18 @@ contains
       call perf_toc(PERF_FLOWZ, t_prof)
    end subroutine flowz
 
-   subroutine flowzr(x, z, error)
+   subroutine flowzr(x, z, error, status)
       real(dp), intent(in)::x(:)
       complex(dp), intent(inout)::z(:)
       logical, intent(out)::error
+      integer, intent(out), optional :: status
       integer::n, n_complex
+      integer :: flow_status_local
       real(dp)::t1
       real(dp) :: t_prof
 
       call perf_tic(t_prof)
+      call set_intode_status(status, intode_status_unknown)
       n = size(z)*2
       n_complex = size(z)
       t1 = x(1)
@@ -2545,9 +2582,10 @@ contains
       call complex_to_real(z, flow_vec_y(1:n))
       intode_current_context = intode_ctx_flowzr
       flow_vec_rhs_scale = -1.0_dp
-      call intode(rhs_flow_vec, flow_vec_y(1:n), t1, flow_vec_yf(1:n), error)
+      call intode(rhs_flow_vec, flow_vec_y(1:n), t1, flow_vec_yf(1:n), error, flow_status_local)
       intode_current_context = intode_ctx_unknown
       flow_vec_rhs_scale = 1.0_dp
+      call set_intode_status(status, flow_status_local)
       if (error) then
          call perf_toc(PERF_FLOWZR, t_prof)
          return
@@ -2556,17 +2594,20 @@ contains
       call perf_toc(PERF_FLOWZR, t_prof)
    end subroutine flowzr
 
-   subroutine flow(x, z, j, error)
+   subroutine flow(x, z, j, error, status)
       real(dp), intent(in)::x(:)
       complex(dp), intent(inout)::z(:)
       complex(dp), dimension(:, :), intent(inout)::j
       logical, intent(out)::error
+      integer, intent(out), optional :: status
       integer::n, m, n_complex, n_jac
       integer :: total_n
+      integer :: flow_status_local
       real(dp)::t1
       real(dp) :: t_prof
 
       call perf_tic(t_prof)
+      call set_intode_status(status, intode_status_unknown)
       n = size(z)*2
       n_complex = size(z)
       n_jac = size(j, 1)
@@ -2586,8 +2627,9 @@ contains
       flow_jac_y(2:n:2) = 0.0_dp
       call fill_identity_real_map(flow_jac_y(n + 1:total_n), n_jac)
       intode_current_context = intode_ctx_flow
-      call intode(rhs_flow_jac, flow_jac_y(1:total_n), t1, flow_jac_yf(1:total_n), error)
+      call intode(rhs_flow_jac, flow_jac_y(1:total_n), t1, flow_jac_yf(1:total_n), error, flow_status_local)
       intode_current_context = intode_ctx_unknown
+      call set_intode_status(status, flow_status_local)
       if (error) then
          call perf_toc(PERF_FLOW, t_prof)
          return

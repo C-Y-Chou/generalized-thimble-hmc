@@ -703,3 +703,9 @@ Use this file to append per-session notes.
 - Stage1/Stage2 local transition recording now keeps old accept/reject and `projection_failure_count` behavior while adding detailed counters for ordinary Metropolis reject, reverse-gate reject, proposal construction failure, invalid Hamiltonian, invalid `Delta H`, and output-size mismatch.
 - Stage2 writes `# local_transition_totals ...`; RG reject audit includes `transition_status`; multiseed run/merge scripts propagate the new columns.
 - Verified with `py_compile`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, and a tiny local Stage2 smoke/parser readback.
+
+## 2026-05-09 JST
+- Implemented optional ODE/flow status surface for `intode`, `flowz`, `flowzr`, and `flow`, preserving existing logical error callers.
+- Status values now distinguish strict ODEX success, zero-time no-op, legacy stiff-rescue success, solver-internal assist success, and max-step/invalid/h-min failures.
+- Added `make test_odex_solver` for the existing analytic ODEX test and extended it to assert status values.
+- Verified with `make -C build FC=gfortran LDFLAGS= test_odex_solver`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, and tiny local Stage2 smoke.

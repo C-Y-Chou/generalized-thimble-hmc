@@ -154,6 +154,7 @@ SOURCES_STEP9  := $(SOURCES_COMMON) $(call mk_src,$(APP_TLTM_STAGE1))
 SOURCES_STEP10 := $(SOURCES_COMMON) $(call mk_src,$(APP_TLTM_STAGE2))
 SOURCES_TEST1  := $(SOURCES_COMMON) $(TEST_DIR)/test_hamiltonian_conservation.f90
 SOURCES_TEST2  := $(SOURCES_COMMON) $(TEST_DIR)/test_action_derivatives.f90
+SOURCES_TEST_ODEX := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_solver.f90
 
 # map source path -> object path
 define src_to_obj
@@ -177,10 +178,12 @@ OBJECTS_TEST1 := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST1))) 
                  $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST1)))
 OBJECTS_TEST2 := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST2))) \
                  $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST2)))
+OBJECTS_TEST_ODEX := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_ODEX))) \
+                     $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_ODEX)))
 
 SOURCES_DEP := $(sort $(SOURCES_STEP2) $(SOURCES_STEP3) $(SOURCES_STEP4) $(SOURCES_STEP5) \
                 $(SOURCES_STEP6) $(SOURCES_STEP7) $(SOURCES_STEP8) $(SOURCES_STEP9) \
-                $(SOURCES_STEP10) $(SOURCES_TEST1) $(SOURCES_TEST2))
+                $(SOURCES_STEP10) $(SOURCES_TEST1) $(SOURCES_TEST2) $(SOURCES_TEST_ODEX))
 
 $(DEP_OUT): $(SOURCES_DEP) $(DEP_SCRIPT) | $(MOD_DIR)
 	$(PYTHON) $(DEP_SCRIPT) --root .. --obj-dir $(OBJ_DIR) > $@
@@ -196,7 +199,7 @@ endif
 BINARIES     = generate_markov_chain evaluate_expectations \
                sample_flow_manifold replay_quasi_failures probe_hmc_volume scan_flow_vs_flowz scan_flowzr_stability \
                run_tltm_stage1 run_tltm_stage2 \
-               test_program test_program2
+               test_program test_program2 test_odex_solver
 EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 
 ###############################################################################
@@ -205,7 +208,7 @@ EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 .DEFAULT_GOAL := all
 override FFLAGS := $(FFLAGS_OPT) $(FFLAGS_INC)
 
-.PHONY: all fast help chain expect manifold tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 \
+.PHONY: all fast help chain expect manifold tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver \
         test1_fb_on test1_fb_off test2_fb_on test2_fb_off test_fb_matrix \
         prepare_outputs clean_outputs clean veryclean
 all: regen_model_derivatives $(EXECUTABLES)
@@ -257,6 +260,9 @@ $(BIN_DIR)/test_program: $(OBJECTS_TEST1) | $(BIN_DIR)
 $(BIN_DIR)/test_program2: $(OBJECTS_TEST2) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $^
 
+$(BIN_DIR)/test_odex_solver: $(OBJECTS_TEST_ODEX) | $(BIN_DIR)
+	$(FC) $(LDFLAGS) -o $@ $^
+
 # create build directories if missing
 $(MOD_DIR) $(BIN_DIR) $(OUT_DIR) $(OUT_PROD_DIR) $(OUT_TEST_DIR) $(OUT_TEST1_DIR) $(OUT_LOG_DIR):
 	mkdir -p $@
@@ -287,6 +293,7 @@ help:
 	@echo "  make test_tltm_stage2 - smoke run with swap and max flow=0.3, L=2, nstep=20"
 	@echo "  make test1    - run Hamiltonian conservation test (artifacts -> $(OUT_TEST1_DIR))"
 	@echo "  make test2    - run action derivative test (log -> $(OUT_LOG_DIR))"
+	@echo "  make test_odex_solver - run analytic ODEX/status smoke test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test1_fb_on / test1_fb_off - run test1 with fallback forced on/off"
 	@echo "  make test2_fb_on / test2_fb_off - run test2 with fallback forced on/off"
 	@echo "  make test_fb_matrix - run (test1,test2) x (fallback on,off)"
@@ -390,6 +397,9 @@ test1: $(BIN_DIR)/test_program prepare_outputs
 
 test2: $(BIN_DIR)/test_program2 prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_program2 2>&1 | tee $(OUT_LOG_DIR)/test_action_derivatives.log
+
+test_odex_solver: $(BIN_DIR)/test_odex_solver prepare_outputs
+	@set -o pipefail; $(BIN_DIR)/test_odex_solver 2>&1 | tee $(OUT_LOG_DIR)/test_odex_solver.log
 
 test1_fb_on: $(BIN_DIR)/test_program prepare_outputs
 	@set -e; \

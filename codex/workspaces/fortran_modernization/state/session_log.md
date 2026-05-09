@@ -166,3 +166,9 @@
 - Stage1/Stage2 summary schemas append new columns after legacy columns; Stage2 writes `# local_transition_totals ...`.
 - Multiseed run and merge scripts now carry the new local transition counters through per-seed and aggregate CSV output.
 - Verification: `py_compile`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, and tiny local Stage2 smoke/parser readback all passed.
+
+## 2026-05-09 JST - State propagation slice: ODE/flow status surface
+- Added optional integer status outputs to `intode`, `flowz`, `flowzr`, and `flow`, while preserving all existing logical error callers.
+- Status values distinguish strict ODEX success, zero-time no-op, legacy stiff-rescue success, solver-internal assist success, max-step failure, invalid-state failure, and h-min failure.
+- Promoted `tests/test_odex_solver.f90` into `make test_odex_solver` and extended it to assert status values.
+- Verification: `make -C build FC=gfortran LDFLAGS= test_odex_solver`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, and tiny local Stage2 smoke all passed.

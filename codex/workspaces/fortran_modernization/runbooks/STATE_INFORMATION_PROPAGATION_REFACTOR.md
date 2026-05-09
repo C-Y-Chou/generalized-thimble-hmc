@@ -1,7 +1,7 @@
 # State and Information Propagation Refactor
 
 Updated: 2026-05-09 JST
-Status: first three narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
+Status: first four narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
 
 ## Purpose
 
@@ -212,3 +212,32 @@ Verification:
 - `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
 - `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`.
 - Tiny local Stage2 smoke with `cycles=2`, `num_replicas=2`, `max_flow_time=0.0`, `local_updates=1`, and `swap_enabled=0` writes the new `local_transition_totals` line and parses successfully.
+
+## Fourth Source Slice - ODE/Flow Status Surface - 2026-05-09 JST
+
+Purpose:
+
+- Make ODE integration outcomes explicit without changing the legacy `logical error_flag` contract.
+- Prepare later NT/QN and final-proposal strictness refactors to distinguish strict ODEX success, zero-time no-op, legacy stiff-rescue success, solver-internal assist success, and concrete integration failure reasons.
+
+Implemented boundary:
+
+- `solve_flow.f90`: added public `intode_status_*` integer constants.
+- `intode(...)`: added optional `status` output while preserving all existing positional callers.
+- `flowz(...)`, `flowzr(...)`, and `flow(...)`: added optional `status` output and pass through the underlying `intode` status.
+- `tests/test_odex_solver.f90`: now checks status values for analytic ODEX success and zero-time no-op.
+- `build/makefile`: promotes the existing ODEX analytic test into a first-class `make test_odex_solver` target.
+
+Compatibility:
+
+- Existing callers that only use `error_flag` are source-compatible.
+- ODEX/Radau/assist decision logic, fallback counters, final proposal strictness, and solver-internal assist policy are unchanged.
+- The new status surface is observational until later patches intentionally consume it.
+
+Verification:
+
+- `make -C build FC=gfortran LDFLAGS= test_odex_solver` passes; analytic checks report status `0` for strict ODEX success and `1` for zero-time success, with fallback attempts/failures `0/0`.
+- `git diff --check`.
+- `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
+- `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`.
+- Tiny local Stage2 smoke with `cycles=2`, `num_replicas=2`, `max_flow_time=0.0`, `local_updates=1`, and `swap_enabled=0` passes.

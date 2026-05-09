@@ -377,3 +377,10 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 - `scripts/run_stage3_3_multiseed.py` and `scripts/merge_stage3_multiseed_chunks.py` now carry the new local transition counters through per-seed and aggregate CSV output.
 - Behavior-preservation note: no proposal, reverse-gate, Metropolis acceptance, RNG, or live-state update logic was changed; this patch is output/status observability only.
 - Verification passed: `python3 -m py_compile ...`; `git diff --check`; `make -C build FC=gfortran LDFLAGS= test1`; Stage1/Stage2 executable build; tiny local Stage2 smoke and parser readback of the new counters.
+
+## ODE/flow status surface - 2026-05-09 JST
+- Implemented the next state/information propagation slice: `intode`, `flowz`, `flowzr`, and `flow` now expose optional integer status outputs while preserving the existing `logical error_flag` callers.
+- New `intode_status_*` values distinguish strict ODEX success, zero-time no-op success, legacy stiff-rescue success, solver-internal assist success, and failures from max-step, invalid-state, or h-min boundaries.
+- Added the existing ODEX analytic test to the build as `make test_odex_solver` and extended it to assert status values.
+- Behavior-preservation note: ODEX/Radau/assist decisions, fallback counters, final proposal strictness, and all existing callers remain unchanged; the status is a contract surface for later patches.
+- Verification passed: `make -C build FC=gfortran LDFLAGS= test_odex_solver`; `git diff --check`; `make -C build FC=gfortran LDFLAGS= test1`; Stage1/Stage2 executable build; tiny local Stage2 smoke.
