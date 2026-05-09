@@ -2,6 +2,9 @@ module hmc_integrator_core
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use solve_flow, only: flow, flowz, flowzr, set_intode_stage_trace, set_intode_newton_iter_trace, set_intode_quasi_iter_trace, &
                          intode_stage_newton, intode_stage_quasi, intode_stage_rattle_flow, intode_stage_external, &
+                         intode_status_success, intode_status_success_zero_time, intode_status_success_stiff_rescue, &
+                         intode_status_success_solver_assist, intode_status_failure_max_steps, &
+                         intode_status_failure_invalid, intode_status_failure_h_min, &
                          get_intode_fallback_context_stats, get_intode_rescue_stats
    use param_mod, only: cttol, quasi_fallback_enabled
    use utils
@@ -54,6 +57,10 @@ module hmc_integrator_core
    integer, parameter :: hmc_step_status_final_force_failed = 6
    integer, parameter :: hmc_step_status_final_projection_failed = 7
    integer, parameter :: hmc_step_status_reverse_gate_rejected = 8
+   integer, parameter :: hmc_step_status_final_flow_max_steps = 9
+   integer, parameter :: hmc_step_status_final_flow_invalid = 10
+   integer, parameter :: hmc_step_status_final_flow_h_min = 11
+   integer, parameter :: hmc_step_status_final_flow_non_strict_success = 12
 
    integer, parameter :: s1_probe_max_iter_default = 28
    integer, parameter :: s1_near_full_max_iter_default = 100
@@ -119,6 +126,7 @@ contains
       integer :: success_radau_fixed_tol, success_radau_chunked, success_final_resort
       integer :: fail_radau_adaptive_robust, fail_radau_fixed_tol, fail_radau_chunked, fail_final_resort
       integer :: radau_rescue_ok, radau_rescue_fail
+      integer :: final_flow_status
       integer :: quasi_budget_used, quasi_budget_limit
       logical :: quasi_budget_hit
       real(dp) :: trace_first_res, trace_best_res, trace_last_res, trace_regress_ratio, trace_progress_ratio
@@ -411,9 +419,10 @@ contains
       call set_intode_stage_trace(intode_stage_rattle_flow)
       call set_intode_newton_iter_trace(0)
       call set_intode_quasi_iter_trace(0)
-      call flow(final_x, final_z, ws%temp_jac, has_error)
-      if (has_error) then
-         if (present(step_status)) step_status = hmc_step_status_final_flow_failed
+      call flow(final_x, final_z, ws%temp_jac, has_error, final_flow_status)
+      if (has_error .or. (.not. strict_final_flow_status_ok(final_flow_status))) then
+         has_error = .true.
+         if (present(step_status)) step_status = hmc_step_status_from_final_flow_status(final_flow_status)
          if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
          call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
          return
@@ -476,6 +485,36 @@ contains
       if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
       call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
    end subroutine rattle_step_core
+
+   pure logical function strict_final_flow_status_ok(flow_status) result(ok)
+      implicit none
+      integer, intent(in) :: flow_status
+
+      select case (flow_status)
+      case (intode_status_success, intode_status_success_zero_time)
+         ok = .true.
+      case default
+         ok = .false.
+      end select
+   end function strict_final_flow_status_ok
+
+   pure integer function hmc_step_status_from_final_flow_status(flow_status) result(status)
+      implicit none
+      integer, intent(in) :: flow_status
+
+      select case (flow_status)
+      case (intode_status_failure_max_steps)
+         status = hmc_step_status_final_flow_max_steps
+      case (intode_status_failure_invalid)
+         status = hmc_step_status_final_flow_invalid
+      case (intode_status_failure_h_min)
+         status = hmc_step_status_final_flow_h_min
+      case (intode_status_success_stiff_rescue, intode_status_success_solver_assist)
+         status = hmc_step_status_final_flow_non_strict_success
+      case default
+         status = hmc_step_status_final_flow_failed
+      end select
+   end function hmc_step_status_from_final_flow_status
 
    logical function qn_reverse_gate_accepts(state_x, state_z, initial_momentum, final_x, final_z, initial_jac, final_jac, &
                                             final_momentum, step_size) result(accepts)

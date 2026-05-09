@@ -1,7 +1,7 @@
 # State and Information Propagation Refactor
 
 Updated: 2026-05-09 JST
-Status: first four narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
+Status: first five narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
 
 ## Purpose
 
@@ -237,6 +237,35 @@ Compatibility:
 Verification:
 
 - `make -C build FC=gfortran LDFLAGS= test_odex_solver` passes; analytic checks report status `0` for strict ODEX success and `1` for zero-time success, with fallback attempts/failures `0/0`.
+- `git diff --check`.
+- `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
+- `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`.
+- Tiny local Stage2 smoke with `cycles=2`, `num_replicas=2`, `max_flow_time=0.0`, `local_updates=1`, and `swap_enabled=0` passes.
+
+## Fifth Source Slice - Strict Final Proposal Flow Gate - 2026-05-09 JST
+
+Purpose:
+
+- Enforce the agreed policy that solver-internal ODE assist may help Newton/QN residual evaluation, but must not finalize a physical HMC proposal.
+- Consume the ODE/flow status surface at the RATTLE final-flow boundary rather than relying only on `logical error_flag`.
+
+Implemented boundary:
+
+- `hmc_integrator_core.f90`: final proposal `flow(...)` now requests the optional flow status.
+- Only `intode_status_success` and `intode_status_success_zero_time` are accepted as strict final-flow success.
+- Final-flow max-step, invalid-state, h-min, and unexpected non-strict success statuses map to explicit HMC step statuses.
+- `hmc.f90`: maps the new final-flow step statuses to the existing proposal-level final-flow failure category.
+
+Compatibility:
+
+- Existing successful strict ODEX and zero-flow paths are unchanged.
+- Existing proposal-status callers remain source-compatible.
+- In the current canonical configuration this should not alter trajectories, because final-resort assist is already context/stage gated away from final `flow(...)` and stiff rescue is disabled.
+- If a future legacy/non-strict path accidentally returns success at final proposal flow, it will now fail closed rather than silently becoming a physical proposal.
+
+Verification:
+
+- `make -C build FC=gfortran LDFLAGS= test_odex_solver`.
 - `git diff --check`.
 - `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
 - `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`.

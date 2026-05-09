@@ -15,7 +15,11 @@ module hmc
                                   hmc_step_status_final_flow_failed, &
                                   hmc_step_status_final_force_failed, &
                                   hmc_step_status_final_projection_failed, &
-                                  hmc_step_status_reverse_gate_rejected
+                                  hmc_step_status_reverse_gate_rejected, &
+                                  hmc_step_status_final_flow_max_steps, &
+                                  hmc_step_status_final_flow_invalid, &
+                                  hmc_step_status_final_flow_h_min, &
+                                  hmc_step_status_final_flow_non_strict_success
    use hmc_reversibility_checks, only: state_has_progress, reversibility_probe_should_run, report_reversibility_probe
    implicit none
 
@@ -337,7 +341,9 @@ contains
             status = hmc_proposal_status_force_failed
          case (hmc_step_status_constraint_failed)
             status = hmc_proposal_status_constraint_failed
-         case (hmc_step_status_final_flow_failed)
+         case (hmc_step_status_final_flow_failed, hmc_step_status_final_flow_max_steps, &
+               hmc_step_status_final_flow_invalid, hmc_step_status_final_flow_h_min, &
+               hmc_step_status_final_flow_non_strict_success)
             status = hmc_proposal_status_final_flow_failed
          case (hmc_step_status_final_projection_failed)
             status = hmc_proposal_status_final_projection_failed

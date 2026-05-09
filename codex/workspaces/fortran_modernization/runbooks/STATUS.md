@@ -384,3 +384,10 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 - Added the existing ODEX analytic test to the build as `make test_odex_solver` and extended it to assert status values.
 - Behavior-preservation note: ODEX/Radau/assist decisions, fallback counters, final proposal strictness, and all existing callers remain unchanged; the status is a contract surface for later patches.
 - Verification passed: `make -C build FC=gfortran LDFLAGS= test_odex_solver`; `git diff --check`; `make -C build FC=gfortran LDFLAGS= test1`; Stage1/Stage2 executable build; tiny local Stage2 smoke.
+
+## Strict final proposal flow gate - 2026-05-09 JST
+- Implemented the next state/information propagation slice: RATTLE final proposal `flow(...)` now consumes the optional ODE/flow status.
+- Only strict ODEX success and zero-time no-op are accepted as final proposal flow success; max-step, invalid-state, h-min, and unexpected non-strict success statuses become explicit final-flow step failures.
+- Proposal-level compatibility is preserved by mapping these detailed step statuses back to the existing final-flow failure category in `hmc.f90`.
+- Behavior-preservation note: current canonical paths should be unchanged because solver-internal assist is already gated to Newton/QN residual contexts and stiff rescue is disabled; the patch fails closed if a future legacy path tries to finalize a proposal through non-strict flow.
+- Verification passed: `make -C build FC=gfortran LDFLAGS= test_odex_solver`; `git diff --check`; `make -C build FC=gfortran LDFLAGS= test1`; Stage1/Stage2 executable build; tiny local Stage2 smoke.

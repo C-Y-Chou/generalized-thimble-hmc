@@ -709,3 +709,9 @@ Use this file to append per-session notes.
 - Status values now distinguish strict ODEX success, zero-time no-op, legacy stiff-rescue success, solver-internal assist success, and max-step/invalid/h-min failures.
 - Added `make test_odex_solver` for the existing analytic ODEX test and extended it to assert status values.
 - Verified with `make -C build FC=gfortran LDFLAGS= test_odex_solver`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, and tiny local Stage2 smoke.
+
+## 2026-05-09 JST
+- RATTLE final proposal `flow(...)` now consumes the optional ODE/flow status.
+- Strict final proposal flow accepts only strict ODEX success and zero-time no-op; max-step, invalid-state, h-min, and unexpected non-strict success statuses become explicit final-flow step failures.
+- HMC proposal-level compatibility is preserved by mapping those detailed step statuses back to the existing final-flow failure category.
+- Verified with `make -C build FC=gfortran LDFLAGS= test_odex_solver`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, and tiny local Stage2 smoke.
