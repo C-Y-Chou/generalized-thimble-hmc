@@ -1,7 +1,7 @@
 # State and Information Propagation Refactor
 
 Updated: 2026-05-09 JST
-Status: first eight narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
+Status: first nine narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
 
 ## Purpose
 
@@ -357,3 +357,32 @@ Verification:
 - `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`.
 - `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
 - Tiny local Stage2 smoke with swap enabled passes.
+
+## Ninth Source Slice - Newton Residual Flow Status Counters - 2026-05-09 JST
+
+Purpose:
+
+- Give simplified Newton residual evaluation the same ODE/flow status observability as QN residual evaluation.
+- Keep residual-evaluation status diagnostic-only until a later typed residual-result refactor.
+
+Implemented boundary:
+
+- `hmc_constraints.f90`: Newton residual `flowz(...)` calls now request optional flow status.
+- Added Newton residual flow-status counters for strict success, zero-time success, stiff rescue, solver assist, max-step failure, invalid-state failure, h-min failure, and unknown status.
+- Stage1/Stage2 drivers reset the Newton counters at run start and write `# newton_eval_flow_status ...` summaries.
+- `run_stage3_3_multiseed.py` and `merge_stage3_multiseed_chunks.py` propagate the new per-seed and aggregate CSV columns.
+
+Compatibility:
+
+- Newton convergence, failure returns, line-search/rescue behavior, and RATTLE/HMC acceptance behavior are unchanged.
+- `solve_failed` remains the behavior-bearing signal inside simplified Newton.
+- Solver-internal assist remains observable, not forbidden, in residual-evaluation contexts.
+
+Verification:
+
+- `python3 -m py_compile scripts/run_stage3_3_multiseed.py scripts/merge_stage3_multiseed_chunks.py scripts/fortran_module_deps.py`.
+- `git diff --check`.
+- `make -C build FC=gfortran LDFLAGS= test_odex_solver`.
+- `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
+- `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`.
+- Tiny local Stage2 smoke writes `# newton_eval_flow_status ...`; parser readback succeeds and observes Newton residual zero-time flow evaluations.

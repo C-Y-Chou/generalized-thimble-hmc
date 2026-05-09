@@ -1,15 +1,80 @@
 module hmc_constraints
    use utils
+   use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-   use solve_flow, only: flowz, set_intode_stage_trace, set_intode_newton_iter_trace, intode_stage_newton
+   use solve_flow, only: flowz, set_intode_stage_trace, set_intode_newton_iter_trace, intode_stage_newton, &
+                         intode_status_unknown, intode_status_success, intode_status_success_zero_time, &
+                         intode_status_success_stiff_rescue, intode_status_success_solver_assist, &
+                         intode_status_failure_max_steps, intode_status_failure_invalid, intode_status_failure_h_min
    use perf_profile, only: perf_tic, perf_toc, PERF_NEWTON, PERF_PROJECTED_STEP
    implicit none
 
    integer, save :: post_qn_refine_log_limit = 0
    integer, save :: post_qn_refine_log_count = 0
    logical, save :: post_qn_refine_log_loaded = .false.
+   integer(int64), save :: newton_eval_flow_status_success = 0_int64
+   integer(int64), save :: newton_eval_flow_status_zero_time = 0_int64
+   integer(int64), save :: newton_eval_flow_status_stiff_rescue = 0_int64
+   integer(int64), save :: newton_eval_flow_status_solver_assist = 0_int64
+   integer(int64), save :: newton_eval_flow_status_failure_max_steps = 0_int64
+   integer(int64), save :: newton_eval_flow_status_failure_invalid = 0_int64
+   integer(int64), save :: newton_eval_flow_status_failure_h_min = 0_int64
+   integer(int64), save :: newton_eval_flow_status_unknown = 0_int64
 
 contains
+
+   subroutine reset_newton_eval_flow_status_counts()
+      implicit none
+
+      newton_eval_flow_status_success = 0_int64
+      newton_eval_flow_status_zero_time = 0_int64
+      newton_eval_flow_status_stiff_rescue = 0_int64
+      newton_eval_flow_status_solver_assist = 0_int64
+      newton_eval_flow_status_failure_max_steps = 0_int64
+      newton_eval_flow_status_failure_invalid = 0_int64
+      newton_eval_flow_status_failure_h_min = 0_int64
+      newton_eval_flow_status_unknown = 0_int64
+   end subroutine reset_newton_eval_flow_status_counts
+
+   subroutine get_newton_eval_flow_status_counts(success, zero_time, stiff_rescue, solver_assist, &
+                                                 failure_max_steps, failure_invalid, failure_h_min, unknown)
+      implicit none
+      integer(int64), intent(out) :: success, zero_time, stiff_rescue, solver_assist
+      integer(int64), intent(out) :: failure_max_steps, failure_invalid, failure_h_min, unknown
+
+      success = newton_eval_flow_status_success
+      zero_time = newton_eval_flow_status_zero_time
+      stiff_rescue = newton_eval_flow_status_stiff_rescue
+      solver_assist = newton_eval_flow_status_solver_assist
+      failure_max_steps = newton_eval_flow_status_failure_max_steps
+      failure_invalid = newton_eval_flow_status_failure_invalid
+      failure_h_min = newton_eval_flow_status_failure_h_min
+      unknown = newton_eval_flow_status_unknown
+   end subroutine get_newton_eval_flow_status_counts
+
+   subroutine record_newton_eval_flow_status(flow_status)
+      implicit none
+      integer, intent(in) :: flow_status
+
+      select case (flow_status)
+      case (intode_status_success)
+         newton_eval_flow_status_success = newton_eval_flow_status_success + 1_int64
+      case (intode_status_success_zero_time)
+         newton_eval_flow_status_zero_time = newton_eval_flow_status_zero_time + 1_int64
+      case (intode_status_success_stiff_rescue)
+         newton_eval_flow_status_stiff_rescue = newton_eval_flow_status_stiff_rescue + 1_int64
+      case (intode_status_success_solver_assist)
+         newton_eval_flow_status_solver_assist = newton_eval_flow_status_solver_assist + 1_int64
+      case (intode_status_failure_max_steps)
+         newton_eval_flow_status_failure_max_steps = newton_eval_flow_status_failure_max_steps + 1_int64
+      case (intode_status_failure_invalid)
+         newton_eval_flow_status_failure_invalid = newton_eval_flow_status_failure_invalid + 1_int64
+      case (intode_status_failure_h_min)
+         newton_eval_flow_status_failure_h_min = newton_eval_flow_status_failure_h_min + 1_int64
+      case default
+         newton_eval_flow_status_unknown = newton_eval_flow_status_unknown + 1_int64
+      end select
+   end subroutine record_newton_eval_flow_status
 
    subroutine reset_constraint_newton_warm_start()
       implicit none
@@ -131,7 +196,7 @@ contains
       real(dp) :: residual, residual_prev, residual_best, rel_improvement
       real(dp) :: near_tol, stagnation_floor, diverge_floor
       real(dp) :: step_norm, step_floor
-      integer :: n, iter, diverge_count, severe_diverge_count, stagnation_count, tiny_step_count, i
+      integer :: flow_status, n, iter, diverge_count, severe_diverge_count, stagnation_count, tiny_step_count, i
       integer :: iter_cap, iter_cap_hard, near_extend_chunk
       complex(dp) :: z_new(size(z))
       logical :: solve_failed, seed_is_zero, rescue_local
@@ -177,7 +242,9 @@ contains
          xtu(2:) = xt(2:) + u
          call set_intode_stage_trace(intode_stage_newton)
          call set_intode_newton_iter_trace(0)
-         call flowz(xtu, z_new, solve_failed)
+         flow_status = intode_status_unknown
+         call flowz(xtu, z_new, solve_failed, flow_status)
+         call record_newton_eval_flow_status(flow_status)
          if (solve_failed) then
             return
          end if
@@ -243,7 +310,9 @@ contains
                xtu(2:) = xt(2:) + u_trial
                call set_intode_stage_trace(intode_stage_newton)
                call set_intode_newton_iter_trace(iter)
-               call flowz(xtu, z_new, solve_failed)
+               flow_status = intode_status_unknown
+               call flowz(xtu, z_new, solve_failed, flow_status)
+               call record_newton_eval_flow_status(flow_status)
                if (.not. solve_failed) then
                   z_new = z - z_new - ld_trial
                   call complex_to_real(z_new, B_trial)
@@ -279,7 +348,9 @@ contains
             xtu(2:) = xt(2:) + u
             call set_intode_stage_trace(intode_stage_newton)
             call set_intode_newton_iter_trace(iter)
-            call flowz(xtu, z_new, solve_failed)
+            flow_status = intode_status_unknown
+            call flowz(xtu, z_new, solve_failed, flow_status)
+            call record_newton_eval_flow_status(flow_status)
             if (solve_failed) return
 
             z_new = z - z_new - ld

@@ -410,3 +410,9 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 - Updated generic Markov-chain initial flow, warmup reflow, adaptive preflow trial flow, and Stage2 adjacent-swap reflow candidates.
 - Behavior-preservation note: canonical strict ODEX/zero-time paths are unchanged. Solver-internal assist remains confined to residual-evaluation contexts and cannot construct live chain, warmup, preflow, swap, initialization, or final proposal states.
 - Verification passed: `git diff --check`, Stage1/Stage2 executable build, `make -C build FC=gfortran LDFLAGS= test1`, and tiny local Stage2 smoke with swap enabled.
+
+## Newton residual flow-status counters - 2026-05-09 JST
+- Implemented the next state/information propagation slice: simplified Newton residual `flowz(...)` calls now request optional ODE/flow status and record diagnostic counters.
+- Added Stage1/Stage2 `# newton_eval_flow_status ...` summary lines; multiseed run/merge scripts carry the new per-seed and aggregate CSV columns.
+- Behavior-preservation note: Newton convergence, failure returns, line-search/rescue behavior, and HMC/RATTLE acceptance logic are unchanged. `solve_failed` remains the behavior-bearing signal.
+- Verification passed: `py_compile`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test_odex_solver`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, tiny local Stage2 smoke, and parser readback with observed Newton zero-time residual-flow counts.

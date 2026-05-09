@@ -197,3 +197,9 @@
 - Behavior-preservation note: strict ODEX/zero-time physical state construction is unchanged; solver assist remains only a residual-evaluation tool.
 - Simplified Newton residual `flowz(...)` call sites were intentionally left for a separate residual-status slice.
 - Verification: `git diff --check`, Stage1/Stage2 executable build, `test1`, and tiny local Stage2 smoke with swap enabled passed.
+
+## 2026-05-09 JST - State propagation slice: Newton residual flow-status counters
+- Simplified Newton residual `flowz(...)` calls now request optional ODE/flow status and record diagnostic counters.
+- Stage1/Stage2 summaries write `# newton_eval_flow_status ...`; multiseed run and merge scripts propagate the new columns.
+- Behavior-preservation note: Newton convergence/failure behavior is unchanged; `solve_failed` remains the behavior-bearing signal.
+- Verification: `py_compile`, `git diff --check`, `test_odex_solver`, `test1`, Stage1/Stage2 executable build, tiny local Stage2 smoke, and parser readback passed. The smoke observed `newton_eval_flow_zero_time_count=80`.

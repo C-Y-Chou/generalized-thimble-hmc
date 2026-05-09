@@ -733,3 +733,8 @@ Use this file to append per-session notes.
 - Updated generic Markov-chain initial/warmup flow, adaptive preflow trial flow, and Stage2 adjacent-swap reflow candidates.
 - Solver-internal assist remains confined to NT/QN residual evaluation and cannot construct live-chain, preflow, swap, initialization, or final proposal states.
 - Verified with `git diff --check`, Stage1/Stage2 executable build, `make -C build FC=gfortran LDFLAGS= test1`, and tiny Stage2 swap-enabled smoke.
+
+## 2026-05-09 JST
+- Simplified Newton residual `flowz(...)` calls now request optional ODE/flow status and record diagnostic counters.
+- Stage1/Stage2 write `# newton_eval_flow_status ...`; multiseed run/merge scripts propagate the new columns.
+- Verification passed with `py_compile`, `git diff --check`, `test_odex_solver`, `test1`, Stage1/Stage2 executable build, tiny Stage2 smoke, and parser readback observing `newton_eval_flow_zero_time_count=80`.

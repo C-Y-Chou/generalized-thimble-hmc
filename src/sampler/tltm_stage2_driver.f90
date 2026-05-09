@@ -9,6 +9,7 @@ module tltm_stage2_driver
    use markovchain_mod, only: adaptive_preflow_to_target
    use markovchain_metropolis, only: metropolis_step
    use markovchain_phase, only: compute_phase_factor
+   use hmc_constraints, only: reset_newton_eval_flow_status_counts, get_newton_eval_flow_status_counts
    use quasi_newton_solver_mod, only: get_quasi_global_filter_stats, reset_quasi_eval_flow_status_counts, &
                                       get_quasi_eval_flow_status_counts
    use constraint_solver_stats_mod, only: reset_constraint_solver_stats, get_constraint_solver_stats, &
@@ -135,6 +136,7 @@ contains
       call read_parameters()
       call reset_intode_fallback_stats()
       call reset_constraint_solver_stats()
+      call reset_newton_eval_flow_status_counts()
       call reset_quasi_eval_flow_status_counts()
 
       x_size = config%state%x_size
@@ -989,6 +991,9 @@ contains
       real(dp) :: accept_rate, abs_mean_phi, pair_accept_rate, avg_round_trip
       integer :: total_round_trip
       type(local_accept_census_t) :: total_accept_census
+      integer(int64) :: newton_flow_success_count, newton_flow_zero_time_count, newton_flow_stiff_rescue_count
+      integer(int64) :: newton_flow_solver_assist_count, newton_flow_failure_max_steps_count, newton_flow_failure_invalid_count
+      integer(int64) :: newton_flow_failure_h_min_count, newton_flow_unknown_count
       integer(int64) :: qn_flow_success_count, qn_flow_zero_time_count, qn_flow_stiff_rescue_count
       integer(int64) :: qn_flow_solver_assist_count, qn_flow_failure_max_steps_count, qn_flow_failure_invalid_count
       integer(int64) :: qn_flow_failure_h_min_count, qn_flow_unknown_count
@@ -1042,6 +1047,14 @@ contains
       write (unit_summary, '(A,I0,A,I0,A,I0)') &
          "# quasi_global_filter_stats candidate=", global_filter_candidate_count, " pass=", global_filter_pass_count, &
          " reject=", global_filter_reject_count
+      call get_newton_eval_flow_status_counts(newton_flow_success_count, newton_flow_zero_time_count, newton_flow_stiff_rescue_count, &
+                                              newton_flow_solver_assist_count, newton_flow_failure_max_steps_count, &
+                                              newton_flow_failure_invalid_count, newton_flow_failure_h_min_count, newton_flow_unknown_count)
+      write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
+         "# newton_eval_flow_status success=", newton_flow_success_count, " zero_time=", newton_flow_zero_time_count, &
+         " stiff_rescue=", newton_flow_stiff_rescue_count, " solver_assist=", newton_flow_solver_assist_count, &
+         " failure_max_steps=", newton_flow_failure_max_steps_count, " failure_invalid=", newton_flow_failure_invalid_count, &
+         " failure_h_min=", newton_flow_failure_h_min_count, " unknown=", newton_flow_unknown_count
       call get_quasi_eval_flow_status_counts(qn_flow_success_count, qn_flow_zero_time_count, qn_flow_stiff_rescue_count, &
                                              qn_flow_solver_assist_count, qn_flow_failure_max_steps_count, &
                                              qn_flow_failure_invalid_count, qn_flow_failure_h_min_count, qn_flow_unknown_count)
