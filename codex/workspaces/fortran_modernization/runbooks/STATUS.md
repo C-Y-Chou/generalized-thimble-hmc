@@ -83,7 +83,8 @@ Latest behavior-neutral infrastructure cleanup:
 - Follow-up cleanup moved HMC diagnostic/probe integer limits and constraint failure-capture integer limits onto the shared parser, preserving the existing clamp/unlimited semantics.
 - `param_mod` consumers now use explicit `only:` imports; no active source/test file has a bare `use param_mod`.
 - `utils` consumers now use explicit `only:` imports; no active source/test file has a bare `use utils`.
-- Non-generated active source/test imports are explicit; the remaining bare import is in generated `model_generated.f90` and should be changed via the generator if needed.
+- Active source/test imports are explicit; `model_generated.f90` now receives its `model_tape_ad` `only:` list from `scripts/generate_model_generated.py`.
+- Generated model headers now use repo-relative source paths instead of machine-local absolute paths.
 
 Next expected modernization area after this slice:
 

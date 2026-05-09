@@ -99,7 +99,7 @@ def _sympy_fortran(term_fortran: str) -> tuple[str, str]:
 
 def _generate_symbolic_fortran(body_text: str, body_path: Path, ds_expr: str, d2_expr: str) -> str:
     body = _indent_block(body_text.rstrip("\n"), 6)
-    src_note = str(body_path)
+    src_note = _display_source_path(body_path)
     ds_line = re.sub(r"\bw\b", "z(i)", ds_expr)
     d2_line = re.sub(r"\bw\b", "z(i)", d2_expr)
 
@@ -190,14 +190,16 @@ end module model_generated
 
 def _generate_tape_fortran(body_text: str, body_path: Path) -> str:
     body = _indent_block(body_text.rstrip("\n"), 6)
-    src_note = str(body_path)
+    src_note = _display_source_path(body_path)
 
     return f"""! This file is auto-generated. Do not edit manually.
 ! Source action body: {src_note}
 ! Backend: tape-generic
 module model_generated
    use utils, only: dp
-   use model_tape_ad
+   use model_tape_ad, only: rev_t, tape_begin, tape_input, tape_const, tape_set_inputs, &
+                            tape_forward_values, tape_grad, tape_hvp, &
+                            operator(+), operator(-), operator(*), operator(/), operator(**), log, exp
    implicit none
    logical, save :: tape_ready = .false.
    logical, save :: tape_point_ready = .false.
@@ -331,6 +333,14 @@ contains
 
 end module model_generated
 """
+
+
+def _display_source_path(body_path: Path) -> str:
+    repo_root = Path(__file__).resolve().parent.parent
+    try:
+        return body_path.resolve().relative_to(repo_root).as_posix()
+    except ValueError:
+        return body_path.as_posix()
 
 
 def generate_fortran(body_text: str, body_path: Path, backend: str) -> str:

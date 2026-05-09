@@ -817,5 +817,10 @@ Use this file to append per-session notes.
 
 ## 2026-05-10 JST
 - Narrowed all active `utils` imports to explicit `only:` lists.
-- Narrowed the remaining non-generated broad module import in `markovchain_metropolis.f90`; generated `model_generated.f90` remains the only bare-import exception.
+- Narrowed the remaining non-generated broad module import in `markovchain_metropolis.f90`.
 - Verified with `git diff --check`, clean rebuild of production/test binaries, `test_odex_solver`, `test1`, `test2`, and a follow-up Stage1/Stage2 plus ODEX/test2 build.
+
+## 2026-05-10 JST
+- Updated `scripts/generate_model_generated.py` so generated `model_generated.f90` uses explicit `model_tape_ad` imports and repo-relative source headers.
+- Regenerated `src/physics/model_generated.f90`.
+- Verified with `py_compile`, deterministic regeneration, `git diff --check`, `evaluate_expectations` build, `test2`, and `test_odex_solver`.

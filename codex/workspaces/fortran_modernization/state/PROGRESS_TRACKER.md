@@ -46,7 +46,7 @@
 - 2026-05-10 JST: Reused shared int env parser for HMC diagnostic/probe limits and constraint failure-capture limits while preserving clamp/unlimited behavior.
 - 2026-05-10 JST: Narrowed all active `param_mod` consumers to explicit `only:` imports as a legacy-global boundary cleanup.
 - 2026-05-10 JST: Narrowed all active `utils` consumers to explicit `only:` imports as a shared-helper boundary cleanup.
-- 2026-05-10 JST: Narrowed the remaining non-generated broad module import; generated `model_generated.f90` is the only bare-import exception.
+- 2026-05-10 JST: Updated the model generator so generated `model_generated.f90` also uses explicit imports and repo-relative source headers.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit

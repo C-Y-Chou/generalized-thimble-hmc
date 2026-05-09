@@ -1,9 +1,11 @@
 ! This file is auto-generated. Do not edit manually.
-! Source action body: /lustre1/home/cychou/TLTM/src/physics/model_action_body.inc
+! Source action body: src/physics/model_action_body.inc
 ! Backend: tape-generic
 module model_generated
    use utils, only: dp
-   use model_tape_ad
+   use model_tape_ad, only: rev_t, tape_begin, tape_input, tape_const, tape_set_inputs, &
+                            tape_forward_values, tape_grad, tape_hvp, &
+                            operator(+), operator(-), operator(*), operator(/), operator(**), log, exp
    implicit none
    logical, save :: tape_ready = .false.
    logical, save :: tape_point_ready = .false.
