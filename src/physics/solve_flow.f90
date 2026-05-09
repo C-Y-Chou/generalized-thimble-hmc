@@ -69,8 +69,8 @@ module solve_flow
    integer, save :: intode_radau_chunked_fail = 0
    integer, save :: intode_final_resort_fail = 0
    logical, parameter :: intode_enable_stiff_rescue = .false.
-   logical, parameter :: intode_enable_final_resort = .false.
-   logical, parameter :: intode_fast_hmin_bypass = .false.
+   logical, parameter :: intode_enable_final_resort = .true.
+   logical, parameter :: intode_fast_hmin_bypass = .true.
    logical, parameter :: intode_verbose_logs = .false.
    ! <= 0 means unlimited final-resort uses (still context-gated).
    integer, parameter :: intode_final_resort_max_uses = 0
@@ -527,7 +527,7 @@ contains
       integer, intent(in) :: reason_code
       real(dp), intent(out) :: y_out(:)
       logical, intent(out) :: accepted
-      logical :: allow_context
+      logical :: allow_context, allow_stage
 
       accepted = .false.
       y_out = y_curr
@@ -542,6 +542,13 @@ contains
       end if
       allow_context = (intode_current_context == intode_ctx_flowz .or. intode_current_context == intode_ctx_flowzr)
       if (.not. allow_context) then
+         intode_final_resort_fail = intode_final_resort_fail + 1
+         return
+      end if
+      ! This is a solver-internal residual assist only; final proposal flow remains strict.
+      allow_stage = (intode_trace_stage == intode_stage_newton .or. intode_trace_stage == intode_stage_quasi .or. &
+                     intode_trace_stage == intode_stage_quasi_retry)
+      if (.not. allow_stage) then
          intode_final_resort_fail = intode_final_resort_fail + 1
          return
       end if
