@@ -228,3 +228,9 @@
 - Kept `fb_norefine` in the Stage3 runner as a compatibility alias for the now-canonical fallback-enabled/no-post-refine route.
 - Verification passed: `py_compile`, `git diff --check`, production executable build, `test_odex_solver`, `test1`, and tiny Stage2 smoke with explicit `TLTM_STAGE2_INIT_SIGMA=0.1`.
 - Follow-up decision: an existing Stage2 config aliasing hazard makes the default `TLTM_STAGE2_INIT_SIGMA` appear as `0.0000` in the local smoke when unset. Fixing it likely changes default initialization behavior and should be separated from the deletion patch.
+
+## 2026-05-09 JST - Stage env-parser default repair
+- Repaired Stage1/Stage2 environment parsing by changing integer/real/logical parser helpers to `intent(inout)` value arguments.
+- Defaults now stay in the caller; parser helpers only overwrite on valid environment values and otherwise leave the configured default untouched.
+- Removed the nonconforming same-variable default/output pattern that made unset `TLTM_STAGE2_INIT_SIGMA` appear as `0.0000`.
+- Verification: `git diff --check`, stale parser-call scan, Stage1/Stage2 executable build, `test_odex_solver`, Stage1 smoke without explicit init sigma, Stage2 smoke without explicit init sigma, and Stage2 explicit-override smoke all passed.

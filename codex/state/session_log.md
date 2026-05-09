@@ -759,3 +759,9 @@ Use this file to append per-session notes.
 - Removed helper scripts that depended on the deleted diagnostic binaries and updated active command/ODEX validation docs accordingly.
 - Verification passed with `py_compile`, `git diff --check`, production executable build, `test_odex_solver`, `test1`, and tiny Stage2 smoke using explicit `TLTM_STAGE2_INIT_SIGMA=0.1`.
 - Noted separate decision item: Stage2 default `init_sigma` parsing appears to suffer from an existing same-variable `intent(in)`/`intent(out)` aliasing hazard; fixing it may change default initialization behavior.
+
+## 2026-05-09 JST
+- Fixed Stage1/Stage2 environment parser defaults by replacing same-variable default/output parser calls with `intent(inout)` parser helpers.
+- Missing or invalid env values now preserve caller defaults; valid env values still override.
+- The observed unset `TLTM_STAGE2_INIT_SIGMA` smoke now reports the intended `init_sigma=0.1000`; explicit `TLTM_STAGE2_INIT_SIGMA=0.2` still reports `0.2000`.
+- Verification passed with `git diff --check`, stale parser-call scan, Stage1/Stage2 executable build, `test_odex_solver`, Stage1 smoke without explicit init sigma, Stage2 smoke without explicit init sigma, and Stage2 explicit-override smoke.

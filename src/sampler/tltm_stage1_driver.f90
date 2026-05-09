@@ -192,14 +192,14 @@ contains
       real(dp), allocatable :: parsed(:)
 
       n_replicas = 2
-      call parse_int_env("TLTM_STAGE1_NUM_REPLICAS", n_replicas, n_replicas)
+      call parse_int_env("TLTM_STAGE1_NUM_REPLICAS", n_replicas)
       if (n_replicas < 1) then
          write (*, '(A)') "[ERROR][TLTM-S1] TLTM_STAGE1_NUM_REPLICAS must be >= 1."
          error stop 1
       end if
 
       max_flow_time = max(0.0_dp, default_max_flow)
-      call parse_real_env("TLTM_STAGE1_MAX_FLOW_TIME", max_flow_time, max_flow_time)
+      call parse_real_env("TLTM_STAGE1_MAX_FLOW_TIME", max_flow_time)
       if (max_flow_time < 0.0_dp) then
          write (*, '(A)') "[ERROR][TLTM-S1] TLTM_STAGE1_MAX_FLOW_TIME must be >= 0."
          error stop 1
@@ -223,21 +223,21 @@ contains
       end if
 
       cycle_count = max(1, min(max(1, config_chain_length), stage1_cycle_cap_default))
-      call parse_int_env("TLTM_STAGE1_CYCLES", cycle_count, cycle_count)
+      call parse_int_env("TLTM_STAGE1_CYCLES", cycle_count)
       if (cycle_count < 1) then
          write (*, '(A)') "[ERROR][TLTM-S1] TLTM_STAGE1_CYCLES must be >= 1."
          error stop 1
       end if
 
       local_updates = max(1, config_hmc_repeat)
-      call parse_int_env("TLTM_STAGE1_LOCAL_UPDATES", local_updates, local_updates)
+      call parse_int_env("TLTM_STAGE1_LOCAL_UPDATES", local_updates)
       if (local_updates < 1) then
          write (*, '(A)') "[ERROR][TLTM-S1] TLTM_STAGE1_LOCAL_UPDATES must be >= 1."
          error stop 1
       end if
 
       init_sigma = stage1_init_sigma_default
-      call parse_real_env("TLTM_STAGE1_INIT_SIGMA", init_sigma, init_sigma)
+      call parse_real_env("TLTM_STAGE1_INIT_SIGMA", init_sigma)
       if (init_sigma <= 0.0_dp) then
          write (*, '(A)') "[ERROR][TLTM-S1] TLTM_STAGE1_INIT_SIGMA must be > 0."
          error stop 1
@@ -408,36 +408,34 @@ contains
       end if
    end subroutine build_linear_ladder
 
-   subroutine parse_int_env(name, default_value, value_out)
+   ! Keep defaults in the caller; the parser only overwrites on valid env input.
+   subroutine parse_int_env(name, value)
       character(len=*), intent(in) :: name
-      integer, intent(in) :: default_value
-      integer, intent(out) :: value_out
+      integer, intent(inout) :: value
       character(len=128) :: env_text
-      integer :: env_len, env_status, ios
+      integer :: env_len, env_status, ios, parsed_value
 
-      value_out = default_value
       env_text = ""
       call get_environment_variable(name, env_text, length=env_len, status=env_status)
       if (env_status /= 0 .or. env_len <= 0) return
 
-      read (env_text(1:env_len), *, iostat=ios) value_out
-      if (ios /= 0) value_out = default_value
+      read (env_text(1:env_len), *, iostat=ios) parsed_value
+      if (ios == 0) value = parsed_value
    end subroutine parse_int_env
 
-   subroutine parse_real_env(name, default_value, value_out)
+   subroutine parse_real_env(name, value)
       character(len=*), intent(in) :: name
-      real(dp), intent(in) :: default_value
-      real(dp), intent(out) :: value_out
+      real(dp), intent(inout) :: value
       character(len=128) :: env_text
       integer :: env_len, env_status, ios
+      real(dp) :: parsed_value
 
-      value_out = default_value
       env_text = ""
       call get_environment_variable(name, env_text, length=env_len, status=env_status)
       if (env_status /= 0 .or. env_len <= 0) return
 
-      read (env_text(1:env_len), *, iostat=ios) value_out
-      if (ios /= 0) value_out = default_value
+      read (env_text(1:env_len), *, iostat=ios) parsed_value
+      if (ios == 0) value = parsed_value
    end subroutine parse_real_env
 
    subroutine parse_real_list(text, values, ok)
