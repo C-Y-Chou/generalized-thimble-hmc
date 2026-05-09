@@ -2,7 +2,8 @@ module tltm_stage2_driver
    use, intrinsic :: iso_fortran_env, only: int64
    use param_mod, only: config, read_parameters
    use utils
-   use solve_flow, only: flow, set_intode_strict_mode, reset_intode_fallback_stats, get_intode_fallback_stats
+   use solve_flow, only: flow, set_intode_strict_mode, reset_intode_fallback_stats, get_intode_fallback_stats, &
+                         intode_status_unknown, intode_status_is_strict_success
    use model, only: grand, calculate_action
    use mt95, only: getseed, sgrnd, grnd
    use markovchain_mod, only: adaptive_preflow_to_target
@@ -416,7 +417,7 @@ contains
       real(dp), allocatable :: x_seed(:)
       logical :: flow_failed
       logical :: preflow_success
-      integer :: attempt, stage_count
+      integer :: attempt, flow_status, stage_count
 
       ok = .false.
       allocate (x_seed(max(1, size(slot%x) - 1)))
@@ -440,8 +441,9 @@ contains
                " adaptive preflow ready at t=", slot%flow_time, " attempt=", attempt, " stages=", stage_count
          end if
 
-         call flow(slot%x, slot%z, slot%jac, flow_failed)
-         if (.not. flow_failed) then
+         flow_status = intode_status_unknown
+         call flow(slot%x, slot%z, slot%jac, flow_failed, flow_status)
+         if ((.not. flow_failed) .and. intode_status_is_strict_success(flow_status)) then
             ok = .true.
             if (trim(init_mode) == "direct" .or. trim(init_mode) == "legacy") then
                write (*, '(A,I0,A,F10.6,A,I0)') "[TLTM-S2][INIT] slot=", slot%slot_id, &

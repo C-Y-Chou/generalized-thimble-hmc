@@ -185,3 +185,9 @@
 - Stage1/Stage2 summaries write `# qn_eval_flow_status ...`; multiseed run and merge scripts propagate new per-seed and aggregate CSV columns.
 - Behavior-preservation note: no solver decision changed. `ierr` remains the validity signal, and invalid residual evaluations still return neutral `fq=0`, `Jl=0`, `ierr=.true.`.
 - Verification: `py_compile`, `git diff --check`, `test_odex_solver`, `test1`, Stage1/Stage2 executable build, tiny local Stage2 smoke, and parser readback all passed.
+
+## 2026-05-09 JST - State propagation slice: strict initialization flow gate
+- Added `intode_status_is_strict_success(...)` in `solve_flow.f90` and reused it in HMC final proposal flow.
+- Stage1 replica initialization and Stage2 slot initialization now request optional `flow(...)` status and accept only strict ODEX success or zero-time no-op.
+- Behavior-preservation note: canonical strict/zero-time init paths are unchanged; non-strict solver-assist or legacy rescue success is fail-closed for live-chain initialization.
+- Verification: `git diff --check`, `test_odex_solver`, Stage1/Stage2 executable build, `test1`, and tiny local Stage2 smoke passed.

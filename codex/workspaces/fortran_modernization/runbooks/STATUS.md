@@ -398,3 +398,9 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 - Stage1/Stage2 summaries now write `# qn_eval_flow_status ...`; multiseed run/merge scripts carry the new per-seed and aggregate columns.
 - Behavior-preservation note: this is observability only. `ierr` remains the behavior-bearing residual validity signal, and trust-region, line-search, acceptance, reverse-gate, RNG, and final proposal logic are unchanged.
 - Verification passed: `py_compile`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test_odex_solver`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, tiny local Stage2 smoke, and parser readback of the new columns.
+
+## Strict initialization flow gate - 2026-05-09 JST
+- Implemented the next state/information propagation slice: Stage1/Stage2 initialization now requests optional `flow(...)` status and accepts only strict ODEX success or zero-time no-op.
+- Added shared helper `intode_status_is_strict_success(...)` in `solve_flow.f90`; HMC final proposal flow now uses the same helper instead of a private duplicate.
+- Behavior-preservation note: current canonical strict ODEX and zero-time initialization paths are unchanged. Non-strict solver-assist or legacy rescue success is fail-closed for initialization, matching the final physical proposal boundary.
+- Verification passed: `git diff --check`, `make -C build FC=gfortran LDFLAGS= test_odex_solver`, Stage1/Stage2 executable build, `make -C build FC=gfortran LDFLAGS= test1`, and tiny local Stage2 smoke.

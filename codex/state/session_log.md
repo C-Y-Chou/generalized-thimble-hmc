@@ -721,3 +721,9 @@ Use this file to append per-session notes.
 - Added summary and CSV diagnostics for strict success, zero-time success, stiff rescue, solver assist, max-step failure, invalid-state failure, h-min failure, and unknown residual-flow statuses.
 - Stage1/Stage2 write `# qn_eval_flow_status ...`; multiseed run/merge scripts propagate the new columns.
 - Verified with `py_compile`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test_odex_solver`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, tiny local Stage2 smoke, and parser readback.
+
+## 2026-05-09 JST
+- Added shared `intode_status_is_strict_success(...)` helper in `solve_flow.f90`.
+- HMC final proposal flow, Stage1 initialization, and Stage2 initialization now use the same strict-success predicate.
+- Stage1/Stage2 initialization requests optional `flow(...)` status and accepts only strict ODEX success or zero-time no-op.
+- Verified with `git diff --check`, `make -C build FC=gfortran LDFLAGS= test_odex_solver`, Stage1/Stage2 executable build, `make -C build FC=gfortran LDFLAGS= test1`, and tiny local Stage2 smoke.

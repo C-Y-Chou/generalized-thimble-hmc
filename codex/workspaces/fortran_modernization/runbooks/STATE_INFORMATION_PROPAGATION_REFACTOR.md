@@ -1,7 +1,7 @@
 # State and Information Propagation Refactor
 
 Updated: 2026-05-09 JST
-Status: first six narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
+Status: first seven narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
 
 ## Purpose
 
@@ -301,3 +301,32 @@ Verification:
 - `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
 - `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`.
 - Tiny local Stage2 smoke writes `# qn_eval_flow_status ...` and parser readback succeeds for all new columns.
+
+## Seventh Source Slice - Strict Initialization Flow Gate - 2026-05-09 JST
+
+Purpose:
+
+- Apply the same strict physical-state construction rule to Stage1/Stage2 initialization that is already used for final HMC proposals.
+- Keep solver-internal assist limited to NT/QN residual evaluation, not initial live-chain state construction.
+- Avoid duplicating strict-success logic in multiple callers.
+
+Implemented boundary:
+
+- `solve_flow.f90`: added pure helper `intode_status_is_strict_success(...)`, true only for strict ODEX success and zero-time no-op.
+- `hmc_integrator_core.f90`: final proposal flow now uses the shared helper instead of a private duplicate.
+- `tltm_stage1_driver.f90`: replica initialization requests optional `flow(...)` status and accepts only strict success.
+- `tltm_stage2_driver.f90`: slot initialization requests optional `flow(...)` status and accepts only strict success.
+
+Compatibility:
+
+- Current canonical zero-time and strict ODEX initialization paths are unchanged.
+- Non-strict solver-assist or legacy rescue success is now fail-closed for initialization, matching the final proposal boundary.
+- No Metropolis, RATTLE, QN residual, reverse-gate, RNG, or output schema behavior changed.
+
+Verification:
+
+- `git diff --check`.
+- `make -C build FC=gfortran LDFLAGS= test_odex_solver`.
+- `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`.
+- `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
+- Tiny local Stage2 smoke with zero flow and two replicas passes.

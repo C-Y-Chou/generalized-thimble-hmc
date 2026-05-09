@@ -551,6 +551,18 @@ contains
       if (present(status)) status = status_code
    end subroutine set_intode_status
 
+   pure logical function intode_status_is_strict_success(status_code) result(ok)
+      implicit none
+      integer, intent(in) :: status_code
+
+      select case (status_code)
+      case (intode_status_success, intode_status_success_zero_time)
+         ok = .true.
+      case default
+         ok = .false.
+      end select
+   end function intode_status_is_strict_success
+
    subroutine intode_try_final_resort(y_curr, t_remaining, reason_code, y_out, accepted)
       implicit none
       real(dp), intent(in) :: y_curr(:), t_remaining

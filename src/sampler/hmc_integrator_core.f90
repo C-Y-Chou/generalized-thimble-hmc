@@ -2,10 +2,9 @@ module hmc_integrator_core
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use solve_flow, only: flow, flowz, flowzr, set_intode_stage_trace, set_intode_newton_iter_trace, set_intode_quasi_iter_trace, &
                          intode_stage_newton, intode_stage_quasi, intode_stage_rattle_flow, intode_stage_external, &
-                         intode_status_success, intode_status_success_zero_time, intode_status_success_stiff_rescue, &
-                         intode_status_success_solver_assist, intode_status_failure_max_steps, &
+                         intode_status_success_stiff_rescue, intode_status_success_solver_assist, intode_status_failure_max_steps, &
                          intode_status_failure_invalid, intode_status_failure_h_min, &
-                         get_intode_fallback_context_stats, get_intode_rescue_stats
+                         get_intode_fallback_context_stats, get_intode_rescue_stats, intode_status_is_strict_success
    use param_mod, only: cttol, quasi_fallback_enabled
    use utils
    use model, only: ds
@@ -420,7 +419,7 @@ contains
       call set_intode_newton_iter_trace(0)
       call set_intode_quasi_iter_trace(0)
       call flow(final_x, final_z, ws%temp_jac, has_error, final_flow_status)
-      if (has_error .or. (.not. strict_final_flow_status_ok(final_flow_status))) then
+      if (has_error .or. (.not. intode_status_is_strict_success(final_flow_status))) then
          has_error = .true.
          if (present(step_status)) step_status = hmc_step_status_from_final_flow_status(final_flow_status)
          if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
@@ -485,18 +484,6 @@ contains
       if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
       call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
    end subroutine rattle_step_core
-
-   pure logical function strict_final_flow_status_ok(flow_status) result(ok)
-      implicit none
-      integer, intent(in) :: flow_status
-
-      select case (flow_status)
-      case (intode_status_success, intode_status_success_zero_time)
-         ok = .true.
-      case default
-         ok = .false.
-      end select
-   end function strict_final_flow_status_ok
 
    pure integer function hmc_step_status_from_final_flow_status(flow_status) result(status)
       implicit none

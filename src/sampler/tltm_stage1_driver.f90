@@ -2,7 +2,7 @@ module tltm_stage1_driver
    use, intrinsic :: iso_fortran_env, only: int64
    use param_mod, only: config, read_parameters
    use utils
-   use solve_flow, only: flow, set_intode_strict_mode
+   use solve_flow, only: flow, set_intode_strict_mode, intode_status_unknown, intode_status_is_strict_success
    use model, only: grand
    use mt95, only: getseed, sgrnd
    use markovchain_metropolis, only: metropolis_step
@@ -89,7 +89,7 @@ contains
 
       real(dp), allocatable :: x_seed(:)
       logical :: flow_failed
-      integer :: attempt
+      integer :: attempt, flow_status
 
       ok = .false.
       allocate (x_seed(max(1, size(replica%x) - 1)))
@@ -100,8 +100,9 @@ contains
          x_seed = init_sigma*x_seed
          call x_set_flow_time(replica%x, replica%flow_time)
          call x_set_seed_real(replica%x, x_seed)
-         call flow(replica%x, replica%z, replica%jac, flow_failed)
-         if (.not. flow_failed) then
+         flow_status = intode_status_unknown
+         call flow(replica%x, replica%z, replica%jac, flow_failed, flow_status)
+         if ((.not. flow_failed) .and. intode_status_is_strict_success(flow_status)) then
             ok = .true.
             exit
          end if
