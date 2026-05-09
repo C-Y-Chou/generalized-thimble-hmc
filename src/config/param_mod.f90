@@ -233,26 +233,6 @@ contains
       n_seed = config%state%z_size
    end function state_seed_size_cfg
 
-   subroutine read_parameters_legacy(unit_id)
-      implicit none
-      integer, intent(in) :: unit_id
-      character(len=256) :: legacy_initial_file
-
-      ! Legacy positional format
-      read (unit_id, *) config%flags%istest, config%flags%tra2, config%flags%eo
-      read (unit_id, *) config%chain%length, config%chain%hmc_repeat
-      read (unit_id, *) config%integrator%trajectory_length, config%integrator%integration_steps
-      read (unit_id, *) config%state%x_size
-      read (unit_id, *) config%chain%warmup
-      read (unit_id, *) config%model%alpha, config%model%beta
-      read (unit_id, *) config%solver%abs_tol, config%solver%rel_tol, config%solver%constraint_tol
-      ! Legacy slot kept for compatibility; initial_file is no longer used.
-      read (unit_id, '(A)') legacy_initial_file
-      read (unit_id, '(A)') config%io%x_history_file
-      read (unit_id, '(A)') config%io%z_history_file
-      read (unit_id, '(A)') config%io%phi_history_file
-   end subroutine read_parameters_legacy
-
    subroutine read_parameters_key_value(unit_id)
       implicit none
       integer, intent(in) :: unit_id
@@ -272,6 +252,7 @@ contains
          eq_pos = index(line, '=')
          if (eq_pos <= 1) then
             write (*, '(A,I0,A)') "Error(parameters.dat): malformed key=value at line ", line_no, "."
+            write (*, '(A)') "Error(parameters.dat): legacy positional parameters.dat is no longer supported."
             error stop 1
          end if
 
@@ -475,8 +456,6 @@ contains
       integer :: ios
       integer :: candidate_idx
       character(len=256) :: filename
-      character(len=1024) :: probe_line
-      logical :: has_key_value
       logical :: opened
       character(len=256), parameter :: candidates(2) = [character(len=256) :: "../data/parameters.dat", "data/parameters.dat"]
 
@@ -494,24 +473,9 @@ contains
          error stop 1
       end if
 
-      has_key_value = .false.
-      do
-         read (10, '(A)', iostat=ios) probe_line
-         if (ios /= 0) exit
-         probe_line = strip_comment(probe_line)
-         if (len_trim(probe_line) == 0) cycle
-         if (index(probe_line, '=') > 0) has_key_value = .true.
-         exit
-      end do
-
-      rewind (10)
       config%integrator%initial_flow_time = 0.0_dp
       config%solver%enable_quasi_fallback = .true.
-      if (has_key_value) then
-         call read_parameters_key_value(10)
-      else
-         call read_parameters_legacy(10)
-      end if
+      call read_parameters_key_value(10)
 
       close (10)
 

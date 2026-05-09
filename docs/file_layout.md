@@ -24,9 +24,7 @@ This document defines the intended responsibilities of top-level directories and
 ## 2. Runtime Input Data
 
 - `data/parameters.dat`
-  - runtime parameter file (`key=value` preferred, legacy positional accepted)
-- `data/initial_x.dat`
-  - legacy compatibility input for initial state vectors (not part of the default workflow; planned for future removal)
+  - runtime parameter file (`key=value` only)
 
 ## 3. Generated Runtime Outputs
 
@@ -44,7 +42,7 @@ This document defines the intended responsibilities of top-level directories and
 - `docs/commands.md`
   - command reference
 - `docs/state_vector_convention.md`
-  - `x` semantics and input file contract
+  - `x` semantics and helper API contract
 - `docs/module_architecture.md`
   - layer contract and dependency rules
 - `docs/fallback_policy_s1.md`
@@ -58,7 +56,7 @@ This document defines the intended responsibilities of top-level directories and
 
 - Keep dependency direction consistent with architecture (`apps -> sampler -> physics -> config -> core`).
 - Keep runtime parameter interpretation centralized in `src/config/param_mod.f90`.
-- Keep state-vector parsing and helper APIs centralized in `src/core/utils.f90`.
-- Keep default runtime flow independent of `data/initial_x.dat` (legacy compatibility only).
+- Keep state-vector helper APIs centralized in `src/core/utils.f90`.
+- Keep runtime initialization in sampler/driver codepaths; do not reintroduce `data/initial_x.dat`.
 - Keep build/run command surface centralized in `build/makefile`.
 - Avoid duplicating logic across `apps/`; algorithmic logic belongs to lower layers.

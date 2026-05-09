@@ -66,14 +66,11 @@ See [commands.md](./commands.md) for a compact command reference.
 Primary runtime inputs are under `data/`:
 
 - `parameters.dat`: runtime parameters and paths
-- `initial_x.dat`: legacy compatibility only (not part of the default workflow)
 
-### `parameters.dat` formats
+### `parameters.dat` format
 
-`param_mod` supports two formats:
-
-1. Preferred `key=value` format (`#` / `!` comments allowed)
-2. Legacy positional format (backward compatibility)
+`param_mod` requires `key=value` format (`#` / `!` comments allowed).
+Legacy positional `parameters.dat` files are no longer accepted.
 
 Recommended behavior:
 
@@ -115,13 +112,12 @@ State vector `x(:)` semantics:
 - `x(1)`: flow time
 - `x(2:)`: real seed values
 
-Runtime default is randomized start generation. `initial_x.dat` remains a legacy compatibility path and is planned for removal.
+Runtime default is randomized start generation. There is no `initial_x.dat` runtime input path.
 
 Helper APIs (recommended over direct indexing) are defined in `src/core/utils.f90`:
 
 - `x_get_flow_time`, `x_set_flow_time`
 - `x_get_seed_real`, `x_set_seed_real`
-- `read_initial_state`, `save_initial_state`
 
 See [state_vector_convention.md](./state_vector_convention.md) for full details.
 

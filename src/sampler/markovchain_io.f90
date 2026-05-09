@@ -1,5 +1,5 @@
 module markovchain_io
-   use utils
+   use utils, only: dp
    implicit none
 
 contains
@@ -23,20 +23,5 @@ contains
          flush (unit_phi)
       end if
    end subroutine write_chain_snapshot
-
-   subroutine save_initial_state_from_x(filename, x, x_seed)
-      implicit none
-      character(len=*), intent(in) :: filename
-      real(dp), intent(in) :: x(:)
-      real(dp), intent(inout) :: x_seed(:)
-
-      if (size(x_seed) /= size(x) - 1) then
-         write (*, *) "Error(save_initial_state_from_x): x_seed size mismatch."
-         error stop 1
-      end if
-
-      call x_get_seed_real(x, x_seed)
-      call save_initial_state(filename, x_get_flow_time(x), x_seed)
-   end subroutine save_initial_state_from_x
 
 end module markovchain_io

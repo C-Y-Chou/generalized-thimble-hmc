@@ -368,7 +368,7 @@ The modernization plan is structurally complete at the planning level after corr
 Remaining open items are not missing workstreams; they are future gates:
 
 - exact official baseline configs.
-- input-compatibility policy for legacy positional `parameters.dat` and the unused `initial_x.dat` slot.
+- broader config modernization policy after deleting legacy positional `parameters.dat` and the unused `initial_x.dat` path.
 - final wrapper API shape.
 - output schema version details.
 

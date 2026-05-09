@@ -66,11 +66,15 @@ Updated: 2026-05-09 JST
 ## Next action
 Current source state has passed the Radau/JFNK deletion, non-p28 QN deletion, post-refine deletion, ODE/QN solver-assist naming, RATTLE progress-diagnostic, and state/status surface slices.
 
-Next source-level decision gate:
+Latest source-level compatibility decision:
 
-- `src/config/param_mod.f90` still accepts legacy positional `parameters.dat` and still consumes an unused legacy `initial_x.dat` slot.
-- Current production configs use key-value `parameters.dat`, so deleting the legacy positional reader should not affect the current Stage scripts.
-- Deletion would intentionally break old positional parameter files; this is an input-compatibility decision and should be confirmed before code removal.
+- User confirmed deletion of legacy positional `parameters.dat` parsing and the unused `initial_x.dat` compatibility path.
+- `src/config/param_mod.f90` now requires key-value `parameters.dat` and fails fast on positional input.
+- Unused initial-state file helpers were removed from active source/docs; runtime initialization stays in sampler/driver codepaths.
+
+Next expected modernization area after this slice:
+
+- Broader config modernization: typed config propagation, remaining legacy globals, env override policy, and eventual schema-versioned wrapper configuration.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.

@@ -270,3 +270,9 @@
 - Added preferred `QN_SOLVER_ASSIST_BUDGET` env parsing while retaining `QUASI_FINAL_RESORT_BUDGET` as a legacy fallback alias.
 - Preserved compatibility output/schema names for `final_resort_budget_*`.
 - Verification passed with `git diff --check`, Stage1/Stage2 executable build, `test_odex_solver`, and `test1`.
+
+## 2026-05-09 JST - Config compatibility cleanup
+- User confirmed deletion of legacy positional `parameters.dat` parsing and the unused `initial_x.dat` compatibility path.
+- `param_mod` now reads only key-value `parameters.dat` and reports a fatal error for positional input.
+- Removed unused initial-state file helpers from active source and updated docs to make sampler/driver randomized initialization the only runtime path.
+- This is an intentional input-compatibility break; current production configs are key-value and should be unaffected.
