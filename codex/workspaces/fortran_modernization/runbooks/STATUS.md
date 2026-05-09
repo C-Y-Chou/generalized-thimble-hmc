@@ -422,3 +422,8 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 - Added Stage1/Stage2 `# reverse_gate_replay_status ...` summary lines; multiseed run/merge scripts carry the new per-seed and aggregate CSV columns.
 - Behavior-preservation note: RG replay, tolerance comparison, pass/reject decision, and counter suppression semantics are unchanged. The new counters describe replay construction status, not the tolerance comparison outcome.
 - Verification passed: `py_compile`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test_odex_solver`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, tiny local Stage2 smoke/parser readback, and RG-enabled tiny smoke observing `reverse_gate_replay_success=80`.
+
+## Source hygiene cleanup - 2026-05-09 JST
+- Removed tracked backup artifact `src/sampler/hmc_integrator_core.f90.bak_codex_20260429`.
+- Behavior-preservation note: the file was not a build source and only polluted source search/audit results.
+- Verification: `rg --files src | rg "bak|backup|copy|old|legacy"` no longer reports tracked backup source artifacts.

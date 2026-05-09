@@ -743,3 +743,8 @@ Use this file to append per-session notes.
 - Reverse-gate replay now records nested `rattle_step_core(...)` step status without changing replay or tolerance decisions.
 - Stage1/Stage2 write `# reverse_gate_replay_status ...`; multiseed run/merge scripts propagate the new columns.
 - Verification passed with `py_compile`, `git diff --check`, `test_odex_solver`, `test1`, Stage1/Stage2 executable build, parser readback, and RG-enabled tiny smoke observing `reverse_gate_replay_success=80`.
+
+## 2026-05-09 JST
+- Removed tracked backup artifact `src/sampler/hmc_integrator_core.f90.bak_codex_20260429`.
+- The file was not compiled and only polluted source search/audit results.
+- Verified source artifact scan no longer reports backup files under `src`.

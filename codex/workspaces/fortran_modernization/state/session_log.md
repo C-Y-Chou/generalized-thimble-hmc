@@ -209,3 +209,8 @@
 - Stage1/Stage2 summaries write `# reverse_gate_replay_status ...`; multiseed run and merge scripts propagate the new columns.
 - Behavior-preservation note: replay construction, RG tolerance comparison, pass/reject outcome, and suppression semantics are unchanged.
 - Verification: `py_compile`, `git diff --check`, `test_odex_solver`, `test1`, Stage1/Stage2 executable build, tiny local Stage2 smoke/parser readback, and RG-enabled tiny smoke passed. The RG-enabled smoke observed `reverse_gate_replay_success=80`.
+
+## 2026-05-09 JST - Source hygiene cleanup
+- Removed tracked backup artifact `src/sampler/hmc_integrator_core.f90.bak_codex_20260429`.
+- Behavior-preservation note: the backup file was not compiled and only polluted source audit/search results.
+- Verification: source artifact scan no longer reports backup files under `src`.
