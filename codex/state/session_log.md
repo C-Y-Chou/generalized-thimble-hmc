@@ -696,3 +696,10 @@ Use this file to append per-session notes.
   - expected report: `output/tests/stage3_4/judgment_20260508_32seed_50k_p28_rg/REPORT.md`
 - ETA:
   - expected compute finish around 2026-05-08 15:50-16:20 JST, with merge/report shortly afterward.
+
+## 2026-05-09 JST
+- Implemented local transition counter split for the Fortran modernization state-propagation workflow.
+- Added lightweight `markovchain_transition_status` module so status constants are shared without coupling TLTM type definitions to the Metropolis implementation module.
+- Stage1/Stage2 local transition recording now keeps old accept/reject and `projection_failure_count` behavior while adding detailed counters for ordinary Metropolis reject, reverse-gate reject, proposal construction failure, invalid Hamiltonian, invalid `Delta H`, and output-size mismatch.
+- Stage2 writes `# local_transition_totals ...`; RG reject audit includes `transition_status`; multiseed run/merge scripts propagate the new columns.
+- Verified with `py_compile`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, and a tiny local Stage2 smoke/parser readback.

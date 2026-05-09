@@ -158,3 +158,11 @@
 - 2026-05-08 JST: User selected Hairer ODEX `IWORK(3)=3` (`2,4,6,8,12,16,24,32,...`) as canonical sequence; current sequence is legacy until patched/tested.
 - 2026-05-08 JST: Confirmed p28 QN as BTN/backflow rescue; sign convention is `xi1=-b`, `xi2=-a` (`a=-xi2`, `b=-xi1`).
 - 2026-05-08 JST: Decided future p28 BTN code should use paper variables `xi1=b`, `xi2=a`; residual correction and initial guess RHS must both flip sign together.
+
+## 2026-05-09 JST - State propagation slice: local transition counters
+- Implemented detailed Stage1/Stage2 local transition counters using the Metropolis transition status surface.
+- Added lightweight `markovchain_transition_status` module so status constants are shared by Metropolis and TLTM types without a types-to-implementation dependency.
+- Preserved legacy `projection_failure_count` as the compatibility total for `proposal_failed`; new counters split ordinary Metropolis reject, reverse-gate reject, proposal construction failure, invalid Hamiltonian, invalid `Delta H`, and output-size mismatch.
+- Stage1/Stage2 summary schemas append new columns after legacy columns; Stage2 writes `# local_transition_totals ...`.
+- Multiseed run and merge scripts now carry the new local transition counters through per-seed and aggregate CSV output.
+- Verification: `py_compile`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, and tiny local Stage2 smoke/parser readback all passed.

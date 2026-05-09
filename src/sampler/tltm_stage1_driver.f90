@@ -7,7 +7,7 @@ module tltm_stage1_driver
    use mt95, only: getseed, sgrnd
    use markovchain_metropolis, only: metropolis_step
    use markovchain_phase, only: compute_phase_factor
-   use tltm_types_mod, only: tltm_replica_t, allocate_tltm_replica, release_tltm_replica
+   use tltm_types_mod, only: tltm_replica_t, allocate_tltm_replica, release_tltm_replica, record_tltm_local_transition
    implicit none
 
    integer, parameter :: stage1_cycle_cap_default = 200
@@ -119,6 +119,7 @@ contains
       real(dp), allocatable :: x_new(:)
       complex(dp), allocatable :: z_new(:), j_new(:, :)
       logical :: accepted, proposal_failed
+      integer :: transition_status
 
       z_size = size(replica%z)
       allocate (x_new(size(replica%x)))
@@ -126,16 +127,13 @@ contains
 
       do update_idx = 1, local_updates
          call metropolis_step(replica%x, replica%z, replica%jac, config%integrator%trajectory_length, &
-                              config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed)
+                              config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status)
          if (accepted) then
             replica%x = x_new
             replica%z = z_new
             replica%jac = j_new
-            replica%local_accept_count = replica%local_accept_count + 1
-         else
-            replica%local_reject_count = replica%local_reject_count + 1
          end if
-         if (proposal_failed) replica%projection_failure_count = replica%projection_failure_count + 1
+         call record_tltm_local_transition(replica, accepted, proposal_failed, transition_status)
       end do
 
       if (allocated(x_new)) deallocate (x_new)
@@ -260,6 +258,8 @@ contains
 
       integer, parameter :: unit_summary = 77
       integer :: ios, i, total_count
+      integer :: metropolis_reject_total, reverse_gate_reject_total, proposal_failure_total
+      integer :: hamiltonian_invalid_total, delta_h_invalid_total, output_size_mismatch_total
       real(dp) :: accept_rate, abs_mean_phi
 
       open (unit=unit_summary, file=trim(summary_file), status='replace', action='write', iostat=ios)
@@ -273,7 +273,28 @@ contains
       write (unit_summary, '(A,I0)') "# cycles=", cycle_count
       write (unit_summary, '(A,I0)') "# local_updates=", local_updates
       write (unit_summary, '(A,F12.6)') "# elapsed_sec=", elapsed
-      write (unit_summary, '(A)') "# replica_id flow_time accepts rejects accept_rate projection_fail samples abs_mean_phi runtime_sec"
+      metropolis_reject_total = 0
+      reverse_gate_reject_total = 0
+      proposal_failure_total = 0
+      hamiltonian_invalid_total = 0
+      delta_h_invalid_total = 0
+      output_size_mismatch_total = 0
+      do i = 1, size(replicas)
+         metropolis_reject_total = metropolis_reject_total + replicas(i)%metropolis_reject_count
+         reverse_gate_reject_total = reverse_gate_reject_total + replicas(i)%reverse_gate_reject_count
+         proposal_failure_total = proposal_failure_total + replicas(i)%proposal_failure_count
+         hamiltonian_invalid_total = hamiltonian_invalid_total + replicas(i)%hamiltonian_invalid_count
+         delta_h_invalid_total = delta_h_invalid_total + replicas(i)%delta_h_invalid_count
+         output_size_mismatch_total = output_size_mismatch_total + replicas(i)%output_size_mismatch_count
+      end do
+      write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
+         "# local_transition_totals metropolis_reject=", metropolis_reject_total, &
+         " reverse_gate_reject=", reverse_gate_reject_total, " proposal_failure=", proposal_failure_total, &
+         " hamiltonian_invalid=", hamiltonian_invalid_total, " delta_h_invalid=", delta_h_invalid_total, &
+         " output_size_mismatch=", output_size_mismatch_total
+      write (unit_summary, '(A)') &
+         "# replica_id flow_time accepts rejects accept_rate projection_fail samples abs_mean_phi runtime_sec " // &
+         "metropolis_reject reverse_gate_reject proposal_failure hamiltonian_invalid delta_h_invalid output_size_mismatch"
 
       do i = 1, size(replicas)
          total_count = replicas(i)%local_accept_count + replicas(i)%local_reject_count
@@ -289,10 +310,12 @@ contains
             abs_mean_phi = 0.0_dp
          end if
 
-         write (unit_summary, '(I4,1X,F10.6,1X,I8,1X,I8,1X,F9.5,1X,I8,1X,I8,1X,ES16.8,1X,F12.6)') &
+         write (unit_summary, '(I4,1X,F10.6,1X,I8,1X,I8,1X,F9.5,1X,I8,1X,I8,1X,ES16.8,1X,F12.6,6(1X,I8))') &
             replicas(i)%replica_id, replicas(i)%flow_time, replicas(i)%local_accept_count, replicas(i)%local_reject_count, &
             accept_rate, replicas(i)%projection_failure_count, replicas(i)%observable_samples, &
-            abs_mean_phi, replicas(i)%local_runtime
+            abs_mean_phi, replicas(i)%local_runtime, replicas(i)%metropolis_reject_count, replicas(i)%reverse_gate_reject_count, &
+            replicas(i)%proposal_failure_count, replicas(i)%hamiltonian_invalid_count, replicas(i)%delta_h_invalid_count, &
+            replicas(i)%output_size_mismatch_count
       end do
 
       close (unit_summary)

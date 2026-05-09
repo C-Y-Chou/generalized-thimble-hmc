@@ -30,7 +30,8 @@ module tltm_stage2_driver
                                           constraint_reverse_gate_path_far_skip, &
                                           constraint_reverse_gate_path_far_light, &
                                           constraint_reverse_gate_path_far_anchor
-   use tltm_types_mod, only: tltm_slot_t, tltm_pair_stats_t, tltm_label_track_t, allocate_tltm_slot, release_tltm_slot
+   use tltm_types_mod, only: tltm_slot_t, tltm_pair_stats_t, tltm_label_track_t, allocate_tltm_slot, release_tltm_slot, &
+                             record_tltm_local_transition
    implicit none
 
    integer, parameter :: stage2_cycle_cap_default = 200
@@ -462,6 +463,7 @@ contains
       real(dp), allocatable :: x_new(:), x_before(:)
       complex(dp), allocatable :: z_new(:), j_new(:, :), z_before(:), j_before(:, :)
       logical :: accepted, proposal_failed
+      integer :: transition_status
       type(solver_counter_snapshot_t) :: solver_before, solver_after
 
       z_size = size(slot%z)
@@ -474,21 +476,18 @@ contains
          j_before = slot%jac
          call snapshot_solver_counters(solver_before)
          call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
-                              config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed)
+                              config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status)
          call snapshot_solver_counters(solver_after)
          if (accepted) then
             slot%x = x_new
             slot%z = z_new
             slot%jac = j_new
-            slot%local_accept_count = slot%local_accept_count + 1
             call accumulate_accepted_local_census(accept_census, solver_before, solver_after)
-         else
-            slot%local_reject_count = slot%local_reject_count + 1
          end if
-         if (proposal_failed) slot%projection_failure_count = slot%projection_failure_count + 1
+         call record_tltm_local_transition(slot, accepted, proposal_failed, transition_status)
          call record_rg_reject_audit(cycle_idx, slot%slot_id, update_idx, x_before, z_before, j_before, &
                                      slot%x, slot%z, slot%jac, x_new, z_new, j_new, accepted, proposal_failed, &
-                                     solver_before, solver_after)
+                                     transition_status, solver_before, solver_after)
       end do
 
       if (allocated(x_new)) deallocate (x_new)
@@ -501,12 +500,13 @@ contains
 
    subroutine record_rg_reject_audit(cycle_idx, slot_id, update_idx, x_before, z_before, j_before, &
                                      x_after, z_after, j_after, x_proposal, z_proposal, j_proposal, &
-                                     accepted, proposal_failed, solver_before, solver_after)
+                                     accepted, proposal_failed, transition_status, solver_before, solver_after)
       integer, intent(in) :: cycle_idx, slot_id, update_idx
       real(dp), intent(in) :: x_before(:), x_after(:), x_proposal(:)
       complex(dp), intent(in) :: z_before(:), z_after(:), z_proposal(:)
       complex(dp), intent(in) :: j_before(:, :), j_after(:, :), j_proposal(:, :)
       logical, intent(in) :: accepted, proposal_failed
+      integer, intent(in) :: transition_status
       type(solver_counter_snapshot_t), intent(in) :: solver_before, solver_after
 
       integer(int64) :: rg_candidate_delta, rg_pass_delta, rg_reject_delta
@@ -529,8 +529,8 @@ contains
       proposal_dj = maxabs_complex_mat_stage2(j_proposal - j_before)
 
       write (rg_reject_audit_unit, &
-             '(I0,",",I0,",",I0,",",L1,",",L1,",",I0,",",I0,",",I0,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16)') &
-         cycle_idx, slot_id, update_idx, accepted, proposal_failed, rg_candidate_delta, rg_pass_delta, rg_reject_delta, &
+             '(I0,",",I0,",",I0,",",L1,",",L1,",",I0,",",I0,",",I0,",",I0,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16)') &
+         cycle_idx, slot_id, update_idx, accepted, proposal_failed, transition_status, rg_candidate_delta, rg_pass_delta, rg_reject_delta, &
          slot_dx, slot_dz, slot_dj, proposal_dx, proposal_dz, proposal_dj
       flush (rg_reject_audit_unit)
    end subroutine record_rg_reject_audit
@@ -556,7 +556,7 @@ contains
 
       rg_reject_audit_enabled = .true.
       write (rg_reject_audit_unit, '(A)') &
-         "cycle,slot_id,update_idx,accepted,proposal_failed,rg_candidate_delta,rg_pass_delta,rg_reject_delta,"// &
+         "cycle,slot_id,update_idx,accepted,proposal_failed,transition_status,rg_candidate_delta,rg_pass_delta,rg_reject_delta,"// &
          "slot_dx,slot_dz,slot_dj,proposal_dx,proposal_dz,proposal_dj"
       flush (rg_reject_audit_unit)
       write (*, '(A,1X,A)') "[INFO][TLTM-S2] RG reject audit file:", trim(rg_reject_audit_file)
@@ -978,6 +978,8 @@ contains
 
       integer, parameter :: unit_summary = 79
       integer :: ios, i, total_count
+      integer :: metropolis_reject_total, reverse_gate_reject_total, proposal_failure_total
+      integer :: hamiltonian_invalid_total, delta_h_invalid_total, output_size_mismatch_total
       real(dp) :: accept_rate, abs_mean_phi, pair_accept_rate, avg_round_trip
       integer :: total_round_trip
       type(local_accept_census_t) :: total_accept_census
@@ -1034,6 +1036,25 @@ contains
       call write_reverse_gate_route_counts(unit_summary, "# reverse_gate_route_candidates", reverse_gate_candidate_counts)
       call write_reverse_gate_route_counts(unit_summary, "# reverse_gate_route_pass", reverse_gate_pass_counts)
       call write_reverse_gate_route_counts(unit_summary, "# reverse_gate_route_reject", reverse_gate_reject_counts)
+      metropolis_reject_total = 0
+      reverse_gate_reject_total = 0
+      proposal_failure_total = 0
+      hamiltonian_invalid_total = 0
+      delta_h_invalid_total = 0
+      output_size_mismatch_total = 0
+      do i = 1, size(slots)
+         metropolis_reject_total = metropolis_reject_total + slots(i)%metropolis_reject_count
+         reverse_gate_reject_total = reverse_gate_reject_total + slots(i)%reverse_gate_reject_count
+         proposal_failure_total = proposal_failure_total + slots(i)%proposal_failure_count
+         hamiltonian_invalid_total = hamiltonian_invalid_total + slots(i)%hamiltonian_invalid_count
+         delta_h_invalid_total = delta_h_invalid_total + slots(i)%delta_h_invalid_count
+         output_size_mismatch_total = output_size_mismatch_total + slots(i)%output_size_mismatch_count
+      end do
+      write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
+         "# local_transition_totals metropolis_reject=", metropolis_reject_total, &
+         " reverse_gate_reject=", reverse_gate_reject_total, " proposal_failure=", proposal_failure_total, &
+         " hamiltonian_invalid=", hamiltonian_invalid_total, " delta_h_invalid=", delta_h_invalid_total, &
+         " output_size_mismatch=", output_size_mismatch_total
       do i = 1, size(local_accept_census)
          total_accept_census%accepted_total = total_accept_census%accepted_total + local_accept_census(i)%accepted_total
          total_accept_census%accepted_newton_only = total_accept_census%accepted_newton_only + local_accept_census(i)%accepted_newton_only
@@ -1075,7 +1096,9 @@ contains
             local_accept_census(i)%accepted_far_skip, local_accept_census(i)%accepted_far_light, &
             local_accept_census(i)%accepted_far_anchor, local_accept_census(i)%accepted_uncategorized
       end do
-      write (unit_summary, '(A)') "# [slots] slot_id label_id flow_time accepts rejects accept_rate projection_fail samples abs_mean_phi runtime_sec"
+      write (unit_summary, '(A)') &
+         "# [slots] slot_id label_id flow_time accepts rejects accept_rate projection_fail samples abs_mean_phi runtime_sec " // &
+         "metropolis_reject reverse_gate_reject proposal_failure hamiltonian_invalid delta_h_invalid output_size_mismatch"
       do i = 1, size(slots)
          total_count = slots(i)%local_accept_count + slots(i)%local_reject_count
          if (total_count > 0) then
@@ -1088,10 +1111,12 @@ contains
          else
             abs_mean_phi = 0.0_dp
          end if
-         write (unit_summary, '(I4,1X,I4,1X,F10.6,1X,I8,1X,I8,1X,F9.5,1X,I8,1X,I8,1X,ES16.8,1X,F12.6)') &
+         write (unit_summary, '(I4,1X,I4,1X,F10.6,1X,I8,1X,I8,1X,F9.5,1X,I8,1X,I8,1X,ES16.8,1X,F12.6,6(1X,I8))') &
             slots(i)%slot_id, slots(i)%label_id, slots(i)%flow_time, &
             slots(i)%local_accept_count, slots(i)%local_reject_count, accept_rate, &
-            slots(i)%projection_failure_count, slots(i)%observable_samples, abs_mean_phi, slots(i)%local_runtime
+            slots(i)%projection_failure_count, slots(i)%observable_samples, abs_mean_phi, slots(i)%local_runtime, &
+            slots(i)%metropolis_reject_count, slots(i)%reverse_gate_reject_count, slots(i)%proposal_failure_count, &
+            slots(i)%hamiltonian_invalid_count, slots(i)%delta_h_invalid_count, slots(i)%output_size_mismatch_count
       end do
 
       write (unit_summary, '(A)') "# [pairs] pair_id slot_a slot_b proposals accepts rejects accept_rate last_accept_prob"

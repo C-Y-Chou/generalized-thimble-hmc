@@ -26,6 +26,15 @@ REVERSE_GATE_ROUTE_NAMES = [
     "far_anchor",
 ]
 
+LOCAL_TRANSITION_NAMES = [
+    "metropolis_reject",
+    "reverse_gate_reject",
+    "proposal_failure",
+    "hamiltonian_invalid",
+    "delta_h_invalid",
+    "output_size_mismatch",
+]
+
 METHOD_SPECS = {
     "no_fb": {
         "fallback_enabled": False,
@@ -58,6 +67,14 @@ def reverse_gate_count_columns():
 
 def reverse_gate_aggregate_columns():
     return ["total_{0}".format(column) for column in reverse_gate_count_columns()]
+
+
+def local_transition_count_columns():
+    return ["local_{0}_count".format(name) for name in LOCAL_TRANSITION_NAMES]
+
+
+def local_transition_aggregate_columns():
+    return ["total_{0}".format(column) for column in local_transition_count_columns()]
 
 
 def parse_args():
@@ -434,6 +451,7 @@ def parse_stage2_summary(summary_path):
         "pass": {route_name: 0 for route_name in REVERSE_GATE_ROUTE_NAMES},
         "reject": {route_name: 0 for route_name in REVERSE_GATE_ROUTE_NAMES},
     }
+    local_transition_stats = {name: 0 for name in LOCAL_TRANSITION_NAMES}
     accepted_local_census = {
         "accepted_total": 0,
         "newton_only": 0,
@@ -550,6 +568,12 @@ def parse_stage2_summary(summary_path):
                 if key in kv:
                     reverse_gate_route_stats["reject"][key] = int(kv[key])
             continue
+        if line.startswith("# local_transition_totals "):
+            kv = parse_key_value_ints(line[len("# local_transition_totals ") :])
+            for key in local_transition_stats:
+                if key in kv:
+                    local_transition_stats[key] = int(kv[key])
+            continue
         if line.startswith("# accepted_local_census_totals "):
             kv = parse_key_value_ints(line[len("# accepted_local_census_totals ") :])
             for key in accepted_local_census:
@@ -646,6 +670,7 @@ def parse_stage2_summary(summary_path):
             for route_name in REVERSE_GATE_ROUTE_NAMES
             for status_name in ("candidate", "pass", "reject")
         },
+        **{"local_{0}_count".format(name): local_transition_stats[name] for name in LOCAL_TRANSITION_NAMES},
         "accepted_local_total": accepted_local_census["accepted_total"],
         "accepted_local_newton_only_count": accepted_local_census["newton_only"],
         "accepted_local_quasi_count": accepted_local_census["quasi"],
@@ -971,6 +996,7 @@ def run_one_seed(
         "quasi_global_filter_pass_count": stage2_metrics["quasi_global_filter_pass_count"],
         "quasi_global_filter_reject_count": stage2_metrics["quasi_global_filter_reject_count"],
         **{column: stage2_metrics[column] for column in reverse_gate_count_columns()},
+        **{column: stage2_metrics[column] for column in local_transition_count_columns()},
         "accepted_local_total": stage2_metrics["accepted_local_total"],
         "accepted_local_newton_only_count": stage2_metrics["accepted_local_newton_only_count"],
         "accepted_local_quasi_count": stage2_metrics["accepted_local_quasi_count"],
@@ -1155,6 +1181,8 @@ def aggregate_rows(rows, observable_exact_re=0.0, observable_exact_im=0.0):
             "mean_runtime_total": safe_mean([r["runtime_total"] for r in group]),
             "median_runtime_total": safe_median([r["runtime_total"] for r in group]),
         }
+        for column in local_transition_count_columns():
+            agg["total_{0}".format(column)] = int(sum(as_finite_number(r.get(column)) or 0.0 for r in group))
         if agg["total_post_refine_attempt_count"] > 0:
             agg["post_refine_success_ratio_from_totals"] = float(agg["total_post_refine_success_count"]) / float(
                 agg["total_post_refine_attempt_count"]
@@ -1482,6 +1510,7 @@ def main():
         "quasi_global_filter_pass_count",
         "quasi_global_filter_reject_count",
         *reverse_gate_count_columns(),
+        *local_transition_count_columns(),
         "accepted_local_total",
         "accepted_local_newton_only_count",
         "accepted_local_quasi_count",
@@ -1565,6 +1594,7 @@ def main():
         "mean_runtime_total",
         "median_runtime_total",
         *reverse_gate_aggregate_columns(),
+        *local_transition_aggregate_columns(),
     ]
 
     write_csv(per_seed_csv, rows_sorted, per_seed_columns)

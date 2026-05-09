@@ -367,3 +367,13 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 - Local verification: rebuilt `../bin/run_tltm_stage2` successfully in the dedicated QN validation worktree.
 - Stopped the in-flight ODEX-only scale-up because QN error handling changes invalidate it as the next comparison gate. Cancelled `14308`-`14316`; cancelled held merge `14318`. The scale-up will be rerun from the QN-cleaned state after a fresh 10k validation.
 - Added PBS `codex/workspaces/fortran_modernization/tasks/pbs/qn_error_handling_10k_validation_20260509_fb_norefine.pbs` for a fresh 10seed x 10k `fb_norefine`, p28, reverse-gate, post-refine-off validation at `ct=1e-13`, `QN=1e-13`.
+
+## Local transition counter split - 2026-05-09 JST
+- Implemented the next state/information propagation slice: Stage1/Stage2 local transitions now record detailed Metropolis transition-status counters while preserving old accept/reject and `projection_failure_count` semantics.
+- Added lightweight `markovchain_transition_status` module so transition-status constants are shared without making TLTM type definitions depend on the Metropolis implementation module.
+- Added counters for ordinary Metropolis rejection, reverse-gate rejection, proposal construction failure, invalid Hamiltonian, invalid `Delta H`, and output-size mismatch.
+- Stage1/Stage2 summary rows append the new counters after legacy columns; Stage2 also writes `# local_transition_totals ...` for robust parser consumption.
+- RG reject audit CSV now includes `transition_status`, so future analysis can distinguish reverse-gate rejection from other failed-proposal modes without overloading `proposal_failed`.
+- `scripts/run_stage3_3_multiseed.py` and `scripts/merge_stage3_multiseed_chunks.py` now carry the new local transition counters through per-seed and aggregate CSV output.
+- Behavior-preservation note: no proposal, reverse-gate, Metropolis acceptance, RNG, or live-state update logic was changed; this patch is output/status observability only.
+- Verification passed: `python3 -m py_compile ...`; `git diff --check`; `make -C build FC=gfortran LDFLAGS= test1`; Stage1/Stage2 executable build; tiny local Stage2 smoke and parser readback of the new counters.

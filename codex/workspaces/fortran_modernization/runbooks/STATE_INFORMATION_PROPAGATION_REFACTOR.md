@@ -1,7 +1,7 @@
 # State and Information Propagation Refactor
 
 Updated: 2026-05-09 JST
-Status: first two narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
+Status: first three narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
 
 ## Purpose
 
@@ -179,3 +179,36 @@ Verification:
 - Incremental dependency check: `touch src/sampler/hmc.f90 && make -C build FC=gfortran LDFLAGS= ../bin/test_program` rebuilt `hmc.o`, downstream sampler/driver objects, and `tests/test_hamiltonian_conservation.o`.
 - Runtime smoke: `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
 - Stage2 executable rebuild: `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage2` passes.
+
+## Third Source Slice - Local Transition Counter Split - 2026-05-09 JST
+
+Purpose:
+
+- Preserve the legacy `projection_failure_count` output while making local transition failure/rejection categories machine-readable.
+- Use the new Metropolis transition status surface rather than inferring all failures from a single `proposal_failed` boolean.
+
+Implemented boundary:
+
+- `tltm_types.f90`: added shared `record_tltm_local_transition(...)` helpers for replicas and slots.
+- `markovchain_transition_status.f90`: status constants live in a lightweight status module instead of forcing TLTM types to depend on the Metropolis implementation module.
+- Stage1/Stage2 local update loops now pass `transition_status` from `metropolis_step` into the recorder.
+- Existing accept/reject counts and `projection_failure_count` semantics are preserved.
+- New counters split ordinary Metropolis reject, reverse-gate reject, proposal construction failure, invalid Hamiltonian, invalid `Delta H`, and output-size mismatch.
+- Stage1/Stage2 summary rows append the new counters after the existing legacy columns.
+- Stage2 summary adds `# local_transition_totals ...` for parser-stable aggregate diagnostics.
+- RG reject audit CSV now records `transition_status` beside `accepted` and `proposal_failed`.
+- `run_stage3_3_multiseed.py` and `merge_stage3_multiseed_chunks.py` propagate the new local transition columns through per-seed and aggregate CSVs.
+
+Compatibility:
+
+- No acceptance probability, RNG draw, proposal construction, reverse-gate, or live-state update logic was changed.
+- Existing parsers that read the old slot columns by position remain compatible because new columns are appended after the old schema.
+- `projection_failure_count` remains the old coarse compatibility total for `proposal_failed`.
+
+Verification:
+
+- `python3 -m py_compile scripts/run_stage3_3_multiseed.py scripts/merge_stage3_multiseed_chunks.py scripts/fortran_module_deps.py`.
+- `git diff --check`.
+- `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
+- `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`.
+- Tiny local Stage2 smoke with `cycles=2`, `num_replicas=2`, `max_flow_time=0.0`, `local_updates=1`, and `swap_enabled=0` writes the new `local_transition_totals` line and parses successfully.

@@ -35,6 +35,8 @@ def main():
     sys.path.insert(0, str(repo_root / "scripts"))
     from run_stage3_3_multiseed import (
         aggregate_rows,
+        local_transition_aggregate_columns,
+        local_transition_count_columns,
         read_protocol,
         reverse_gate_aggregate_columns,
         reverse_gate_count_columns,
@@ -120,6 +122,7 @@ def main():
         "quasi_global_filter_pass_count",
         "quasi_global_filter_reject_count",
         *reverse_gate_count_columns(),
+        *local_transition_count_columns(),
         "accepted_local_total",
         "accepted_local_newton_only_count",
         "accepted_local_quasi_count",
@@ -203,6 +206,7 @@ def main():
         "mean_runtime_total",
         "median_runtime_total",
         *reverse_gate_aggregate_columns(),
+        *local_transition_aggregate_columns(),
     ]
 
     write_csv(per_seed_csv, rows_sorted, per_seed_columns)

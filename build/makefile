@@ -123,7 +123,7 @@ SAMPLER_SRC  = sampler/hmc_kernels sampler/hmc_constraints sampler/hmc_state_buf
                sampler/quasi_newton_linear_solver sampler/quasi_newton_line_search \
                sampler/quasi_newton_jacobian_update sampler/quasi_newton_solver \
                sampler/constraint_solver_stats sampler/hmc_integrator_core sampler/hmc sampler/markovchain_phase sampler/markovchain_io \
-               sampler/markovchain_metropolis sampler/markovchain_mod sampler/markovchain \
+               sampler/markovchain_transition_status sampler/markovchain_metropolis sampler/markovchain_mod sampler/markovchain \
                sampler/tltm_types sampler/tltm_stage1_driver sampler/tltm_stage2_driver
 APP_CHAIN    = apps/generate_markov_chain
 APP_EXPECT   = apps/evaluate_expectations

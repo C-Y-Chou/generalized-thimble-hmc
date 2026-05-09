@@ -1,5 +1,11 @@
 module tltm_types_mod
    use utils
+   use markovchain_transition_status, only: metropolis_status_rejected, &
+                                            metropolis_status_proposal_failed, &
+                                            metropolis_status_reverse_gate_rejected, &
+                                            metropolis_status_hamiltonian_invalid, &
+                                            metropolis_status_delta_h_invalid, &
+                                            metropolis_status_output_size_mismatch
    implicit none
 
    type :: tltm_replica_t
@@ -13,6 +19,12 @@ module tltm_types_mod
       integer :: local_accept_count = 0
       integer :: local_reject_count = 0
       integer :: projection_failure_count = 0
+      integer :: metropolis_reject_count = 0
+      integer :: reverse_gate_reject_count = 0
+      integer :: proposal_failure_count = 0
+      integer :: hamiltonian_invalid_count = 0
+      integer :: delta_h_invalid_count = 0
+      integer :: output_size_mismatch_count = 0
       integer :: observable_samples = 0
       complex(dp) :: phi_sum = cmplx(0.0_dp, 0.0_dp, dp)
    end type tltm_replica_t
@@ -29,6 +41,12 @@ module tltm_types_mod
       integer :: local_accept_count = 0
       integer :: local_reject_count = 0
       integer :: projection_failure_count = 0
+      integer :: metropolis_reject_count = 0
+      integer :: reverse_gate_reject_count = 0
+      integer :: proposal_failure_count = 0
+      integer :: hamiltonian_invalid_count = 0
+      integer :: delta_h_invalid_count = 0
+      integer :: output_size_mismatch_count = 0
       integer :: observable_samples = 0
       complex(dp) :: phi_sum = cmplx(0.0_dp, 0.0_dp, dp)
    end type tltm_slot_t
@@ -54,7 +72,82 @@ module tltm_types_mod
       logical :: hot_reached_after_cold = .false.
    end type tltm_label_track_t
 
+   interface record_tltm_local_transition
+      module procedure record_replica_local_transition
+      module procedure record_slot_local_transition
+   end interface record_tltm_local_transition
+
 contains
+
+   subroutine record_replica_local_transition(replica, accepted, proposal_failed, transition_status)
+      type(tltm_replica_t), intent(inout) :: replica
+      logical, intent(in) :: accepted, proposal_failed
+      integer, intent(in) :: transition_status
+
+      if (accepted) then
+         replica%local_accept_count = replica%local_accept_count + 1
+      else
+         replica%local_reject_count = replica%local_reject_count + 1
+      end if
+      if (proposal_failed) replica%projection_failure_count = replica%projection_failure_count + 1
+      call record_replica_transition_detail(replica, accepted, transition_status)
+   end subroutine record_replica_local_transition
+
+   subroutine record_slot_local_transition(slot, accepted, proposal_failed, transition_status)
+      type(tltm_slot_t), intent(inout) :: slot
+      logical, intent(in) :: accepted, proposal_failed
+      integer, intent(in) :: transition_status
+
+      if (accepted) then
+         slot%local_accept_count = slot%local_accept_count + 1
+      else
+         slot%local_reject_count = slot%local_reject_count + 1
+      end if
+      if (proposal_failed) slot%projection_failure_count = slot%projection_failure_count + 1
+      call record_slot_transition_detail(slot, accepted, transition_status)
+   end subroutine record_slot_local_transition
+
+   subroutine record_replica_transition_detail(replica, accepted, transition_status)
+      type(tltm_replica_t), intent(inout) :: replica
+      logical, intent(in) :: accepted
+      integer, intent(in) :: transition_status
+
+      select case (transition_status)
+      case (metropolis_status_rejected)
+         if (.not. accepted) replica%metropolis_reject_count = replica%metropolis_reject_count + 1
+      case (metropolis_status_reverse_gate_rejected)
+         replica%reverse_gate_reject_count = replica%reverse_gate_reject_count + 1
+      case (metropolis_status_proposal_failed)
+         replica%proposal_failure_count = replica%proposal_failure_count + 1
+      case (metropolis_status_hamiltonian_invalid)
+         replica%hamiltonian_invalid_count = replica%hamiltonian_invalid_count + 1
+      case (metropolis_status_delta_h_invalid)
+         replica%delta_h_invalid_count = replica%delta_h_invalid_count + 1
+      case (metropolis_status_output_size_mismatch)
+         replica%output_size_mismatch_count = replica%output_size_mismatch_count + 1
+      end select
+   end subroutine record_replica_transition_detail
+
+   subroutine record_slot_transition_detail(slot, accepted, transition_status)
+      type(tltm_slot_t), intent(inout) :: slot
+      logical, intent(in) :: accepted
+      integer, intent(in) :: transition_status
+
+      select case (transition_status)
+      case (metropolis_status_rejected)
+         if (.not. accepted) slot%metropolis_reject_count = slot%metropolis_reject_count + 1
+      case (metropolis_status_reverse_gate_rejected)
+         slot%reverse_gate_reject_count = slot%reverse_gate_reject_count + 1
+      case (metropolis_status_proposal_failed)
+         slot%proposal_failure_count = slot%proposal_failure_count + 1
+      case (metropolis_status_hamiltonian_invalid)
+         slot%hamiltonian_invalid_count = slot%hamiltonian_invalid_count + 1
+      case (metropolis_status_delta_h_invalid)
+         slot%delta_h_invalid_count = slot%delta_h_invalid_count + 1
+      case (metropolis_status_output_size_mismatch)
+         slot%output_size_mismatch_count = slot%output_size_mismatch_count + 1
+      end select
+   end subroutine record_slot_transition_detail
 
    subroutine allocate_tltm_replica(replica, x_size)
       type(tltm_replica_t), intent(inout) :: replica
