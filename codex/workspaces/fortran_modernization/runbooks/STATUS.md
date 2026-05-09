@@ -92,6 +92,12 @@ Next expected modernization area after this slice:
 - `runbooks/M3_ARCHITECTURE_CONTRACT.md` now records the next-phase rules before public schema, wrapper, config, or module-state refactors begin.
 - `runbooks/M3_TEMPERING_PROTOCOL_AND_OUTPUT_SCHEMA_DESIGN.md` now records that schema design must first verify the TLTM tempering protocol against both TLTM-specific rules and standard replica-exchange practice.
 - `runbooks/M3_V0_OUTPUT_INVENTORY_AND_PROTOCOL_AUDIT_PLAN.md` now records the current v0 output inventory and the parser/replay audit sequence needed before v1 writer work.
+- `scripts/audit_tltm_tempering_protocol.py` now provides a parser-only Stage2/label-trace/optional-Stage3 protocol audit without changing production output.
+- `tests/test_tltm_swap_kernel_contract.f90` now checks the source-level TLTM adjacent-swap energy/probability contract and invalid-current-energy rejection behavior.
+
+Current stop gate:
+
+- The next planned M3b step is a v1 manifest/protocol writer beside v0 outputs. This begins output-writer/schema work and should wait for explicit user approval.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.

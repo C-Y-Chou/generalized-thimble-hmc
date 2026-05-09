@@ -604,16 +604,21 @@ M3b.2: parser-only audit script.
 - Parse Stage2 summary and label trace.
 - Emit audit JSON/text.
 - Check accounting and label-trace invariants.
+- Implemented as `scripts/audit_tltm_tempering_protocol.py` on 2026-05-10 JST.
+- Verification: `py_compile`, eight existing `output/tests/*stage2*summary.dat` plus matching label traces, and a synthetic Stage3 per-seed cross-check fixture passed.
 
 M3b.3: deterministic swap-kernel contract test.
 
 - Source-level test of TLTM exchange energy and rejection semantics.
 - No output writer changes.
+- Implemented as `tests/test_tltm_swap_kernel_contract.f90` on 2026-05-10 JST.
+- Verification: `make -C build FC=gfortran LDFLAGS= test_tltm_swap_kernel_contract` passed.
 
 M3b.4: v1 manifest/protocol writer beside v0.
 
 - Add machine-readable protocol metadata without removing or renaming v0 fields.
 - Preserve Stage3 parser compatibility.
+- Stop gate: requires explicit approval because this begins output-writer/schema work, even if v0 compatibility files remain unchanged.
 
 M3b.5: v1 observables/diagnostics package.
 

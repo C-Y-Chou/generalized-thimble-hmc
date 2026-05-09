@@ -326,3 +326,9 @@
 - Inventoried Stage1, Stage2, Stage3 per-seed, and Stage3 aggregate v0 output surfaces, including compatibility aliases that should not be renamed in place.
 - Defined the next safe executable step as a parser-only TLTM protocol audit before any v1 writer or wrapper-output change.
 - No Fortran source, output writer, production workflow, or job submission changes were made in this planning-only slice.
+
+## 2026-05-10 JST - M3 parser-only audit and swap-kernel contract test
+- Added `scripts/audit_tltm_tempering_protocol.py`, a parser-only audit CLI for Stage2 summary, label trace, and optional Stage3 per-seed cross-checks.
+- Added `tests/test_tltm_swap_kernel_contract.f90` and a build target to verify the TLTM adjacent-swap acceptance probability and invalid-current-energy rejection behavior.
+- Verification passed: Python compile, parser audit on eight existing Stage2/label-trace fixtures, parser audit with a synthetic Stage3 per-seed cross-check fixture, and `make -C build FC=gfortran LDFLAGS= test_tltm_swap_kernel_contract`.
+- Stop point reached: the next M3b item is v1 manifest/protocol writer work, which touches output-writer/schema boundaries and requires explicit user approval.
