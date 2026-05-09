@@ -41,6 +41,7 @@
 - 2026-05-09 JST: Downgraded the legacy RATTLE `x(2)` progress guard from an active proposal-failure gate to an opt-in state-progress diagnostic.
 - 2026-05-09 JST: Renamed QN watchdog internals to solver-assist terminology and added `QN_SOLVER_ASSIST_BUDGET` with legacy env alias support.
 - 2026-05-09 JST: Deleted legacy positional `parameters.dat` parsing and the unused `initial_x.dat` runtime compatibility path after user confirmation.
+- 2026-05-10 JST: Centralized Stage1/Stage2 runtime env parser helpers in `runtime_env_mod` without changing env names/defaults/override semantics.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit

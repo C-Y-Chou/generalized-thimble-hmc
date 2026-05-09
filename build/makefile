@@ -117,7 +117,7 @@ GEN_BACKEND ?= auto
 
 # --------- layered source lists ----------------------------------------------
 CORE_SRC     = core/mtdefs core/mt95 core/utils core/lapack_fallback core/perf_profile
-CONFIG_SRC   = config/param_mod
+CONFIG_SRC   = config/runtime_env_mod config/param_mod
 PHYSICS_SRC  = physics/model_autodiff physics/model_tape_ad physics/model_generated physics/model physics/solve_flow
 SAMPLER_SRC  = sampler/hmc_kernels sampler/hmc_constraints sampler/hmc_state_buffers sampler/hmc_reversibility_checks \
                sampler/quasi_newton_linear_solver sampler/quasi_newton_solver \

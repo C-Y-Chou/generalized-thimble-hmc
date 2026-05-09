@@ -276,3 +276,9 @@
 - `param_mod` now reads only key-value `parameters.dat` and reports a fatal error for positional input.
 - Removed unused initial-state file helpers from active source and updated docs to make sampler/driver randomized initialization the only runtime path.
 - This is an intentional input-compatibility break; current production configs are key-value and should be unaffected.
+
+## 2026-05-10 JST - Runtime env parser centralization
+- Added `src/config/runtime_env_mod.f90` for shared Stage1/Stage2 int/real/logical/list env parser helpers.
+- Removed duplicated parser helpers from `tltm_stage1_driver.f90` and `tltm_stage2_driver.f90`; Stage2 init-mode lowercase handling now imports the shared helper.
+- Behavior-preservation note: env names, caller defaults, invalid-env default preservation, output schemas, RNG draw order, and physics code are unchanged.
+- Verification passed with `git diff --check`, Stage1/Stage2 executable build, `test_odex_solver`, `test1`, tiny Stage1/Stage2 smokes, flow-time ladder list-parser smokes, and invalid logical default-preservation smoke.

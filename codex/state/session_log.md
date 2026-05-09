@@ -796,3 +796,8 @@ Use this file to append per-session notes.
 - Renamed QN watchdog internals from final-resort terminology to solver-assist terminology.
 - Added preferred `QN_SOLVER_ASSIST_BUDGET` env support while retaining `QUASI_FINAL_RESORT_BUDGET` as a legacy fallback alias.
 - Verified with `git diff --check`, Stage1/Stage2 executable build, `test_odex_solver`, and `test1`.
+
+## 2026-05-10 JST
+- Centralized Stage1/Stage2 runtime env parser helpers in `src/config/runtime_env_mod.f90`.
+- Removed duplicated parser implementations from the Stage drivers while preserving env names, caller defaults, invalid-env handling, output schemas, and physics paths.
+- Verified with `git diff --check`, Stage1/Stage2 executable build, `test_odex_solver`, `test1`, tiny Stage1/Stage2 smokes, ladder list-parser smokes, and invalid logical default-preservation smoke.

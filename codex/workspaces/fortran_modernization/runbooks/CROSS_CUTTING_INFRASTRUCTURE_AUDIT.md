@@ -1,6 +1,6 @@
 # Cross-Cutting Infrastructure Audit
 
-Updated: 2026-05-09
+Updated: 2026-05-10
 Scope: repo-wide infrastructure outside the five core numerical algorithm audits. Live inventory.
 
 ## Purpose
@@ -50,6 +50,7 @@ Risks:
 Primary file:
 
 - `/home/cychou/TLTM/src/config/param_mod.f90`
+- `/home/cychou/TLTM/src/config/runtime_env_mod.f90`
 
 Responsibilities observed:
 
@@ -57,13 +58,15 @@ Responsibilities observed:
 - validation.
 - legacy global synchronization.
 - key-value parameter reader.
+- shared Stage1/Stage2 runtime env parser helpers for int/real/logical/list values.
 - environment/config interaction through downstream scripts.
 - Historical positional `parameters.dat` support has been deleted; config files must use `key=value`.
 
 Risks:
 
 - Legacy globals couple old and new APIs.
-- Environment overrides are distributed across modules, not centralized.
+- Environment override policy is still distributed across modules; only basic Stage parser mechanics are centralized so far.
+- Missing/invalid env default-preservation semantics are behavior-bearing and must remain covered by smoke tests.
 - Wrapper design needs one coherent config model and manifest provenance.
 
 ### Performance, counters, diagnostics
@@ -132,6 +135,7 @@ Safe now:
 - Keep this inventory updated.
 - Build a module responsibility map.
 - Identify all module-level `save` state.
+- Continue behavior-neutral parser/helper consolidation when caller defaults, env names, and output schemas are preserved.
 - Draft RNG/config/output schema requirements.
 - Draft wrapper compatibility requirements.
 

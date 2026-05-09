@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-09 JST
+Updated: 2026-05-10 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -25,6 +25,7 @@ Updated: 2026-05-09 JST
 - `hmc_integrator_core.f90` is the central proposal hub: Newton, canonical p28 quasi fallback, reverse gate, flow/Jacobian update, momentum projection, and solver statistics.
 - `quasi_newton_solver.f90` now carries the retained p28 DFO-LS-style residual/solver machinery plus traces, solver-internal assist/watchdog accounting, and route counters; legacy DFO-GN/Broyden/global-continuation/post-refine source paths have been removed.
 - `tltm_stage2_driver.f90` owns production orchestration and output/counter contracts used by Stage3_4 interpretation.
+- `runtime_env_mod.f90` centralizes Stage1/Stage2 runtime environment parser helpers while preserving caller defaults and existing env names.
 
 ## State/information propagation refine queue - 2026-05-09 JST
 - User clarified that the flagged `h==0` issue means Hamiltonian `H==0` when a proposal is rejected, not ODE step size.
@@ -71,6 +72,13 @@ Latest source-level compatibility decision:
 - User confirmed deletion of legacy positional `parameters.dat` parsing and the unused `initial_x.dat` compatibility path.
 - `src/config/param_mod.f90` now requires key-value `parameters.dat` and fails fast on positional input.
 - Unused initial-state file helpers were removed from active source/docs; runtime initialization stays in sampler/driver codepaths.
+
+Latest behavior-neutral infrastructure cleanup:
+
+- Stage1/Stage2 duplicated runtime env parser helpers were moved into `src/config/runtime_env_mod.f90`.
+- Parser behavior is unchanged: caller defaults are preserved for missing/invalid env values; valid int/real/logical/list env values still override.
+- `build/makefile` now includes the new config module before `param_mod`.
+- Verification passed on 2026-05-10 JST: `git diff --check`, Stage1/Stage2 executable build, `test_odex_solver`, `test1`, tiny Stage1/Stage2 smokes, `TLTM_STAGE*_FLOW_TIME_LADDER` list-parser smokes, and invalid logical default-preservation smoke.
 
 Next expected modernization area after this slice:
 
