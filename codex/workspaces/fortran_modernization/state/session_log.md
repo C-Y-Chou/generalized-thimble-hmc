@@ -191,3 +191,9 @@
 - Stage1 replica initialization and Stage2 slot initialization now request optional `flow(...)` status and accept only strict ODEX success or zero-time no-op.
 - Behavior-preservation note: canonical strict/zero-time init paths are unchanged; non-strict solver-assist or legacy rescue success is fail-closed for live-chain initialization.
 - Verification: `git diff --check`, `test_odex_solver`, Stage1/Stage2 executable build, `test1`, and tiny local Stage2 smoke passed.
+
+## 2026-05-09 JST - State propagation slice: strict physical flow call sites
+- Generic Markov-chain initial flow, warmup reflow, adaptive preflow trial flow, and Stage2 swap reflow now request optional `flow(...)` status and require strict success.
+- Behavior-preservation note: strict ODEX/zero-time physical state construction is unchanged; solver assist remains only a residual-evaluation tool.
+- Simplified Newton residual `flowz(...)` call sites were intentionally left for a separate residual-status slice.
+- Verification: `git diff --check`, Stage1/Stage2 executable build, `test1`, and tiny local Stage2 smoke with swap enabled passed.

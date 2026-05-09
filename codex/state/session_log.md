@@ -727,3 +727,9 @@ Use this file to append per-session notes.
 - HMC final proposal flow, Stage1 initialization, and Stage2 initialization now use the same strict-success predicate.
 - Stage1/Stage2 initialization requests optional `flow(...)` status and accepts only strict ODEX success or zero-time no-op.
 - Verified with `git diff --check`, `make -C build FC=gfortran LDFLAGS= test_odex_solver`, Stage1/Stage2 executable build, `make -C build FC=gfortran LDFLAGS= test1`, and tiny local Stage2 smoke.
+
+## 2026-05-09 JST
+- Remaining physical-state `flow(...)` call sites now consume optional status and require strict success.
+- Updated generic Markov-chain initial/warmup flow, adaptive preflow trial flow, and Stage2 adjacent-swap reflow candidates.
+- Solver-internal assist remains confined to NT/QN residual evaluation and cannot construct live-chain, preflow, swap, initialization, or final proposal states.
+- Verified with `git diff --check`, Stage1/Stage2 executable build, `make -C build FC=gfortran LDFLAGS= test1`, and tiny Stage2 swap-enabled smoke.

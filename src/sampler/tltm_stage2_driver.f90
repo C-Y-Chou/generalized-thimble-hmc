@@ -698,7 +698,7 @@ contains
 
       real(dp) :: e_a, e_b, e_ap, e_bp, delta, acc_prob
       logical :: ok_a, ok_b, ok_ap, ok_bp, accept
-      integer :: label_tmp
+      integer :: flow_status_ap, flow_status_bp, label_tmp
       real(dp), allocatable :: x_ap(:), x_bp(:)
       complex(dp), allocatable :: z_ap(:), z_bp(:), j_ap(:, :), j_bp(:, :)
 
@@ -719,14 +719,16 @@ contains
 
       x_ap = slot_b%x
       call x_set_flow_time(x_ap, slot_a%flow_time)
-      call flow(x_ap, z_ap, j_ap, ok_ap)
-      ok_ap = .not. ok_ap
+      flow_status_ap = intode_status_unknown
+      call flow(x_ap, z_ap, j_ap, ok_ap, flow_status_ap)
+      ok_ap = (.not. ok_ap) .and. intode_status_is_strict_success(flow_status_ap)
       if (ok_ap) call compute_effective_energy(z_ap, j_ap, e_ap, ok_ap)
 
       x_bp = slot_a%x
       call x_set_flow_time(x_bp, slot_b%flow_time)
-      call flow(x_bp, z_bp, j_bp, ok_bp)
-      ok_bp = .not. ok_bp
+      flow_status_bp = intode_status_unknown
+      call flow(x_bp, z_bp, j_bp, ok_bp, flow_status_bp)
+      ok_bp = (.not. ok_bp) .and. intode_status_is_strict_success(flow_status_bp)
       if (ok_bp) call compute_effective_energy(z_bp, j_bp, e_bp, ok_bp)
 
       if (.not. ok_ap .or. .not. ok_bp) then

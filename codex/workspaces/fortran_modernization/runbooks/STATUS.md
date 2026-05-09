@@ -404,3 +404,9 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 - Added shared helper `intode_status_is_strict_success(...)` in `solve_flow.f90`; HMC final proposal flow now uses the same helper instead of a private duplicate.
 - Behavior-preservation note: current canonical strict ODEX and zero-time initialization paths are unchanged. Non-strict solver-assist or legacy rescue success is fail-closed for initialization, matching the final physical proposal boundary.
 - Verification passed: `git diff --check`, `make -C build FC=gfortran LDFLAGS= test_odex_solver`, Stage1/Stage2 executable build, `make -C build FC=gfortran LDFLAGS= test1`, and tiny local Stage2 smoke.
+
+## Strict physical flow call sites - 2026-05-09 JST
+- Implemented the next state/information propagation slice: remaining physical-state `flow(...)` call sites now consume optional status and require strict success.
+- Updated generic Markov-chain initial flow, warmup reflow, adaptive preflow trial flow, and Stage2 adjacent-swap reflow candidates.
+- Behavior-preservation note: canonical strict ODEX/zero-time paths are unchanged. Solver-internal assist remains confined to residual-evaluation contexts and cannot construct live chain, warmup, preflow, swap, initialization, or final proposal states.
+- Verification passed: `git diff --check`, Stage1/Stage2 executable build, `make -C build FC=gfortran LDFLAGS= test1`, and tiny local Stage2 smoke with swap enabled.

@@ -3,7 +3,8 @@ module markovchain_mod
    use solve_flow, only: flow, &
                          get_intode_fallback_stats, &
                          get_intode_fallback_context_stats, &
-                         get_intode_rescue_stats
+                         get_intode_rescue_stats, &
+                         intode_status_unknown, intode_status_is_strict_success
    use param_mod
    use, intrinsic :: iso_fortran_env, only: int64
    use hmc, only: integrate_hmc_warmup
@@ -40,7 +41,7 @@ contains
       complex(dp), allocatable :: jac_state(:, :), jac_trial(:, :)
       real(dp) :: h_initial, h_proposed
       logical :: is_accepted, flow_failed, phase_error
-      integer :: chain_idx, state_size, hmc_repeat_idx
+      integer :: chain_idx, flow_status, state_size, hmc_repeat_idx
       integer :: accepted_trials, total_trials, warmup_iter
       integer :: io_status
       integer, parameter :: unit_x = 10, unit_z = 20, unit_phi = 30
@@ -77,8 +78,9 @@ contains
       start_time = wall_time_seconds()
 
       x_state = x_initial
-      call flow(x_state, z_state, jac_state, flow_failed)
-      if (flow_failed) then
+      flow_status = intode_status_unknown
+      call flow(x_state, z_state, jac_state, flow_failed, flow_status)
+      if (flow_failed .or. (.not. intode_status_is_strict_success(flow_status))) then
          write (*, '(A)') "[ERROR] Initial flow calculation failed."
          error stop 1
       end if
@@ -91,8 +93,9 @@ contains
          warmup_iter = warmup_iter + 1
          call integrate_hmc_warmup(x_state, z_state, total_step_size, num_steps, x_trial, z_trial, h_initial, h_proposed, jac_state, jac_trial)
          x_state = x_trial
-         call flow(x_state, z_state, jac_state, flow_failed)
-         if (flow_failed) then
+         flow_status = intode_status_unknown
+         call flow(x_state, z_state, jac_state, flow_failed, flow_status)
+         if (flow_failed .or. (.not. intode_status_is_strict_success(flow_status))) then
             write (*, '(A,I0)') "[ERROR] Warmup flow failed at iteration ", warmup_iter
             error stop 1
          end if
@@ -317,7 +320,7 @@ contains
       real(dp), parameter :: step_shrink = 0.5_dp
       real(dp), parameter :: step_grow_base = 1.25_dp
 
-      integer :: n_seed, relax_steps, relax_iter, relax_level_local, max_relax_iter
+      integer :: flow_status, n_seed, relax_steps, relax_iter, relax_level_local, max_relax_iter
       real(dp) :: t_current, t_next, dt_try, dt_min, dt_max
       real(dp) :: relax_step_size, action_delta, action_rel_tol, step_grow, relax_scale
       real(dp), allocatable :: x_candidate(:)
@@ -361,8 +364,9 @@ contains
             t_next = min(target_flow_time, t_current + dt_try)
             x_candidate = x_state
             call x_set_flow_time(x_candidate, t_next)
-            call flow(x_candidate, z_candidate, jac_candidate, flow_failed)
-            if (flow_failed) then
+            flow_status = intode_status_unknown
+            call flow(x_candidate, z_candidate, jac_candidate, flow_failed, flow_status)
+            if (flow_failed .or. (.not. intode_status_is_strict_success(flow_status))) then
                dt_try = dt_try*step_shrink
                cycle
             end if

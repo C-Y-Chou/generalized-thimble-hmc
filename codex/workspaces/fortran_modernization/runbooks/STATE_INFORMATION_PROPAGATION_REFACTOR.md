@@ -1,7 +1,7 @@
 # State and Information Propagation Refactor
 
 Updated: 2026-05-09 JST
-Status: first seven narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
+Status: first eight narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
 
 ## Purpose
 
@@ -330,3 +330,30 @@ Verification:
 - `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`.
 - `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
 - Tiny local Stage2 smoke with zero flow and two replicas passes.
+
+## Eighth Source Slice - Strict Physical Flow Call Sites - 2026-05-09 JST
+
+Purpose:
+
+- Apply strict-success flow status checks to remaining physical-state construction calls outside QN/NT residual evaluation.
+- Keep solver-internal `flowz(...)` residual calls separate from live-chain/state-construction flows.
+
+Implemented boundary:
+
+- `markovchain_mod.f90`: initial chain flow now requests optional status and requires strict success.
+- `markovchain_mod.f90`: warmup reflow now requests optional status and requires strict success.
+- `markovchain_mod.f90`: adaptive preflow trial `flow(...)` now treats non-strict success as a failed trial and shrinks the preflow step.
+- `tltm_stage2_driver.f90`: adjacent-swap reflow candidates now request optional status and require strict success before computing effective energies.
+
+Compatibility:
+
+- Current canonical strict ODEX and zero-time paths are unchanged.
+- Non-strict solver assist remains available to NT/QN residual evaluation, but cannot construct live chain, warmup, preflow, or swap physical states.
+- Simplified Newton residual `flowz(...)` calls are intentionally left as residual-evaluation calls, not physical final-state gates.
+
+Verification:
+
+- `git diff --check`.
+- `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`.
+- `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
+- Tiny local Stage2 smoke with swap enabled passes.
