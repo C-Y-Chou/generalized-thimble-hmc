@@ -466,7 +466,9 @@ Complete and commit the Radau/JFNK rescue source deletion slice, then continue w
 
 ## Root stale-source and no-op strict-mode cleanup - 2026-05-09 JST
 - Deleted tracked root-level stale Fortran artifacts `quasi_newton_solver.f90`, `tltm_stage2_driver.f90`, and `replay_quasi_failures.f90`; active canonical sources live under `src/` and these root files were not referenced by `build/makefile`.
+- Deleted stale backup config `data/parameters.stage3_2.bak`, which was not referenced by active scripts/docs and duplicated an obsolete Stage3_2-era parameter snapshot.
+- Updated persistent knowledge maps to describe the current no-post-refine, no-DFO-GN/Broyden, no-Radau/JFNK active architecture.
 - Removed the no-op `set_intode_strict_mode(...)` API and its call sites. After Radau/JFNK deletion, final-flow strictness is enforced by explicit ODE status gates rather than a mutable module flag.
 - Updated `generate_markov_chain` startup logging from `strict=` to `final_flow_strict=` to describe the actual policy.
 - Behavior-preservation note: no production route, ODEX stepping, residual assist gate, Metropolis acceptance, RNG, or output schema was intentionally changed.
-- Verification passed: `rg` found no remaining `set_intode_strict_mode`/`intode_strict_mode` references in active `src` or `tests`; `git diff --check`; `make -C build FC=gfortran LDFLAGS= ../bin/generate_markov_chain ../bin/run_tltm_stage1 ../bin/run_tltm_stage2 test_odex_solver test1`; tiny Stage1 smoke; tiny Stage2 smoke.
+- Verification passed: `rg` found no remaining `set_intode_strict_mode`/`intode_strict_mode` references in active `src` or `tests`; root source-artifact scan now finds only canonical `src/sampler` files; `git diff --check`; `make -C build FC=gfortran LDFLAGS= ../bin/generate_markov_chain ../bin/run_tltm_stage1 ../bin/run_tltm_stage2 test_odex_solver test1`; tiny Stage1 smoke; tiny Stage2 smoke.

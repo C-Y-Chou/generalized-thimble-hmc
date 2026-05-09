@@ -779,5 +779,6 @@ Use this file to append per-session notes.
 
 ## 2026-05-09 JST
 - Deleted tracked root-level stale Fortran artifacts `quasi_newton_solver.f90`, `tltm_stage2_driver.f90`, and `replay_quasi_failures.f90`.
+- Deleted stale backup config `data/parameters.stage3_2.bak` and refreshed persistent knowledge maps to current active architecture.
 - Removed no-op `set_intode_strict_mode(...)` call surface; strict final-flow behavior remains enforced by status gates.
 - Verified with active-source symbol census, `git diff --check`, production executable rebuild including `generate_markov_chain`, `test_odex_solver`, `test1`, tiny Stage1 smoke, and tiny Stage2 smoke.

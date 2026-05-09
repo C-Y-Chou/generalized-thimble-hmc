@@ -250,5 +250,6 @@
 
 ## 2026-05-09 JST - Root stale-source and strict-mode API cleanup
 - Deleted tracked root-level stale Fortran artifacts `quasi_newton_solver.f90`, `tltm_stage2_driver.f90`, and `replay_quasi_failures.f90`.
+- Deleted stale backup config `data/parameters.stage3_2.bak` and refreshed persistent knowledge maps to current active architecture.
 - Removed the no-op `set_intode_strict_mode(...)` API and call sites; final-flow strictness is now represented only by explicit status gates.
 - Verification passed: active-source symbol census, `git diff --check`, production executable rebuild including `generate_markov_chain`, `test_odex_solver`, `test1`, tiny Stage1 smoke, and tiny Stage2 smoke.

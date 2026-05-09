@@ -33,11 +33,11 @@ This manifest exists to keep source-audit context stable across chat compression
   - `tests` lines: 380
 
 ## Main source inventory
-- `src/apps`: executable entrypoints and analysis/replay applications.
+- `src/apps`: executable entrypoints and expectation analysis application.
 - `src/config`: parameter parsing and legacy-global synchronization.
 - `src/core`: RNG, utility, profiling, LAPACK fallback.
 - `src/physics`: model action/derivatives and holomorphic flow/inverse-flow solvers.
-- `src/sampler`: Stage1/Stage2 drivers, Metropolis, HMC/RATTLE, Newton, QN, post-refine, reverse gate, counters, history I/O.
+- `src/sampler`: Stage1/Stage2 drivers, Metropolis, HMC/RATTLE, Newton, canonical p28 QN, reverse gate, counters, history I/O.
 - `scripts`: multiseed orchestration, merge/report generation, geometry plotting, replay analysis, legacy campaign runners.
 - `tests`: derivative and Hamiltonian conservation tests.
 - `docs`: agent guide, theory references, campaign JSON protocols, policy/design notes.
