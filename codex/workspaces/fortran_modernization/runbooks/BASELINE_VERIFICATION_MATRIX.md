@@ -107,8 +107,13 @@ No modernization refactor should be implemented until the affected row below has
 - No source-level context refactor should start until affected baseline rows are covered.
 - Final wrapper design should make per-run/per-replica state explicit enough for deterministic parallel execution.
 
-## Canonical flow backend decision - 2026-05-08
-- User confirmed ODEX-only as the canonical long-term flow backend target.
+## Historical flow backend decision - 2026-05-08
+- Historical note: pure ODEX-only was considered the canonical long-term flow backend target before the 2026-05-09 solver-assist validation revised the decision.
 - Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are deletion candidates.
 - M2c implementation may remove or disable the rescue stack after flow-level characterization and ODEX-only comparison coverage.
 - If ODEX-only failure rate is unacceptable, improve ODEX/step control/failure handling rather than preserving a hidden secondary integrator stack by default.
+
+## Revised flow backend decision - 2026-05-09
+- Pure ODEX-only is a comparison baseline, not the final canonical baseline target.
+- Official baseline planning should target ODEX primary integration with solver-internal residual assist and strict final proposal flow.
+- Baseline rows must separately track assist, final strict flow, rejected proposal, reverse replay, and physical proposal counters.

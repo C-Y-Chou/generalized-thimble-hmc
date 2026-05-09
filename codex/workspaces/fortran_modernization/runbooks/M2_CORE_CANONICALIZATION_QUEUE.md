@@ -1,6 +1,6 @@
 # M2 Core Numerical Canonicalization Queue
 
-Updated: 2026-05-08
+Updated: 2026-05-09
 Scope: decisions to resolve after temporary characterization and before official baseline freeze.
 
 ## Gate
@@ -20,17 +20,19 @@ Decision:
 - `fb_norefine` is the canonical p28 production route.
 - Post-refine is a deletion candidate and should be removed or disabled in M2c after comparison harness coverage.
 
-## Decision 2: ODEX-only flow backend - resolved
+## Decision 2: ODEX primary flow backend with solver-internal assist - revised/resolved
 
 Decision:
 
-- Canonical long-term flow backend is ODEX-only.
-- Radau/JFNK/final-resort stack is legacy robustness/deletion candidate.
+- Pure ODEX-only is not the final canonical policy because staged validation showed a large avoidable robustness loss.
+- Canonical candidate is ODEX primary flow with solver-internal ODE assist allowed only inside NT/QN residual evaluation.
+- Final proposal construction remains strict: final `flow(...)` must not be completed by assist.
+- Radau/JFNK/final-proposal rescue acceptance remains a legacy robustness/deletion candidate.
 
 Required before deletion:
 
-- Dedicated flow-level characterization of rescue counters.
-- ODEX-only comparison run or user-approved algorithm version change.
+- Dedicated flow-level characterization of assist/rescue counters.
+- Tests that prove assist is forbidden in final proposal construction and external flow calls.
 
 ## Decision 3: non-p28 quasi route legacy staging - resolved
 
@@ -60,11 +62,11 @@ After decisions 1-3:
 - Post-refine is a deletion candidate and should not be part of the final canonical p28 route unless explicitly re-promoted later.
 - M2c implementation may remove or disable post-refine after comparison harness coverage.
 
-## Canonical flow backend decision - 2026-05-08
-- User confirmed ODEX-only as the canonical long-term flow backend target.
-- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are deletion candidates.
-- M2c implementation may remove or disable the rescue stack after flow-level characterization and ODEX-only comparison coverage.
-- If ODEX-only failure rate is unacceptable, improve ODEX/step control/failure handling rather than preserving a hidden secondary integrator stack by default.
+## Canonical flow backend decision - revised 2026-05-09
+- User accepted the 10k -> 50k -> 100k solver-assist observation: pure ODEX-only is not the final production policy.
+- Current canonical candidate is ODEX primary integration plus solver-internal ODE assist for NT/QN residual evaluation plus strict final proposal flow.
+- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and final-proposal rescue acceptance remain deletion candidates.
+- Solver-internal assist must be retained or redesigned as an explicit residual-evaluation status before any deletion attempt.
 
 ## Non-p28 quasi route staging decision - 2026-05-08
 - User confirmed non-p28 quasi routes should be marked legacy first, not immediately deleted.
@@ -73,8 +75,8 @@ After decisions 1-3:
 
 ## M2 execution policy - 2026-05-08
 
-- Non-ODEX canonical cleanup before the ODEX-only transition is behavior-neutral only: document, quarantine, inventory, and prepare tests, but do not change numerical behavior.
-- ODEX-only is the first approved numerical canonicalization step that may change trajectories. It requires staged physical validation: 10k -> 50k -> 100k.
-- For ODEX-only, validation compares physical observables and diagnostics rather than requiring trajectory identity.
+- Non-flow canonical cleanup before the flow-policy transition is behavior-neutral only: document, quarantine, inventory, and prepare tests, but do not change numerical behavior.
+- Flow-policy canonicalization is the first approved numerical canonicalization step that may change trajectories. It requires staged physical validation: 10k -> 50k -> 100k.
+- For flow-policy validation, compare physical observables and diagnostics rather than requiring trajectory identity.
 - Actual source deletion of post-refine or non-p28 quasi families waits until the staged validation gate and dependency checks pass.
 - See `M2_NON_ODEX_CANONICAL_CLEANUP_PLAN.md` and `ODEX_ONLY_STAGED_VALIDATION_PLAN.md`.

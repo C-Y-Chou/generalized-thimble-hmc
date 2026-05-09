@@ -23,6 +23,25 @@
 - ODEX-only increased projection/unresolved failures relative to pre-ODEX characterization, but RG rejects and pair0 acceptance stayed stable and no ODE invalid failures appeared.
 - Added `runbooks/ODEX_50K_100K_VALIDATION_RESULT_20260509_QNCLEAN.md` with the staged-validation judgment.
 
+## 2026-05-09 JST - Solver-internal ODE assist validation completed
+- Read completed solver-assist 10k/50k/100k reports from commit `704e2aafa650dc7ea5a404f60c9e37d7c841f49d`.
+- 100k physical observables remain compatible with zero: `mean Re<O>=-0.0013054876`, `mean Im<O>=0.0005283082`, `Zmean Re=-0.315388`, `Zmean Im=0.214810`.
+- Solver assist reduced 100k unresolved failures from ODEX-only `326569` to `224580`, essentially matching the earlier pre-ODEX `fb_norefine` level `224439`.
+- Updated canonical flow-policy candidate to ODEX primary plus solver-internal residual assist plus strict final proposal flow.
+- Added `runbooks/ODEX_SOLVER_ASSIST_VALIDATION_RESULT_20260509_QNCLEAN.md`.
+
+## 2026-05-09 JST - State/information propagation audit completed
+- Audited HMC transition/status flow before source changes.
+- Added `runbooks/STATE_INFORMATION_PROPAGATION_AUDIT.md`.
+- Finding: rejected/failed proposals do not overwrite live Stage2 slot state, but failed/unavailable Hamiltonians are still encoded as `0.0` in HMC proposal/warmup/test paths.
+- Proposed first source patch for user confirmation: remove `H=0` as unavailable-Hamiltonian sentinel, use existing proposal status/non-finite handling, and update Hamiltonian conservation test accordingly.
+
+## 2026-05-09 JST - State/information propagation refine queue added
+- User clarified that the flagged `h==0` issue means Hamiltonian `H==0` when a proposal is rejected, not ODE step size.
+- Added `runbooks/STATE_INFORMATION_PROPAGATION_REFACTOR.md`.
+- Recorded policy: solver-internal ODE assist can help NT/QN residual evaluation, but it must not finalize a proposal; final `flow(...)` remains strict.
+- Future refactor should introduce typed state/status propagation, explicit HMC rejection-state semantics, sentinel-free residual/Hamiltonian handling, and separated assist/replay/proposal counters after solver-assist validation is analyzed.
+
 ## 2026-05-08 JST - Planning information collection complete
 - Read relevant Fortran source sections for ODEX/flow, Newton/RATTLE, quasi-Newton projection, HMC/Metropolis, Stage2 driver, tests, and existing program-map docs.
 - Added low-level review notes for ODEX, simplified Newton/RATTLE, quasi-Newton projection, and HMC/Metropolis/TLTM driver.

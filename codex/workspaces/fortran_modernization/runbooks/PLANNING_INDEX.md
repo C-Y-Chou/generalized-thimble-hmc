@@ -1,6 +1,6 @@
 # Fortran Modernization Planning Index
 
-Updated: 2026-05-08
+Updated: 2026-05-09
 Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 ## Start Here
@@ -32,6 +32,7 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 - `M2_CORE_CANONICALIZATION_QUEUE.md`
 - `M2_NON_ODEX_CANONICAL_CLEANUP_PLAN.md`
 - `ODEX_ONLY_STAGED_VALIDATION_PLAN.md`
+- `ODEX_SOLVER_ASSIST_VALIDATION_RESULT_20260509_QNCLEAN.md`
 - `BASELINE_VERIFICATION_MATRIX.md`
 - `LEGACY_DELETION_CANDIDATES.md`
 
@@ -39,6 +40,8 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 - `CROSS_CUTTING_INFRASTRUCTURE_AUDIT.md`
 - `CODE_HYGIENE_AUDIT.md`
+- `STATE_INFORMATION_PROPAGATION_REFACTOR.md`
+- `STATE_INFORMATION_PROPAGATION_AUDIT.md`
 
 ## References
 

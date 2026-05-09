@@ -1,7 +1,11 @@
 # ODEX 50k/100k Validation Result: QN-Clean Baseline
 
 Updated: 2026-05-09 JST
-Status: staged ODEX-only validation passed for physical observables; failure-counter increase is accepted as the expected ODEX-only/failure-as-rejection tradeoff, not as a physics failure.
+Status: historical comparison artifact. Staged ODEX-only validation passed for physical observables, but the later solver-internal assist validation showed the ODEX-only robustness loss is avoidable. Do not use this file to promote pure ODEX-only as the final production policy.
+
+Superseding result:
+
+- `ODEX_SOLVER_ASSIST_VALIDATION_RESULT_20260509_QNCLEAN.md`
 
 ## Run Identity
 
@@ -80,9 +84,17 @@ Interpretation:
 
 The QN-clean ODEX-only staged validation passes the 10k -> 50k -> 100k physical-observable gate.
 
-This supports keeping ODEX-only as the canonical production flow backend and continuing modernization from the QN-clean `codex/preprod-hardening` line.
+This supports keeping ODEX-only as a physically acceptable comparison point, but not as the final production flow policy.
+
+Later solver-internal assist validation on commit `704e2aafa650dc7ea5a404f60c9e37d7c841f49d` reduced 100k unresolved failures from `326569` to `224580`, essentially matching the earlier pre-ODEX `fb_norefine` level `224439`, while keeping physical observables compatible with zero.
+
+Revised canonical candidate:
+
+- ODEX primary integration.
+- Solver-internal ODE assist for NT/QN residual evaluation.
+- Strict final proposal flow.
 
 Remaining caution:
 
-- Failure counters are higher than the pre-ODEX characterization and should be documented as an explicit algorithmic tradeoff.
-- Do not delete Radau/JFNK/final-resort legacy code solely based on this file; deletion should happen in a separate cleanup step after the source quarantine/deletion patch is reviewed and the output schema/reporting language is updated.
+- Failure counters are higher than the pre-ODEX characterization and were later shown to be avoidable with solver-internal assist.
+- Do not delete assist/final-resort-related source solely based on this file; deletion requires preserving explicit residual-assist semantics and proving final proposal strictness.

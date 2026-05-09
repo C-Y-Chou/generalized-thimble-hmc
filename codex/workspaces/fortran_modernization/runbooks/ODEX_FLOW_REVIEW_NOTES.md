@@ -146,8 +146,13 @@ In parallel planning order, the next low-level algorithm note should be `SIMPLIF
 - After judgment, regenerate clean baselines, record current rescue counters, and run an ODEX-only comparison before deletion.
 - If ODEX-only failure rate is unacceptable, prefer improving ODEX/step control/failure handling over preserving a hidden secondary integrator stack.
 
-## Canonical flow backend decision - 2026-05-08
-- User confirmed ODEX-only as the canonical long-term flow backend target.
+## Historical flow backend decision - 2026-05-08
+- Historical note: pure ODEX-only was considered the canonical long-term flow backend target before the 2026-05-09 solver-assist validation revised the decision.
 - Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are deletion candidates.
 - M2c implementation may remove or disable the rescue stack after flow-level characterization and ODEX-only comparison coverage.
 - If ODEX-only failure rate is unacceptable, improve ODEX/step control/failure handling rather than preserving a hidden secondary integrator stack by default.
+
+## Revised flow backend decision - 2026-05-09
+- Pure ODEX-only remains a comparison artifact, not the final production policy.
+- Solver-assist validation supports ODEX primary integration plus solver-internal ODE assist for NT/QN residual evaluation plus strict final proposal flow.
+- Do not delete assist-related source until residual-assist semantics and final-proposal strictness are represented by explicit state/status contracts.

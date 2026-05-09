@@ -1,35 +1,43 @@
-# ODEX-Only Staged Validation Plan
+# Flow-Policy Staged Validation Plan
 
-Updated: 2026-05-08
+Updated: 2026-05-09
 Scope: the first numerical canonicalization that may change trajectories.
+
+Status: revised after the 2026-05-09 solver-internal assist validation. Pure ODEX-only remains a comparison mode, not the final canonical production target.
 
 ## Goal
 
-Move the flow backend toward the canonical ODEX-only target while preserving the physical content of the TLTM calculation.
+Move the flow backend toward the canonical ODEX-primary target while preserving the physical content of the TLTM calculation.
 
 This is explicitly different from ordinary modernization refactors: trajectory identity may change because the Radau/JFNK/final-resort rescue stack can currently alter how failed flow integrations are handled. Therefore the validation target is physical-observable stability and understood failure/counter changes, not byte-for-byte trajectory equality.
 
 ## Canonical target
 
-Long-term canonical flow backend:
+Current canonical flow-policy candidate:
 
-`ODEX only`, using the Hairer ODEX `IWORK(3)=3` sequence with matching work estimates and signed-interval/work-estimate robustness cleaned in the same canonicalization patch.
+`ODEX primary + solver-internal ODE assist + strict final proposal`, using the Hairer ODEX `IWORK(3)=3` sequence with matching work estimates and signed-interval/work-estimate robustness.
+
+Assist policy:
+
+- allowed only as a Newton/QN residual-evaluation progress aid
+- forbidden in final proposal `flow(...)`
+- forbidden in external flow calls that construct physical proposal state
 
 Legacy/deletion-candidate flow paths:
 
 - Radau rescue.
 - Fixed/chunked Radau rescue.
 - JFNK support paths tied to rescue behavior.
-- ODE final-resort acceptance or rescue acceptance policies.
+- final-proposal rescue acceptance policies.
 
-If ODEX-only reveals unacceptable failure behavior, the preferred fix is to improve ODEX step control, error reporting, or failure classification rather than silently restoring a secondary integrator stack as the default production route.
+Pure ODEX-only revealed avoidable solver robustness loss. The preferred policy is not hidden secondary-integrator proposal acceptance, but explicit solver-internal residual assist plus strict final proposal construction.
 
 Legacy Radau/JFNK/final-resort code should be arranged in the easiest later-deletion form: quarantined, explicitly disabled from production entry points, and not interleaved with the canonical ODEX path.
 
 
 ## Pre-validation blocker - retained core correctness audit
 
-Do not submit the 10k -> 50k -> 100k ODEX-only validation jobs until the retained-core implementation correctness audit has at least accepted all five active numerical cores for staged validation:
+Do not submit long flow-policy validation jobs until the retained-core implementation correctness audit has at least accepted all five active numerical cores for staged validation:
 
 - ODEX flow integration.
 - Simplified Newton constraint solve.
@@ -83,7 +91,7 @@ Run stages in order and stop if a stage shows a major physical-observable proble
    - Required readout: same as 10k, plus per-seed distribution inspection for outliers.
 
 3. `100k` validation:
-   - Purpose: final approval gate before declaring ODEX-only canonical and before deleting legacy rescue source.
+   - Purpose: final approval gate before declaring the ODEX-primary solver-assist policy canonical and before deleting or renaming legacy rescue source.
    - Compare against the current M1 128seed/100k characterization where applicable.
    - Required readout: aggregate and paired per-seed observables, Z means, unresolved failures, RG rejects, projection failures, flow failure classifications, runtime.
 
@@ -100,7 +108,7 @@ A stage may pass when:
 A stage must stop for review when:
 
 - Observables move in a way that cannot be explained by expected trajectory-policy change.
-- ODEX-only produces runaway unresolved failures or severe per-seed outliers.
+- the flow policy produces runaway unresolved failures or severe per-seed outliers.
 - RG live-slot identity, RNG order outside the intended trajectory policy, or Metropolis acceptance semantics are accidentally changed.
 - Logs cannot distinguish ODEX failure from p28 solver/RG failures.
 
@@ -108,12 +116,13 @@ A stage must stop for review when:
 
 Only after 10k -> 50k -> 100k passes:
 
-- Promote ODEX-only to the official canonical flow backend.
-- Mark Radau/JFNK/final-resort rescue source for actual deletion or permanent archival quarantine.
+- Promote ODEX-primary solver-internal assist with strict final proposal as the official canonical flow policy.
+- Mark Radau/JFNK/final-proposal rescue source for actual deletion or permanent archival quarantine.
+- Keep or redesign solver-internal residual assist as an explicit typed status pathway.
 - Regenerate official modernization baselines.
 - Start broader repo-wide source modernization against those baselines.
 
-Status: ODEX-only policy and ODEX sequence canonicalization have local smoke coverage. Long physical validation has not been submitted.
+Status: pure ODEX-only validation completed and was revised by solver-internal assist validation. See `ODEX_SOLVER_ASSIST_VALIDATION_RESULT_20260509_QNCLEAN.md`.
 
 ## Source implementation note - 2026-05-08
 

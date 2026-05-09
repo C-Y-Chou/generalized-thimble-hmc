@@ -39,7 +39,13 @@ Turn the TLTM Fortran codebase into a mature, maintainable, verifiable, and publ
 - unify diagnostic taxonomy and machine-readable summaries
 - maintain benchmark baselines for hot paths and representative workflows
 
-### 7. Productization and publication readiness
+### 7. State, status, and information propagation
+- replace ambiguous logical error chains and sentinel numeric values with typed status contracts
+- separate live chain state, trial proposal state, strict proposal construction, solver-internal assist, and diagnostics
+- make rejected proposal, unavailable Hamiltonian, invalid residual, ODE boundary, solver convergence, and proposal-failure states explicit
+- ensure counters distinguish physical proposal events from diagnostic/replay/assist work
+
+### 8. Productization and publication readiness
 - keep documentation synchronized with implementation
 - define release, reproducibility, and review expectations
 - make the codebase legible to new developers and external evaluators
@@ -62,6 +68,7 @@ Turn the TLTM Fortran codebase into a mature, maintainable, verifiable, and publ
 ### Phase 3. Core refactor sequence
 - clean config/state coupling
 - consolidate residual semantics
+- refactor state/status propagation and ODE failure/assist status handling
 - split solver kernels from routing logic
 - slim large integrator and driver modules
 - externalize diagnostics and counters where appropriate
@@ -82,12 +89,18 @@ Turn the TLTM Fortran codebase into a mature, maintainable, verifiable, and publ
 - Stage-specific scripts should become compatibility layers or internal implementation details.
 - The final publishable project should expose a coherent config-driven TLTM product interface with versioned output schema and reproducible provenance.
 
-## Flow Backend Direction Decision - 2026-05-08
-- Tentative long-term publishable target: ODEX-only flow backend.
-- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are legacy robustness layers/deletion candidates.
-- Do not remove or change them before Stage3_4/TLTM judgment completes.
-- After judgment, regenerate clean baselines, record current rescue counters, and run an ODEX-only comparison before deletion.
-- If ODEX-only failure rate is unacceptable, prefer improving ODEX/step control/failure handling over preserving a hidden secondary integrator stack.
+## Flow Backend Direction Decision - revised 2026-05-09
+- Pure ODEX-only passed physical-observable validation but caused a large solver robustness loss.
+- Current canonical candidate: ODEX primary flow plus solver-internal ODE assist for NT/QN residual evaluation plus strict final proposal flow.
+- Assist is a residual-evaluation progress aid only; it must not finalize a proposal or replace strict final `flow(...)`.
+- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and final-proposal rescue acceptance remain legacy/deletion candidates.
+- Do not delete assist-related code until state/status propagation is redesigned and tests prove final proposal strictness.
+
+## State/Information Propagation Direction Update - 2026-05-09
+- Current evidence suggests solver-internal ODE assist may be needed for NT/QN robustness, but it must not become final proposal acceptance.
+- The near-term canonical candidate is ODEX primary flow plus solver-internal residual assist plus strict final proposal flow.
+- State/status/information propagation is now a formal whole-code refine workstream, recorded in `STATE_INFORMATION_PROPAGATION_REFACTOR.md`.
+- Specific future cleanup includes typed transition/result returns, no sentinel residual or Hamiltonian values, explicit HMC rejection-state semantics, and diagnostics that separate assist/replay/proposal counters.
 
 ## Thread-Safety / Reentrancy Decision - 2026-05-08
 - Long-term modernization target: support in-process parallelism/OpenMP-capable TLTM execution.

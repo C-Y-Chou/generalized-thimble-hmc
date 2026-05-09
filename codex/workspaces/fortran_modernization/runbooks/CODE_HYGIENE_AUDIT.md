@@ -19,7 +19,9 @@ Clean implementation quality without changing physics, sampling, or output behav
 - Logging format inconsistencies.
 - Repeated allocation/deallocation patterns.
 - Legacy/research/deletion-candidate code paths.
-- Error flag/status convention inconsistencies.
+- State/status/value propagation inconsistencies.
+- Overloaded numerical sentinels, including rejected-proposal Hamiltonian `H=0`, artificial residual objectives, and fake unavailable quantities.
+- Overloaded success/failure counters that mix solver assist, diagnostic replay, rejected stay-put events, and physical proposal events.
 
 ### Potentially safe after baselines
 
@@ -33,6 +35,7 @@ Clean implementation quality without changing physics, sampling, or output behav
 ### Blocked until canonicalization and official baseline
 
 - Any cleanup touching residual equations, flow direction, ODEX constants, route thresholds, RNG order, Metropolis/RG logic, counters, or output schema.
+- Any cleanup changing state/status propagation, Hamiltonian rejection semantics, h-min behavior, solver-assist semantics, or proposal failure policy.
 - Any deletion of legacy routes.
 - Any module split that changes initialization order or environment loading order.
 
@@ -46,6 +49,14 @@ Clean implementation quality without changing physics, sampling, or output behav
 - `/home/cychou/TLTM/src/core/utils.f90`: mapping helpers, state helpers, I/O helpers, math helpers.
 - `/home/cychou/TLTM/src/core/mt95.f90`: global RNG state.
 - `/home/cychou/TLTM/src/config/param_mod.f90`: config + legacy global sync.
+
+## State/Information Propagation Refactor Item
+
+State and information propagation is now a dedicated future cleanup target. It includes replacing ambiguous `logical error` plumbing and numeric sentinel values with typed statuses, separating solver-internal ODE assist from strict final proposal construction, and making rejected-proposal Hamiltonian semantics plus h-min/max-step/invalid-RHS handling explicit.
+
+Reference queue:
+
+- `STATE_INFORMATION_PROPAGATION_REFACTOR.md`
 
 ## Pre-Stage3_4 Actions
 

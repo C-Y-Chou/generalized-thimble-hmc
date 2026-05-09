@@ -380,11 +380,16 @@ Remaining open items are not missing workstreams; they are future gates:
 - Post-refine is a deletion candidate and should not be part of the final canonical p28 route unless explicitly re-promoted later.
 - M2c implementation may remove or disable post-refine after comparison harness coverage.
 
-## Canonical flow backend decision - 2026-05-08
-- User confirmed ODEX-only as the canonical long-term flow backend target.
+## Historical flow backend decision - 2026-05-08
+- Historical note: pure ODEX-only was considered the canonical long-term flow backend target before the 2026-05-09 solver-assist validation revised the decision.
 - Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are deletion candidates.
 - M2c implementation may remove or disable the rescue stack after flow-level characterization and ODEX-only comparison coverage.
 - If ODEX-only failure rate is unacceptable, improve ODEX/step control/failure handling rather than preserving a hidden secondary integrator stack by default.
+
+## Revised flow backend decision - 2026-05-09
+- User accepted the solver-assist validation observation: pure ODEX-only is not the final production policy.
+- Current canonical candidate is ODEX primary integration plus solver-internal ODE assist for NT/QN residual evaluation plus strict final proposal flow.
+- Future deletion/refactor work must preserve explicit residual-assist semantics and prove final proposal strictness.
 
 ## Non-p28 quasi route staging decision - 2026-05-08
 - User confirmed non-p28 quasi routes should be marked legacy first, not immediately deleted.

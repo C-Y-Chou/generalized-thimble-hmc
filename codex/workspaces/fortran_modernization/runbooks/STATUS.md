@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-09 03:25 JST
+Updated: 2026-05-09 10:55 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -17,13 +17,25 @@ Updated: 2026-05-09 03:25 JST
   - `runbooks/HMC_METROPOLIS_TLTM_REVIEW_NOTES.md`
   - `runbooks/BASELINE_VERIFICATION_MATRIX.md`
   - `runbooks/PLANNING_DISCUSSION_BRIEF.md`
-- ODEX-only source policy has been implemented in `src/physics/solve_flow.f90`; no production job submissions have been performed for this modernization task.
+- Current flow-policy candidate is ODEX primary integration with solver-internal ODE assist for NT/QN residual evaluation and strict final proposal flow.
 
 ## Current architecture understanding
 - `solve_flow.f90` is flow mapping plus ODEX-like integration plus Radau/JFNK/final-resort policy plus diagnostics.
 - `hmc_integrator_core.f90` is the central proposal hub: Newton, quasi fallback, post-refine, reverse gate, flow/Jacobian update, momentum projection, and solver statistics.
 - `quasi_newton_solver.f90` mixes residual definitions, DFO-LS/DFO-GN/Broyden solver families, continuation/restart policy, traces, watchdog/final-resort budgets, and route counters.
 - `tltm_stage2_driver.f90` owns production orchestration and output/counter contracts used by Stage3_4 interpretation.
+
+## State/information propagation refine queue - 2026-05-09 JST
+- User clarified that the flagged `h==0` issue means Hamiltonian `H==0` when a proposal is rejected, not ODE step size.
+- Added `runbooks/STATE_INFORMATION_PROPAGATION_REFACTOR.md` as the broader workflow item replacing the narrower error-handling framing.
+- Future target: typed state/status propagation for ODE integration, residual evaluation, solver convergence, proposal construction, reverse-gate rejection, Metropolis rejection, and live-chain state update.
+- Policy boundary: solver-internal ODE assist may help NT/QN residual evaluation, but strict final `flow(...)` must construct the actual proposal.
+- Solver-assist 10k -> 50k -> 100k validation is complete and analyzed; source-level state/status refactor still requires explicit user confirmation patch-by-patch.
+
+## State/information propagation audit - 2026-05-09 JST
+- Added `runbooks/STATE_INFORMATION_PROPAGATION_AUDIT.md`.
+- Audit result: live-chain state update on reject appears safe, but failed/unavailable Hamiltonian is still encoded as `0.0` in `hmc.f90`, `markovchain_mod.f90`, and `tests/test_hamiltonian_conservation.f90`.
+- First proposed code patch before broader typed-status redesign: replace `H=0` failure sentinels with explicit proposal status/non-finite unavailable Hamiltonian handling while preserving Metropolis physics.
 
 ## Next action
 Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failure/progress semantics, deterministic replay tests, and reverse-gate diagnostic accounting.
@@ -50,10 +62,10 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - Reverse gate is a permanent algorithmic requirement for the production/publishable p28 route.
 - It must be preserved and baselined during modernization.
 
-## Flow backend direction decision - 2026-05-08 JST
-- Canonical long-term publishable target: ODEX-only flow backend.
-- Radau/JFNK/final-resort rescue stack is a legacy robustness layer/deletion candidate.
-- No change before Stage3_4/TLTM judgment; after judgment, run fresh baseline and ODEX-only comparison before deletion.
+## Flow backend direction decision - revised 2026-05-09 JST
+- Pure ODEX-only is retained as a comparison artifact, not the final production policy.
+- Current canonical candidate is ODEX primary integration plus solver-internal ODE assist for NT/QN residual evaluation plus strict final proposal flow.
+- Radau/JFNK/final-proposal rescue acceptance remains a legacy deletion candidate; solver-internal assist must be kept or explicitly redesigned before deletion.
 
 ## Thread-safety decision - 2026-05-08 JST
 - Long-term modernization target is in-process parallel/OpenMP-capable TLTM execution.
@@ -89,11 +101,11 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
 - Post-refine is a deletion candidate and should not be part of the final canonical p28 route unless explicitly re-promoted later.
 - M2c implementation may remove or disable post-refine after comparison harness coverage.
 
-## Canonical flow backend decision - 2026-05-08
-- User confirmed ODEX-only as the canonical long-term flow backend target.
-- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are deletion candidates.
-- M2c implementation may remove or disable the rescue stack after flow-level characterization and ODEX-only comparison coverage.
-- If ODEX-only failure rate is unacceptable, improve ODEX/step control/failure handling rather than preserving a hidden secondary integrator stack by default.
+## Canonical flow backend decision - revised 2026-05-09
+- User accepted the solver-assist validation observation: pure ODEX-only should not be the final policy because it introduces avoidable solver robustness loss.
+- Current canonical candidate: ODEX primary integration, solver-internal ODE assist for NT/QN residual evaluation, strict final proposal flow.
+- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and final-proposal rescue acceptance remain deletion candidates.
+- Any deletion/refactor must preserve explicit residual-assist semantics and prove final proposal strictness.
 
 ## Non-p28 quasi route staging decision - 2026-05-08
 - User confirmed non-p28 quasi routes should be marked legacy first, not immediately deleted.

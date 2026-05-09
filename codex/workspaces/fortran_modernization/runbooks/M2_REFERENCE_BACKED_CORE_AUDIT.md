@@ -182,7 +182,7 @@ Required before long validation:
 
 Scope note: active discussion is limited to the five retained core numerical blocks. Broader typed-state, diagnostics, repo/API, utilities/RNG/I/O, and productization refactors remain future blocks.
 
-1. ODEX implementation canonicalization: switch to Hairer ODEX `IWORK(3)=3`, update matching work estimates, clean signed-interval robustness, and test ODE solver self-consistency before any ODEX-only validation.
+1. ODEX implementation canonicalization: switch to Hairer ODEX `IWORK(3)=3`, update matching work estimates, clean signed-interval robustness, and test ODE solver self-consistency before any long flow-policy validation.
 2. QN p28 implementation: paper-variable source cleanup and local BTN contract verification are implemented; next remaining QN work is fixed-seed route-census verification.
 3. RATTLE/HMC proposal boundary: keep `state_has_progress` legacy/diagnostic until state redesign, define failure-as-rejection, and treat reverse gate as part of the proposal definition.
 4. Deterministic core tests: Newton residual, BTN residual contract, RATTLE/reverse-gate behavior, flow round-trip, ODE analytic/self-consistency checks.

@@ -5,7 +5,7 @@ Scope: behavior-neutral cleanup decisions before the ODEX-only numerical change.
 
 ## Policy
 
-All non-ODEX M2 work before the ODEX-only transition must be behavior-neutral for the current canonical p28 production route.
+All non-flow-policy M2 work before the flow-policy transition must be behavior-neutral for the current canonical p28 production route.
 
 This means:
 
