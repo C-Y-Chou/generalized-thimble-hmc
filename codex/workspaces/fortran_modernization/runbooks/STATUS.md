@@ -88,7 +88,8 @@ Latest behavior-neutral infrastructure cleanup:
 
 Next expected modernization area after this slice:
 
-- Broader config modernization: typed config propagation, remaining legacy globals, env override policy, and eventual schema-versioned wrapper configuration.
+- M3 architecture contract execution: wrapper/schema design, typed config propagation, explicit context/workspace ownership, and compatibility gates.
+- `runbooks/M3_ARCHITECTURE_CONTRACT.md` now records the next-phase rules before public schema, wrapper, config, or module-state refactors begin.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.

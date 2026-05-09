@@ -309,3 +309,8 @@
 - Generated headers now record repo-relative source paths, avoiding local absolute-path churn across worktrees.
 - Regenerated `src/physics/model_generated.f90`.
 - Verification passed with `py_compile`, deterministic regeneration, `git diff --check`, `evaluate_expectations` build, `test2`, and `test_odex_solver`.
+
+## 2026-05-10 JST - M3 architecture contract
+- Added `runbooks/M3_ARCHITECTURE_CONTRACT.md` as the next-phase planning gate after behavior-neutral infrastructure cleanup.
+- Contract freezes v0 output compatibility until schema versioning exists and defines v1 schema, typed config, explicit context/workspace, regression-gate, and stop-gate rules.
+- No Fortran source, output writer, production workflow, or job submission changes were made in this planning-only slice.
