@@ -738,3 +738,8 @@ Use this file to append per-session notes.
 - Simplified Newton residual `flowz(...)` calls now request optional ODE/flow status and record diagnostic counters.
 - Stage1/Stage2 write `# newton_eval_flow_status ...`; multiseed run/merge scripts propagate the new columns.
 - Verification passed with `py_compile`, `git diff --check`, `test_odex_solver`, `test1`, Stage1/Stage2 executable build, tiny Stage2 smoke, and parser readback observing `newton_eval_flow_zero_time_count=80`.
+
+## 2026-05-09 JST
+- Reverse-gate replay now records nested `rattle_step_core(...)` step status without changing replay or tolerance decisions.
+- Stage1/Stage2 write `# reverse_gate_replay_status ...`; multiseed run/merge scripts propagate the new columns.
+- Verification passed with `py_compile`, `git diff --check`, `test_odex_solver`, `test1`, Stage1/Stage2 executable build, parser readback, and RG-enabled tiny smoke observing `reverse_gate_replay_success=80`.

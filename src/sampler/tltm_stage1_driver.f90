@@ -8,6 +8,7 @@ module tltm_stage1_driver
    use markovchain_metropolis, only: metropolis_step
    use markovchain_phase, only: compute_phase_factor
    use hmc_constraints, only: reset_newton_eval_flow_status_counts, get_newton_eval_flow_status_counts
+   use hmc_integrator_core, only: reset_reverse_gate_replay_status_counts, get_reverse_gate_replay_status_counts
    use quasi_newton_solver_mod, only: reset_quasi_eval_flow_status_counts, get_quasi_eval_flow_status_counts
    use tltm_types_mod, only: tltm_replica_t, allocate_tltm_replica, release_tltm_replica, record_tltm_local_transition
    implicit none
@@ -32,6 +33,7 @@ contains
       call read_parameters()
       call reset_newton_eval_flow_status_counts()
       call reset_quasi_eval_flow_status_counts()
+      call reset_reverse_gate_replay_status_counts()
 
       x_size = config%state%x_size
       call resolve_base_seed(base_seed)
@@ -272,6 +274,11 @@ contains
       integer(int64) :: newton_flow_success_count, newton_flow_zero_time_count, newton_flow_stiff_rescue_count
       integer(int64) :: newton_flow_solver_assist_count, newton_flow_failure_max_steps_count, newton_flow_failure_invalid_count
       integer(int64) :: newton_flow_failure_h_min_count, newton_flow_unknown_count
+      integer(int64) :: rg_replay_success_count, rg_replay_output_size_mismatch_count, rg_replay_momentum_size_mismatch_count
+      integer(int64) :: rg_replay_initial_force_failed_count, rg_replay_constraint_failed_count, rg_replay_final_flow_failed_count
+      integer(int64) :: rg_replay_final_force_failed_count, rg_replay_final_projection_failed_count, rg_replay_reverse_gate_rejected_count
+      integer(int64) :: rg_replay_final_flow_max_steps_count, rg_replay_final_flow_invalid_count, rg_replay_final_flow_h_min_count
+      integer(int64) :: rg_replay_final_flow_non_strict_success_count, rg_replay_unknown_count
 
       open (unit=unit_summary, file=trim(summary_file), status='replace', action='write', iostat=ios)
       if (ios /= 0) then
@@ -292,6 +299,24 @@ contains
          " stiff_rescue=", newton_flow_stiff_rescue_count, " solver_assist=", newton_flow_solver_assist_count, &
          " failure_max_steps=", newton_flow_failure_max_steps_count, " failure_invalid=", newton_flow_failure_invalid_count, &
          " failure_h_min=", newton_flow_failure_h_min_count, " unknown=", newton_flow_unknown_count
+      call get_reverse_gate_replay_status_counts(rg_replay_success_count, rg_replay_output_size_mismatch_count, &
+                                                 rg_replay_momentum_size_mismatch_count, rg_replay_initial_force_failed_count, &
+                                                 rg_replay_constraint_failed_count, rg_replay_final_flow_failed_count, &
+                                                 rg_replay_final_force_failed_count, rg_replay_final_projection_failed_count, &
+                                                 rg_replay_reverse_gate_rejected_count, rg_replay_final_flow_max_steps_count, &
+                                                 rg_replay_final_flow_invalid_count, rg_replay_final_flow_h_min_count, &
+                                                 rg_replay_final_flow_non_strict_success_count, rg_replay_unknown_count)
+      write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
+         "# reverse_gate_replay_status success=", rg_replay_success_count, &
+         " output_size_mismatch=", rg_replay_output_size_mismatch_count, &
+         " momentum_size_mismatch=", rg_replay_momentum_size_mismatch_count, &
+         " initial_force_failed=", rg_replay_initial_force_failed_count, " constraint_failed=", rg_replay_constraint_failed_count, &
+         " final_flow_failed=", rg_replay_final_flow_failed_count, " final_force_failed=", rg_replay_final_force_failed_count, &
+         " final_projection_failed=", rg_replay_final_projection_failed_count, &
+         " reverse_gate_rejected=", rg_replay_reverse_gate_rejected_count, &
+         " final_flow_max_steps=", rg_replay_final_flow_max_steps_count, " final_flow_invalid=", rg_replay_final_flow_invalid_count, &
+         " final_flow_h_min=", rg_replay_final_flow_h_min_count, &
+         " final_flow_non_strict_success=", rg_replay_final_flow_non_strict_success_count, " unknown=", rg_replay_unknown_count
       call get_quasi_eval_flow_status_counts(qn_flow_success_count, qn_flow_zero_time_count, qn_flow_stiff_rescue_count, &
                                              qn_flow_solver_assist_count, qn_flow_failure_max_steps_count, &
                                              qn_flow_failure_invalid_count, qn_flow_failure_h_min_count, qn_flow_unknown_count)

@@ -48,6 +48,23 @@ QN_EVAL_FLOW_STATUS_NAMES = [
 
 NEWTON_EVAL_FLOW_STATUS_NAMES = QN_EVAL_FLOW_STATUS_NAMES
 
+REVERSE_GATE_REPLAY_STATUS_NAMES = [
+    "success",
+    "output_size_mismatch",
+    "momentum_size_mismatch",
+    "initial_force_failed",
+    "constraint_failed",
+    "final_flow_failed",
+    "final_force_failed",
+    "final_projection_failed",
+    "reverse_gate_rejected",
+    "final_flow_max_steps",
+    "final_flow_invalid",
+    "final_flow_h_min",
+    "final_flow_non_strict_success",
+    "unknown",
+]
+
 METHOD_SPECS = {
     "no_fb": {
         "fallback_enabled": False,
@@ -104,6 +121,14 @@ def newton_eval_flow_status_count_columns():
 
 def newton_eval_flow_status_aggregate_columns():
     return ["total_{0}".format(column) for column in newton_eval_flow_status_count_columns()]
+
+
+def reverse_gate_replay_status_count_columns():
+    return ["reverse_gate_replay_{0}_count".format(name) for name in REVERSE_GATE_REPLAY_STATUS_NAMES]
+
+
+def reverse_gate_replay_status_aggregate_columns():
+    return ["total_{0}".format(column) for column in reverse_gate_replay_status_count_columns()]
 
 
 def parse_args():
@@ -477,6 +502,7 @@ def parse_stage2_summary(summary_path):
     quasi_global_filter_stats = {"candidate": 0, "pass": 0, "reject": 0}
     newton_eval_flow_status_stats = {name: 0 for name in NEWTON_EVAL_FLOW_STATUS_NAMES}
     qn_eval_flow_status_stats = {name: 0 for name in QN_EVAL_FLOW_STATUS_NAMES}
+    reverse_gate_replay_status_stats = {name: 0 for name in REVERSE_GATE_REPLAY_STATUS_NAMES}
     reverse_gate_route_stats = {
         "candidate": {route_name: 0 for route_name in REVERSE_GATE_ROUTE_NAMES},
         "pass": {route_name: 0 for route_name in REVERSE_GATE_ROUTE_NAMES},
@@ -592,6 +618,12 @@ def parse_stage2_summary(summary_path):
             for key in qn_eval_flow_status_stats:
                 if key in kv:
                     qn_eval_flow_status_stats[key] = int(kv[key])
+            continue
+        if line.startswith("# reverse_gate_replay_status "):
+            kv = parse_key_value_ints(line[len("# reverse_gate_replay_status ") :])
+            for key in reverse_gate_replay_status_stats:
+                if key in kv:
+                    reverse_gate_replay_status_stats[key] = int(kv[key])
             continue
         if line.startswith("# reverse_gate_route_candidates "):
             kv = parse_key_value_ints(line[len("# reverse_gate_route_candidates ") :])
@@ -718,6 +750,10 @@ def parse_stage2_summary(summary_path):
             for name in NEWTON_EVAL_FLOW_STATUS_NAMES
         },
         **{"qn_eval_flow_{0}_count".format(name): qn_eval_flow_status_stats[name] for name in QN_EVAL_FLOW_STATUS_NAMES},
+        **{
+            "reverse_gate_replay_{0}_count".format(name): reverse_gate_replay_status_stats[name]
+            for name in REVERSE_GATE_REPLAY_STATUS_NAMES
+        },
         **{"local_{0}_count".format(name): local_transition_stats[name] for name in LOCAL_TRANSITION_NAMES},
         "accepted_local_total": accepted_local_census["accepted_total"],
         "accepted_local_newton_only_count": accepted_local_census["newton_only"],
@@ -1046,6 +1082,7 @@ def run_one_seed(
         **{column: stage2_metrics[column] for column in reverse_gate_count_columns()},
         **{column: stage2_metrics[column] for column in newton_eval_flow_status_count_columns()},
         **{column: stage2_metrics[column] for column in qn_eval_flow_status_count_columns()},
+        **{column: stage2_metrics[column] for column in reverse_gate_replay_status_count_columns()},
         **{column: stage2_metrics[column] for column in local_transition_count_columns()},
         "accepted_local_total": stage2_metrics["accepted_local_total"],
         "accepted_local_newton_only_count": stage2_metrics["accepted_local_newton_only_count"],
@@ -1236,6 +1273,8 @@ def aggregate_rows(rows, observable_exact_re=0.0, observable_exact_im=0.0):
         for column in newton_eval_flow_status_count_columns():
             agg["total_{0}".format(column)] = int(sum(as_finite_number(r.get(column)) or 0.0 for r in group))
         for column in qn_eval_flow_status_count_columns():
+            agg["total_{0}".format(column)] = int(sum(as_finite_number(r.get(column)) or 0.0 for r in group))
+        for column in reverse_gate_replay_status_count_columns():
             agg["total_{0}".format(column)] = int(sum(as_finite_number(r.get(column)) or 0.0 for r in group))
         if agg["total_post_refine_attempt_count"] > 0:
             agg["post_refine_success_ratio_from_totals"] = float(agg["total_post_refine_success_count"]) / float(
@@ -1566,6 +1605,7 @@ def main():
         *reverse_gate_count_columns(),
         *newton_eval_flow_status_count_columns(),
         *qn_eval_flow_status_count_columns(),
+        *reverse_gate_replay_status_count_columns(),
         *local_transition_count_columns(),
         "accepted_local_total",
         "accepted_local_newton_only_count",
@@ -1652,6 +1692,7 @@ def main():
         *reverse_gate_aggregate_columns(),
         *newton_eval_flow_status_aggregate_columns(),
         *qn_eval_flow_status_aggregate_columns(),
+        *reverse_gate_replay_status_aggregate_columns(),
         *local_transition_aggregate_columns(),
     ]
 

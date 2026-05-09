@@ -1,7 +1,7 @@
 # State and Information Propagation Refactor
 
 Updated: 2026-05-09 JST
-Status: first nine narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
+Status: first ten narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
 
 ## Purpose
 
@@ -386,3 +386,32 @@ Verification:
 - `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
 - `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`.
 - Tiny local Stage2 smoke writes `# newton_eval_flow_status ...`; parser readback succeeds and observes Newton residual zero-time flow evaluations.
+
+## Tenth Source Slice - Reverse-Gate Replay Status Counters - 2026-05-09 JST
+
+Purpose:
+
+- Make reverse-gate replay failure reasons observable without changing RG pass/reject decisions.
+- Use the existing HMC step-status surface for reverse replay instead of reducing replay to a single `reverse_ok` boolean.
+
+Implemented boundary:
+
+- `hmc_integrator_core.f90`: reverse-gate replay now requests `step_status` from the nested `rattle_step_core(...)` call.
+- Added replay counters for success, size mismatches, force failures, constraint failure, final-flow failures, projection failure, non-strict final-flow success, and unknown status.
+- Stage1/Stage2 drivers reset the replay counters at run start and write `# reverse_gate_replay_status ...`.
+- `run_stage3_3_multiseed.py` and `merge_stage3_multiseed_chunks.py` propagate the new per-seed and aggregate CSV columns.
+
+Compatibility:
+
+- RG replay, tolerance comparison, pass/reject decision, and counter suppression semantics are unchanged.
+- A successful replay that fails the RG tolerance check is still counted by the existing reverse-gate reject path; the new replay-status counter reports only replay construction status.
+
+Verification:
+
+- `python3 -m py_compile scripts/run_stage3_3_multiseed.py scripts/merge_stage3_multiseed_chunks.py scripts/fortran_module_deps.py`.
+- `git diff --check`.
+- `make -C build FC=gfortran LDFLAGS= test_odex_solver`.
+- `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
+- `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`.
+- Tiny local Stage2 smoke writes `# reverse_gate_replay_status ...`; parser readback succeeds.
+- RG-enabled tiny Stage2 smoke observes `reverse_gate_replay_success=80` and `reverse_gate_route_pass total=80`.

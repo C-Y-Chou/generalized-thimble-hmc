@@ -44,6 +44,8 @@ def main():
         read_protocol,
         reverse_gate_aggregate_columns,
         reverse_gate_count_columns,
+        reverse_gate_replay_status_aggregate_columns,
+        reverse_gate_replay_status_count_columns,
         write_csv,
         write_report,
     )
@@ -128,6 +130,7 @@ def main():
         *reverse_gate_count_columns(),
         *newton_eval_flow_status_count_columns(),
         *qn_eval_flow_status_count_columns(),
+        *reverse_gate_replay_status_count_columns(),
         *local_transition_count_columns(),
         "accepted_local_total",
         "accepted_local_newton_only_count",
@@ -214,6 +217,7 @@ def main():
         *reverse_gate_aggregate_columns(),
         *newton_eval_flow_status_aggregate_columns(),
         *qn_eval_flow_status_aggregate_columns(),
+        *reverse_gate_replay_status_aggregate_columns(),
         *local_transition_aggregate_columns(),
     ]
 

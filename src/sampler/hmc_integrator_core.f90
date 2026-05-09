@@ -1,4 +1,5 @@
 module hmc_integrator_core
+   use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use solve_flow, only: flow, flowz, flowzr, set_intode_stage_trace, set_intode_newton_iter_trace, set_intode_quasi_iter_trace, &
                          intode_stage_newton, intode_stage_quasi, intode_stage_rattle_flow, intode_stage_external, &
@@ -60,6 +61,7 @@ module hmc_integrator_core
    integer, parameter :: hmc_step_status_final_flow_invalid = 10
    integer, parameter :: hmc_step_status_final_flow_h_min = 11
    integer, parameter :: hmc_step_status_final_flow_non_strict_success = 12
+   integer, parameter :: hmc_step_status_unknown = -1
 
    integer, parameter :: s1_probe_max_iter_default = 28
    integer, parameter :: s1_near_full_max_iter_default = 100
@@ -80,8 +82,103 @@ module hmc_integrator_core
    logical, save :: qn_reverse_gate_active = .false.
    real(dp), save :: qn_reverse_gate_tol = qn_reverse_gate_tol_default
    real(dp), save :: qn_quasi_tol_override = -1.0_dp
+   integer(int64), save :: reverse_gate_replay_status_success = 0_int64
+   integer(int64), save :: reverse_gate_replay_status_output_size_mismatch = 0_int64
+   integer(int64), save :: reverse_gate_replay_status_momentum_size_mismatch = 0_int64
+   integer(int64), save :: reverse_gate_replay_status_initial_force_failed = 0_int64
+   integer(int64), save :: reverse_gate_replay_status_constraint_failed = 0_int64
+   integer(int64), save :: reverse_gate_replay_status_final_flow_failed = 0_int64
+   integer(int64), save :: reverse_gate_replay_status_final_force_failed = 0_int64
+   integer(int64), save :: reverse_gate_replay_status_final_projection_failed = 0_int64
+   integer(int64), save :: reverse_gate_replay_status_reverse_gate_rejected = 0_int64
+   integer(int64), save :: reverse_gate_replay_status_final_flow_max_steps = 0_int64
+   integer(int64), save :: reverse_gate_replay_status_final_flow_invalid = 0_int64
+   integer(int64), save :: reverse_gate_replay_status_final_flow_h_min = 0_int64
+   integer(int64), save :: reverse_gate_replay_status_final_flow_non_strict_success = 0_int64
+   integer(int64), save :: reverse_gate_replay_status_unknown = 0_int64
 
 contains
+
+   subroutine reset_reverse_gate_replay_status_counts()
+      implicit none
+
+      reverse_gate_replay_status_success = 0_int64
+      reverse_gate_replay_status_output_size_mismatch = 0_int64
+      reverse_gate_replay_status_momentum_size_mismatch = 0_int64
+      reverse_gate_replay_status_initial_force_failed = 0_int64
+      reverse_gate_replay_status_constraint_failed = 0_int64
+      reverse_gate_replay_status_final_flow_failed = 0_int64
+      reverse_gate_replay_status_final_force_failed = 0_int64
+      reverse_gate_replay_status_final_projection_failed = 0_int64
+      reverse_gate_replay_status_reverse_gate_rejected = 0_int64
+      reverse_gate_replay_status_final_flow_max_steps = 0_int64
+      reverse_gate_replay_status_final_flow_invalid = 0_int64
+      reverse_gate_replay_status_final_flow_h_min = 0_int64
+      reverse_gate_replay_status_final_flow_non_strict_success = 0_int64
+      reverse_gate_replay_status_unknown = 0_int64
+   end subroutine reset_reverse_gate_replay_status_counts
+
+   subroutine get_reverse_gate_replay_status_counts(success, output_size_mismatch, momentum_size_mismatch, initial_force_failed, &
+                                                    constraint_failed, final_flow_failed, final_force_failed, final_projection_failed, &
+                                                    reverse_gate_rejected, final_flow_max_steps, final_flow_invalid, final_flow_h_min, &
+                                                    final_flow_non_strict_success, unknown)
+      implicit none
+      integer(int64), intent(out) :: success, output_size_mismatch, momentum_size_mismatch, initial_force_failed
+      integer(int64), intent(out) :: constraint_failed, final_flow_failed, final_force_failed, final_projection_failed
+      integer(int64), intent(out) :: reverse_gate_rejected, final_flow_max_steps, final_flow_invalid, final_flow_h_min
+      integer(int64), intent(out) :: final_flow_non_strict_success, unknown
+
+      success = reverse_gate_replay_status_success
+      output_size_mismatch = reverse_gate_replay_status_output_size_mismatch
+      momentum_size_mismatch = reverse_gate_replay_status_momentum_size_mismatch
+      initial_force_failed = reverse_gate_replay_status_initial_force_failed
+      constraint_failed = reverse_gate_replay_status_constraint_failed
+      final_flow_failed = reverse_gate_replay_status_final_flow_failed
+      final_force_failed = reverse_gate_replay_status_final_force_failed
+      final_projection_failed = reverse_gate_replay_status_final_projection_failed
+      reverse_gate_rejected = reverse_gate_replay_status_reverse_gate_rejected
+      final_flow_max_steps = reverse_gate_replay_status_final_flow_max_steps
+      final_flow_invalid = reverse_gate_replay_status_final_flow_invalid
+      final_flow_h_min = reverse_gate_replay_status_final_flow_h_min
+      final_flow_non_strict_success = reverse_gate_replay_status_final_flow_non_strict_success
+      unknown = reverse_gate_replay_status_unknown
+   end subroutine get_reverse_gate_replay_status_counts
+
+   subroutine record_reverse_gate_replay_status(step_status)
+      implicit none
+      integer, intent(in) :: step_status
+
+      select case (step_status)
+      case (hmc_step_status_success)
+         reverse_gate_replay_status_success = reverse_gate_replay_status_success + 1_int64
+      case (hmc_step_status_output_size_mismatch)
+         reverse_gate_replay_status_output_size_mismatch = reverse_gate_replay_status_output_size_mismatch + 1_int64
+      case (hmc_step_status_momentum_size_mismatch)
+         reverse_gate_replay_status_momentum_size_mismatch = reverse_gate_replay_status_momentum_size_mismatch + 1_int64
+      case (hmc_step_status_initial_force_failed)
+         reverse_gate_replay_status_initial_force_failed = reverse_gate_replay_status_initial_force_failed + 1_int64
+      case (hmc_step_status_constraint_failed)
+         reverse_gate_replay_status_constraint_failed = reverse_gate_replay_status_constraint_failed + 1_int64
+      case (hmc_step_status_final_flow_failed)
+         reverse_gate_replay_status_final_flow_failed = reverse_gate_replay_status_final_flow_failed + 1_int64
+      case (hmc_step_status_final_force_failed)
+         reverse_gate_replay_status_final_force_failed = reverse_gate_replay_status_final_force_failed + 1_int64
+      case (hmc_step_status_final_projection_failed)
+         reverse_gate_replay_status_final_projection_failed = reverse_gate_replay_status_final_projection_failed + 1_int64
+      case (hmc_step_status_reverse_gate_rejected)
+         reverse_gate_replay_status_reverse_gate_rejected = reverse_gate_replay_status_reverse_gate_rejected + 1_int64
+      case (hmc_step_status_final_flow_max_steps)
+         reverse_gate_replay_status_final_flow_max_steps = reverse_gate_replay_status_final_flow_max_steps + 1_int64
+      case (hmc_step_status_final_flow_invalid)
+         reverse_gate_replay_status_final_flow_invalid = reverse_gate_replay_status_final_flow_invalid + 1_int64
+      case (hmc_step_status_final_flow_h_min)
+         reverse_gate_replay_status_final_flow_h_min = reverse_gate_replay_status_final_flow_h_min + 1_int64
+      case (hmc_step_status_final_flow_non_strict_success)
+         reverse_gate_replay_status_final_flow_non_strict_success = reverse_gate_replay_status_final_flow_non_strict_success + 1_int64
+      case default
+         reverse_gate_replay_status_unknown = reverse_gate_replay_status_unknown + 1_int64
+      end select
+   end subroutine record_reverse_gate_replay_status
 
    subroutine rattle_step_core(state_x, state_z, step_size, final_x, final_z, jaci, jacf, momentum, &
                                method_converged, ws, step_status)
@@ -513,6 +610,7 @@ contains
       complex(dp), allocatable :: reverse_z(:), reverse_jac(:, :)
       type(rattle_step_workspace_t) :: reverse_ws
       logical :: reverse_ok
+      integer :: reverse_step_status
       real(dp) :: dx_inf, dz_inf, dj_inf, dp_inf
 
       accepts = .false.
@@ -526,11 +624,13 @@ contains
 
       reverse_momentum = -final_momentum
       qn_reverse_gate_active = .true.
+      reverse_step_status = hmc_step_status_unknown
       call push_constraint_solver_stats_suppression()
       call rattle_step_core(final_x, final_z, step_size, reverse_x, reverse_z, final_jac, reverse_jac, reverse_momentum, &
-                            reverse_ok, reverse_ws)
+                            reverse_ok, reverse_ws, reverse_step_status)
       call pop_constraint_solver_stats_suppression()
       qn_reverse_gate_active = .false.
+      call record_reverse_gate_replay_status(reverse_step_status)
 
       if (reverse_ok) then
          dx_inf = max_abs_real_local(reverse_x - state_x)

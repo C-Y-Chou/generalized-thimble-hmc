@@ -416,3 +416,9 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 - Added Stage1/Stage2 `# newton_eval_flow_status ...` summary lines; multiseed run/merge scripts carry the new per-seed and aggregate CSV columns.
 - Behavior-preservation note: Newton convergence, failure returns, line-search/rescue behavior, and HMC/RATTLE acceptance logic are unchanged. `solve_failed` remains the behavior-bearing signal.
 - Verification passed: `py_compile`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test_odex_solver`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, tiny local Stage2 smoke, and parser readback with observed Newton zero-time residual-flow counts.
+
+## Reverse-gate replay status counters - 2026-05-09 JST
+- Implemented the next state/information propagation slice: reverse-gate replay now records the nested `rattle_step_core(...)` step status.
+- Added Stage1/Stage2 `# reverse_gate_replay_status ...` summary lines; multiseed run/merge scripts carry the new per-seed and aggregate CSV columns.
+- Behavior-preservation note: RG replay, tolerance comparison, pass/reject decision, and counter suppression semantics are unchanged. The new counters describe replay construction status, not the tolerance comparison outcome.
+- Verification passed: `py_compile`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test_odex_solver`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, tiny local Stage2 smoke/parser readback, and RG-enabled tiny smoke observing `reverse_gate_replay_success=80`.

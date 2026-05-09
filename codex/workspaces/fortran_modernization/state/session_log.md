@@ -203,3 +203,9 @@
 - Stage1/Stage2 summaries write `# newton_eval_flow_status ...`; multiseed run and merge scripts propagate the new columns.
 - Behavior-preservation note: Newton convergence/failure behavior is unchanged; `solve_failed` remains the behavior-bearing signal.
 - Verification: `py_compile`, `git diff --check`, `test_odex_solver`, `test1`, Stage1/Stage2 executable build, tiny local Stage2 smoke, and parser readback passed. The smoke observed `newton_eval_flow_zero_time_count=80`.
+
+## 2026-05-09 JST - State propagation slice: reverse-gate replay status counters
+- Reverse-gate replay now requests `step_status` from the nested `rattle_step_core(...)` replay and records diagnostic counters.
+- Stage1/Stage2 summaries write `# reverse_gate_replay_status ...`; multiseed run and merge scripts propagate the new columns.
+- Behavior-preservation note: replay construction, RG tolerance comparison, pass/reject outcome, and suppression semantics are unchanged.
+- Verification: `py_compile`, `git diff --check`, `test_odex_solver`, `test1`, Stage1/Stage2 executable build, tiny local Stage2 smoke/parser readback, and RG-enabled tiny smoke passed. The RG-enabled smoke observed `reverse_gate_replay_success=80`.
