@@ -21,7 +21,7 @@ end module test_odex_solver_rhs
 
 program test_odex_solver
    use param_mod, only: at, rt
-   use solve_flow, only: intode, set_intode_strict_mode, reset_intode_fallback_stats, &
+   use solve_flow, only: intode, reset_intode_fallback_stats, &
                          get_intode_fallback_context_stats, &
                          intode_status_success, intode_status_success_zero_time
    use test_odex_solver_rhs, only: exp_lambda, rhs_exp, rhs_oscillator
@@ -33,7 +33,6 @@ program test_odex_solver
    at = 3.0e-14_dp
    rt = 3.0e-14_dp
    failures = 0
-   call set_intode_strict_mode(.true.)
    call reset_intode_fallback_stats()
 
    write (*, '(A,ES12.4,A,ES12.4)') "[INIT] ODEX solver test starts. abs_tol=", at, " rel_tol=", rt

@@ -59,7 +59,6 @@ module solve_flow
    integer, save :: intode_fallback_h_min = 0
    integer, save :: intode_fallback_attempts_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
    integer, save :: intode_fallback_failures_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
-   logical, save :: intode_strict_mode = .true.
    integer, save :: intode_rescue_success_final_resort = 0
    integer, save :: intode_final_resort_fail = 0
    logical, parameter :: intode_enable_final_resort = .true.
@@ -741,13 +740,6 @@ contains
       res = y
       error_flag = .true.
    end subroutine intode_stiff_rescue
-
-   subroutine set_intode_strict_mode(enabled)
-      implicit none
-      logical, intent(in) :: enabled
-
-      intode_strict_mode = enabled
-   end subroutine set_intode_strict_mode
 
    subroutine get_intode_final_resort_policy(enabled, max_uses, fast_hmin_bypass)
       implicit none

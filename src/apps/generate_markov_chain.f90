@@ -2,8 +2,7 @@ program generate_markov_chain_app
    use param_mod
    use markovchain_mod, only: execute_generate_markov_chain
    use mt95, only: getseed, sgrnd
-   use solve_flow, only: set_intode_strict_mode, &
-                         get_intode_final_resort_policy, &
+   use solve_flow, only: get_intode_final_resort_policy, &
                          reset_intode_fallback_stats, get_intode_fallback_stats, &
                          get_intode_rescue_stats
    implicit none
@@ -38,11 +37,10 @@ program generate_markov_chain_app
    end if
    call sgrnd(rng_seed)
 
-   call set_intode_strict_mode(.true.)
    call read_parameters()
    call get_intode_final_resort_policy(final_resort_enabled, final_resort_max_uses, fast_hmin_bypass)
    final_unlimited = (final_resort_max_uses <= 0)
-   write (*, '(A,L1,A,L1,A,L1)') "[INTODE] strict=", .true., " final_resort=", final_resort_enabled, &
+   write (*, '(A,L1,A,L1,A,L1)') "[INTODE] final_flow_strict=", .true., " final_resort=", final_resort_enabled, &
       " inner_resort_unlimited=", final_unlimited
    call reset_intode_fallback_stats()
    call execute_generate_markov_chain()

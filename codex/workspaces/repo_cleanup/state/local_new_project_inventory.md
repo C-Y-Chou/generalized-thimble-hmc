@@ -51,3 +51,6 @@ Captured: 2026-05-08 JST
 - First compare each file against `TLTM_repo/` or git history.
 - If unique, move it into a dated archive and write an index.
 - If duplicate/generated, remove only after a snapshot list is recorded.
+
+## Implemented In Fortran Modernization Worktree - 2026-05-09 JST
+- Deleted tracked root-level stale Fortran artifacts `quasi_newton_solver.f90`, `tltm_stage2_driver.f90`, and `replay_quasi_failures.f90` after confirming active canonical sources live under `src/` and `build/makefile` does not reference the root copies.

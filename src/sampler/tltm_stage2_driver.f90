@@ -2,7 +2,7 @@ module tltm_stage2_driver
    use, intrinsic :: iso_fortran_env, only: int64
    use param_mod, only: config, read_parameters
    use utils
-   use solve_flow, only: flow, set_intode_strict_mode, reset_intode_fallback_stats, get_intode_fallback_stats, &
+   use solve_flow, only: flow, reset_intode_fallback_stats, get_intode_fallback_stats, &
                          intode_status_unknown, intode_status_is_strict_success
    use model, only: grand, calculate_action
    use mt95, only: getseed, sgrnd, grnd
@@ -130,7 +130,6 @@ contains
       integer(int64) :: reverse_gate_pass_counts(constraint_reverse_gate_path_count)
       integer(int64) :: reverse_gate_reject_counts(constraint_reverse_gate_path_count)
 
-      call set_intode_strict_mode(.true.)
       call read_parameters()
       call reset_intode_fallback_stats()
       call reset_constraint_solver_stats()

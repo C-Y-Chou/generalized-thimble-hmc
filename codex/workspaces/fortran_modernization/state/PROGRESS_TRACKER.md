@@ -35,6 +35,7 @@
 - 2026-05-08 JST: M2 execution policy recorded: non-ODEX cleanup is behavior-neutral quarantine/inventory only; ODEX-only gets staged 10k->50k->100k physical validation before legacy deletion.
 - 2026-05-08 JST: Implemented ODEX-only source policy gates in `src/physics/solve_flow.f90`; Radau/final-resort acceptance disabled, legacy routines retained for quarantine and comparison.
 - 2026-05-09 JST: Deleted inactive Radau/JFNK rescue implementation from `src/physics/solve_flow.f90`; retained solver-internal residual assist and compatibility rescue-stat fields.
+- 2026-05-09 JST: Deleted tracked root-level stale Fortran artifacts and removed no-op `set_intode_strict_mode(...)` API/call sites after strict final-flow status gates made the flag obsolete.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit

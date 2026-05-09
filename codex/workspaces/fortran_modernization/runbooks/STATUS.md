@@ -440,7 +440,7 @@ Complete and commit the Radau/JFNK rescue source deletion slice, then continue w
 - Preserved the canonical p28 QN route as fallback-enabled without post-refine; the `fb_norefine` method name remains as a compatibility alias in the Stage3 runner.
 - Behavior-preservation note: production proposal physics, ODEX/RATTLE/HMC acceptance logic, reverse gate decisions, RNG, and live-state updates were not intentionally changed by the deletion. Removed Newton `rescue_mode` branches were unreachable from active callers and corresponded to the deleted post-refine/newton-rescue path.
 - Verification passed: `python3 -m py_compile scripts/run_stage3_3_multiseed.py scripts/merge_stage3_multiseed_chunks.py scripts/fortran_module_deps.py`; `git diff --check`; production executable build; `make -C build FC=gfortran LDFLAGS= test_odex_solver`; `make -C build FC=gfortran LDFLAGS= test1`; tiny Stage2 smoke with explicit `TLTM_STAGE2_INIT_SIGMA=0.1`.
-- Follow-up decision needed: Stage2 currently has an existing aliasing hazard in `parse_real_env("TLTM_STAGE2_INIT_SIGMA", init_sigma, init_sigma)`. Without explicit `TLTM_STAGE2_INIT_SIGMA`, the local smoke printed `init_sigma=0.0000` and could fail initialization. Fixing this would change default initialization behavior for runs that do not set the variable, so it should be handled as a separate behavior-reviewed config/state cleanup.
+- Historical note: this Stage2 parser hazard was resolved by the Stage env-parser default repair below.
 
 ## Stage env-parser default repair - 2026-05-09 JST
 - Fixed the Stage1/Stage2 environment parser helper interface to keep defaults in the caller and overwrite only when a valid environment value is present.
@@ -463,3 +463,10 @@ Complete and commit the Radau/JFNK rescue source deletion slice, then continue w
 - Preserved the canonical flow policy: ODEX primary integration, solver-internal assist only for NT/QN residual evaluation, and strict final `flow(...)` for proposal/live-state construction.
 - Behavior-preservation note: ODEX stepping, assist gating, final proposal strictness, Metropolis acceptance, RNG, and live-state updates were not intentionally changed. Removed source was unreachable under the validated canonical policy.
 - Verification passed: Stage1/Stage2 executable build, `make -C build FC=gfortran LDFLAGS= test_odex_solver`, and `make -C build FC=gfortran LDFLAGS= test1`.
+
+## Root stale-source and no-op strict-mode cleanup - 2026-05-09 JST
+- Deleted tracked root-level stale Fortran artifacts `quasi_newton_solver.f90`, `tltm_stage2_driver.f90`, and `replay_quasi_failures.f90`; active canonical sources live under `src/` and these root files were not referenced by `build/makefile`.
+- Removed the no-op `set_intode_strict_mode(...)` API and its call sites. After Radau/JFNK deletion, final-flow strictness is enforced by explicit ODE status gates rather than a mutable module flag.
+- Updated `generate_markov_chain` startup logging from `strict=` to `final_flow_strict=` to describe the actual policy.
+- Behavior-preservation note: no production route, ODEX stepping, residual assist gate, Metropolis acceptance, RNG, or output schema was intentionally changed.
+- Verification passed: `rg` found no remaining `set_intode_strict_mode`/`intode_strict_mode` references in active `src` or `tests`; `git diff --check`; `make -C build FC=gfortran LDFLAGS= ../bin/generate_markov_chain ../bin/run_tltm_stage1 ../bin/run_tltm_stage2 test_odex_solver test1`; tiny Stage1 smoke; tiny Stage2 smoke.

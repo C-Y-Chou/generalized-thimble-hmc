@@ -2,7 +2,7 @@ module tltm_stage1_driver
    use, intrinsic :: iso_fortran_env, only: int64
    use param_mod, only: config, read_parameters
    use utils
-   use solve_flow, only: flow, set_intode_strict_mode, intode_status_unknown, intode_status_is_strict_success
+   use solve_flow, only: flow, intode_status_unknown, intode_status_is_strict_success
    use model, only: grand
    use mt95, only: getseed, sgrnd
    use markovchain_metropolis, only: metropolis_step
@@ -29,7 +29,6 @@ contains
       integer :: i, cycle_idx
       real(dp) :: run_t0, elapsed, replica_t0
 
-      call set_intode_strict_mode(.true.)
       call read_parameters()
       call reset_newton_eval_flow_status_counts()
       call reset_quasi_eval_flow_status_counts()

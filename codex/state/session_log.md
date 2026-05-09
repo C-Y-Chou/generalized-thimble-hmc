@@ -776,3 +776,8 @@ Use this file to append per-session notes.
 - Deleted inactive Radau/JFNK flow-rescue source from `src/physics/solve_flow.f90`.
 - Retained solver-internal residual assist and compatibility rescue-stat fields; Radau compatibility fields now return zero.
 - Verified with Stage1/Stage2 executable build, `test_odex_solver`, and `test1`.
+
+## 2026-05-09 JST
+- Deleted tracked root-level stale Fortran artifacts `quasi_newton_solver.f90`, `tltm_stage2_driver.f90`, and `replay_quasi_failures.f90`.
+- Removed no-op `set_intode_strict_mode(...)` call surface; strict final-flow behavior remains enforced by status gates.
+- Verified with active-source symbol census, `git diff --check`, production executable rebuild including `generate_markov_chain`, `test_odex_solver`, `test1`, tiny Stage1 smoke, and tiny Stage2 smoke.
