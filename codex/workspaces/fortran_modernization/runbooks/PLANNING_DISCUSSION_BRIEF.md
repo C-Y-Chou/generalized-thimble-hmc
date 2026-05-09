@@ -1,7 +1,7 @@
 # Planning Discussion Brief
 
-Updated: 2026-05-08
-Scope: Fortran modernization planning checkpoint. No implementation has been performed.
+Updated: 2026-05-09
+Scope: historical Fortran modernization planning checkpoint, with superseding decisions noted where later source work changed the state.
 
 ## Current Understanding Of TLTM Code Structure
 
@@ -102,24 +102,24 @@ The smallest mature first implementation deliverable should not be a solver refa
 - Residual microtest specifications for standard QN residual and post-refine Newton-loss residual.
 - A summary schema contract for Stage2 outputs.
 
-Only after that should code modernization begin.
+Historical note: source modernization has since begun after these planning gates were resolved or superseded.
 
 ## Decisions Needed From You
 
 Decision recorded: canonical name is `BTN`; `BTM` is only a historical typo/alias and should not be used in new docs or code comments.
 
-Decision recorded: p28 is the only production-canonical quasi route. Non-p28 quasi routes are legacy/deletion candidates. Post-refine remains under observation and may be removed after refine-vs-norefine evidence is reviewed.
+Decision recorded and implemented: p28 is the only production-canonical quasi route. Non-p28 quasi routes and post-refine have been removed from active source after staged validation and user approval.
 
 Decision recorded: current stage-specific workflow is transitional. After TLTM construction/Stage3_4 judgment is complete, the modernization target is a unified TLTM wrapper/product interface rather than exposing Stage2/Stage3/Stage3_4 as separate user-facing workflows.
 
 Decision recorded: official modernization baselines will be regenerated after Stage3_4/TLTM judgment completes. Existing `output/tests` artifacts are historical/reference evidence only, not official baselines.
 
 1. Canonical naming: should the fallback formulation be called BTN, with BTM recorded only as a historical typo?
-2. Canonical quasi route: resolved. p28 DFO-LS BTN/backflow rescue residual route is production-canonical; all other quasi routes are legacy/deletion candidates; post-refine is under observation.
+2. Canonical quasi route: resolved and implemented. p28 DFO-LS BTN/backflow rescue residual route is production-canonical; all other known quasi routes and post-refine have been removed from active source.
 3. Output contract: short-term freeze current Stage3_4-facing outputs; long-term replace stage-specific contracts with a unified TLTM wrapper output schema.
 4. Baseline source: resolved. Regenerate fresh official baselines after Stage3_4/TLTM judgment; existing `output/tests` are historical/reference evidence only.
 5. Reverse gate status: resolved. Permanent algorithmic requirement for production/publishable p28 route.
-6. Flow rescue/final-resort policy: tentative direction resolved. Long-term publishable backend should be ODEX-only; Radau/JFNK/final-resort stack is legacy robustness/deletion candidate after Stage3_4/TLTM judgment and ODEX-only comparison.
+6. Flow rescue/final-resort policy: revised and implemented. Current flow policy is ODEX primary plus solver-internal residual assist for NT/QN evaluation plus strict final proposal/live-state flow; Radau/JFNK source has been removed.
 7. Thread-safety target: resolved. Long-term target is in-process parallel/OpenMP-capable execution via explicit context/workspace state.
 
 ## Current Planning Artifacts
@@ -153,11 +153,11 @@ Decision recorded: official modernization baselines will be regenerated after St
 - Any future wrapper should expose this as part of the canonical p28 algorithm contract, not as an experimental add-on.
 
 ## Flow Backend Direction Decision - 2026-05-08
-- Tentative long-term publishable target: ODEX-only flow backend.
+- Historical tentative target: ODEX-only flow backend.
 - Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are legacy robustness layers/deletion candidates.
 - Do not remove or change them before Stage3_4/TLTM judgment completes.
-- After judgment, regenerate clean baselines, record current rescue counters, and run an ODEX-only comparison before deletion.
-- If ODEX-only failure rate is unacceptable, prefer improving ODEX/step control/failure handling over preserving a hidden secondary integrator stack.
+- Later decision: pure ODEX-only is a comparison artifact; current policy is ODEX primary plus solver-internal residual assist and strict final proposal/live-state flow.
+- Radau/JFNK rescue source has been deleted; solver-internal assist remains explicit and schema-compatible.
 
 ## Thread-Safety / Reentrancy Decision - 2026-05-08
 - Long-term modernization target: support in-process parallelism/OpenMP-capable TLTM execution.

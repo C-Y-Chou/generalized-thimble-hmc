@@ -50,9 +50,9 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 ## Current Position
 
-- Current phase: M2 canonicalization planning after Stage3_4 characterization.
-- Non-ODEX cleanup is behavior-neutral quarantine/inventory only before ODEX-only.
-- Next gate: retained-core implementation correctness audit before ODEX-only 10k -> 50k -> 100k physical checks.
+- Current phase: source-level modernization after M2 canonicalization decisions.
+- Completed source wave: ODEX sequence canonicalization, QN BTN sign cleanup, QN invalid-evaluation handling, post-refine/non-p28 QN source deletion, Radau/JFNK source deletion, solver-assist naming cleanup, RATTLE progress guard diagnostic downgrade, and state/status surface patches.
+- Current decision gate: whether to delete legacy positional `parameters.dat` parsing and the unused `initial_x.dat` compatibility slot now, or keep them quarantined until config schema versioning.
 
 - `M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`: completed static audit findings and discussion blockers for retained ODEX/Newton/RATTLE/QN/HMC code.
 - `M2_REFERENCE_BACKED_CORE_AUDIT.md`: reference-first retained-core audit superseding the earlier source-level risk scan where conclusions differ.

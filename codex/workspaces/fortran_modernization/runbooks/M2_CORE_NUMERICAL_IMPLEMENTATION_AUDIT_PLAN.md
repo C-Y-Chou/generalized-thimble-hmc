@@ -1,13 +1,13 @@
 # M2 Core Numerical Implementation Correctness Audit Plan
 
 Updated: 2026-05-08
-Scope: retained-core correctness audit before ODEX-only validation jobs or broader modernization.
+Scope: retained-core correctness audit before long validation jobs or broader modernization.
 
 ## Purpose
 
 This plan closes an explicit gap in the modernization process: it is not enough to disable legacy/rescue paths so that the remaining code resembles the reference algorithm at the routing level. We must also verify that the retained numerical implementation itself is correct, or at least that any deviations from the reference are known, intentional, and test-protected.
 
-This audit is a gate before staged physics validation. The 10k -> 50k -> 100k ODEX-only validation should not be treated as meaningful until the retained five core numerical blocks have been reviewed for implementation correctness.
+This audit is a gate before staged physics validation. The historical 10k -> 50k -> 100k ODEX-only validation should not be treated as meaningful until the retained five core numerical blocks have been reviewed for implementation correctness.
 
 ## Scope: the five retained numerical cores
 
@@ -198,7 +198,7 @@ Minimal checks before staged validation:
 
 | Core | Current state | Notes |
 |---|---|---|
-| ODEX flow integration | `decision-use-hairer-iwork3` | Canonical sequence is Hairer ODEX `IWORK(3)=3`: `2,4,6,8,12,16,24,32,...`; current sequence is legacy until updated/tested. |
+| ODEX flow integration | `implemented-hairer-iwork3` | Canonical sequence is Hairer ODEX `IWORK(3)=3`: `2,4,6,8,12,16,24,32,...`; source sequence/work estimate and ODEX self-consistency checks have been updated. |
 | Simplified Newton | `matched-needs-deterministic-tests` | GT-HMC Eqs. (3.37)-(3.44) and TLTM unit-mass `Delta z` formula match code residual/update signs and normalization; add replay tests. |
 | RATTLE proposal structure | `mostly-matched-with-implementation-guards` | Main TLTM complex RATTLE order matches; `state_has_progress` and failure-as-rejection vs paper momentum-flip semantics need explicit policy/test coverage. |
 | QN p28 projection loss | `decision-use-paper-btn-variables` | p28 is BTN/backflow rescue; future source should use paper variables `xi1=b`, `xi2=a`, correction `-J*(a+i*b)`, and matching `J dz=+del_z` initial guess. |
@@ -218,8 +218,8 @@ The first practical audit target should be `src/physics/solve_flow.f90` because 
 
 ## Static audit completion note - 2026-05-08 JST
 
-The first retained-core static audit has been completed and summarized in `M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`. It found no evidence that failed/RG-rejected proposals mutate live Markov state, but it did identify several blockers before ODEX-only staged validation: inverse-flow/ODEX signed-interval semantics, simplified Newton residual replay/normalization checks, QN p28 residual signoff, `x(2)`-only RATTLE progress guard, and reverse-gate replay diagnostic accounting.
+The first retained-core static audit has been completed and summarized in `M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`. It found no evidence that failed/RG-rejected proposals mutate live Markov state, but it did identify several blockers before staged validation: inverse-flow/ODEX signed-interval semantics, simplified Newton residual replay/normalization checks, QN p28 residual signoff, `x(2)`-only RATTLE progress guard, and reverse-gate replay diagnostic accounting. The ODEX sequence/sign-work issue, QN BTN sign convention, RATTLE progress guard, and state/status accounting surface have since been addressed in source slices.
 
 ## Reference-backed re-audit note - 2026-05-08 JST
 
-The second-pass audit is recorded in `M2_REFERENCE_BACKED_CORE_AUDIT.md`. It supersedes source-first signoff states where they differ. Long ODEX-only validation remains blocked until the ODEX `IWORK(3)=3` implementation/test patch, QN p28 BTN paper-variable/sign tests, RATTLE failure/progress semantics, and deterministic replay tests are resolved.
+The second-pass audit is recorded in `M2_REFERENCE_BACKED_CORE_AUDIT.md`. It supersedes source-first signoff states where they differ. ODEX `IWORK(3)=3`, QN p28 BTN paper-variable cleanup, RATTLE failure/progress semantics, and state/status accounting have since moved from blockers into implemented source/history; remaining regression strength should come from official canonical baselines and deterministic residual/replay tests.

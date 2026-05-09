@@ -1,7 +1,7 @@
 # Confirmed Decisions And Next Plan
 
-Updated: 2026-05-08
-Scope: governing roadmap for TLTM Fortran modernization after planning discussion. No implementation has been performed.
+Updated: 2026-05-09
+Scope: governing roadmap for TLTM Fortran modernization after planning discussion and the first canonicalization source wave.
 
 ## Confirmed Decisions
 
@@ -14,8 +14,8 @@ Scope: governing roadmap for TLTM Fortran modernization after planning discussio
 
 - Only the current p28 route is production-canonical.
 - Canonical p28 route: Newton first, then QN S1 probe with `QN_S1_PROBE_MAX_ITER=28`, DFO-LS on `evaluate_constraint_residual`, reverse gate, then Metropolis.
-- Non-p28 quasi routes are legacy/deletion candidates: DFO-GN paper route, Broyden/line-search route, global continuation/restart fallback routes, and other non-p28 variants.
-- Post-refine remains under observation and may be removed after refine-vs-norefine evidence is reviewed.
+- Non-p28 quasi routes were legacy/deletion candidates and have been removed from active source after validation and user approval: DFO-GN paper route, Broyden/line-search route, global continuation/restart fallback routes, and other known non-p28 variants.
+- Post-refine has been removed from active source. It is not part of the canonical p28 route unless explicitly re-promoted later as a separate research mode.
 
 3. Stage workflow and wrapper target
 
@@ -38,10 +38,10 @@ Scope: governing roadmap for TLTM Fortran modernization after planning discussio
 
 6. Flow backend
 
-- Canonical long-term publishable target: ODEX-only flow backend.
-- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are legacy robustness layers/deletion candidates.
-- No change before Stage3_4/TLTM judgment.
-- After judgment, regenerate baselines, record rescue counters, and run ODEX-only comparison before deletion.
+- Current canonical flow policy: ODEX primary integration, solver-internal ODE assist for NT/QN residual evaluation, and strict final proposal/live-state flow.
+- Pure ODEX-only is retained as a comparison artifact, not the current production target, because validation showed avoidable robustness loss.
+- Radau rescue, fixed/chunked Radau rescue, and JFNK support paths have been removed from active source.
+- ODE solver-assist remains explicit and may not construct final physical proposals.
 
 7. Thread-safety/reentrancy
 
@@ -187,9 +187,10 @@ Includes deletion candidates:
 - DFO-GN paper route, unless explicitly retained for research mode.
 - Broyden/line-search route.
 - Global continuation/restart fallback routes outside production p28.
-- Radau/JFNK/final-resort flow rescue stack, if ODEX-only comparison passes.
+- Radau/JFNK secondary-integrator rescue stack, already deleted from active source.
+- Legacy `final_resort` compatibility names for solver-assist counters/API fields, to be renamed only with output-schema versioning.
 - Stage-specific scripts once unified wrapper is mature.
-- Post-refine, if refine-vs-norefine evidence supports removal.
+- Post-refine, already deleted from active source.
 
 Deliverables:
 
@@ -268,7 +269,7 @@ Deliverables:
 
 ### M0: Planning Freeze And Decision Capture
 
-Status: active/completing before Stage3_4/TLTM judgment.
+Status: complete as the initial governance layer; keep updating live status and decisions as source modernization proceeds.
 
 - Capture confirmed decisions.
 - Correct roadmap scope to repo-wide modernization.
@@ -277,21 +278,20 @@ Status: active/completing before Stage3_4/TLTM judgment.
 
 ### M1: Temporary Characterization Baseline
 
-Starts after Stage3_4/TLTM judgment.
+Status: complete enough to support the first canonicalization wave.
 
 Purpose: measure current behavior before canonical numerical changes, without freezing it as the final target.
 
 - Record current flow rescue counters, p28 route counters, RG pass/reject, acceptance rates, failure rates, output schema, and representative observables.
-- Include refine and norefine variants if still under comparison.
-- Include current Radau/JFNK/final-resort usage before ODEX-only comparison.
+- Historical refine/norefine and flow-rescue evidence is retained in runbooks; official baselines still need regeneration from the final canonical configuration.
 
 ### M2: Core Numerical Canonicalization
 
 Purpose: settle behavior-changing numerical decisions before official regression freeze.
 
-- Confirm p28-only route and delete/disable non-p28 legacy candidates when safe.
-- Decide post-refine retention/removal.
-- Run ODEX-only comparison and decide rescue stack removal.
+- Confirm p28-only route and delete/disable non-p28 legacy candidates when safe. Status: active-source deletion complete for known non-p28 routes.
+- Decide post-refine retention/removal. Status: removed from active source.
+- Decide flow backend policy. Status: ODEX primary + solver-internal residual assist + strict final proposal/live-state flow.
 - Preserve RG as permanent p28 requirement.
 - Clean residual/route definitions only with characterization evidence.
 
@@ -350,7 +350,7 @@ Purpose: freeze the confirmed canonical TLTM algorithm, not the transitional imp
 
 ## Completeness Assessment
 
-The modernization plan is now structurally complete at the planning level after correcting scope: the five core algorithms are audit gates, while the roadmap is repo-wide. It covers:
+The modernization plan is structurally complete at the planning level after correcting scope: the five core algorithms are audit gates, while the roadmap is repo-wide. It covers:
 
 - Repo-wide modernization scope, including cross-cutting infrastructure beyond the five core algorithms.
 - Algorithm reference correctness as a safety gate.
@@ -360,17 +360,15 @@ The modernization plan is now structurally complete at the planning level after 
 - Utils/RNG/config/I/O/build/scripts/diagnostics modernization.
 - Architecture/product wrapper direction.
 - Legacy deletion strategy.
-- ODEX-only flow target.
+- ODEX primary flow with explicit solver-internal residual assist and strict final proposal/live-state flow.
 - Permanent RG requirement.
 - Reentrant/OpenMP-capable long-term target.
 - Testing/benchmark/product readiness.
 
 Remaining open items are not missing workstreams; they are future gates:
 
-- Stage3_4/TLTM judgment result.
-- refine-vs-norefine decision.
-- ODEX-only comparison result.
 - exact official baseline configs.
+- input-compatibility policy for legacy positional `parameters.dat` and the unused `initial_x.dat` slot.
 - final wrapper API shape.
 - output schema version details.
 

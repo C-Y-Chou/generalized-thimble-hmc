@@ -1,11 +1,13 @@
 # M2 Non-ODEX Canonical Cleanup Plan
 
-Updated: 2026-05-08
-Scope: behavior-neutral cleanup decisions before the ODEX-only numerical change.
+Updated: 2026-05-09
+Scope: historical cleanup plan for non-flow canonicalization before the revised flow-policy decision.
 
 ## Policy
 
-All non-flow-policy M2 work before the flow-policy transition must be behavior-neutral for the current canonical p28 production route.
+This file records the policy that governed the non-flow M2 cleanup. The active source cleanup has since completed after staged validation and user approval.
+
+All non-flow-policy M2 work before the flow-policy transition had to be behavior-neutral for the current canonical p28 production route.
 
 This means:
 
@@ -57,14 +59,20 @@ These actions are safe now because they do not alter numerical behavior:
 - Add comments or documentation in future source edits that label legacy paths, provided no executable behavior changes.
 - Prepare tests that observe current behavior without changing defaults.
 
-## Not safe before ODEX-only validation
+## Historical "not safe before validation" list
 
-These actions should wait until after the ODEX-only staged validation or an explicit user approval:
+These actions were intentionally deferred until staged validation and explicit user approval:
 
 - Removing post-refine source code.
 - Removing DFO-GN, Broyden/line-search, global fallback, or non-p28 variants from source.
 - Changing fallback thresholds, tolerances, residual definitions, route order, route counters, or RG rules.
 - Rewriting shared utility/RNG/config/output layers if it can affect random draw order, acceptance order, or output parsing.
+
+Current state:
+
+- Post-refine source has been removed.
+- DFO-GN, Broyden/line-search, global continuation/restart, and known non-p28 QN source paths have been removed.
+- The flow-policy target was revised away from pure ODEX-only after solver-assist validation; current policy is ODEX primary plus solver-internal residual assist plus strict final proposal/live-state flow.
 
 ## Completion state for this step
 

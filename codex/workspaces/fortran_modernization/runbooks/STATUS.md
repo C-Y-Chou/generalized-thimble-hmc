@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-09 17:48 JST
+Updated: 2026-05-09 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -10,14 +10,15 @@ Updated: 2026-05-09 17:48 JST
 - Initial modernization governance set established.
 - User-confirmed alias: "code refine" means this `fortran_modernization` task, not a separate workspace.
 - Algorithm reference bundle is collected under `references/`, including TLTM HMC, simplified Newton/RATTLE/HMC, DFO-GN/DFO-LS, Hairer ODEX, and the user original quasi-Newton projection formulation.
-- Planning-only low-level algorithm review set is complete enough for user discussion:
+- Low-level algorithm review set is complete and has already driven the first source canonicalization wave:
   - `runbooks/ODEX_FLOW_REVIEW_NOTES.md`
   - `runbooks/SIMPLIFIED_NEWTON_RATTLE_REVIEW_NOTES.md`
   - `runbooks/QUASI_NEWTON_PROJECTION_REVIEW_NOTES.md`
   - `runbooks/HMC_METROPOLIS_TLTM_REVIEW_NOTES.md`
   - `runbooks/BASELINE_VERIFICATION_MATRIX.md`
   - `runbooks/PLANNING_DISCUSSION_BRIEF.md`
-- Current flow-policy candidate is ODEX primary integration with solver-internal ODE assist for NT/QN residual evaluation and strict final proposal flow.
+- Current flow policy is ODEX primary integration with solver-internal ODE assist for NT/QN residual evaluation and strict final proposal/live-state flow.
+- Current p28 route is Newton -> p28 QN BTN/backflow rescue residual -> reverse gate -> Metropolis, without post-refine or non-p28 QN families.
 
 ## Current architecture understanding
 - `solve_flow.f90` is flow mapping plus ODEX-like integration plus solver-internal residual-assist policy plus diagnostics.
@@ -30,10 +31,11 @@ Updated: 2026-05-09 17:48 JST
 - Added `runbooks/STATE_INFORMATION_PROPAGATION_REFACTOR.md` as the broader workflow item replacing the narrower error-handling framing.
 - Future target: typed state/status propagation for ODE integration, residual evaluation, solver convergence, proposal construction, reverse-gate rejection, Metropolis rejection, and live-chain state update.
 - Policy boundary: solver-internal ODE assist may help NT/QN residual evaluation, but strict final `flow(...)` must construct the actual proposal.
-- Solver-assist 10k -> 50k -> 100k validation is complete and analyzed; source-level state/status refactor still requires explicit user confirmation patch-by-patch.
+- Solver-assist 10k -> 50k -> 100k validation is complete and analyzed.
+- Source-level state/status refactor should continue slice-by-slice; stop only for compatibility, output-schema, or physics-policy decisions.
 
 ## HMC unavailable-Hamiltonian sentinel patch - 2026-05-09 JST
-- First source slice implemented in local worktree: failed/unavailable HMC Hamiltonians now use IEEE quiet NaN instead of `0.0` sentinel values.
+- First source slice implemented: failed/unavailable HMC Hamiltonians now use IEEE quiet NaN instead of `0.0` sentinel values.
 - Updated Hamiltonian conservation test to use `proposal_ok` plus finite-Hamiltonian checks.
 - Updated warmup guard in `markovchain_mod.f90` to exit on unavailable/non-finite Hamiltonians rather than `H==0`.
 - Local verification: `make -C build FC=gfortran LDFLAGS= ../bin/test_program` and `make -C build FC=gfortran LDFLAGS= test1` pass on macOS/gfortran.
@@ -62,11 +64,18 @@ Updated: 2026-05-09 17:48 JST
 - First proposed code patch before broader typed-status redesign: replace `H=0` failure sentinels with explicit proposal status/non-finite unavailable Hamiltonian handling while preserving Metropolis physics.
 
 ## Next action
-Complete and commit the Radau/JFNK rescue source deletion slice, then continue with the next no-decision modernization slice: retained p28 QN/solver-state cleanup and deterministic baseline hardening.
+Current source state has passed the Radau/JFNK deletion, non-p28 QN deletion, post-refine deletion, ODE/QN solver-assist naming, RATTLE progress-diagnostic, and state/status surface slices.
+
+Next source-level decision gate:
+
+- `src/config/param_mod.f90` still accepts legacy positional `parameters.dat` and still consumes an unused legacy `initial_x.dat` slot.
+- Current production configs use key-value `parameters.dat`, so deleting the legacy positional reader should not affect the current Stage scripts.
+- Deletion would intentionally break old positional parameter files; this is an input-compatibility decision and should be confirmed before code removal.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.
 - Already-approved cleanup slices may proceed when they preserve the canonical p28 route, keep output schemas compatible, and pass build/smoke/source-search checks.
+- Public input compatibility, output schema, wrapper API, and production workflow deprecations remain explicit user-decision gates.
 
 ## Quasi route decision - 2026-05-08 JST
 - Production-canonical quasi route: current p28 path (`QN_S1_PROBE_MAX_ITER=28`) using DFO-LS BTN/backflow rescue on `evaluate_constraint_residual` after Newton failure.
@@ -135,11 +144,11 @@ Complete and commit the Radau/JFNK rescue source deletion slice, then continue w
 - Deletion requires staged physical validation: 10k -> 50k -> 100k checks must show no major physical-observable problem for the canonical p28 path.
 - That validation gate has passed for the QN-clean canonical route; DFO-GN paper, Broyden/line-search, global continuation/restart, and known non-p28 implementation paths have been removed from active source.
 
-## M2 execution policy - 2026-05-08 JST
-- Non-ODEX cleanup before ODEX-only is limited to behavior-neutral canonical route documentation, legacy/quarantine labeling, dependency inventory, and test planning.
-- ODEX-only is the first numerical canonicalization step expected to possibly change trajectories; it requires staged 10k -> 50k -> 100k validation focused on physical observables and diagnostics.
+## M2 execution policy - historical 2026-05-08 JST
+- Non-flow cleanup before the first flow-policy transition was limited to behavior-neutral canonical route documentation, legacy/quarantine labeling, dependency inventory, and test planning.
+- Pure ODEX-only was originally the first numerical canonicalization step expected to possibly change trajectories; it was later retained as a comparison artifact after solver-assist validation showed avoidable robustness loss.
 - Added `runbooks/M2_NON_ODEX_CANONICAL_CLEANUP_PLAN.md` and `runbooks/ODEX_ONLY_STAGED_VALIDATION_PLAN.md`.
-- No Fortran source edits have been performed for this policy step.
+- Historical note: no Fortran source edits were performed at the time this policy was recorded.
 
 ## ODEX-only source policy change - 2026-05-08 JST
 - Updated `src/physics/solve_flow.f90` so the production `intode` failure path no longer enables Radau rescue or final-resort acceptance.
@@ -149,13 +158,13 @@ Complete and commit the Radau/JFNK rescue source deletion slice, then continue w
 ## Retained-core correctness audit correction - 2026-05-08 JST
 - User identified a critical gap: prior audits emphasized which legacy/rescue paths to disable, but did not yet prove that the retained five core numerical implementations are correct.
 - Added `runbooks/M2_CORE_NUMERICAL_IMPLEMENTATION_AUDIT_PLAN.md`.
-- ODEX-only 10k -> 50k -> 100k validation is now blocked until retained ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG boundary code are accepted for staged validation.
+- Historical note: ODEX-only 10k -> 50k -> 100k validation was blocked until retained ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG boundary code were accepted for staged validation.
 - No production job was submitted for this correction.
 
 ## M2 retained-core audit completion - 2026-05-08 JST
 - Added `runbooks/M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`.
 - Static source-level retained-core audit is complete enough for user discussion.
-- ODEX-only staged validation remains blocked until the identified bug candidates and derivation/signoff items are resolved.
+- Historical note: ODEX-only staged validation was blocked until the identified bug candidates and derivation/signoff items were resolved.
 - Key blockers/signoff items: inverse-flow semantics are clarified as reversed RHS under nonnegative production flow time; remaining items are ODEX signed-interval robustness, simplified Newton residual/update now matched to GT-HMC but still needing replay/normalization tests, QN p28 residual signoff against the original formulation, and full typed diagnostics/accounting redesign. The `x(2)` RATTLE progress sentinel has been downgraded to diagnostics.
 - No production job was submitted for this audit.
 
@@ -175,14 +184,14 @@ Complete and commit the Radau/JFNK rescue source deletion slice, then continue w
 - The earlier retained-core audit is now explicitly marked as a source-level risk scan, not final reference-backed signoff.
 - Key correction: simplified Newton signs and `Delta z` normalization match GT-HMC/TLTM for unit mass.
 - Key correction: active p28 QN residual is BTN/backflow rescue after standard Newton failure, not standard `(u,lambda)` residual.
-- ODEX sequence decision: use Hairer ODEX `IWORK(3)=3` (`2,4,6,8,12,16,24,32,...`); current sequence is legacy until updated/tested.
-- ODEX-only long validation remains blocked pending these decisions and deterministic replay tests.
+- ODEX sequence decision: use Hairer ODEX `IWORK(3)=3` (`2,4,6,8,12,16,24,32,...`); implementation and ODEX self-consistency checks have since been completed.
+- Historical note: ODEX-only long validation was blocked pending these decisions and deterministic replay tests.
 
 ## ODEX sequence decision - 2026-05-08 JST
 - User selected Hairer ODEX `IWORK(3)=3` as the canonical modernization sequence.
 - Target sequence: `2,4,6,8,12,16,24,32,...`.
-- Current code sequence `2,4,6,12,18,36,...` is now legacy.
-- Future implementation must update `build_nsteps` and `calculate_ak` together, clean signed-interval/work-estimate robustness in the same patch, and run ODE solver self-consistency tests before ODEX-only long validation.
+- Historical code sequence `2,4,6,12,18,36,...` is now legacy.
+- Implementation updated `build_nsteps` and `calculate_ak` together, cleaned signed-interval/work-estimate robustness in the same patch, and added ODE solver self-consistency tests.
 - Later cleanup deleted Radau/JFNK rescue source; solver-internal assist remains explicit and final proposal flow remains strict.
 
 ## QN p28 BTN sign convention - 2026-05-08 JST
@@ -237,7 +246,7 @@ Complete and commit the Radau/JFNK rescue source deletion slice, then continue w
 - `build_nsteps` and `calculate_ak` now share `odex_iwork3_nstep`, so the extrapolation sequence and work-estimate cost model cannot silently diverge.
 - `calculate_wk` now uses `abs(h)` for the positive work measure and guards non-finite/tiny candidate steps; `calculate_hk` remains signed so integration direction is unchanged.
 - Local checks passed: `git diff --check`; build of `../bin/scan_flow_vs_flowz` and `../bin/scan_flowzr_stability`; `flowz`/`flow` 21-point scan with max `|delta z| = 5.00e-16`; `flowzr` signed roundtrip 81/81 with max roundtrip `4.42e-15`; 2-cycle local `test_tltm_stage2` smoke.
-- No production job was submitted. Long ODEX-only validation still requires the planned 10k -> 50k -> 100k physical-observable sequence.
+- No production job was submitted from this local preflight. The later staged ODEX-only validation completed and is retained as a comparison artifact.
 
 ## ODEX solver-level analytic check - 2026-05-08 JST
 - Added `tests/test_odex_solver.f90` plus `scripts/run_odex_solver_check.sh` as the preferred pre-tolerance-tuning ODE solver test.

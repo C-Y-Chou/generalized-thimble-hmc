@@ -1,7 +1,7 @@
 # M2 Reference-Backed Retained Core Audit
 
-Updated: 2026-05-08
-Scope: second-pass, reference-first audit of the retained numerical cores. This supersedes source-first conclusions where the two disagree.
+Updated: 2026-05-09
+Scope: second-pass, reference-first audit of the retained numerical cores. This supersedes source-first conclusions where the two disagree and records which findings have since been implemented.
 
 ## Why this exists
 
@@ -18,7 +18,7 @@ Audit rule used here:
 
 | Core | Reference-backed state | Decision before long validation |
 |---|---|---|
-| ODEX flow integration | `decision-use-hairer-iwork3` | Canonical modernization target is Hairer ODEX `IWORK(3)=3`: `2,4,6,8,12,16,24,32,...`; current code sequence is legacy and must be changed/tested before ODEX-only validation. |
+| ODEX flow integration | `implemented-hairer-iwork3` | Hairer ODEX `IWORK(3)=3`: `2,4,6,8,12,16,24,32,...` is implemented, with matching work estimate and ODEX self-consistency tests. |
 | Simplified Newton | `matched-needs-deterministic-tests` | Residual sign, update decomposition, base-Jacobian use, and `Delta z` normalization match GT-HMC/TLTM for unit mass. Add deterministic replay tests. |
 | RATTLE integrator | `mostly-matched-with-implementation-guards` | Main update order matches TLTM complex RATTLE. `state_has_progress` and failure-as-rejection vs paper momentum-flip/replacement need explicit policy/test coverage. |
 | QN p28 / BTN rescue | `implemented-paper-btn-variables-needs-contract-tests` | p28 is BTN/backflow rescue. Source now uses paper variables directly: `xi1=b`, `xi2=a`, with correction `-J*(a+i*b)` and matching `J dz=+del_z` initial guess. |
@@ -43,17 +43,17 @@ Active code mapping:
 Reference-backed findings:
 
 - Matched: the basic explicit midpoint plus smoothing plus extrapolation structure is reference-consistent.
-- Reference deviation: `build_nsteps` generates `2,4,6,12,18,36,...`, which is not one of the Hairer ODEX Appendix `IWORK(3)` sequences and not the standard II.9 examples.
-- Decision: canonical modernization target is Hairer ODEX `IWORK(3)=3`, i.e. `2,4,6,8,12,16,24,32,...`.
-- Required implementation change later: update both `build_nsteps` and `calculate_ak` so the sequence and work estimate remain consistent.
+- Historical reference deviation: `build_nsteps` generated `2,4,6,12,18,36,...`, which is not one of the Hairer ODEX Appendix `IWORK(3)` sequences and not the standard II.9 examples.
+- Implemented decision: canonical modernization target is Hairer ODEX `IWORK(3)=3`, i.e. `2,4,6,8,12,16,24,32,...`.
+- Implemented source cleanup: both `build_nsteps` and `calculate_ak` now use the same sequence helper so the sequence and work estimate remain consistent.
 - User decision: clean signed-interval/work-estimate robustness in the same ODEX canonicalization patch, rather than leaving it as a separate latent issue. `calculate_hk` may remain signed for direction, but work estimates and step/order controller quantities that assume positive work should use a positive measure.
 - Open: the code omits several Hairer ODEX controls such as explicit stability checks and dense output, which may be acceptable for TLTM but should be documented as a reduced ODEX-like integrator rather than full ODEX.
 
-Required before ODEX-only validation:
+Implemented before long validation:
 
-- Implement Hairer ODEX `IWORK(3)=3` sequence in `build_nsteps` and the matching work estimate in `calculate_ak`.
-- Clean signed-interval/work-estimate robustness in the same patch.
-- Add ODE solver self-consistency tests before long validation: deterministic analytic ODE convergence/order sanity, step subdivision consistency, forward/backward or inverse-flow round-trip where applicable, and failure classification sanity.
+- Implemented Hairer ODEX `IWORK(3)=3` sequence in `build_nsteps` and the matching work estimate in `calculate_ak`.
+- Cleaned signed-interval/work-estimate robustness in the same patch.
+- Added ODE solver self-consistency tests before long validation: deterministic analytic ODE convergence/order sanity, step subdivision consistency, forward/backward or inverse-flow round-trip where applicable, and failure classification sanity.
 - Superseded after validation: Radau/JFNK source has now been deleted; solver-internal residual assist remains explicit and final proposal flow remains strict.
 
 ## Core 2: Simplified Newton constraint solve
