@@ -405,7 +405,7 @@ Do not start by editing output writers.
 The best next implementation sequence is:
 
 - Finish this protocol/schema design.
-- Build a source-backed v0 column inventory.
+- Use `M3_V0_OUTPUT_INVENTORY_AND_PROTOCOL_AUDIT_PLAN.md` as the source-backed v0 column inventory and audit contract.
 - Add a tiny protocol-audit parser or replay tool that checks current Stage2 timing and swap formula without changing production code.
 - Only then add v1 manifest/protocol files beside v0 outputs.
 - Defer any sweep-order or history-timing change until after explicit user approval and baseline comparison.

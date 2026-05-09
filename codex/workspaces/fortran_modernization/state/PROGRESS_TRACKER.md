@@ -49,6 +49,7 @@
 - 2026-05-10 JST: Updated the model generator so generated `model_generated.f90` also uses explicit imports and repo-relative source headers.
 - 2026-05-10 JST: Added `runbooks/M3_ARCHITECTURE_CONTRACT.md` to define wrapper/schema, typed config, explicit context/workspace, regression-gate, and stop-gate rules before broader architecture refactors.
 - 2026-05-10 JST: Added `runbooks/M3_TEMPERING_PROTOCOL_AND_OUTPUT_SCHEMA_DESIGN.md` so output schema design is gated by a TLTM plus standard replica-exchange tempering protocol audit rather than current-output repackaging.
+- 2026-05-10 JST: Added `runbooks/M3_V0_OUTPUT_INVENTORY_AND_PROTOCOL_AUDIT_PLAN.md` to inventory current v0 output fields/artifacts and define the parser-only/replay protocol audit sequence before v1 writer work.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit

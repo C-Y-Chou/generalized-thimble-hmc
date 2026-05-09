@@ -320,3 +320,9 @@
 - Design explicitly combines TLTM flowed-surface rules with standard replica-exchange requirements before defining v1 output schema.
 - Recorded current Stage2 timing convention: local updates and histories are sampled before swap, while label trace is written after swap; this remains v0 compatibility unless explicitly changed.
 - No Fortran source, output writer, production workflow, or job submission changes were made in this planning-only slice.
+
+## 2026-05-10 JST - M3 v0 output inventory and protocol-audit plan
+- Added `runbooks/M3_V0_OUTPUT_INVENTORY_AND_PROTOCOL_AUDIT_PLAN.md`.
+- Inventoried Stage1, Stage2, Stage3 per-seed, and Stage3 aggregate v0 output surfaces, including compatibility aliases that should not be renamed in place.
+- Defined the next safe executable step as a parser-only TLTM protocol audit before any v1 writer or wrapper-output change.
+- No Fortran source, output writer, production workflow, or job submission changes were made in this planning-only slice.
