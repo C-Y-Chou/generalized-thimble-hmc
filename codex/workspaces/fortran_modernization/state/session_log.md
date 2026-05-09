@@ -300,5 +300,6 @@
 
 ## 2026-05-10 JST - Utils module import-boundary cleanup
 - Replaced all bare `use utils` statements in active source/tests with explicit `only:` import lists.
+- Replaced the remaining non-generated broad module import in `markovchain_metropolis.f90`; `model_generated.f90` is the only remaining bare import because it is generated code.
 - Behavior-preservation note: this only narrows compile-time helper visibility; numerical helper implementations and call sites are otherwise unchanged.
-- Verification passed with `git diff --check`, a clean rebuild for production/test binaries, `test_odex_solver`, `test1`, and `test2`.
+- Verification passed with `git diff --check`, a clean rebuild for production/test binaries, `test_odex_solver`, `test1`, `test2`, and a follow-up Stage1/Stage2 plus ODEX/test2 build.

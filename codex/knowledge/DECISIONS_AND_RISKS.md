@@ -34,6 +34,7 @@ Updated: 2026-05-10 JST
 - Runtime env parser/token mechanics are centralized in `runtime_env_mod`; caller defaults, env names, and valid/invalid override semantics are preserved.
 - Active `param_mod` consumers use explicit `only:` imports; the legacy globals still exist, but accidental module-wide coupling is reduced.
 - Active `utils` consumers use explicit `only:` imports; shared helper visibility is now explicit at call sites.
+- Non-generated active source/test imports are explicit; generated `model_generated.f90` remains the only bare-import exception.
 
 ## Operational risks
 1. Queue congestion can dominate wall-clock completion.

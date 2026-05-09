@@ -2,7 +2,10 @@ module markovchain_metropolis
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use utils, only: dp
    use mt95, only: grnd
-   use markovchain_transition_status
+   use markovchain_transition_status, only: metropolis_status_accepted, metropolis_status_delta_h_invalid, &
+                                            metropolis_status_hamiltonian_invalid, metropolis_status_output_size_mismatch, &
+                                            metropolis_status_proposal_failed, metropolis_status_rejected, &
+                                            metropolis_status_reverse_gate_rejected
    use hmc, only: integrate_hmc_proposal, &
                   hmc_proposal_status_output_size_mismatch, &
                   hmc_proposal_status_reverse_gate_rejected

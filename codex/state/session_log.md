@@ -817,4 +817,5 @@ Use this file to append per-session notes.
 
 ## 2026-05-10 JST
 - Narrowed all active `utils` imports to explicit `only:` lists.
-- Verified with `git diff --check`, clean rebuild of production/test binaries, `test_odex_solver`, `test1`, and `test2`.
+- Narrowed the remaining non-generated broad module import in `markovchain_metropolis.f90`; generated `model_generated.f90` remains the only bare-import exception.
+- Verified with `git diff --check`, clean rebuild of production/test binaries, `test_odex_solver`, `test1`, `test2`, and a follow-up Stage1/Stage2 plus ODEX/test2 build.
