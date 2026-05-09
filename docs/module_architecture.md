@@ -59,7 +59,7 @@ Representative modules:
 
 - `hmc_kernels`, `hmc_constraints`, `hmc_state_buffers`, `hmc_reversibility_checks`
 - `hmc_integrator_core`, `hmc`
-- `quasi_newton_linear_solver`, `quasi_newton_line_search`, `quasi_newton_jacobian_update`, `quasi_newton_solver`
+- `quasi_newton_linear_solver`, `quasi_newton_solver`
 - `markovchain_phase`, `markovchain_io`, `markovchain_metropolis`, `markovchain_mod`, `markovchain`
 
 Responsibilities:

@@ -1,33 +1,33 @@
 # Legacy Deletion Candidates
 
-Updated: 2026-05-08
-Scope: planning-only registry of code paths that may be removed after Stage3_4/TLTM judgment, characterization baseline, and user confirmation.
+Updated: 2026-05-09
+Scope: registry of legacy code paths, including candidates and implemented source deletions.
 
 ## Rule
 
-Nothing in this file is approved for deletion yet. This registry prevents legacy paths from being mistaken as canonical architecture.
+Entries marked as implemented have already passed the relevant user decision and validation gate. Remaining candidates must not be mistaken as canonical architecture.
 
 ## Confirmed Legacy / Deletion Candidates
 
 ### Non-p28 quasi routes
 
-Candidate group:
+Implemented source deletion:
 
 - DFO-GN paper route.
 - Broyden/line-search route.
 - Global continuation/restart fallback routes outside current p28 production settings.
-- Other non-p28 quasi variants.
+- Post-refine Newton-loss residual route.
 
 Current decision:
 
 - p28 DFO-LS BTN/backflow rescue residual route is the only production-canonical quasi route.
-- Non-p28 routes are legacy/deletion candidates.
+- Non-p28 routes are legacy/deletion candidates; the known DFO-GN/Broyden/global-continuation implementations have been removed from active source.
 
-Deletion gate:
+Deletion gate satisfied:
 
-- Stage3_4/TLTM judgment complete.
-- Characterization baseline records whether any production config touches these paths.
-- Dependency search confirms no production wrapper/test requires them.
+- Stage3_4/TLTM judgment and QN-clean ODEX/solver-assist validation accepted the canonical p28 `fb_norefine` route.
+- Dependency search confirmed active production wrappers call only `solve_constraint_quasi_newton(evaluate_constraint_residual, ...)`.
+- Source cleanup removed the legacy solver-family implementations and the `QN_QUASI_GLOBAL_FALLBACK_ENABLED` runtime control.
 
 ### Post-refine
 
@@ -37,14 +37,13 @@ Candidate group:
 
 Current decision:
 
-- Under observation.
-- May be removed depending on refine-vs-norefine evidence.
+- Removed from active source after `fb_norefine` was promoted as canonical.
 
-Deletion gate:
+Deletion gate satisfied:
 
 - Stage3_4 refine-vs-norefine evidence reviewed.
-- User decides final production route.
-- Baseline and comparison confirm removal behavior is intended.
+- User selected deletion.
+- Active code no longer exposes the post-refine solver attempt, counters, output columns, or Newton-loss residual function.
 
 ### Flow rescue stack
 
@@ -110,4 +109,4 @@ Deletion/deprecation gate:
 ## Non-p28 quasi route staging decision - 2026-05-08
 - User confirmed non-p28 quasi routes should be marked legacy first, not immediately deleted.
 - Deletion requires staged physical validation: 10k -> 50k -> 100k checks must show no major physical-observable problem for the canonical p28 path.
-- Until that validation gate passes, DFO-GN paper, Broyden/line-search, global continuation/restart, and non-p28 variants remain legacy/quarantine candidates rather than approved deletions.
+- That validation gate has since passed for the QN-clean canonical route; DFO-GN paper, Broyden/line-search, and global continuation/restart source paths were deleted on 2026-05-09.

@@ -765,3 +765,9 @@ Use this file to append per-session notes.
 - Missing or invalid env values now preserve caller defaults; valid env values still override.
 - The observed unset `TLTM_STAGE2_INIT_SIGMA` smoke now reports the intended `init_sigma=0.1000`; explicit `TLTM_STAGE2_INIT_SIGMA=0.2` still reports `0.2000`.
 - Verification passed with `git diff --check`, stale parser-call scan, Stage1/Stage2 executable build, `test_odex_solver`, Stage1 smoke without explicit init sigma, Stage2 smoke without explicit init sigma, and Stage2 explicit-override smoke.
+
+## 2026-05-09 JST
+- Deleted legacy QN source routes outside the canonical p28 DFO-LS standard-residual path: DFO-GN, DFO-GN paper, Broyden/line-search, strict continuation, global continuation/restart/sweep, and post-refine Newton-loss residual.
+- Removed the `quasi_newton_line_search` and `quasi_newton_jacobian_update` modules from the build.
+- Removed active `QN_QUASI_GLOBAL_FALLBACK_ENABLED` policy parsing while keeping existing summary columns compatible.
+- Verified with `py_compile`, deleted-symbol census, `git diff --check`, forced Stage1/Stage2 executable rebuild, `test_odex_solver`, `test1`, tiny Stage1 smoke, and tiny Stage2 smoke with the removed global-fallback env set.

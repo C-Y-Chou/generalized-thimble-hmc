@@ -144,17 +144,17 @@ Outputs:
 
 ## Fallback Controls (Current Policy)
 
-Quasi fallback remains the active improvement path; no-fallback is a reference mode. The current working fallback baseline is bounded probe-only. Global/near/non-near rescue paths are disabled by default because the tested versions did not improve the Re-virial bias and can introduce route asymmetry not represented in the current Metropolis ratio.
+Quasi fallback remains the active improvement path; no-fallback is a reference mode. The current working fallback baseline is bounded probe-only. Near/non-near rescue paths are disabled by default because the tested versions did not improve the Re-virial bias and can introduce route asymmetry not represented in the current Metropolis ratio. The legacy global continuation/restart fallback route has been removed from active source.
 
 Control knobs:
 
 - `constraint_tol` and `enable_quasi_fallback` in `data/parameters.dat`
 - optional fallback env vars:
   - `QN_S1_PROBE_MAX_ITER` (default `28`; keep `<=32` outside ablations)
-  - `QN_QUASI_GLOBAL_FALLBACK_ENABLED` (default `0`)
   - `QN_S1_NEAR_RESCUE_ENABLED` (default `0`)
   - `QN_S1_NONNEAR_RESCUE_ENABLED` (default `0`)
 - removed legacy vars (no runtime effect):
+  - `QN_QUASI_GLOBAL_FALLBACK_ENABLED`
   - `QN_PROGRESSIVE_RESCUE_STAGE`, `QN_BASELINE_STAGE`
   - `QN_ENABLE_LEGACY_RESCUE`, `QN_LEGACY_RESCUE`, `QN_RESCUE_LEVEL`
 

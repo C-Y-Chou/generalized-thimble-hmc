@@ -133,16 +133,19 @@ See `M2_CORE_NUMERICAL_IMPLEMENTATION_AUDIT_PLAN.md` for the retained-core corre
 ### Main implementation files
 - `src/sampler/quasi_newton_solver.f90`
 - `src/sampler/quasi_newton_linear_solver.f90`
-- `src/sampler/quasi_newton_jacobian_update.f90`
-- `src/sampler/quasi_newton_line_search.f90`
 - `src/sampler/hmc_integrator_core.f90`
 - `src/sampler/constraint_solver_stats.f90`
+
+Historical files deleted from the active QN path on 2026-05-09:
+
+- `src/sampler/quasi_newton_jacobian_update.f90`
+- `src/sampler/quasi_newton_line_search.f90`
 
 ### Review goals
 - Identify the active residual/loss for standard `(u, lambda)` and BTM/BTN fallback routes.
 - Separate geometry layer, parametrization layer, and solver layer in the implementation.
 - Classify each QN component as project-specific projection-loss design, DFO-GN/DFO-LS mechanism, or implementation policy.
-- Document Broyden update and line-search as implementation mechanisms under DFO-GN/DFO-LS-inspired solver layer.
+- Preserve Broyden update and line-search only as historical implementation notes after their active source deletion.
 - Determine whether route classification, continuation, watchdogs, and rescue behavior are testable and observable.
 
 ### Behavior risks to track

@@ -13,8 +13,7 @@ module hmc_integrator_core
    use hmc_constraints, only: solve_constraint_newton
    use hmc_state_buffers, only: rattle_step_workspace_t, ensure_rattle_step_workspace, release_rattle_step_workspace
    use quasi_newton_solver_mod, only: solve_constraint_quasi_newton, evaluate_constraint_residual, &
-                                      evaluate_constraint_residual_newton_loss, get_quasi_newton_last_trace_r2c, &
-                                      get_quasi_newton_last_trace_stats
+                                      get_quasi_newton_last_trace_r2c, get_quasi_newton_last_trace_stats
    use constraint_solver_stats_mod, only: record_constraint_solver_newton_success, &
                                            record_constraint_solver_quasi_success, &
                                            record_constraint_solver_fail, &

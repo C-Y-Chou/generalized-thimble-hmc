@@ -36,9 +36,10 @@ This map pins each core TLTM Fortran algorithm area to its reference source befo
 ### DFO-GN core
 - Reference: `references/s12532-019-00161-7_DFO_GN.pdf`
 - Covers: derivative-free Gauss-Newton for nonlinear least-squares, linear residual models, trust-region framework, convergence framing.
-- Main implementation areas:
+- Current active implementation areas:
   - `src/sampler/quasi_newton_solver.f90`
   - `src/sampler/quasi_newton_linear_solver.f90`
+- Historical modules deleted from active source on 2026-05-09:
   - `src/sampler/quasi_newton_jacobian_update.f90`
   - `src/sampler/quasi_newton_line_search.f90`
 
@@ -47,7 +48,7 @@ This map pins each core TLTM Fortran algorithm area to its reference source befo
 - Covers: DFO-LS package design, robustness to noisy/expensive objectives, restarts, regression/sample averaging concepts.
 - Main implementation areas:
   - `src/sampler/quasi_newton_solver.f90`
-  - restart / continuation / watchdog / robustness policy in the QN path
+  - bounded local priority pass and residual-assist policy in the QN path
 
 ### Original projection-loss and parametrization-layer design
 - Reference: `references/new_algorithm__Copy_.pdf`

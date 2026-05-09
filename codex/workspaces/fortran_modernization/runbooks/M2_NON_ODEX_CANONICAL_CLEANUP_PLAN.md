@@ -34,7 +34,7 @@ Non-canonical or deletion-candidate route families:
 
 ## Static dependency findings
 
-Primary files that still contain non-canonical route machinery:
+Primary files that contained non-canonical route machinery before source cleanup:
 
 - `src/sampler/hmc_integrator_core.f90`
 - `src/sampler/quasi_newton_solver.f90`
@@ -43,9 +43,9 @@ Primary files that still contain non-canonical route machinery:
 
 Observed source-level anchors:
 
-- `hmc_integrator_core.f90` contains post-refine controls such as `QN_POST_NEWTON_REFINE_ENABLED`, `QN_POST_NEWTON_REFINE_MAX_ITER`, and routines including `refine_quasi_with_dfols_loss` / `build_post_refine_seed_from_qn`.
-- `quasi_newton_solver.f90` contains legacy or non-canonical solver families including `run_dfo_gn_attempt`, `run_dfo_gn_paper_attempt`, `run_quasi_newton_attempt`, Broyden/line-search related policy, and global fallback controls such as `QN_QUASI_GLOBAL_FALLBACK_ENABLED`.
-- Stage scripts may still expose refine/norefine comparison modes for historical reproducibility; those are not canonical production modes.
+- Historical note: `hmc_integrator_core.f90` previously contained post-refine controls and routines; these have since been removed from active source.
+- Historical note: `quasi_newton_solver.f90` previously contained `run_dfo_gn_attempt`, `run_dfo_gn_paper_attempt`, `run_quasi_newton_attempt`, Broyden/line-search policy, and the `QN_QUASI_GLOBAL_FALLBACK_ENABLED` control; these have since been removed from active source.
+- Stage scripts may still expose historical method labels for reproducibility; those are not canonical production modes.
 
 ## Safe to do before ODEX-only
 
@@ -76,4 +76,4 @@ The non-ODEX portion is considered handled for the purpose of proceeding to ODEX
 - The roadmap states that non-ODEX cleanup before ODEX-only is behavior-neutral only.
 - Source deletion is deferred until staged validation confirms no major physical-observable problem.
 
-Status: complete at planning/canonicalization-policy level. No Fortran source edits have been performed for this step.
+Status: superseded by the 2026-05-09 QN legacy route source cleanup. The planning/canonicalization-policy level is complete, and the DFO-GN/Broyden/global-continuation/post-refine source paths have been removed after staged validation and user approval.

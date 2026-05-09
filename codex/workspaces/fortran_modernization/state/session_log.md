@@ -234,3 +234,10 @@
 - Defaults now stay in the caller; parser helpers only overwrite on valid environment values and otherwise leave the configured default untouched.
 - Removed the nonconforming same-variable default/output pattern that made unset `TLTM_STAGE2_INIT_SIGMA` appear as `0.0000`.
 - Verification: `git diff --check`, stale parser-call scan, Stage1/Stage2 executable build, `test_odex_solver`, Stage1 smoke without explicit init sigma, Stage2 smoke without explicit init sigma, and Stage2 explicit-override smoke all passed.
+
+## 2026-05-09 JST - QN legacy route source cleanup
+- Removed active-source implementations for DFO-GN, DFO-GN paper, Broyden/line-search, strict continuation, global continuation/restart/sweep, and post-refine Newton-loss residual paths.
+- Removed `src/sampler/quasi_newton_line_search.f90` and `src/sampler/quasi_newton_jacobian_update.f90` from the build.
+- Removed active `QN_QUASI_GLOBAL_FALLBACK_ENABLED` control; retained summary schema compatibility for global-filter columns.
+- Preserved canonical p28 DFO-LS standard residual route and bounded local priority pass.
+- Verification passed: `py_compile`, deleted-symbol census, `git diff --check`, forced Stage1/Stage2 executable rebuild, `test_odex_solver`, `test1`, tiny Stage1 smoke, and tiny Stage2 smoke with the removed global-fallback env set.

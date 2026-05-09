@@ -131,10 +131,13 @@ Primary code:
 
 - `src/sampler/quasi_newton_solver.f90`.
 - `src/sampler/quasi_newton_linear_solver.f90`.
-- `src/sampler/quasi_newton_jacobian_update.f90`.
-- `src/sampler/quasi_newton_line_search.f90`.
 - `src/sampler/hmc_integrator_core.f90`.
 - `src/sampler/constraint_solver_stats.f90`.
+
+Historical code deleted from the active QN path on 2026-05-09:
+
+- `src/sampler/quasi_newton_jacobian_update.f90`.
+- `src/sampler/quasi_newton_line_search.f90`.
 
 Correctness questions:
 
@@ -142,7 +145,7 @@ Correctness questions:
 - When standard fails, is BTN fallback entered only under the intended condition and with the intended variables?
 - Is the DFO-LS/DFO-GN machinery implementing the project-specific loss rather than replacing it with a generic objective?
 - Are route counters, watchdogs, and fallback scopes observational, or do they affect proposal physics?
-- Are Broyden/line-search elements only implementation choices under the solver layer, not hidden changes to the mathematical loss?
+- Do historical Broyden/line-search notes remain clearly separated from the active mathematical loss?
 - Are p28 stopping/failure criteria compatible with RG and Metropolis boundary semantics?
 
 Minimal checks before staged validation:

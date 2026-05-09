@@ -41,52 +41,43 @@ Canonical p28 route:
 
 Legacy/deletion-candidate routes:
 
-- DFO-GN paper route.
-- Broyden/line-search route.
-- Global continuation/restart fallback routes outside the p28 production path.
+- DFO-GN paper route: removed from active source on 2026-05-09.
+- Broyden/line-search route: removed from active source on 2026-05-09.
+- Global continuation/restart fallback routes outside the p28 production path: removed from active source on 2026-05-09.
 - Any other non-p28 quasi route unless explicitly re-promoted later.
 
 Post-refine status:
 
-- Post-refine is still under observation.
-- It is not yet guaranteed to remain in the final publishable production route.
-- It may be removed after current Stage3_4/refine-vs-norefine evidence is reviewed.
-- Until then, modernization must preserve both `fb_refine` and `fb_norefine` behavior when comparing current results.
+- Removed from active source after `fb_norefine` was promoted as canonical.
 
 ## Current Implementation Map
 
-Primary files:
+Primary files after 2026-05-09 source cleanup:
 
 - `/home/cychou/TLTM/src/sampler/quasi_newton_solver.f90`
 - `/home/cychou/TLTM/src/sampler/quasi_newton_linear_solver.f90`
-- `/home/cychou/TLTM/src/sampler/quasi_newton_jacobian_update.f90`
-- `/home/cychou/TLTM/src/sampler/quasi_newton_line_search.f90`
 - `/home/cychou/TLTM/src/sampler/hmc_integrator_core.f90`
 - `/home/cychou/TLTM/src/sampler/constraint_solver_stats.f90`
 
 Top-level solver route:
 
-- `solve_constraint_quasi_newton` starts from `initial_guess_from_jacobian`, optionally applies a seed override, runs `run_dfo_ls_attempt`, then may run priority pass, continuation, fine continuation, sweeps, diversified restarts, and global filter bookkeeping depending on thresholds and env/config flags.
-- The active production route appears to prefer `run_dfo_ls_attempt`; `run_dfo_gn_attempt`, `run_dfo_gn_paper_attempt`, and `run_quasi_newton_attempt` coexist as alternate or legacy/research routes.
-- `hmc_integrator_core.try_quasi_stage` calls `solve_constraint_quasi_newton(evaluate_constraint_residual, ...)` and then optionally `refine_quasi_with_dfols_loss` using `evaluate_constraint_residual_newton_loss`.
+- `solve_constraint_quasi_newton` starts from `initial_guess_from_jacobian`, optionally applies a seed override, runs `run_dfo_ls_attempt`, and may run a bounded local priority pass.
+- DFO-GN, DFO-GN paper interpolation, Broyden/line-search, strict continuation, diversified restart/sweep, and the global fallback env switch have been removed from active source.
+- `hmc_integrator_core.try_quasi_stage` calls `solve_constraint_quasi_newton(evaluate_constraint_residual, ...)`; no post-refine attempt remains.
 
 Residual definitions:
 
 - `evaluate_constraint_residual`: standard inverse-flow residual. It forms a proposed complex point from `z + del_z + Jl`, then calls `flowzr(xt, residual_z_trial, ierr)`. The residual vector is `[aimag(flowzr_result); xi_lambda_part]` in current code form.
-- `evaluate_constraint_residual_newton_loss`: post-refine loss with independent variables `xi=[u;ld]`. It computes `r = z + del_z + (-i*J*ld) - flowz(x0 + u)`, maps this complex residual to real form, and stores `Jl` as the proposal correction.
-- `build_post_refine_seed_from_qn`: converts QN solution to post-refine seed with `u0 = Re(zinv_qn) - x0`, `ld0 = -u_qn`.
+- The post-refine Newton-loss residual was removed with the post-refine route.
 
 DFO/solver machinery:
 
 - `run_dfo_ls_attempt`: trust-region least-squares path with finite-difference/model Jacobian construction, Levenberg-style regularization, trust radius update, escape/stagnation logic, and trace recording.
-- `run_dfo_gn_paper_attempt`: closer-to-paper interpolation set / poisedness / geometry-improvement implementation.
-- `run_quasi_newton_attempt`: Broyden + line-search style path with merit/backtracking/growth guards.
-- `quasi_newton_jacobian_update.f90`: Broyden rank-1 update and safeguard helper.
-- `quasi_newton_line_search.f90`: compact acceptance and merit-update predicates.
+- Legacy DFO-GN/paper and Broyden/line-search machinery has been deleted from active source.
 
 Policy and diagnostics mixed in:
 
-- Global fallback gating, final-resort budgets, accepted-iteration budgets, watchdog scope, route codes, trace arrays, and flowz/flowzr call tracking are stored as module-level `save` state.
+- Final-resort budgets, accepted-iteration budgets, watchdog scope, route codes, trace arrays, and flowz/flowzr call tracking are still stored as module-level `save` state.
 - `constraint_solver_stats.f90` owns counters and captured failure details used by Stage3_4 diagnostics.
 - `hmc_integrator_core` classifies quasi failures as local/mid/global and near/far, then chooses skip/light/anchor routes and near rescue paths.
 

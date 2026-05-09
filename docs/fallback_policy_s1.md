@@ -12,10 +12,9 @@ The next QN proposal-inclusion design is specified in:
 - The current working baseline is bounded probe-only:
   - `enable_quasi_fallback=true`
   - `QN_S1_PROBE_MAX_ITER=28`
-  - `QN_QUASI_GLOBAL_FALLBACK_ENABLED=0`
   - `QN_S1_NEAR_RESCUE_ENABLED=0`
   - `QN_S1_NONNEAR_RESCUE_ENABLED=0`
-- Global fallback, near full retry, and non-near cheap/full retry are disabled by default because the tested versions did not improve the Re-virial bias and can introduce route asymmetry.
+- Legacy global fallback has been removed from active source; near full retry and non-near cheap/full retry remain disabled by default because the tested versions did not improve the Re-virial bias and can introduce route asymmetry.
 - New rescue paths must be treated as kernel-design candidates and validated against the no-fallback reference and the bounded-probe baseline.
 
 ## Runtime Path
@@ -29,10 +28,9 @@ For each RATTLE projection attempt:
 
 The baseline path intentionally does not run:
 
-- quasi internal global fallback sequence;
 - near full retry;
 - non-near cheap/full retry;
-- diversified restart/sweep paths used by the internal global fallback.
+- diversified restart/sweep paths.
 
 ## Current Evidence
 
@@ -69,7 +67,6 @@ Primary controls:
 Current baseline controls:
 
 - `QN_S1_PROBE_MAX_ITER` (default `28`; keep `<=32` unless running an ablation).
-- `QN_QUASI_GLOBAL_FALLBACK_ENABLED` (default `0`).
 - `QN_S1_NEAR_RESCUE_ENABLED` (default `0`).
 - `QN_S1_NONNEAR_RESCUE_ENABLED` (default `0`).
 
@@ -80,5 +77,6 @@ Research-only controls:
 
 Legacy controls were removed from runtime policy code and have no effect:
 
+- `QN_QUASI_GLOBAL_FALLBACK_ENABLED`.
 - `QN_PROGRESSIVE_RESCUE_STAGE`, `QN_BASELINE_STAGE`.
 - `QN_ENABLE_LEGACY_RESCUE`, `QN_LEGACY_RESCUE`, `QN_RESCUE_LEVEL`.

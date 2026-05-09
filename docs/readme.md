@@ -83,10 +83,9 @@ Recommended behavior:
 - Set `bootstrap_samples = 0` for automatic speed/accuracy tuning in expectation evaluation, or set a fixed positive value.
 - Temporary override is also available via `EVAL_BOOTSTRAP_SAMPLES=<N>` at runtime.
 - Quasi fallback remains the active improvement path; no-fallback is a reference mode.
-- Current working fallback baseline is bounded probe-only with global/near/non-near rescue disabled.
+- Current working fallback baseline is bounded probe-only with near/non-near rescue disabled.
 - Optional fallback controls:
   - `QN_S1_PROBE_MAX_ITER` (default `28`; keep `<=32` outside ablations)
-  - `QN_QUASI_GLOBAL_FALLBACK_ENABLED` (default `0`)
   - `QN_S1_NEAR_RESCUE_ENABLED` (default `0`)
   - `QN_S1_NONNEAR_RESCUE_ENABLED` (default `0`)
 
