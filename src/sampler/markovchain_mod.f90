@@ -23,7 +23,7 @@ module markovchain_mod
                                           get_constraint_solver_quasi_watchdog_stats, &
                                           get_constraint_solver_far_investment_stats, &
                                           set_constraint_solver_runtime_context
-   use utils
+   use utils, only: dp, wall_time_seconds, x_get_flow_time, x_set_flow_time, x_set_seed_real
    implicit none
 
 contains

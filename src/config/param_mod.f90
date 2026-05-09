@@ -1,5 +1,5 @@
 module param_mod
-   use utils   ! Ensure utils module is properly implemented for any auxiliary functions
+   use utils, only: dp
    implicit none
 
    type :: runtime_flags_t

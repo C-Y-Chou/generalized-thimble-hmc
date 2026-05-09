@@ -1,5 +1,5 @@
 module quasi_newton_linear_solver_mod
-   use utils
+   use utils, only: dp, complex_to_real, map_to_real_mat, real_to_complex, real_vec
    implicit none
    external :: dgesv, zgesv, dgemv
 

@@ -1,5 +1,5 @@
 module hmc_kernels
-   use utils
+   use utils, only: dp, map_to_real_mat, real_vec
    use model, only: calculate_action
    use perf_profile, only: perf_tic, perf_toc, PERF_DECOMPOSE2
    implicit none

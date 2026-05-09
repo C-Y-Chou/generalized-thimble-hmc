@@ -82,6 +82,7 @@ Latest behavior-neutral infrastructure cleanup:
 - Follow-up cleanup removed duplicated ASCII-lower helpers from `markovchain_mod.f90` and `hmc_reversibility_checks.f90`; both now use the shared `runtime_env_mod` helper for env-token normalization.
 - Follow-up cleanup moved HMC diagnostic/probe integer limits and constraint failure-capture integer limits onto the shared parser, preserving the existing clamp/unlimited semantics.
 - `param_mod` consumers now use explicit `only:` imports; no active source/test file has a bare `use param_mod`.
+- `utils` consumers now use explicit `only:` imports; no active source/test file has a bare `use utils`.
 
 Next expected modernization area after this slice:
 

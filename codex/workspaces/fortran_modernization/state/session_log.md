@@ -297,3 +297,8 @@
 - Replaced all bare `use param_mod` statements in active source/tests with explicit `only:` import lists.
 - Behavior-preservation note: this only narrows compile-time module visibility; no runtime logic, output schema, config semantics, or physics code paths changed.
 - Verification passed with `git diff --check`, builds for `generate_markov_chain`, `evaluate_expectations`, Stage1/Stage2, `test_program`, `test_odex_solver`, `test2`, direct `HMC_SKIP_PLOT=1 bin/test_program`, and tiny Stage1/Stage2 smokes.
+
+## 2026-05-10 JST - Utils module import-boundary cleanup
+- Replaced all bare `use utils` statements in active source/tests with explicit `only:` import lists.
+- Behavior-preservation note: this only narrows compile-time helper visibility; numerical helper implementations and call sites are otherwise unchanged.
+- Verification passed with `git diff --check`, a clean rebuild for production/test binaries, `test_odex_solver`, `test1`, and `test2`.

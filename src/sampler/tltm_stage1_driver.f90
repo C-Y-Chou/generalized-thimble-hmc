@@ -2,7 +2,7 @@ module tltm_stage1_driver
    use, intrinsic :: iso_fortran_env, only: int64
    use param_mod, only: config, read_parameters
    use runtime_env_mod, only: parse_int_env, parse_real_env, parse_real_list
-   use utils
+   use utils, only: dp, wall_time_seconds, x_set_flow_time, x_set_seed_real
    use solve_flow, only: flow, intode_status_unknown, intode_status_is_strict_success
    use model, only: grand
    use mt95, only: getseed, sgrnd

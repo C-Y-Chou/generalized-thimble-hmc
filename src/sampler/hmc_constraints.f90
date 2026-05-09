@@ -1,5 +1,5 @@
 module hmc_constraints
-   use utils
+   use utils, only: dp, complex_to_real, map_to_real_mat, real_to_complex, real_vec
    use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use solve_flow, only: flowz, set_intode_stage_trace, set_intode_newton_iter_trace, intode_stage_newton, &

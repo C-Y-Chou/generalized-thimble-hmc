@@ -1,6 +1,6 @@
 module hmc_reversibility_checks
    use runtime_env_mod, only: parse_int_env, to_lower_ascii
-   use utils
+   use utils, only: dp
    implicit none
 
    logical, save :: probe_config_loaded = .false.

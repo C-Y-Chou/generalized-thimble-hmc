@@ -814,3 +814,7 @@ Use this file to append per-session notes.
 ## 2026-05-10 JST
 - Narrowed all active `param_mod` imports to explicit `only:` lists.
 - Verified with builds for production/test binaries, `test_odex_solver`, `test2`, direct `HMC_SKIP_PLOT=1 bin/test_program`, and tiny Stage1/Stage2 smokes.
+
+## 2026-05-10 JST
+- Narrowed all active `utils` imports to explicit `only:` lists.
+- Verified with `git diff --check`, clean rebuild of production/test binaries, `test_odex_solver`, `test1`, and `test2`.

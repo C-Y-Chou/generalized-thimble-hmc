@@ -1,6 +1,6 @@
 module markovchain_metropolis
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-   use utils
+   use utils, only: dp
    use mt95, only: grnd
    use markovchain_transition_status
    use hmc, only: integrate_hmc_proposal, &

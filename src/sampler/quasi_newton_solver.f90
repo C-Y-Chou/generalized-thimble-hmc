@@ -1,5 +1,5 @@
 module quasi_newton_solver_mod
-   use utils
+   use utils, only: dp, complex_to_real, real_to_complex
    use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_value, ieee_quiet_nan
    use solve_flow, only: flowzr, flowz, set_intode_stage_trace, set_intode_quasi_iter_trace, intode_stage_quasi, &

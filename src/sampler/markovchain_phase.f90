@@ -1,5 +1,5 @@
 module markovchain_phase
-   use utils
+   use utils, only: dp, log_determinant
    use model, only: calculate_action
    implicit none
 

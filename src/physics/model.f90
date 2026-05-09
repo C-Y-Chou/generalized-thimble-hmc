@@ -1,7 +1,7 @@
 module model
    use param_mod, only: alpha, beta
-   use utils
-   use mt95
+   use utils, only: dp
+   use mt95, only: gaussrnd
    use model_generated, only: calculate_action_generated, ds_generated, hessian_generated, hessian_vec_generated
 
    implicit none

@@ -33,6 +33,7 @@ Updated: 2026-05-10 JST
 - Runtime config now requires key-value `parameters.dat`; legacy positional parsing and the unused `initial_x.dat` runtime path were intentionally deleted.
 - Runtime env parser/token mechanics are centralized in `runtime_env_mod`; caller defaults, env names, and valid/invalid override semantics are preserved.
 - Active `param_mod` consumers use explicit `only:` imports; the legacy globals still exist, but accidental module-wide coupling is reduced.
+- Active `utils` consumers use explicit `only:` imports; shared helper visibility is now explicit at call sites.
 
 ## Operational risks
 1. Queue congestion can dominate wall-clock completion.

@@ -7,7 +7,7 @@ module hmc_integrator_core
                          intode_status_failure_invalid, intode_status_failure_h_min, &
                          get_intode_fallback_context_stats, get_intode_rescue_stats, intode_status_is_strict_success
    use param_mod, only: cttol, quasi_fallback_enabled
-   use utils
+   use utils, only: dp, complex_to_real
    use model, only: ds
    use hmc_kernels, only: calculate_dV, decompose2
    use hmc_constraints, only: solve_constraint_newton

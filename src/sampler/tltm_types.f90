@@ -1,5 +1,5 @@
 module tltm_types_mod
-   use utils
+   use utils, only: dp
    use markovchain_transition_status, only: metropolis_status_rejected, &
                                             metropolis_status_proposal_failed, &
                                             metropolis_status_reverse_gate_rejected, &

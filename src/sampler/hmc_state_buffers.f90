@@ -1,5 +1,5 @@
 module hmc_state_buffers
-   use utils
+   use utils, only: dp
    implicit none
 
    type :: rattle_step_workspace_t
