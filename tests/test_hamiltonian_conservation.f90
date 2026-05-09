@@ -4,7 +4,7 @@ program test_hamiltonian_conservation
    use mt95, only: getseed, sgrnd
    use hmc, only: integrate_hmc_proposal, hmc_proposal_status_success
    use model, only: grand
-   use solve_flow, only: flow
+   use solve_flow, only: flow, intode_status_unknown, intode_status_is_strict_success
    use perf_profile, only: perf_reset, perf_report
    use constraint_solver_stats_mod, only: reset_constraint_solver_stats, report_constraint_solver_stats
    use utils, only: dp, wall_time_seconds, x_set_flow_time, x_set_seed_real
@@ -14,7 +14,7 @@ program test_hamiltonian_conservation
    integer, parameter :: method_count = 1
    character(len=32), parameter :: method_names(method_count) = [character(len=32) :: "rattle"]
 
-   integer :: substep_count, n_seed, rng_seed, method_idx, proposal_status
+   integer :: flow_status, substep_count, n_seed, rng_seed, method_idx, proposal_status
    real(dp), allocatable :: x_state(:), x_state_next(:), x_seed(:)
    complex(dp), allocatable :: z_state(:), z_state_next(:)
    complex(dp), allocatable :: jac_state(:, :), jac_state_next(:, :)
@@ -53,8 +53,9 @@ program test_hamiltonian_conservation
 
    do method_idx = 1, method_count
       call set_integrator_method(method_names(method_idx))
-      call flow(x_state, z_state, jac_state, flow_failed)
-      if (flow_failed) then
+      flow_status = intode_status_unknown
+      call flow(x_state, z_state, jac_state, flow_failed, flow_status)
+      if (flow_failed .or. (.not. intode_status_is_strict_success(flow_status))) then
          write (*, '(A)') "[ERROR] Flow initialization failed."
          error stop 1
       end if

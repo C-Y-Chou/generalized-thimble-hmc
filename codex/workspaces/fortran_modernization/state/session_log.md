@@ -214,3 +214,8 @@
 - Removed tracked backup artifact `src/sampler/hmc_integrator_core.f90.bak_codex_20260429`.
 - Behavior-preservation note: the backup file was not compiled and only polluted source audit/search results.
 - Verification: source artifact scan no longer reports backup files under `src`.
+
+## 2026-05-09 JST - Test strict-flow contract cleanup
+- Updated `tests/test_hamiltonian_conservation.f90` so its initial `flow(...)` requests optional status and requires strict success.
+- Behavior-preservation note: this only aligns the test guard with the production strict-flow contract.
+- Verification: `git diff --check` and `test1` passed.

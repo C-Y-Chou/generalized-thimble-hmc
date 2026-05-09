@@ -748,3 +748,7 @@ Use this file to append per-session notes.
 - Removed tracked backup artifact `src/sampler/hmc_integrator_core.f90.bak_codex_20260429`.
 - The file was not compiled and only polluted source search/audit results.
 - Verified source artifact scan no longer reports backup files under `src`.
+
+## 2026-05-09 JST
+- Updated Hamiltonian conservation test initialization to request optional `flow(...)` status and require strict success.
+- Verified with `git diff --check` and `make -C build FC=gfortran LDFLAGS= test1`.

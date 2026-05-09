@@ -427,3 +427,8 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 - Removed tracked backup artifact `src/sampler/hmc_integrator_core.f90.bak_codex_20260429`.
 - Behavior-preservation note: the file was not a build source and only polluted source search/audit results.
 - Verification: `rg --files src | rg "bak|backup|copy|old|legacy"` no longer reports tracked backup source artifacts.
+
+## Test strict-flow contract cleanup - 2026-05-09 JST
+- Updated `tests/test_hamiltonian_conservation.f90` so initial flow requests optional ODE status and requires strict success.
+- Behavior-preservation note: this changes only the test guard; successful strict ODEX initialization and the Hamiltonian convergence calculation are unchanged.
+- Verification passed: `git diff --check` and `make -C build FC=gfortran LDFLAGS= test1`.
