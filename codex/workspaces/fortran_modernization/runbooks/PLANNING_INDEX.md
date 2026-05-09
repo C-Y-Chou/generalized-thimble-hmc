@@ -39,6 +39,7 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 ## Repo-Wide Modernization
 
 - `M3_ARCHITECTURE_CONTRACT.md`
+- `M3_TEMPERING_PROTOCOL_AND_OUTPUT_SCHEMA_DESIGN.md`
 - `CROSS_CUTTING_INFRASTRUCTURE_AUDIT.md`
 - `CODE_HYGIENE_AUDIT.md`
 - `STATE_INFORMATION_PROPAGATION_REFACTOR.md`
@@ -54,7 +55,7 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 - Current phase: source-level modernization after M2 canonicalization decisions.
 - Completed source wave: ODEX sequence canonicalization, QN BTN sign cleanup, QN invalid-evaluation handling, post-refine/non-p28 QN source deletion, Radau/JFNK source deletion, solver-assist naming cleanup, RATTLE progress guard diagnostic downgrade, and state/status surface patches.
 - Latest completed compatibility slice: runtime-env parser centralization, explicit `param_mod`/`utils` imports, and generated model import/header cleanup.
-- Current next area: M3 architecture contract execution, especially wrapper/schema design, typed config propagation, explicit context/workspace ownership, and compatibility gates.
+- Current next area: M3 architecture contract execution, especially TLTM tempering protocol audit, wrapper/schema design, typed config propagation, explicit context/workspace ownership, and compatibility gates.
 
 - `M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`: completed static audit findings and discussion blockers for retained ODEX/Newton/RATTLE/QN/HMC code.
 - `M2_REFERENCE_BACKED_CORE_AUDIT.md`: reference-first retained-core audit superseding the earlier source-level risk scan where conclusions differ.

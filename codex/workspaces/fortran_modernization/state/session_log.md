@@ -314,3 +314,9 @@
 - Added `runbooks/M3_ARCHITECTURE_CONTRACT.md` as the next-phase planning gate after behavior-neutral infrastructure cleanup.
 - Contract freezes v0 output compatibility until schema versioning exists and defines v1 schema, typed config, explicit context/workspace, regression-gate, and stop-gate rules.
 - No Fortran source, output writer, production workflow, or job submission changes were made in this planning-only slice.
+
+## 2026-05-10 JST - M3 tempering protocol and schema design
+- Added `runbooks/M3_TEMPERING_PROTOCOL_AND_OUTPUT_SCHEMA_DESIGN.md`.
+- Design explicitly combines TLTM flowed-surface rules with standard replica-exchange requirements before defining v1 output schema.
+- Recorded current Stage2 timing convention: local updates and histories are sampled before swap, while label trace is written after swap; this remains v0 compatibility unless explicitly changed.
+- No Fortran source, output writer, production workflow, or job submission changes were made in this planning-only slice.

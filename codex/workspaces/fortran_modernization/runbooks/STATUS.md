@@ -90,6 +90,7 @@ Next expected modernization area after this slice:
 
 - M3 architecture contract execution: wrapper/schema design, typed config propagation, explicit context/workspace ownership, and compatibility gates.
 - `runbooks/M3_ARCHITECTURE_CONTRACT.md` now records the next-phase rules before public schema, wrapper, config, or module-state refactors begin.
+- `runbooks/M3_TEMPERING_PROTOCOL_AND_OUTPUT_SCHEMA_DESIGN.md` now records that schema design must first verify the TLTM tempering protocol against both TLTM-specific rules and standard replica-exchange practice.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.
