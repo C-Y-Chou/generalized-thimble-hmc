@@ -6,7 +6,8 @@ module markovchain_mod
                          get_intode_fallback_context_stats, &
                          get_intode_rescue_stats, &
                          intode_status_unknown, intode_status_is_strict_success
-   use param_mod
+   use param_mod, only: ckrv, config, cttol, hmc_step, integrator_method, n_warm, phi_history_file, &
+                        quasi_fallback_enabled, set_initial_flow_time, state_total_size, x_history_file, z_history_file
    use, intrinsic :: iso_fortran_env, only: int64
    use hmc, only: integrate_hmc_warmup
    use model, only: grand

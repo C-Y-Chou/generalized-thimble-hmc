@@ -1,5 +1,6 @@
 program generate_markov_chain_app
-   use param_mod
+   use param_mod, only: read_parameters
+   use utils, only: dp
    use markovchain_mod, only: execute_generate_markov_chain
    use mt95, only: getseed, sgrnd
    use solve_flow, only: get_intode_solver_assist_policy, &

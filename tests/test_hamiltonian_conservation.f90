@@ -1,6 +1,7 @@
 program test_hamiltonian_conservation
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-   use param_mod
+   use param_mod, only: ckrv, config, integrator_method, istest, read_parameters, set_integrator_method, &
+                        state_seed_size_cfg, testmom, total_step_size
    use mt95, only: getseed, sgrnd
    use hmc, only: integrate_hmc_proposal, hmc_proposal_status_success
    use model, only: grand

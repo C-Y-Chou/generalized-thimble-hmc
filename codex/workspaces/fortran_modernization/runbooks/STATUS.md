@@ -81,6 +81,7 @@ Latest behavior-neutral infrastructure cleanup:
 - Verification passed on 2026-05-10 JST: `git diff --check`, Stage1/Stage2 executable build, `test_odex_solver`, `test1`, tiny Stage1/Stage2 smokes, `TLTM_STAGE*_FLOW_TIME_LADDER` list-parser smokes, and invalid logical default-preservation smoke.
 - Follow-up cleanup removed duplicated ASCII-lower helpers from `markovchain_mod.f90` and `hmc_reversibility_checks.f90`; both now use the shared `runtime_env_mod` helper for env-token normalization.
 - Follow-up cleanup moved HMC diagnostic/probe integer limits and constraint failure-capture integer limits onto the shared parser, preserving the existing clamp/unlimited semantics.
+- `param_mod` consumers now use explicit `only:` imports; no active source/test file has a bare `use param_mod`.
 
 Next expected modernization area after this slice:
 

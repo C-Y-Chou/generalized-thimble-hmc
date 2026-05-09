@@ -44,6 +44,7 @@
 - 2026-05-10 JST: Centralized Stage1/Stage2 runtime env parser helpers in `runtime_env_mod` without changing env names/defaults/override semantics.
 - 2026-05-10 JST: Removed remaining duplicated env-token lowercase helpers from `markovchain_mod` and `hmc_reversibility_checks`.
 - 2026-05-10 JST: Reused shared int env parser for HMC diagnostic/probe limits and constraint failure-capture limits while preserving clamp/unlimited behavior.
+- 2026-05-10 JST: Narrowed all active `param_mod` consumers to explicit `only:` imports as a legacy-global boundary cleanup.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit

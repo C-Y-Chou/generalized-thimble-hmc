@@ -1,5 +1,5 @@
 program evaluate_expectations_app
-   use param_mod
+   use param_mod, only: alpha, beta, n_size, phi_history_file, read_parameters, tra2, z_history_file
    use utils, only: dp
    implicit none
 

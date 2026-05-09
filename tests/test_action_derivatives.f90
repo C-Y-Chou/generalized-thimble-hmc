@@ -1,6 +1,6 @@
 program test_action_derivatives
    use model, only: calculate_action, ds, hessian, hessian_vec
-   use param_mod
+   use param_mod, only: read_parameters, set_derivative_mode, state_seed_size_cfg
    use utils, only: dp
    implicit none
 

@@ -292,3 +292,8 @@
 - Replaced local integer env reads for `HMC_STATE_PROGRESS_DIAGNOSTIC_LIMIT`, `HMC_REVERSIBILITY_PROBE_LIMIT`, `CONSTRAINT_FAIL_CAPTURE_LIMIT`, and `CONSTRAINT_FAIL_CAPTURE_START_SAMPLE` with `runtime_env_mod:parse_int_env`.
 - Behavior-preservation note: negative HMC limits are still clamped to zero; constraint capture limit still allows `0`/negative as unlimited; invalid env values still preserve defaults.
 - Verification passed with `git diff --check`, Stage1/Stage2 executable build, `test1`, tiny Stage2 reversibility-probe smoke, and `CONSTRAINT_FAIL_CAPTURE_LIMIT=0 HMC_SKIP_PLOT=1 bin/test_program` showing `constraint fail capture limit=unlimited`.
+
+## 2026-05-10 JST - Param module import-boundary cleanup
+- Replaced all bare `use param_mod` statements in active source/tests with explicit `only:` import lists.
+- Behavior-preservation note: this only narrows compile-time module visibility; no runtime logic, output schema, config semantics, or physics code paths changed.
+- Verification passed with `git diff --check`, builds for `generate_markov_chain`, `evaluate_expectations`, Stage1/Stage2, `test_program`, `test_odex_solver`, `test2`, direct `HMC_SKIP_PLOT=1 bin/test_program`, and tiny Stage1/Stage2 smokes.

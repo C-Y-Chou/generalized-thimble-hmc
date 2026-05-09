@@ -31,6 +31,7 @@ Purpose: persistent full-program risk map for TLTM Stage3_3/Stage3_4 work. This 
 - 2026-05-09: QN watchdog internals now use solver-assist terminology; legacy final-resort env/output names remain only as compatibility aliases.
 - 2026-05-09: legacy positional `parameters.dat` parsing and the unused `initial_x.dat` runtime path were deleted after user confirmation.
 - 2026-05-10: Runtime env parser/token helpers were centralized in `runtime_env_mod` without changing env names, defaults, output schemas, or physics.
+- 2026-05-10: Active source/tests now use explicit `only:` lists for all `param_mod` imports, reducing accidental legacy-global coupling without changing behavior.
 - 2026-05-07: Stage3 multiseed configs now fail fast if `warmup_cycles_optional != 0`, because the current Stage2/evaluation production path does not implement a separate discarded warmup window.
 - 2026-05-07: each Stage3 seed/method run now writes `run_manifest.json` with the resolved method, setup, selected algorithm env vars, thread env vars, output paths, and isolated `parameters.dat` path.
 

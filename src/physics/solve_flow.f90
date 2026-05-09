@@ -1,5 +1,5 @@
 module solve_flow
-   use param_mod
+   use param_mod, only: at, rt
    use utils
    use model, only: ds, hessian_vec
    use perf_profile, only: perf_tic, perf_toc, PERF_INTODE, PERF_FLOW, PERF_FLOWZ, PERF_FLOWZR

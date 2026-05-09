@@ -1,6 +1,6 @@
 module hmc
    use, intrinsic :: ieee_arithmetic, only: ieee_quiet_nan, ieee_value
-   use param_mod
+   use param_mod, only: eo, istest, testmom
    use utils
    use model, only: grand
    use solve_flow, only: set_intode_rattle_trace, clear_intode_runtime_trace, get_intode_fallback_stats

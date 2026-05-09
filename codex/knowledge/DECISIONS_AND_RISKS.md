@@ -32,6 +32,7 @@ Updated: 2026-05-10 JST
 - Preferred QN watchdog terminology is solver assist. `QN_SOLVER_ASSIST_BUDGET` is the preferred env name; `QUASI_FINAL_RESORT_BUDGET` remains a compatibility alias.
 - Runtime config now requires key-value `parameters.dat`; legacy positional parsing and the unused `initial_x.dat` runtime path were intentionally deleted.
 - Runtime env parser/token mechanics are centralized in `runtime_env_mod`; caller defaults, env names, and valid/invalid override semantics are preserved.
+- Active `param_mod` consumers use explicit `only:` imports; the legacy globals still exist, but accidental module-wide coupling is reduced.
 
 ## Operational risks
 1. Queue congestion can dominate wall-clock completion.

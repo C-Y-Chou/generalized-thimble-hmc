@@ -806,3 +806,11 @@ Use this file to append per-session notes.
 - Removed duplicated env-token lowercase helpers from `markovchain_mod.f90` and `hmc_reversibility_checks.f90`.
 - Reused `runtime_env_mod:to_lower_ascii`; kept existing boolean/default behavior.
 - Verified with `git diff --check`, build of `generate_markov_chain`, `run_tltm_stage2`, `test1`, and a tiny Stage2 reversibility-probe env smoke.
+
+## 2026-05-10 JST
+- Reused `runtime_env_mod:parse_int_env` for HMC diagnostic/probe limits and constraint failure-capture limits.
+- Preserved negative/clamp/unlimited behavior and verified with build/test smokes.
+
+## 2026-05-10 JST
+- Narrowed all active `param_mod` imports to explicit `only:` lists.
+- Verified with builds for production/test binaries, `test_odex_solver`, `test2`, direct `HMC_SKIP_PLOT=1 bin/test_program`, and tiny Stage1/Stage2 smokes.
