@@ -20,14 +20,14 @@ module hmc
                                   hmc_step_status_final_flow_invalid, &
                                   hmc_step_status_final_flow_h_min, &
                                   hmc_step_status_final_flow_non_strict_success
-   use hmc_reversibility_checks, only: state_has_progress, reversibility_probe_should_run, report_reversibility_probe
+   use hmc_reversibility_checks, only: report_state_progress_diagnostic, reversibility_probe_should_run, report_reversibility_probe
    implicit none
 
    integer, parameter :: hmc_proposal_status_success = 0
    integer, parameter :: hmc_proposal_status_output_size_mismatch = 1
    integer, parameter :: hmc_proposal_status_initial_projection_failed = 2
    integer, parameter :: hmc_proposal_status_step_failed = 3
-   integer, parameter :: hmc_proposal_status_no_progress = 4
+   integer, parameter :: hmc_proposal_status_no_progress = 4 ! Reserved legacy status; no longer emitted as an active gate.
    integer, parameter :: hmc_proposal_status_final_projection_failed = 5
    integer, parameter :: hmc_proposal_status_reverse_gate_rejected = 6
    integer, parameter :: hmc_proposal_status_constraint_failed = 7
@@ -175,11 +175,7 @@ contains
          temp_jac = jacf
       end do
 
-      if (.not. state_has_progress(temp_x, final_x)) then
-         proposal_status = hmc_proposal_status_no_progress
-         call abort_with_failure()
-         return
-      end if
+      call report_state_progress_diagnostic("proposal", temp_x, final_x)
 
       call decompose2(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error)
       if (has_error) then
@@ -286,19 +282,7 @@ contains
             local_jac = out_jac
          end do
 
-         if (.not. state_has_progress(local_prev_x, out_x)) then
-            local_proposal_status = hmc_proposal_status_no_progress
-            call release_rattle_step_workspace(local_ws)
-            if (allocated(local_momentum)) deallocate (local_momentum)
-            if (allocated(local_momentumuv)) deallocate (local_momentumuv)
-            if (allocated(local_momentumu)) deallocate (local_momentumu)
-            if (allocated(local_momentumv)) deallocate (local_momentumv)
-            if (allocated(local_prev_x)) deallocate (local_prev_x)
-            if (allocated(local_prev_z)) deallocate (local_prev_z)
-            if (allocated(local_jac)) deallocate (local_jac)
-            call clear_intode_runtime_trace()
-            return
-         end if
+         call report_state_progress_diagnostic("reverse_probe", local_prev_x, out_x)
 
          call decompose2(local_momentum, local_momentumuv, local_momentumu, local_momentumv, local_jac, local_error)
          if (local_error) then
@@ -510,10 +494,7 @@ contains
          end if
       end do
 
-      if (.not. state_has_progress(temp_x, final_x)) then
-         call abort_with_failure()
-         return
-      end if
+      call report_state_progress_diagnostic("warmup", temp_x, final_x)
 
       momentum = 0.0_dp
       call calculate_hamiltonian(final_z, momentum, final_hamiltonian)

@@ -7,21 +7,55 @@ module hmc_reversibility_checks
    logical, save :: probe_fallback_only = .true.
    integer, save :: probe_limit = 0
    integer, save :: probe_count = 0
+   logical, save :: progress_diag_config_loaded = .false.
+   logical, save :: progress_diag_enabled = .false.
+   integer, save :: progress_diag_limit = 0
+   integer, save :: progress_diag_count = 0
 
 contains
 
-   logical function state_has_progress(x_before, x_after)
+   subroutine report_state_progress_diagnostic(context, x_before, x_after)
+      character(len=*), intent(in) :: context
       real(dp), intent(in) :: x_before(:), x_after(:)
-      real(dp) :: tol
+      integer :: n_seed
+      real(dp) :: dx_inf, scale, tol
 
-      if (size(x_before) < 2 .or. size(x_after) < 2) then
-         state_has_progress = .false.
-         return
+      call load_state_progress_diagnostic_config()
+      if (.not. progress_diag_enabled) return
+      if (progress_diag_count >= progress_diag_limit) return
+
+      n_seed = min(size(x_before), size(x_after)) - 1
+      if (n_seed < 1) return
+
+      dx_inf = maxval(abs(x_after(2:n_seed + 1) - x_before(2:n_seed + 1)))
+      scale = max(1.0_dp, maxval(abs(x_before(2:n_seed + 1))), maxval(abs(x_after(2:n_seed + 1))))
+      tol = 16.0_dp*epsilon(1.0_dp)*scale
+      if (dx_inf > tol) return
+
+      progress_diag_count = progress_diag_count + 1
+      write (*, '(A,I0,1X,A,A,1X,A,ES13.6,1X,A,ES13.6)') &
+         "[HMC][PROGRESS_DIAG] no physical-coordinate progress: event=", progress_diag_count, &
+         "context=", trim(context), "dx_inf=", dx_inf, "tol=", tol
+   end subroutine report_state_progress_diagnostic
+
+   subroutine load_state_progress_diagnostic_config()
+      character(len=64) :: env_value
+      integer :: env_len, env_stat, ios, parsed_value
+
+      if (progress_diag_config_loaded) return
+      progress_diag_config_loaded = .true.
+
+      call get_environment_variable("HMC_STATE_PROGRESS_DIAGNOSTIC_LIMIT", env_value, length=env_len, status=env_stat)
+      if (env_stat == 0 .and. env_len > 0) then
+         read (env_value(1:env_len), *, iostat=ios) parsed_value
+         if (ios == 0) progress_diag_limit = max(0, parsed_value)
       end if
 
-      tol = 16.0_dp*epsilon(1.0_dp)*max(1.0_dp, abs(x_before(2)), abs(x_after(2)))
-      state_has_progress = abs(x_after(2) - x_before(2)) > tol
-   end function state_has_progress
+      progress_diag_enabled = (progress_diag_limit > 0)
+      if (progress_diag_enabled) then
+         write (*, '(A,I0)') "[INFO] hmc state-progress diagnostic limit=", progress_diag_limit
+      end if
+   end subroutine load_state_progress_diagnostic_config
 
    logical function reversibility_probe_should_run(fallback_used)
       logical, intent(in) :: fallback_used

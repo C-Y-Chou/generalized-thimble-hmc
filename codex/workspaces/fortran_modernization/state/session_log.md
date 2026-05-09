@@ -258,3 +258,9 @@
 - Renamed the ODE h-min residual-assist implementation from internal `final_resort` names to `solver_assist` names while keeping output/schema compatibility aliases.
 - Updated `generate_markov_chain` diagnostics to describe solver assist explicitly.
 - Verification passed: `git diff --check`, production executable rebuild including `generate_markov_chain`, `test_odex_solver`, `test1`, tiny Stage1 smoke, tiny Stage2 smoke, and Stage2 summary readback.
+
+## 2026-05-09 JST - RATTLE progress-guard downgrade
+- Removed the active no-progress proposal-failure checks from `hmc.f90`; the reserved `hmc_proposal_status_no_progress` value is no longer emitted by active proposal paths.
+- Added opt-in `HMC_STATE_PROGRESS_DIAGNOSTIC_LIMIT` reporting for zero/near-zero displacement across physical coordinates `x(2:)`.
+- Proposal validity now relies on solver convergence, constraint residual handling, strict final flow, reverse gate, finite Hamiltonians, and Metropolis/status gates.
+- Verification passed with `git diff --check`, production Stage1/Stage2 build, `test_odex_solver`, `test1`, tiny Stage1 smoke, tiny Stage2 smoke, and summary status readback.

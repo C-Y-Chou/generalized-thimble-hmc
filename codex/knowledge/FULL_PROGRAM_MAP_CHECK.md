@@ -19,7 +19,7 @@ Purpose: persistent full-program risk map for TLTM Stage3_3/Stage3_4 work. This 
 ## Current high-priority risks
 - QN fallback route selection is not yet proven volume-preserving or proposal-density-correct at publishable-proof level. Current Metropolis ratio remains `exp(-(H_final-H_initial))`. RG is a necessary guard but not by itself a proof for the piecewise Newton -> QN -> RG proposal map.
 - Stage2 writes fixed max-flow-slot history before swap. This is a valid convention only if explicitly treated as the sampling definition; it can confuse first-N-cycle comparisons.
-- `state_has_progress` checks only `x(2)`. This is acceptable for current one-dimensional physical state conventions, but unsafe for general multi-dimensional extensions.
+- The legacy `x(2)` progress sentinel is no longer an active proposal-failure gate; deeper typed state redesign is still required because many kernels encode `x(1)` as flow time and `x(2:)` as physical coordinates positionally.
 - Many modules use `SAVE` or module-global workspaces. Current PBS process-level parallelism is okay, but OpenMP or in-process replica parallelism would be unsafe without refactoring.
 
 ## Fixed pre-production risks
@@ -27,6 +27,7 @@ Purpose: persistent full-program risk map for TLTM Stage3_3/Stage3_4 work. This 
 - 2026-05-09: post-refine, DFO-GN/Broyden/global-continuation, Radau/JFNK rescue, and root-level stale Fortran artifacts were deleted from active source after validation and user approval.
 - 2026-05-07: reverse gate now compares carried `jac` in addition to `x/z/p`, using the same `QN_REVERSE_GATE_TOL`. This aligns the gate with the actual state consumed later by projection, phase, and swap energy.
 - 2026-05-07: Metropolis no longer uses `h_final == 0` as the proposal-failure sentinel. HMC now returns an explicit `proposal_ok`; Metropolis rejects only failed or non-finite Hamiltonian proposals before computing the acceptance probability.
+- 2026-05-09: the legacy RATTLE state-progress sentinel was downgraded to opt-in diagnostics and no longer defines proposal validity.
 - 2026-05-07: Stage3 multiseed configs now fail fast if `warmup_cycles_optional != 0`, because the current Stage2/evaluation production path does not implement a separate discarded warmup window.
 - 2026-05-07: each Stage3 seed/method run now writes `run_manifest.json` with the resolved method, setup, selected algorithm env vars, thread env vars, output paths, and isolated `parameters.dat` path.
 

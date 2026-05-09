@@ -156,7 +156,7 @@ Complete and commit the Radau/JFNK rescue source deletion slice, then continue w
 - Added `runbooks/M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`.
 - Static source-level retained-core audit is complete enough for user discussion.
 - ODEX-only staged validation remains blocked until the identified bug candidates and derivation/signoff items are resolved.
-- Key blockers/signoff items: inverse-flow semantics are clarified as reversed RHS under nonnegative production flow time; remaining items are ODEX signed-interval robustness, simplified Newton residual/update now matched to GT-HMC but still needing replay/normalization tests, QN p28 residual signoff against the original formulation, `x(2)`-only RATTLE progress guard, and reverse-gate replay diagnostic accounting.
+- Key blockers/signoff items: inverse-flow semantics are clarified as reversed RHS under nonnegative production flow time; remaining items are ODEX signed-interval robustness, simplified Newton residual/update now matched to GT-HMC but still needing replay/normalization tests, QN p28 residual signoff against the original formulation, and full typed diagnostics/accounting redesign. The `x(2)` RATTLE progress sentinel has been downgraded to diagnostics.
 - No production job was submitted for this audit.
 
 ## Inverse-flow clarification - 2026-05-08 JST
@@ -480,3 +480,11 @@ Complete and commit the Radau/JFNK rescue source deletion slice, then continue w
 - Preserved the existing `get_intode_rescue_stats(...)` output argument names and Stage2/multiseed summary labels for schema compatibility.
 - Behavior-preservation note: no assist gate, status code, ODEX stepping, Metropolis acceptance, RNG, or Stage2 output schema was intentionally changed.
 - Verification passed: `git diff --check`; `make -C build FC=gfortran LDFLAGS= ../bin/generate_markov_chain ../bin/run_tltm_stage1 ../bin/run_tltm_stage2 test_odex_solver test1`; tiny Stage1 smoke; tiny Stage2 smoke; Stage2 summary status/schema readback.
+
+## RATTLE progress-guard downgrade - 2026-05-09 JST
+- Removed the active proposal-failure use of the legacy state-progress sentinel from `src/sampler/hmc.f90`.
+- Added opt-in `HMC_STATE_PROGRESS_DIAGNOSTIC_LIMIT` reporting in `src/sampler/hmc_reversibility_checks.f90`; the diagnostic measures physical-coordinate displacement across `x(2:)` and is disabled by default.
+- Proposal validity now rests on solver convergence, constraint residual handling, strict final flow, reverse gate, finite Hamiltonians, and Metropolis/status gates rather than an `x(2)`-only coordinate sentinel.
+- `hmc_proposal_status_no_progress` is kept only as a reserved legacy status value and is no longer emitted by the active proposal path.
+- Behavior-preservation note: this intentionally removes a previously identified non-reference-backed rejection criterion. Output schema and default logging remain unchanged.
+- Verification passed: `git diff --check`; `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2 test_odex_solver test1`; tiny Stage1 smoke; tiny Stage2 smoke; Stage1/Stage2 summary readback.

@@ -38,12 +38,13 @@
 - 2026-05-09 JST: Deleted tracked root-level stale Fortran artifacts and removed no-op `set_intode_strict_mode(...)` API/call sites after strict final-flow status gates made the flag obsolete.
 - 2026-05-09 JST: Deleted stale backup config `data/parameters.stage3_2.bak` and refreshed persistent knowledge maps to the current active architecture.
 - 2026-05-09 JST: Renamed ODE residual-assist internals from `final_resort` to `solver_assist` while preserving compatibility output/schema labels.
+- 2026-05-09 JST: Downgraded the legacy RATTLE `x(2)` progress guard from an active proposal-failure gate to an opt-in state-progress diagnostic.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit
 - Completed static source-level audit of retained ODEX, simplified Newton, RATTLE, QN p28 residual, and HMC/Metropolis/RG boundary.
 - Wrote `runbooks/M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`.
-- Validation remains blocked pending user discussion of ODEX signed work estimate, Newton/QN derivations, RATTLE progress guard, and RG diagnostic accounting.
+- Validation remains blocked pending user discussion of ODEX signed work estimate, Newton/QN derivations, and full diagnostics/accounting design. The RATTLE progress guard decision has been implemented as diagnostic-only.
 - 2026-05-08 JST: Clarified retained-core audit F1: `flowzr` is inverse flow via reversed RHS under nonnegative production flow time; signed `calculate_wk` is a latent negative-interval robustness issue, not proof of wrong current `flowzr`.
 - 2026-05-08 JST: Checked GT-HMC simplified RATTLE equations; simplified Newton residual/update signs match Eqs. (3.37)-(3.44), pending deterministic replay and `del_z` normalization checks.
 - 2026-05-08 JST: Completed reference-backed re-audit and added `M2_REFERENCE_BACKED_CORE_AUDIT.md`; source-first audit is superseded for signoff decisions.

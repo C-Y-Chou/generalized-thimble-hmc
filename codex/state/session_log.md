@@ -786,3 +786,8 @@ Use this file to append per-session notes.
 ## 2026-05-09 JST
 - Renamed ODE residual-assist internals from `final_resort` to `solver_assist` while preserving compatibility output/schema labels.
 - Verified with `git diff --check`, production executable rebuild including `generate_markov_chain`, `test_odex_solver`, `test1`, tiny Stage1 smoke, tiny Stage2 smoke, and Stage2 summary readback.
+
+## 2026-05-09 JST
+- Downgraded the legacy RATTLE state-progress sentinel from an active proposal-failure gate to an opt-in diagnostic.
+- Added `HMC_STATE_PROGRESS_DIAGNOSTIC_LIMIT` reporting for zero/near-zero physical-coordinate displacement across `x(2:)`; default output/logging stays unchanged.
+- Verified with `git diff --check`, Stage1/Stage2 executable build, `test_odex_solver`, `test1`, tiny Stage1 smoke, tiny Stage2 smoke, and summary status readback.

@@ -1,7 +1,7 @@
 # State and Information Propagation Refactor
 
 Updated: 2026-05-09 JST
-Status: eleven narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
+Status: twelve narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
 
 ## Purpose
 
@@ -138,7 +138,7 @@ Audit result:
 Implemented boundary:
 
 - `hmc_integrator_core.f90`: optional RATTLE-step status codes distinguish output mismatch, momentum mismatch, force failure, constraint failure, strict final-flow failure, final projection failure, and reverse-gate rejection.
-- `hmc.f90`: optional HMC proposal status maps step failures to proposal-level reasons, including reverse-gate rejection and no-progress failure.
+- `hmc.f90`: optional HMC proposal status maps step failures to proposal-level reasons, including reverse-gate rejection. The no-progress status value is now reserved legacy only.
 - `markovchain_metropolis.f90`: optional transition status maps proposal status to accepted, ordinary rejected, proposal failed, reverse-gate rejected, invalid Hamiltonian, invalid `Delta H`, or output mismatch.
 - `tests/test_hamiltonian_conservation.f90`: successful test proposals now assert `hmc_proposal_status_success`.
 
@@ -438,3 +438,30 @@ Compatibility:
 Verification:
 
 - `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2 test_odex_solver test1`.
+
+## Twelfth Source Slice - RATTLE Progress Guard Downgrade - 2026-05-09 JST
+
+Purpose:
+
+- Remove the dimension-fragile `x(2)` progress sentinel from the active proposal-validity boundary.
+- Preserve observability for suspected no-progress cases without turning a state-layout artifact into a physical rejection rule.
+
+Implemented boundary:
+
+- `hmc.f90`: forward proposal, reverse-probe, and warmup paths no longer abort solely because a coordinate-progress check reports no movement.
+- `hmc_reversibility_checks.f90`: added opt-in `HMC_STATE_PROGRESS_DIAGNOSTIC_LIMIT` diagnostics that report zero/near-zero physical-coordinate displacement across `x(2:)`.
+- Proposal validity now relies on solver convergence, constraint residual handling, strict final flow, reverse gate, finite Hamiltonians, and Metropolis/status gates.
+
+Compatibility:
+
+- Default diagnostics are disabled, so normal output schema and log volume are unchanged.
+- This intentionally changes the legacy no-progress sentinel behavior; the old sentinel was not reference-backed and was previously classified as a state-layout bug.
+- The deeper typed-state redesign remains future work: `x(1)` flow time and `x(2:)` physical coordinates are still positional in many kernels.
+
+Verification:
+
+- `git diff --check`.
+- `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2 test_odex_solver test1`.
+- Tiny local Stage1 smoke with `max_flow=0`, `cycles=2`, `local_updates=1`.
+- Tiny local Stage2 smoke with `max_flow=0`, `cycles=2`, `local_updates=1`, and swaps disabled.
+- Stage1/Stage2 summary readback confirmed `newton_eval_flow_status`, `qn_eval_flow_status`, `reverse_gate_replay_status`, and `local_transition_totals` remain present.

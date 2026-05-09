@@ -1,7 +1,7 @@
 # State and Information Propagation Audit
 
 Updated: 2026-05-09 JST
-Status: planning/audit complete enough for user confirmation before the first code patch.
+Status: source slices implemented through HMC Hamiltonian availability, proposal-status surface, transition counters, flow-status counters, and RATTLE progress-guard downgrade.
 
 ## Scope
 
@@ -29,37 +29,37 @@ This means the live-chain state update is broadly safe, but proposal status and 
 
 ## Findings
 
-### F1. Failed proposal Hamiltonian is encoded as `0.0`
+### F1. Failed proposal Hamiltonian was encoded as `0.0` - resolved
 
-`hmc.rattle` sets unavailable failed-proposal Hamiltonian values to zero:
+Historical finding: `hmc.rattle` set unavailable failed-proposal Hamiltonian values to zero:
 
 - `src/sampler/hmc.f90:95`: output-size failure sets both Hamiltonians to `0.0`.
 - `src/sampler/hmc.f90:334`: `abort_with_failure` sets `final_hamiltonian = 0.0`.
 - `src/sampler/hmc.f90:231`, `src/sampler/hmc.f90:247`, and `src/sampler/hmc.f90:262`: reverse-probe failure paths set `h_final = 0.0`.
 - `src/sampler/hmc.f90:372` and `src/sampler/hmc.f90:468`: warmup integrator failure paths set `final_hamiltonian = 0.0`.
 
-Risk:
+Resolution:
 
-- `H=0` is a valid numeric value in principle and should not mean "unavailable".
-- The production Metropolis path mostly avoids using this value because it also receives `proposal_ok`, but tests, warmup, and diagnostics still read `0.0` as failure.
+- Current `src/sampler/hmc.f90` initializes and sets unavailable Hamiltonians to IEEE quiet NaN.
+- `H=0` is no longer the unavailable-Hamiltonian sentinel.
 
-### F2. Existing test uses Hamiltonian zero as failure status
+### F2. Existing test used Hamiltonian zero as failure status - resolved
 
-`tests/test_hamiltonian_conservation.f90:69` treats `h_final == 0.0` as integrator failure.
+Historical finding: `tests/test_hamiltonian_conservation.f90` treated `h_final == 0.0` as integrator failure.
 
-Risk:
+Resolution:
 
-- This encodes the unwanted sentinel convention into the regression suite.
-- It can hide the difference between a valid low Hamiltonian and an unavailable Hamiltonian.
+- The test now calls `integrate_hmc_proposal(...)` with optional `proposal_ok` and `proposal_status`.
+- It rejects failed proposals by status/non-finite Hamiltonians rather than `H==0`.
 
-### F3. Legacy warmup uses Hamiltonian zero as failure status
+### F3. Legacy warmup used Hamiltonian zero as failure status - resolved
 
-`src/sampler/markovchain_mod.f90:423` exits warmup when `h_proposed == 0.0_dp .and. h_initial /= 0.0_dp`.
+Historical finding: legacy warmup exited when the proposed Hamiltonian was numerically zero.
 
-Risk:
+Resolution:
 
-- This is not the Stage2 production path, but it is a clear status/value conflation.
-- If `h_proposed` becomes unavailable, the caller should know through status or non-finite value, not equality to zero.
+- Current warmup code exits on non-finite Hamiltonians, not zero equality.
+- `integrate_hmc_warmup(...)` failed paths return unavailable Hamiltonian as NaN.
 
 ### F4. Live-chain update is safe but status names are overloaded
 
@@ -88,44 +88,48 @@ Risk:
 - This is a legal rejection boundary, but upstream it becomes `proposal_ok=.false.` and then `proposal_failed=.true.`.
 - The current boolean API does not distinguish "proposal numerically failed" from "proposal was rejected by reverse gate".
 
-## Safe First Patch Candidate
+## Implemented Source Slices
 
-Patch goal:
+Patch goals implemented:
 
-Remove Hamiltonian `0.0` as the failed/unavailable status marker without changing the physical acceptance rule.
+- Remove Hamiltonian `0.0` as the failed/unavailable status marker without changing the physical acceptance rule.
+- Add a proposal/transition status surface while keeping compatibility booleans.
+- Split local transition counters while preserving legacy `projection_failure_count`.
+- Add Newton/QN residual, strict physical-flow, and reverse-gate replay status observability.
+- Downgrade the legacy RATTLE `state_has_progress` check from an active proposal-failure gate to an opt-in diagnostic.
 
-Suggested changes:
+Implemented changes:
 
-1. In `src/sampler/hmc.f90`, replace failed/unavailable Hamiltonian outputs with IEEE quiet NaN instead of `0.0`.
-2. Keep `proposal_ok` as the authoritative production proposal-validity flag.
-3. In `tests/test_hamiltonian_conservation.f90`, pass the existing optional `proposal_ok` output from `integrate_hmc_proposal` and stop using `h_final == 0.0` as failure detection.
-4. In `src/sampler/markovchain_mod.f90`, replace the legacy warmup `h_proposed == 0.0` check with explicit non-finite/status handling.
+1. In `src/sampler/hmc.f90`, failed/unavailable Hamiltonian outputs use IEEE quiet NaN instead of `0.0`.
+2. `proposal_ok` remains the authoritative production proposal-validity flag.
+3. In `tests/test_hamiltonian_conservation.f90`, failure detection uses optional `proposal_ok`, proposal status, and finite-Hamiltonian checks.
+4. In `src/sampler/markovchain_mod.f90`, warmup exits on unavailable/non-finite Hamiltonians instead of checking for `H==0`.
+5. In `src/sampler/hmc_reversibility_checks.f90`, no-progress observation is available only through `HMC_STATE_PROGRESS_DIAGNOSTIC_LIMIT`; it no longer rejects proposals.
 
-Expected behavior impact:
+Behavior impact:
 
 - Production accept/reject physics should not change because `markovchain_metropolis` already rejects when `proposal_ok` is false or Hamiltonians are non-finite.
 - Failed proposals remain legal rejections.
 - Outputs/logs/tests no longer encode failed Hamiltonian as `0.0`.
+- The old `x(2)`-only progress sentinel no longer defines proposal validity; strict flow, solver convergence, constraint residuals, reverse gate, and Metropolis/status gates carry that role.
 
-Required verification:
+Required verification pattern:
 
 - Rebuild `bin/run_tltm_stage2` and `bin/test_program`.
 - Run `make -C build test1` or the equivalent local Hamiltonian conservation smoke.
 - Run a tiny Stage2 smoke to confirm rejected/failed proposals still leave live state unchanged and counters remain interpretable.
-- Optional after confirmation: run a short fixed-seed Stage2 comparison to verify aggregate accept/reject/projection counters do not change except for diagnostics that explicitly report Hamiltonian availability.
+- Optional after confirmation: run a short fixed-seed Stage2 comparison to verify aggregate accept/reject/projection counters do not change except for diagnostics that explicitly report Hamiltonian availability or state-progress diagnostics.
 
 ## Not In First Patch
 
 These are important, but should be separate patches:
 
-- Introduce a full derived `hmc_transition_result_t` or integer status enum.
-- Split `proposal_failed` into `proposal_invalid`, `reverse_gate_rejected`, `metropolis_rejected`, and `hamiltonian_unavailable`.
+- Introduce a full derived `hmc_transition_result_t` beyond the current integer status surface.
+- Replace compatibility `proposal_failed`/`projection_failure_count` names with a versioned public schema.
 - Rename `projection_failure_count`.
 - Redesign Stage2 output schema/counters.
 - Change reverse-gate policy or Metropolis acceptance.
 
 ## Recommendation
 
-Use the first code patch to remove `H=0` as the unavailable-Hamiltonian sentinel. Keep the patch small and behavior-preserving.
-
-After that passes local smoke tests, plan the larger typed-state API redesign as a separate modernization slice.
+Continue with the larger typed-state API redesign as a separate modernization slice. The short-term source now follows the project policy: unavailable values are status/NaN, rejected proposals are stay-put transitions, and the state-layout progress check is diagnostic rather than a physical proposal criterion.
