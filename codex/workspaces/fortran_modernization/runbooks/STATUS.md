@@ -20,9 +20,9 @@ Updated: 2026-05-09 17:48 JST
 - Current flow-policy candidate is ODEX primary integration with solver-internal ODE assist for NT/QN residual evaluation and strict final proposal flow.
 
 ## Current architecture understanding
-- `solve_flow.f90` is flow mapping plus ODEX-like integration plus Radau/JFNK/final-resort policy plus diagnostics.
-- `hmc_integrator_core.f90` is the central proposal hub: Newton, quasi fallback, post-refine, reverse gate, flow/Jacobian update, momentum projection, and solver statistics.
-- `quasi_newton_solver.f90` mixes residual definitions, DFO-LS/DFO-GN/Broyden solver families, continuation/restart policy, traces, watchdog/final-resort budgets, and route counters.
+- `solve_flow.f90` is flow mapping plus ODEX-like integration plus solver-internal residual-assist policy plus diagnostics.
+- `hmc_integrator_core.f90` is the central proposal hub: Newton, canonical p28 quasi fallback, reverse gate, flow/Jacobian update, momentum projection, and solver statistics.
+- `quasi_newton_solver.f90` now carries the retained p28 DFO-LS-style residual/solver machinery plus traces, solver-internal assist/watchdog accounting, and route counters; legacy DFO-GN/Broyden/global-continuation/post-refine source paths have been removed.
 - `tltm_stage2_driver.f90` owns production orchestration and output/counter contracts used by Stage3_4 interpretation.
 
 ## State/information propagation refine queue - 2026-05-09 JST
@@ -62,16 +62,15 @@ Updated: 2026-05-09 17:48 JST
 - First proposed code patch before broader typed-status redesign: replace `H=0` failure sentinels with explicit proposal status/non-finite unavailable Hamiltonian handling while preserving Metropolis physics.
 
 ## Next action
-Review/commit the Fortran module dependency build patch. Next implementation slice can safely split Stage1/Stage2 counters using the new proposal/transition statuses.
+Complete and commit the Radau/JFNK rescue source deletion slice, then continue with the next no-decision modernization slice: retained p28 QN/solver-state cleanup and deterministic baseline hardening.
 
 ## After confirmation
-- Build baseline harness design first.
-- Do not start Fortran source modernization until affected baseline rows in `BASELINE_VERIFICATION_MATRIX.md` are satisfied.
+- Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.
+- Already-approved cleanup slices may proceed when they preserve the canonical p28 route, keep output schemas compatible, and pass build/smoke/source-search checks.
 
 ## Quasi route decision - 2026-05-08 JST
 - Production-canonical quasi route: current p28 path (`QN_S1_PROBE_MAX_ITER=28`) using DFO-LS BTN/backflow rescue on `evaluate_constraint_residual` after Newton failure.
-- Legacy/deletion candidates: non-p28 quasi routes, DFO-GN paper route, Broyden/line-search route, and global continuation/restart fallback routes outside current p28 production policy.
-- Post-refine remains under observation and may be removed after refine-vs-norefine evidence is reviewed.
+- Legacy non-p28 quasi, DFO-GN paper, Broyden/line-search, global continuation/restart, and post-refine source paths have been removed after validation and user approval.
 
 ## Wrapper direction decision - 2026-05-08 JST
 - Current Stage2/Stage3/Stage3_4 workflow is transitional scaffolding.
@@ -89,7 +88,8 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 ## Flow backend direction decision - revised 2026-05-09 JST
 - Pure ODEX-only is retained as a comparison artifact, not the final production policy.
 - Current canonical candidate is ODEX primary integration plus solver-internal ODE assist for NT/QN residual evaluation plus strict final proposal flow.
-- Radau/JFNK/final-proposal rescue acceptance remains a legacy deletion candidate; solver-internal assist must be kept or explicitly redesigned before deletion.
+- Radau/JFNK rescue source has been deleted; final-proposal rescue acceptance remains forbidden by strict final-flow gates.
+- Solver-internal assist must be kept or explicitly redesigned before any further flow-policy cleanup.
 
 ## Thread-safety decision - 2026-05-08 JST
 - Long-term modernization target is in-process parallel/OpenMP-capable TLTM execution.
@@ -122,19 +122,18 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 ## Canonical p28 route decision - 2026-05-08
 - User confirmed `fb_norefine` as the canonical p28 production route.
 - Canonical route: Newton -> QN S1 p28 DFO-LS BTN/backflow rescue residual -> reverse gate -> Metropolis.
-- Post-refine is a deletion candidate and should not be part of the final canonical p28 route unless explicitly re-promoted later.
-- M2c implementation may remove or disable post-refine after comparison harness coverage.
+- Post-refine has been removed from active source and should not be part of the final canonical p28 route unless explicitly re-promoted later.
 
 ## Canonical flow backend decision - revised 2026-05-09
 - User accepted the solver-assist validation observation: pure ODEX-only should not be the final policy because it introduces avoidable solver robustness loss.
 - Current canonical candidate: ODEX primary integration, solver-internal ODE assist for NT/QN residual evaluation, strict final proposal flow.
-- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and final-proposal rescue acceptance remain deletion candidates.
-- Any deletion/refactor must preserve explicit residual-assist semantics and prove final proposal strictness.
+- Radau rescue, fixed/chunked Radau rescue, and JFNK support paths have been removed from active source.
+- Any remaining flow-policy refactor must preserve explicit residual-assist semantics and prove final proposal strictness.
 
 ## Non-p28 quasi route staging decision - 2026-05-08
 - User confirmed non-p28 quasi routes should be marked legacy first, not immediately deleted.
 - Deletion requires staged physical validation: 10k -> 50k -> 100k checks must show no major physical-observable problem for the canonical p28 path.
-- Until that validation gate passes, DFO-GN paper, Broyden/line-search, global continuation/restart, and non-p28 variants remain legacy/quarantine candidates rather than approved deletions.
+- That validation gate has passed for the QN-clean canonical route; DFO-GN paper, Broyden/line-search, global continuation/restart, and known non-p28 implementation paths have been removed from active source.
 
 ## M2 execution policy - 2026-05-08 JST
 - Non-ODEX cleanup before ODEX-only is limited to behavior-neutral canonical route documentation, legacy/quarantine labeling, dependency inventory, and test planning.
@@ -144,7 +143,7 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 
 ## ODEX-only source policy change - 2026-05-08 JST
 - Updated `src/physics/solve_flow.f90` so the production `intode` failure path no longer enables Radau rescue or final-resort acceptance.
-- Legacy Radau/JFNK routines remain in source as quarantine/reference code until staged validation approves deletion.
+- Historical note: legacy Radau/JFNK routines were initially kept in quarantine, then deleted on 2026-05-09 after solver-assist validation and strict final-flow gates.
 - No production job was submitted for this change.
 
 ## Retained-core correctness audit correction - 2026-05-08 JST
@@ -184,7 +183,7 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 - Target sequence: `2,4,6,8,12,16,24,32,...`.
 - Current code sequence `2,4,6,12,18,36,...` is now legacy.
 - Future implementation must update `build_nsteps` and `calculate_ak` together, clean signed-interval/work-estimate robustness in the same patch, and run ODE solver self-consistency tests before ODEX-only long validation.
-- Radau/JFNK/final-resort code should be kept in the easiest later-deletion quarantine form: explicit disabled entry points/switches, no hidden production fallback.
+- Later cleanup deleted Radau/JFNK rescue source; solver-internal assist remains explicit and final proposal flow remains strict.
 
 ## QN p28 BTN sign convention - 2026-05-08 JST
 - User confirmed p28 should be treated as BTN/backflow rescue after standard Newton failure.
@@ -198,7 +197,7 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 - Implemented residual correction: `residual_jlc = -J*(xi2 + i*xi1)`.
 - Implemented initial guess: solve `J dz = +del_z`, then `xi1=Im(dz)`, `xi2=Re(dz)`.
 - `Jl`/recovery continue treating `Jl` as the actual correction added to `z+del_z`; no extra recovery sign flip is applied.
-- Optional post-refine seed mapping was updated to use `ld0=b_qn` under paper variables; canonical p28 remains no-refine.
+- Historical note: optional post-refine seed mapping was previously updated to use `ld0=b_qn` under paper variables; the post-refine route has since been removed and canonical p28 remains no-refine.
 
 ## BTN validation policy - 2026-05-08 JST
 - User decided not to require old-convention/new-convention regression equivalence for BTN variable cleanup.
@@ -231,7 +230,7 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 ## ODEX canonicalization scope decision - 2026-05-08 JST
 - User selected synchronous cleanup for ODEX canonicalization: Hairer `IWORK(3)=3` sequence, matching `calculate_ak`, and signed-interval/work-estimate robustness should be handled together.
 - Pre-long-validation test target is ODE solver self-consistency, not old/new trajectory equality: analytic ODE convergence/order sanity, step subdivision consistency, inverse/round-trip checks where applicable, and failure classification sanity.
-- Radau/JFNK/final-resort legacy code should be arranged in the most convenient later-deletion form: isolated quarantine with explicit disabled entry points/switches and no hidden production fallback.
+- Superseded cleanup target: Radau/JFNK legacy source has since been deleted; solver-internal residual assist remains explicit and final proposal flow remains strict.
 
 ## ODEX canonicalization implementation - 2026-05-08 JST
 - Implemented Hairer ODEX `IWORK(3)=3` step sequence in `src/physics/solve_flow.f90`: `2,4,6,8,12,16,24,32,...`.
@@ -303,7 +302,7 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 - Changed `evaluate_constraint_residual` to build `ztrial = z + del_z - J*(a+i*b)` with `xi1=b`, `xi2=a`.
 - Changed `initial_guess_from_jacobian` to solve `J dz=+del_z` for the paper-variable seed.
 - Kept `Jl` recovery semantics unchanged: `Jl` is the actual correction used in `ztrial = z + del_z + Jl`.
-- Updated optional post-refine seed mapping to use `ld0=b_qn`; canonical p28 remains no-refine.
+- Historical note: updated optional post-refine seed mapping to use `ld0=b_qn`; the post-refine route has since been removed and canonical p28 remains no-refine.
 - Verified by rebuilding `../bin/replay_quasi_failures` and running a 2-cycle local `test_tltm_stage2` smoke; no production job was submitted.
 
 ## QN p28 BTN contract verification - 2026-05-08 JST
@@ -456,3 +455,11 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 - Preserved the canonical p28 route: Newton -> `solve_constraint_quasi_newton(evaluate_constraint_residual, ...)` -> DFO-LS standard residual with bounded local priority pass -> reverse gate -> Metropolis.
 - Behavior-preservation note: production proposal physics, DFO-LS residual semantics, ODEX/solver-assist residual evaluation, strict final proposal flow, reverse gate decisions, RNG, and live-state updates were not intentionally changed. Behavior changes only for explicitly legacy routes or removed env controls.
 - Verification passed: `python3 -m py_compile scripts/run_stage3_3_multiseed.py scripts/merge_stage3_multiseed_chunks.py scripts/fortran_module_deps.py`; deleted-symbol census is clean for active `src/sampler`; `git diff --check`; forced Stage1/Stage2 executable rebuild; `make -C build FC=gfortran LDFLAGS= test_odex_solver`; `make -C build FC=gfortran LDFLAGS= test1`; tiny Stage1 smoke; tiny Stage2 smoke with `QN_QUASI_GLOBAL_FALLBACK_ENABLED=1` confirming the removed env no longer activates a route and summary compatibility columns remain present with zero counts.
+
+## Radau/JFNK flow-rescue source cleanup - 2026-05-09 JST
+- Removed the inactive secondary-integrator rescue implementations from `src/physics/solve_flow.f90`: adaptive Radau, fixed/chunked Radau, JFNK, and Radau last-failure replay diagnostics.
+- Kept `intode_stiff_rescue(...)` as an explicit disabled compatibility stub.
+- Kept `get_intode_rescue_stats(...)` schema-compatible: Radau fields now return zero; legacy `final_resort` fields remain compatibility labels for solver-internal residual assist.
+- Preserved the canonical flow policy: ODEX primary integration, solver-internal assist only for NT/QN residual evaluation, and strict final `flow(...)` for proposal/live-state construction.
+- Behavior-preservation note: ODEX stepping, assist gating, final proposal strictness, Metropolis acceptance, RNG, and live-state updates were not intentionally changed. Removed source was unreachable under the validated canonical policy.
+- Verification passed: Stage1/Stage2 executable build, `make -C build FC=gfortran LDFLAGS= test_odex_solver`, and `make -C build FC=gfortran LDFLAGS= test1`.

@@ -87,11 +87,11 @@ Highest-risk surfaces:
 
 - The residual definitions are algorithm definitions. They must not be renamed or rearranged in a way that changes signs, variable ordering, or flow direction.
 - Current `xi` layout, `Jl` meaning, and `del_z` mapping are not self-evident and are easy to break during API cleanup.
-- The standard residual and post-refine Newton-loss residual intentionally differ. Collapsing them into one generic residual would be dangerous.
+- Historical note: the deleted post-refine Newton-loss residual intentionally differed from the retained p28 residual. Do not reintroduce or collapse residual definitions without an explicit algorithm decision.
 - Route thresholds such as `promising_first_pass_res`, `probe_global_rescue_trigger_res`, `fine_cont_trigger_res`, sweep triggers, trust radii, lambda bounds, and accept tolerances are behavior.
 - Watchdog/final-resort budget behavior can change proposal failure rates and accepted route composition.
 - Module-level trace arrays and route codes create hidden dependencies between solver attempts and later diagnostics/counters.
-- Multiple solver families coexist; modernization must first classify canonical, fallback, experimental, and deprecated paths.
+- Multiple solver-family experiments used to coexist; active source now retains the canonical p28 route, but diagnostics and state still carry historical naming/coupling that require cleanup.
 
 ## Refactorability Assessment
 
@@ -104,24 +104,24 @@ Safe now, as planning work:
 Potentially safe after baselines:
 
 - Extract residual evaluation into a documented projection-loss module with unchanged signatures wrapped for compatibility.
-- Split DFO-LS/DFO-GN/Broyden implementations into files by algorithm family while preserving exported entry points.
+- Extract the retained p28 DFO-LS-style residual/solver machinery into clearer modules while preserving exported entry points.
 - Replace ambiguous names only with test-backed equivalence and equations in comments.
 - Encapsulate trace state into a derived type after route/counter baselines exist.
 
 Blocked until Stage3_4 completion or explicit approval:
 
 - Changing default route selection or enabling global fallback by default.
-- Removing `run_dfo_gn_paper_attempt` or Broyden paths before confirming they are unused in all production configs.
+- Reintroducing deleted DFO-GN/Broyden/global-continuation paths without an explicit research-mode decision and tests.
 - Changing residual acceptance tolerance or `residual_within_accept_tolerance` semantics.
 - Changing final-resort/watchdog budgets.
-- Changing post-refine skip/success/failure policy.
+- Reintroducing post-refine skip/success/failure policy without an explicit decision.
 
 ## Required Baselines
 
-- Residual microtests for both `evaluate_constraint_residual` and `evaluate_constraint_residual_newton_loss`, including sign/order checks for `xi`, `Jl`, `del_z`, and flow direction.
+- Residual microtests for retained `evaluate_constraint_residual`, including sign/order checks for `xi`, `Jl`, `del_z`, and flow direction.
 - Fixed captured-case QN trace replay: residual sequence, accepted flags, route codes, best residual, valid fraction, and final success/failure.
-- Production route census: probe/full/post-refine/near/far/reverse-gate counters before and after any refactor.
-- Solver family coverage: at least one DFO-LS normal case, one DFO-LS priority/continuation case, one post-refine skip, one post-refine solve, one post-refine fail capture, and one watchdog/final-resort budget case if available.
+- Production route census: probe/full/near/far/reverse-gate counters before and after any refactor.
+- Solver coverage: at least one DFO-LS normal case, one priority/near/far case if still present, and one watchdog/assist budget case if available.
 - Accepted proposal correctness: QN-used proposal must pass reversibility and local volume checks already noted in `codex/knowledge/FULL_PROGRAM_MAP_CHECK.md`.
 
 ## Open Questions For Confirmation
@@ -133,11 +133,9 @@ Blocked until Stage3_4 completion or explicit approval:
 
 ## Canonical p28 route decision - 2026-05-08
 - User confirmed `fb_norefine` as the canonical p28 production route.
-- Canonical route: Newton -> QN S1 p28 DFO-LS standard residual -> reverse gate -> Metropolis.
-- Post-refine is a deletion candidate and should not be part of the final canonical p28 route unless explicitly re-promoted later.
-- M2c implementation may remove or disable post-refine after comparison harness coverage.
+- Canonical route: Newton -> QN S1 p28 DFO-LS BTN/backflow rescue residual -> reverse gate -> Metropolis.
+- Post-refine has been removed from active source and should not be part of the final canonical p28 route unless explicitly re-promoted later.
 
 ## Non-p28 quasi route staging decision - 2026-05-08
-- User confirmed non-p28 quasi routes should be marked legacy first, not immediately deleted.
-- Deletion requires staged physical validation: 10k -> 50k -> 100k checks must show no major physical-observable problem for the canonical p28 path.
-- Until that validation gate passes, DFO-GN paper, Broyden/line-search, global continuation/restart, and non-p28 variants remain legacy/quarantine candidates rather than approved deletions.
+- User confirmed non-p28 quasi routes should be marked legacy first, then deleted only after validation.
+- That staged validation/dependency gate has passed for the QN-clean canonical route; DFO-GN paper, Broyden/line-search, global continuation/restart, and known non-p28 implementation paths have been removed from active source.

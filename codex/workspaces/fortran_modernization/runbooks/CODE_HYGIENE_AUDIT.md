@@ -41,9 +41,9 @@ Clean implementation quality without changing physics, sampling, or output behav
 
 ## Initial High-Risk Files
 
-- `/home/cychou/TLTM/src/physics/solve_flow.f90`: flow, ODEX, Radau/JFNK/final-resort, diagnostics in one module.
-- `/home/cychou/TLTM/src/sampler/hmc_integrator_core.f90`: RATTLE, Newton/QN fallback, post-refine, RG, counters in one core routine.
-- `/home/cychou/TLTM/src/sampler/quasi_newton_solver.f90`: residuals, DFO-LS, DFO-GN, Broyden, fallback policy, traces, watchdogs.
+- `/home/cychou/TLTM/src/physics/solve_flow.f90`: flow, ODEX, solver-internal residual assist, and diagnostics in one module.
+- `/home/cychou/TLTM/src/sampler/hmc_integrator_core.f90`: RATTLE, Newton/QN fallback, RG, and counters in one core routine.
+- `/home/cychou/TLTM/src/sampler/quasi_newton_solver.f90`: p28 BTN/DFO-LS residual, fallback policy, traces, watchdog-style accounting, and compatibility counters.
 - `/home/cychou/TLTM/src/sampler/tltm_stage2_driver.f90`: orchestration, summaries, histories, swaps, config/env parsing.
 - `/home/cychou/TLTM/src/apps/evaluate_expectations.f90`: evaluation, diagnostics, plotting metadata, statistics, I/O.
 - `/home/cychou/TLTM/src/core/utils.f90`: mapping helpers, state helpers, I/O helpers, math helpers.

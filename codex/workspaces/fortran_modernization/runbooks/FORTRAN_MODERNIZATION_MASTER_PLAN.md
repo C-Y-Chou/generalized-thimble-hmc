@@ -93,8 +93,9 @@ Turn the TLTM Fortran codebase into a mature, maintainable, verifiable, and publ
 - Pure ODEX-only passed physical-observable validation but caused a large solver robustness loss.
 - Current canonical candidate: ODEX primary flow plus solver-internal ODE assist for NT/QN residual evaluation plus strict final proposal flow.
 - Assist is a residual-evaluation progress aid only; it must not finalize a proposal or replace strict final `flow(...)`.
-- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and final-proposal rescue acceptance remain legacy/deletion candidates.
-- Do not delete assist-related code until state/status propagation is redesigned and tests prove final proposal strictness.
+- Radau rescue, fixed/chunked Radau rescue, and JFNK support paths have been deleted from active source after the strict final-flow/state-status gates.
+- Solver-internal assist remains active only in residual-evaluation contexts; legacy `final_resort` output/API names are compatibility aliases until schema versioning.
+- Do not delete assist-related code unless a replacement preserves residual-assist semantics and proves final proposal strictness.
 
 ## State/Information Propagation Direction Update - 2026-05-09
 - Current evidence suggests solver-internal ODE assist may be needed for NT/QN robustness, but it must not become final proposal acceptance.

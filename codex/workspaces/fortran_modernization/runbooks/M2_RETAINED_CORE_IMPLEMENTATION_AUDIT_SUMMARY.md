@@ -209,7 +209,7 @@ Evidence:
 
 Residual risk:
 
-- Legacy Broyden/line-search/continuation code still exists and should remain quarantined until deletion validation.
+- Legacy Broyden/line-search/continuation code was deleted after validation. Remaining residual risk is now the hidden state/counter coupling inside the retained p28 DFO-LS-style route.
 
 ## Required deterministic checks before staged ODEX-only jobs
 

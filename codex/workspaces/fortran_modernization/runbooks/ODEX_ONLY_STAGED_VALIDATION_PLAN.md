@@ -23,16 +23,19 @@ Assist policy:
 - forbidden in final proposal `flow(...)`
 - forbidden in external flow calls that construct physical proposal state
 
-Legacy/deletion-candidate flow paths:
+Deleted legacy flow paths:
 
 - Radau rescue.
 - Fixed/chunked Radau rescue.
 - JFNK support paths tied to rescue behavior.
+
+Retained compatibility/policy surface:
+
 - final-proposal rescue acceptance policies.
 
 Pure ODEX-only revealed avoidable solver robustness loss. The preferred policy is not hidden secondary-integrator proposal acceptance, but explicit solver-internal residual assist plus strict final proposal construction.
 
-Legacy Radau/JFNK/final-resort code should be arranged in the easiest later-deletion form: quarantined, explicitly disabled from production entry points, and not interleaved with the canonical ODEX path.
+Radau/JFNK source was deleted after validation and strict final-flow gating. Solver-internal assist is retained; legacy `final_resort` names remain only as compatibility API/output labels until schema versioning.
 
 
 ## Pre-validation blocker - retained core correctness audit
@@ -114,10 +117,10 @@ A stage must stop for review when:
 
 ## Post-validation actions
 
-Only after 10k -> 50k -> 100k passes:
+After 10k -> 50k -> 100k passes:
 
 - Promote ODEX-primary solver-internal assist with strict final proposal as the official canonical flow policy.
-- Mark Radau/JFNK/final-proposal rescue source for actual deletion or permanent archival quarantine.
+- Delete or archive Radau/JFNK/final-proposal rescue source, while keeping explicit residual-assist semantics.
 - Keep or redesign solver-internal residual assist as an explicit typed status pathway.
 - Regenerate official modernization baselines.
 - Start broader repo-wide source modernization against those baselines.
@@ -128,11 +131,23 @@ Status: pure ODEX-only validation completed and was revised by solver-internal a
 
 Initial ODEX-only implementation uses explicit policy gates in `src/physics/solve_flow.f90`:
 
-- `intode_enable_stiff_rescue = .false.` disables Radau rescue entry from `intode_stiff_rescue`.
-- `intode_enable_final_resort = .false.` disables final-resort acceptance.
-- `intode_fast_hmin_bypass = .false.` prevents the h-min path from trying final-resort before the normal failure classification path.
+- Historical pre-cleanup gate: `intode_enable_stiff_rescue = .false.` disabled Radau rescue entry from `intode_stiff_rescue`.
+- Historical pre-cleanup gate: `intode_enable_final_resort = .false.` disabled final-resort acceptance.
+- Historical pre-cleanup gate: `intode_fast_hmin_bypass = .false.` prevented the h-min path from trying final-resort before the normal failure classification path.
 
-The Radau/JFNK routines are intentionally retained as legacy/quarantine code until 10k -> 50k -> 100k validation decides whether to delete them. During ODEX canonicalization, keep them isolated behind explicit disabled entry points/switches so later deletion is mechanically simple.
+Historical note: this initial gate was superseded by the 2026-05-09 solver-assist validation and subsequent source cleanup.
+
+## Source implementation note - Radau/JFNK cleanup - 2026-05-09
+
+Implemented in `src/physics/solve_flow.f90`:
+
+- Deleted the inactive Radau adaptive, fixed-tolerance, chunked-tolerance, and JFNK rescue implementations.
+- Deleted the Radau last-failure replay diagnostic that depended on those implementations.
+- Kept `intode_stiff_rescue(...)` only as an explicit disabled compatibility stub.
+- Kept `get_intode_rescue_stats(...)` output shape stable; Radau counters now return zero from compatibility fields.
+- Retained solver-internal assist for NT/QN residual evaluation and strict final proposal flow.
+
+Verification: local Stage1/Stage2 executable build, `make test_odex_solver`, and `make test1` passed.
 
 ## Source implementation note - ODEX sequence canonicalization - 2026-05-08
 

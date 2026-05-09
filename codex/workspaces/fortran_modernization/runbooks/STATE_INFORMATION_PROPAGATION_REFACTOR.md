@@ -1,7 +1,7 @@
 # State and Information Propagation Refactor
 
 Updated: 2026-05-09 JST
-Status: first ten narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
+Status: eleven narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
 
 ## Purpose
 
@@ -65,6 +65,7 @@ Reason:
 ### Solver-internal assist policy
 
 - Rename final-resort terminology in code/docs after validation. The intended role is solver-internal ODE assist, not final proposal acceptance.
+- After the 2026-05-09 Radau/JFNK cleanup, legacy `final_resort` names are retained only as compatibility API/output labels.
 - Allow assist only in Newton/QN residual contexts and only for progress-boundary cases accepted by the canonical policy.
 - Forbid assist in final proposal `flow(...)`, external flow calls, and any path that constructs final `z/jac` for Metropolis without a strict final integration pass.
 
@@ -415,3 +416,25 @@ Verification:
 - `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`.
 - Tiny local Stage2 smoke writes `# reverse_gate_replay_status ...`; parser readback succeeds.
 - RG-enabled tiny Stage2 smoke observes `reverse_gate_replay_success=80` and `reverse_gate_route_pass total=80`.
+
+## Eleventh Source Slice - Radau/JFNK Rescue Source Deletion - 2026-05-09 JST
+
+Purpose:
+
+- Remove the inactive secondary-integrator rescue stack after solver-assist validation and strict final-flow gates.
+- Keep solver-internal residual assist while preventing any confusion with final proposal acceptance.
+
+Implemented boundary:
+
+- `solve_flow.f90`: deleted Radau adaptive rescue, fixed/chunked Radau rescue, JFNK support, and the Radau last-failure replay diagnostic.
+- `intode_stiff_rescue(...)` remains only as an explicit disabled compatibility stub.
+- `get_intode_rescue_stats(...)` remains schema-compatible; Radau fields return zero and the legacy final-resort fields continue reporting solver-internal assist.
+
+Compatibility:
+
+- ODEX stepping, solver-internal h-min assist, NT/QN residual evaluation, strict final proposal flow, Metropolis acceptance, RNG, and live-state updates are unchanged.
+- Parser-facing rescue-stat shape is unchanged.
+
+Verification:
+
+- `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2 test_odex_solver test1`.

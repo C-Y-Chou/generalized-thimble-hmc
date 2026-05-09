@@ -54,7 +54,7 @@ Required before ODEX-only validation:
 - Implement Hairer ODEX `IWORK(3)=3` sequence in `build_nsteps` and the matching work estimate in `calculate_ak`.
 - Clean signed-interval/work-estimate robustness in the same patch.
 - Add ODE solver self-consistency tests before long validation: deterministic analytic ODE convergence/order sanity, step subdivision consistency, forward/backward or inverse-flow round-trip where applicable, and failure classification sanity.
-- Keep Radau/JFNK/final-resort code in the easiest later-deletion form: isolated quarantine code with explicit disabled entry points/switches, no hidden production fallback.
+- Superseded after validation: Radau/JFNK source has now been deleted; solver-internal residual assist remains explicit and final proposal flow remains strict.
 
 ## Core 2: Simplified Newton constraint solve
 
@@ -200,7 +200,7 @@ This second pass changes the risk profile:
 
 ## ODEX sequence decision - 2026-05-08 JST
 
-User selected Hairer ODEX `IWORK(3)=3` as the canonical modernization target: `2,4,6,8,12,16,24,32,...`. The existing `2,4,6,12,18,36,...` sequence is therefore legacy. The source now updates both `build_nsteps` and `calculate_ak` through shared `odex_iwork3_nstep`, and `calculate_wk` uses a positive `abs(h)` work estimate while `calculate_hk` remains signed for direction. Local ODE self-consistency smoke passed, but long validation is still the staged 10k -> 50k -> 100k physical-observable sequence. Radau/JFNK/final-resort code should remain only in the easiest later-deletion quarantine form until deletion is approved.
+User selected Hairer ODEX `IWORK(3)=3` as the canonical modernization target: `2,4,6,8,12,16,24,32,...`. The existing `2,4,6,12,18,36,...` sequence is therefore legacy. The source now updates both `build_nsteps` and `calculate_ak` through shared `odex_iwork3_nstep`, and `calculate_wk` uses a positive `abs(h)` work estimate while `calculate_hk` remains signed for direction. Local ODE self-consistency smoke passed, and staged validation revised the final policy from pure ODEX-only to ODEX primary plus solver-internal residual assist. Radau/JFNK secondary-integrator rescue source has since been deleted; legacy `final_resort` names remain only as compatibility labels for solver-internal assist until schema versioning.
 
 ## BTN sign convention and paper-variable decision - 2026-05-08 JST
 

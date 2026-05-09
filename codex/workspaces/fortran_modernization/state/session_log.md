@@ -241,3 +241,9 @@
 - Removed active `QN_QUASI_GLOBAL_FALLBACK_ENABLED` control; retained summary schema compatibility for global-filter columns.
 - Preserved canonical p28 DFO-LS standard residual route and bounded local priority pass.
 - Verification passed: `py_compile`, deleted-symbol census, `git diff --check`, forced Stage1/Stage2 executable rebuild, `test_odex_solver`, `test1`, tiny Stage1 smoke, and tiny Stage2 smoke with the removed global-fallback env set.
+
+## 2026-05-09 JST - Radau/JFNK flow-rescue source cleanup
+- Deleted inactive Radau/JFNK rescue implementation from `src/physics/solve_flow.f90`.
+- Kept `intode_stiff_rescue(...)` as an explicit disabled compatibility stub.
+- Kept solver-internal residual assist and schema-compatible rescue stats; Radau fields now return zero.
+- Verification passed: Stage1/Stage2 executable build, `test_odex_solver`, and `test1`.

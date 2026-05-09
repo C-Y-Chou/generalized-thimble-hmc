@@ -18,8 +18,8 @@ Runtime dependency shape:
 Important coupling:
 
 - `rattle_step_core` is the central coupling point. It mixes force evaluation, Newton projection, quasi fallback, post-refine, reverse gate, flow/Jacobian update, momentum projection, and diagnostics.
-- `solve_flow.f90` is not only an ODEX implementation. It is flow mapping plus ODEX-like integration plus Radau/JFNK/final-resort policy plus diagnostics.
-- `quasi_newton_solver.f90` is not only a quasi-Newton solver. It contains standard residual, post-refine Newton-loss residual, DFO-LS, DFO-GN/paper route, Broyden route, continuation/restart policy, route traces, watchdog/final-resort budgets, and global filter counters.
+- `solve_flow.f90` is not only an ODEX implementation. It is flow mapping plus ODEX-like integration plus solver-internal residual-assist policy and diagnostics.
+- `quasi_newton_solver.f90` is not only a quasi-Newton solver. It contains the canonical p28 DFO-LS/BTN residual, route traces, watchdog-style accounting, compatibility counters, and solver-status surfaces.
 - `tltm_stage2_driver.f90` is not only orchestration. It defines production output contracts and aggregates solver-route evidence used to judge Stage3_4 correctness.
 
 ## Main Risks Identified

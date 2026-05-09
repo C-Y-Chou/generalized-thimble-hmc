@@ -47,23 +47,26 @@ Deletion gate satisfied:
 
 ### Flow rescue stack
 
-Candidate group:
+Implemented source deletion:
 
 - Radau rescue.
 - fixed/chunked Radau rescue.
 - JFNK support paths.
-- ODE final-resort acceptance.
 
 Current decision:
 
-- Tentative long-term target is ODEX-only flow backend.
-- Rescue stack is legacy robustness/deletion candidate.
+- Canonical flow policy is ODEX primary integration plus solver-internal residual assist plus strict final proposal flow.
+- Radau/JFNK secondary-integrator rescue code has been removed from active source.
+- Final physical proposal acceptance through non-strict rescue remains forbidden by strict final-flow gates.
+- Solver-internal assist is retained and still reported through legacy `final_resort` compatibility counter/API names until output schema versioning.
 
-Deletion gate:
+Deletion gate satisfied:
 
 - Stage3_4/TLTM judgment complete.
-- Characterization baseline records current rescue counters.
-- ODEX-only comparison run shows acceptable behavior or user approves algorithm-version change.
+- ODEX-only comparison showed physical-observable compatibility but avoidable robustness loss.
+- Solver-assist 10k -> 50k -> 100k validation supported retaining assist only inside NT/QN residual evaluation.
+- State/status propagation gates now require strict final `flow(...)` for proposal/live-state construction.
+- Active source cleanup removed the Radau/JFNK implementation from `src/physics/solve_flow.f90`.
 
 ### Stage-specific workflow scripts
 
@@ -92,19 +95,19 @@ Deletion/deprecation gate:
 ## Canonical p28 route decision - 2026-05-08
 - User confirmed `fb_norefine` as the canonical p28 production route.
 - Canonical route: Newton -> QN S1 p28 DFO-LS BTN/backflow rescue residual -> reverse gate -> Metropolis.
-- Post-refine is a deletion candidate and should not be part of the final canonical p28 route unless explicitly re-promoted later.
-- M2c implementation may remove or disable post-refine after comparison harness coverage.
+- Post-refine has been removed from active source and should not be part of the final canonical p28 route unless explicitly re-promoted later.
 
 ## Historical flow backend decision - 2026-05-08
 - Historical note: pure ODEX-only was considered the canonical long-term flow backend target before the 2026-05-09 solver-assist validation revised the decision.
-- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are deletion candidates.
-- M2c implementation may remove or disable the rescue stack after flow-level characterization and ODEX-only comparison coverage.
-- If ODEX-only failure rate is unacceptable, improve ODEX/step control/failure handling rather than preserving a hidden secondary integrator stack by default.
+- Radau rescue, fixed/chunked Radau rescue, and JFNK support paths have been removed from active source.
+- Solver-internal residual assist is retained explicitly because pure ODEX-only showed avoidable solver robustness loss.
+- Future flow cleanup should rename compatibility `final_resort` labels only with output-schema versioning.
 
 ## Revised flow backend decision - 2026-05-09
 - Pure ODEX-only is not the final deletion basis.
 - Current candidate keeps solver-internal ODE assist for NT/QN residual evaluation while requiring strict final proposal flow.
-- Delete only final-proposal rescue acceptance and unused legacy stacks after explicit state/status contracts prove assist cannot finalize proposals.
+- Radau/JFNK legacy stacks have been deleted after explicit state/status contracts proved assist cannot finalize proposals.
+- Remaining cleanup should rename legacy `final_resort` compatibility names only when output schema versioning is ready.
 
 ## Non-p28 quasi route staging decision - 2026-05-08
 - User confirmed non-p28 quasi routes should be marked legacy first, not immediately deleted.

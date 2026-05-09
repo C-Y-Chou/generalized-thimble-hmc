@@ -771,3 +771,8 @@ Use this file to append per-session notes.
 - Removed the `quasi_newton_line_search` and `quasi_newton_jacobian_update` modules from the build.
 - Removed active `QN_QUASI_GLOBAL_FALLBACK_ENABLED` policy parsing while keeping existing summary columns compatible.
 - Verified with `py_compile`, deleted-symbol census, `git diff --check`, forced Stage1/Stage2 executable rebuild, `test_odex_solver`, `test1`, tiny Stage1 smoke, and tiny Stage2 smoke with the removed global-fallback env set.
+
+## 2026-05-09 JST
+- Deleted inactive Radau/JFNK flow-rescue source from `src/physics/solve_flow.f90`.
+- Retained solver-internal residual assist and compatibility rescue-stat fields; Radau compatibility fields now return zero.
+- Verified with Stage1/Stage2 executable build, `test_odex_solver`, and `test1`.

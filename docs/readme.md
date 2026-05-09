@@ -4,7 +4,7 @@ This repository implements a worldvolume-HMC workflow in modern Fortran, includi
 
 - flow integration in complexified field space,
 - constrained molecular dynamics (RATTLE-style updates),
-- quasi-Newton constraint solvers with N-DFLS line search,
+- canonical p28 quasi-Newton/DFO-LS-style BTN backflow rescue,
 - Markov-chain generation and observable evaluation.
 
 Project goal:

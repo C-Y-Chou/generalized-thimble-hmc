@@ -377,21 +377,18 @@ Remaining open items are not missing workstreams; they are future gates:
 ## Canonical p28 route decision - 2026-05-08
 - User confirmed `fb_norefine` as the canonical p28 production route.
 - Canonical route: Newton -> QN S1 p28 DFO-LS BTN/backflow rescue residual -> reverse gate -> Metropolis.
-- Post-refine is a deletion candidate and should not be part of the final canonical p28 route unless explicitly re-promoted later.
-- M2c implementation may remove or disable post-refine after comparison harness coverage.
+- Post-refine has been removed from active source and should not be part of the final canonical p28 route unless explicitly re-promoted later.
 
 ## Historical flow backend decision - 2026-05-08
 - Historical note: pure ODEX-only was considered the canonical long-term flow backend target before the 2026-05-09 solver-assist validation revised the decision.
-- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are deletion candidates.
-- M2c implementation may remove or disable the rescue stack after flow-level characterization and ODEX-only comparison coverage.
-- If ODEX-only failure rate is unacceptable, improve ODEX/step control/failure handling rather than preserving a hidden secondary integrator stack by default.
+- Radau rescue, fixed/chunked Radau rescue, and JFNK source has since been deleted after flow-level characterization and validation.
+- Solver-internal residual assist remains explicit; future cleanup should remove compatibility `final_resort` names only with schema versioning.
 
 ## Revised flow backend decision - 2026-05-09
 - User accepted the solver-assist validation observation: pure ODEX-only is not the final production policy.
 - Current canonical candidate is ODEX primary integration plus solver-internal ODE assist for NT/QN residual evaluation plus strict final proposal flow.
-- Future deletion/refactor work must preserve explicit residual-assist semantics and prove final proposal strictness.
+- Future flow refactor work must preserve explicit residual-assist semantics and prove final proposal strictness.
 
 ## Non-p28 quasi route staging decision - 2026-05-08
-- User confirmed non-p28 quasi routes should be marked legacy first, not immediately deleted.
-- Deletion requires staged physical validation: 10k -> 50k -> 100k checks must show no major physical-observable problem for the canonical p28 path.
-- Until that validation gate passes, DFO-GN paper, Broyden/line-search, global continuation/restart, and non-p28 variants remain legacy/quarantine candidates rather than approved deletions.
+- User confirmed non-p28 quasi routes should be marked legacy first, then deleted only after validation.
+- That staged validation/dependency gate has passed for the QN-clean canonical route; DFO-GN paper, Broyden/line-search, global continuation/restart, and known non-p28 implementation paths have been removed from active source.

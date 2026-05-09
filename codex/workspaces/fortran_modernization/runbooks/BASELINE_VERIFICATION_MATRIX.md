@@ -21,15 +21,15 @@ No modernization refactor should be implemented until the affected row below has
 |---|---|---:|---|---|---|
 | ODEX core | `solve_flow.f90`: `odex_step`, `intode`, table helpers | B2 | endpoint state, error flag, accepted/rejected step metadata if exposed, fallback counters | numeric tolerance plus unchanged route/failure class | yes for constants/sequence/fallback policy |
 | Flow wrappers | `flowz`, `flowzr`, `flow`, RHS mapping helpers | B2 | `z`, `jac`, inverse-flow round trip, sign/conjugation convention | tolerance-based; exact error flag behavior | yes for sign, mapping, flow direction |
-| Flow rescue policy | Radau/JFNK/final-resort paths in `solve_flow.f90` | B3 | rescue success/failure counters, last-failure metadata, final-resort behavior | contract-based plus counter equality | yes |
+| Flow assist policy | solver-internal assist and strict final-flow gates in `solve_flow.f90` | B3 | assist success/failure counters, last-failure metadata, strict final proposal status | contract-based plus schema-compatible counters | yes |
 | Newton projection | `hmc_constraints.f90`: `solve_constraint_newton*`, `solve_projected_step` | B2 | `x_new`, `Jl`, convergence flag, residual norm path if captured | tolerance-based plus same success/failure | yes for thresholds/route order |
 | RATTLE step | `hmc_integrator_core.f90`: `rattle_step_core` | B2/B3 | `final_x`, `final_z`, `jacf`, final momentum, method_converged, route counters | tolerance-based plus route/counter equality | yes |
 | Momentum projection | `hmc_kernels.f90`: `decompose2`, `calculate_dV` | B1/B2 | tangent/normal split, projected momentum, Hamiltonian delta trend | tolerance-based; no RNG impact | yes for formula changes |
 | Quasi standard residual | `evaluate_constraint_residual` | B1/B2 | residual vector, `Jl`, proposed/flowed trace state, error flag | tolerance-based and sign/order checks | yes |
-| Post-refine loss | `evaluate_constraint_residual_newton_loss`, `build_post_refine_seed_from_qn` | B1/B2 | residual vector, `Jl`, seed vector, skip/success/fail outcome | tolerance-based plus branch contract | yes |
+| Deleted post-refine loss | historical `evaluate_constraint_residual_newton_loss`, historical `build_post_refine_seed_from_qn` | B0/B3 | absence from active source, output-schema compatibility, route counters no longer emitted | source/search contract plus tiny smoke | no, source already removed |
 | DFO-LS route | `run_dfo_ls_attempt`, `solve_constraint_quasi_newton` | B2/B3 | trace residuals, accepted flags, best residual, final `x_new`, counters | tolerance-based plus route/counter equality | yes |
-| DFO-GN/paper route | `run_dfo_gn_attempt`, `run_dfo_gn_paper_attempt` | B2 | convergence, interpolation/geometry status if exposed, final residual | tolerance-based; classify canonical first | depends on production usage |
-| Broyden/line search route | `run_quasi_newton_attempt`, Broyden/line-search modules | B2 | residual trace, alpha/backtrack, final residual, success flag | tolerance-based; classify canonical first | depends on production usage |
+| Deleted DFO-GN/paper route | historical `run_dfo_gn_attempt`, historical `run_dfo_gn_paper_attempt` | B0/B3 | absence from active source, canonical p28 route still builds/runs | source/search contract plus tiny smoke | no, source already removed |
+| Deleted Broyden/line-search route | historical `run_quasi_newton_attempt`, historical Broyden/line-search modules | B0/B3 | absence from active source, canonical p28 route still builds/runs | source/search contract plus tiny smoke | no, source already removed |
 | Quasi route classification | `classify_quasi_failure_case`, far/near route helpers | B1/B3 | class local/mid/global, near/far, skip/light/anchor, counters | exact classification for fixtures | yes |
 | Reverse gate | `qn_reverse_gate_accepts`, RG stats | B3 | candidate/pass/reject, `x/z/jac/p` reverse diffs, live slot identity on reject | exact counters plus tolerance diffs | yes |
 | Metropolis acceptance | `markovchain_metropolis.f90` | B2/B3 | proposal_failed, accept flag, RNG draw order, Hamiltonian delta | exact branch sequence for fixed seed | yes |
@@ -68,7 +68,7 @@ No modernization refactor should be implemented until the affected row below has
 
 ## Things To Defer Until Stage3_4 Completion
 
-- Any change to solver route order, thresholds, fallbacks, reverse gate, final resort, or Metropolis acceptance.
+- Any change to solver route order, thresholds, fallbacks, reverse gate, residual-assist/final-flow policy, or Metropolis acceptance.
 - Any change that can alter RNG draw order.
 - Any change to Stage2 summary schema consumed by Stage3 scripts.
 - Any change to flow integration constants, step sequence, tolerances, or rescue policy.
@@ -85,7 +85,7 @@ No modernization refactor should be implemented until the affected row below has
 - Existing `output/tests` artifacts are historical/reference evidence only.
 - They should not be promoted as the official modernization baseline.
 - Official modernization baselines must be regenerated after Stage3_4/TLTM judgment is complete, using clean, explicitly selected configs and comparison rules.
-- Until then, modernization remains planning-only or limited to non-production test design.
+- Until then, behavior-changing modernization remains gated by explicit validation; already-approved cleanup slices must preserve the active canonical route and verify source/output contracts.
 
 ## Reverse Gate Decision - 2026-05-08
 - Reverse gate is a permanent algorithmic requirement for the production/publishable p28 route.
@@ -93,12 +93,9 @@ No modernization refactor should be implemented until the affected row below has
 - Modernization must preserve reverse-gate semantics, tolerance behavior, Jacobian comparison, replay accounting suppression, and live-slot identity on reject.
 - Any future wrapper should expose this as part of the canonical p28 algorithm contract, not as an experimental add-on.
 
-## Flow Backend Direction Decision - 2026-05-08
-- Canonical long-term publishable target: ODEX-only flow backend.
-- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are legacy robustness layers/deletion candidates.
-- Do not remove or change them before Stage3_4/TLTM judgment completes.
-- After judgment, regenerate clean baselines, record current rescue counters, and run an ODEX-only comparison before deletion.
-- If ODEX-only failure rate is unacceptable, prefer improving ODEX/step control/failure handling over preserving a hidden secondary integrator stack.
+## Historical Flow Backend Direction Decision - 2026-05-08
+- Historical target: ODEX-only flow backend.
+- This was revised after solver-assist validation showed avoidable robustness loss.
 
 ## Thread-Safety / Reentrancy Decision - 2026-05-08
 - Long-term modernization target: support in-process parallelism/OpenMP-capable TLTM execution.
@@ -109,11 +106,11 @@ No modernization refactor should be implemented until the affected row below has
 
 ## Historical flow backend decision - 2026-05-08
 - Historical note: pure ODEX-only was considered the canonical long-term flow backend target before the 2026-05-09 solver-assist validation revised the decision.
-- Radau rescue, fixed/chunked Radau rescue, JFNK support paths, and ODE final-resort acceptance are deletion candidates.
-- M2c implementation may remove or disable the rescue stack after flow-level characterization and ODEX-only comparison coverage.
-- If ODEX-only failure rate is unacceptable, improve ODEX/step control/failure handling rather than preserving a hidden secondary integrator stack by default.
+- Radau rescue, fixed/chunked Radau rescue, and JFNK support paths were deletion candidates and have since been removed from active source.
+- ODE final-proposal rescue acceptance remains forbidden by strict final-flow gates.
 
 ## Revised flow backend decision - 2026-05-09
 - Pure ODEX-only is a comparison baseline, not the final canonical baseline target.
 - Official baseline planning should target ODEX primary integration with solver-internal residual assist and strict final proposal flow.
 - Baseline rows must separately track assist, final strict flow, rejected proposal, reverse replay, and physical proposal counters.
+- Legacy `final_resort` counter/API names are compatibility labels for solver-internal assist until output schema versioning is ready.
