@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-09 00:58 JST
+Updated: 2026-05-09 03:25 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -253,6 +253,14 @@ Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failu
   - 128seed x 100k chunks: `14325.anode01` through `14332.anode01`, offsets `0,16,32,48,64,80,96,112`.
   - 100k merge dependency job: `14333.anode01`, held on `afterok` of all eight chunks.
 - The side worktree `/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation` is no longer the active source of truth; it remains only as temporary historical/backup context until the refreshed ODEX validation finishes.
+
+## QN-clean ODEX 50k/100k completion - 2026-05-09 JST
+- Refreshed QN-clean ODEX validation completed successfully and produced reports for 32seed x 50k and 128seed x 100k.
+- 50k result: `mean Re<O>=-0.0190826825`, `mean Im<O>=0.0037547361`, `Zmean Re=-1.450635`, `Zmean Im=0.567061`, unresolved failures `40715`, reverse-gate rejects `24986`, mean pair0 accept `0.438705`.
+- 100k result: `mean Re<O>=0.0017729074`, `mean Im<O>=-0.0005999719`, `Zmean Re=0.385239`, `Zmean Im=-0.200998`, unresolved failures `326569`, reverse-gate rejects `202530`, mean pair0 accept `0.438907`.
+- ODE failure-boundary counters: 100k fallback attempts `2862514`, success `0`, failure `2862514`, invalid `0`, h-min `2862168`, max-steps `346`.
+- Compared with the pre-ODEX 128seed/100k `fb_norefine` characterization, ODEX-only increases unresolved failures by `102130` and projection failures by `104213`, but physical observables remain compatible with zero and RG/acceptance diagnostics remain stable.
+- Judgment recorded in `runbooks/ODEX_50K_100K_VALIDATION_RESULT_20260509_QNCLEAN.md`: staged ODEX-only validation passes the physical-observable gate, with higher failure counters documented as the expected failure-as-rejection tradeoff.
 
 ## QN p28 BTN source cleanup - 2026-05-08 JST
 - Implemented the first M2 core source patch for QN p28/BTN paper variables.
