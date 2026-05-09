@@ -472,3 +472,11 @@ Complete and commit the Radau/JFNK rescue source deletion slice, then continue w
 - Updated `generate_markov_chain` startup logging from `strict=` to `final_flow_strict=` to describe the actual policy.
 - Behavior-preservation note: no production route, ODEX stepping, residual assist gate, Metropolis acceptance, RNG, or output schema was intentionally changed.
 - Verification passed: `rg` found no remaining `set_intode_strict_mode`/`intode_strict_mode` references in active `src` or `tests`; root source-artifact scan now finds only canonical `src/sampler` files; `git diff --check`; `make -C build FC=gfortran LDFLAGS= ../bin/generate_markov_chain ../bin/run_tltm_stage1 ../bin/run_tltm_stage2 test_odex_solver test1`; tiny Stage1 smoke; tiny Stage2 smoke.
+
+## Solver-assist internal naming cleanup - 2026-05-09 JST
+- Renamed the ODE h-min residual-assist implementation in `src/physics/solve_flow.f90` from internal `final_resort` names to `solver_assist` names.
+- Added `get_intode_solver_assist_policy(...)` and kept `get_intode_final_resort_policy(...)` as a compatibility alias for older diagnostics.
+- Updated `generate_markov_chain` local variable names and startup diagnostics to report `solver_assist` rather than `final_resort`.
+- Preserved the existing `get_intode_rescue_stats(...)` output argument names and Stage2/multiseed summary labels for schema compatibility.
+- Behavior-preservation note: no assist gate, status code, ODEX stepping, Metropolis acceptance, RNG, or Stage2 output schema was intentionally changed.
+- Verification passed: `git diff --check`; `make -C build FC=gfortran LDFLAGS= ../bin/generate_markov_chain ../bin/run_tltm_stage1 ../bin/run_tltm_stage2 test_odex_solver test1`; tiny Stage1 smoke; tiny Stage2 smoke; Stage2 summary status/schema readback.

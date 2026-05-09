@@ -59,15 +59,15 @@ module solve_flow
    integer, save :: intode_fallback_h_min = 0
    integer, save :: intode_fallback_attempts_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
    integer, save :: intode_fallback_failures_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
-   integer, save :: intode_rescue_success_final_resort = 0
-   integer, save :: intode_final_resort_fail = 0
-   logical, parameter :: intode_enable_final_resort = .true.
-   logical, parameter :: intode_fast_hmin_bypass = .true.
+   integer, save :: intode_rescue_success_solver_assist = 0
+   integer, save :: intode_solver_assist_fail = 0
+   logical, parameter :: intode_enable_solver_assist = .true.
+   logical, parameter :: intode_fast_hmin_assist = .true.
    logical, parameter :: intode_verbose_logs = .false.
-   ! <= 0 means unlimited final-resort uses (still context-gated).
-   integer, parameter :: intode_final_resort_max_uses = 0
-   integer, save :: intode_final_resort_log_count = 0
-   integer, parameter :: intode_final_resort_log_limit = 20
+   ! <= 0 means unlimited solver-assist uses (still context-gated).
+   integer, parameter :: intode_solver_assist_max_uses = 0
+   integer, save :: intode_solver_assist_log_count = 0
+   integer, parameter :: intode_solver_assist_log_limit = 20
    integer, save :: intode_trace_rattle_step = 0
    integer, save :: intode_trace_rattle_substep = 0
    integer, save :: intode_trace_stage = intode_stage_unknown
@@ -363,7 +363,7 @@ contains
       real(dp) :: h, tc, er1, h_min, t_new
       integer :: state_size, k, step_count
       real(dp) :: h_min_fp, h_min_tol, h_min_span
-      logical :: is_last_step, rescue_failed, final_resort_ok
+      logical :: is_last_step, rescue_failed, solver_assist_ok
       real(dp), parameter :: c_fp = 16.0_dp
       real(dp), parameter :: c_tol = 0.01_dp
       real(dp), parameter :: c_span = 1.0e-12_dp
@@ -413,9 +413,9 @@ contains
                error_flag = .false.
                call set_intode_status(status, intode_status_success_stiff_rescue)
             else
-               call intode_try_final_resort(intode_yc(1:state_size), t - tc, intode_reason_max_steps, &
-                                            intode_yf(1:state_size), final_resort_ok)
-               if (final_resort_ok) then
+               call intode_try_solver_assist(intode_yc(1:state_size), t - tc, intode_reason_max_steps, &
+                                             intode_yf(1:state_size), solver_assist_ok)
+               if (solver_assist_ok) then
                   intode_fallback_success = intode_fallback_success + 1
                   res = intode_yf(1:state_size)
                   error_flag = .false.
@@ -453,9 +453,9 @@ contains
                error_flag = .false.
                call set_intode_status(status, intode_status_success_stiff_rescue)
             else
-               call intode_try_final_resort(intode_yc(1:state_size), t - tc, intode_reason_invalid, &
-                                            intode_yf(1:state_size), final_resort_ok)
-               if (final_resort_ok) then
+               call intode_try_solver_assist(intode_yc(1:state_size), t - tc, intode_reason_invalid, &
+                                             intode_yf(1:state_size), solver_assist_ok)
+               if (solver_assist_ok) then
                   intode_fallback_success = intode_fallback_success + 1
                   res = intode_yf(1:state_size)
                   error_flag = .false.
@@ -482,10 +482,10 @@ contains
             intode_fallback_attempts = intode_fallback_attempts + 1
             intode_fallback_h_min = intode_fallback_h_min + 1
             call record_intode_fallback_attempt_context(intode_current_context)
-            if (intode_fast_hmin_bypass) then
-               call intode_try_final_resort(intode_yc(1:state_size), t - tc, intode_reason_h_min, &
-                                            intode_yf(1:state_size), final_resort_ok)
-               if (final_resort_ok) then
+            if (intode_fast_hmin_assist) then
+               call intode_try_solver_assist(intode_yc(1:state_size), t - tc, intode_reason_h_min, &
+                                             intode_yf(1:state_size), solver_assist_ok)
+               if (solver_assist_ok) then
                   intode_fallback_success = intode_fallback_success + 1
                   res = intode_yf(1:state_size)
                   error_flag = .false.
@@ -501,9 +501,9 @@ contains
                error_flag = .false.
                call set_intode_status(status, intode_status_success_stiff_rescue)
             else
-               call intode_try_final_resort(intode_yc(1:state_size), t - tc, intode_reason_h_min, &
-                                            intode_yf(1:state_size), final_resort_ok)
-               if (final_resort_ok) then
+               call intode_try_solver_assist(intode_yc(1:state_size), t - tc, intode_reason_h_min, &
+                                             intode_yf(1:state_size), solver_assist_ok)
+               if (solver_assist_ok) then
                   intode_fallback_success = intode_fallback_success + 1
                   res = intode_yf(1:state_size)
                   error_flag = .false.
@@ -547,7 +547,7 @@ contains
       end select
    end function intode_status_is_strict_success
 
-   subroutine intode_try_final_resort(y_curr, t_remaining, reason_code, y_out, accepted)
+   subroutine intode_try_solver_assist(y_curr, t_remaining, reason_code, y_out, accepted)
       implicit none
       real(dp), intent(in) :: y_curr(:), t_remaining
       integer, intent(in) :: reason_code
@@ -558,48 +558,48 @@ contains
       accepted = .false.
       y_out = y_curr
 
-      if (.not. intode_enable_final_resort) then
-         intode_final_resort_fail = intode_final_resort_fail + 1
+      if (.not. intode_enable_solver_assist) then
+         intode_solver_assist_fail = intode_solver_assist_fail + 1
          return
       end if
       if (reason_code /= intode_reason_h_min) then
-         intode_final_resort_fail = intode_final_resort_fail + 1
+         intode_solver_assist_fail = intode_solver_assist_fail + 1
          return
       end if
       allow_context = (intode_current_context == intode_ctx_flowz .or. intode_current_context == intode_ctx_flowzr)
       if (.not. allow_context) then
-         intode_final_resort_fail = intode_final_resort_fail + 1
+         intode_solver_assist_fail = intode_solver_assist_fail + 1
          return
       end if
       ! This is a solver-internal residual assist only; final proposal flow remains strict.
       allow_stage = (intode_trace_stage == intode_stage_newton .or. intode_trace_stage == intode_stage_quasi .or. &
                      intode_trace_stage == intode_stage_quasi_retry)
       if (.not. allow_stage) then
-         intode_final_resort_fail = intode_final_resort_fail + 1
+         intode_solver_assist_fail = intode_solver_assist_fail + 1
          return
       end if
-      if (intode_final_resort_max_uses > 0) then
-         if (intode_rescue_success_final_resort >= intode_final_resort_max_uses) then
-            intode_final_resort_fail = intode_final_resort_fail + 1
+      if (intode_solver_assist_max_uses > 0) then
+         if (intode_rescue_success_solver_assist >= intode_solver_assist_max_uses) then
+            intode_solver_assist_fail = intode_solver_assist_fail + 1
             return
          end if
       end if
 
       accepted = .true.
-      intode_rescue_success_final_resort = intode_rescue_success_final_resort + 1
+      intode_rescue_success_solver_assist = intode_rescue_success_solver_assist + 1
 
       if (intode_verbose_logs) then
-         if (intode_final_resort_log_count < intode_final_resort_log_limit) then
-            write (*, '(A,I0,A,I0,A,ES12.4,A,I0,A,I0,A,I0)') "[INTODE][RESCUE] final_resort_accept context=", &
+         if (intode_solver_assist_log_count < intode_solver_assist_log_limit) then
+            write (*, '(A,I0,A,I0,A,ES12.4,A,I0,A,I0,A,I0)') "[INTODE][ASSIST] solver_assist_accept context=", &
                intode_current_context, " reason=", reason_code, " t_remaining=", t_remaining, &
                " rattle_step=", intode_trace_rattle_step, " substep=", intode_trace_rattle_substep, &
                " stage=", intode_trace_stage
-         else if (intode_final_resort_log_count == intode_final_resort_log_limit) then
-            write (*, '(A)') "[INTODE][RESCUE] additional final_resort logs suppressed."
+         else if (intode_solver_assist_log_count == intode_solver_assist_log_limit) then
+            write (*, '(A)') "[INTODE][ASSIST] additional solver_assist logs suppressed."
          end if
-         intode_final_resort_log_count = intode_final_resort_log_count + 1
+         intode_solver_assist_log_count = intode_solver_assist_log_count + 1
       end if
-   end subroutine intode_try_final_resort
+   end subroutine intode_try_solver_assist
 
    subroutine record_intode_fallback_attempt_context(ctx_code)
       implicit none
@@ -741,15 +741,25 @@ contains
       error_flag = .true.
    end subroutine intode_stiff_rescue
 
+   subroutine get_intode_solver_assist_policy(enabled, max_uses, fast_hmin_assist)
+      implicit none
+      logical, intent(out) :: enabled
+      integer, intent(out) :: max_uses
+      logical, intent(out) :: fast_hmin_assist
+
+      enabled = intode_enable_solver_assist
+      max_uses = intode_solver_assist_max_uses
+      fast_hmin_assist = intode_fast_hmin_assist
+   end subroutine get_intode_solver_assist_policy
+
    subroutine get_intode_final_resort_policy(enabled, max_uses, fast_hmin_bypass)
       implicit none
       logical, intent(out) :: enabled
       integer, intent(out) :: max_uses
       logical, intent(out) :: fast_hmin_bypass
 
-      enabled = intode_enable_final_resort
-      max_uses = intode_final_resort_max_uses
-      fast_hmin_bypass = intode_fast_hmin_bypass
+      ! Compatibility alias for older diagnostics/output readers.
+      call get_intode_solver_assist_policy(enabled, max_uses, fast_hmin_bypass)
    end subroutine get_intode_final_resort_policy
 
    subroutine set_intode_rattle_trace(rattle_step, rattle_substep)
@@ -808,9 +818,9 @@ contains
       intode_fallback_h_min = 0
       intode_fallback_attempts_ctx = 0
       intode_fallback_failures_ctx = 0
-      intode_rescue_success_final_resort = 0
-      intode_final_resort_fail = 0
-      intode_final_resort_log_count = 0
+      intode_rescue_success_solver_assist = 0
+      intode_solver_assist_fail = 0
+      intode_solver_assist_log_count = 0
       intode_trace_rattle_step = 0
       intode_trace_rattle_substep = 0
       intode_trace_stage = intode_stage_unknown
@@ -874,11 +884,11 @@ contains
       success_radau_adaptive_robust = 0
       success_radau_fixed_tol = 0
       success_radau_chunked = 0
-      success_final_resort = intode_rescue_success_final_resort
+      success_final_resort = intode_rescue_success_solver_assist
       fail_radau_adaptive_robust = 0
       fail_radau_fixed_tol = 0
       fail_radau_chunked = 0
-      fail_final_resort = intode_final_resort_fail
+      fail_final_resort = intode_solver_assist_fail
    end subroutine get_intode_rescue_stats
 
    subroutine get_intode_radau_diag_stats(adapt_newton_fail, adapt_linear_fail, adapt_error_reject, adapt_hmin_hit)

@@ -253,3 +253,8 @@
 - Deleted stale backup config `data/parameters.stage3_2.bak` and refreshed persistent knowledge maps to current active architecture.
 - Removed the no-op `set_intode_strict_mode(...)` API and call sites; final-flow strictness is now represented only by explicit status gates.
 - Verification passed: active-source symbol census, `git diff --check`, production executable rebuild including `generate_markov_chain`, `test_odex_solver`, `test1`, tiny Stage1 smoke, and tiny Stage2 smoke.
+
+## 2026-05-09 JST - Solver-assist internal naming cleanup
+- Renamed the ODE h-min residual-assist implementation from internal `final_resort` names to `solver_assist` names while keeping output/schema compatibility aliases.
+- Updated `generate_markov_chain` diagnostics to describe solver assist explicitly.
+- Verification passed: `git diff --check`, production executable rebuild including `generate_markov_chain`, `test_odex_solver`, `test1`, tiny Stage1 smoke, tiny Stage2 smoke, and Stage2 summary readback.
