@@ -1,5 +1,6 @@
 module markovchain_mod
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+   use runtime_env_mod, only: runtime_to_lower_ascii => to_lower_ascii
    use solve_flow, only: flow, &
                          get_intode_fallback_stats, &
                          get_intode_fallback_context_stats, &
@@ -229,7 +230,7 @@ contains
 
       call get_environment_variable("RANDOM_START_FIXED_TARGET", env_value, length=env_len, status=env_stat)
       if (env_stat == 0 .and. env_len > 0) then
-         token = to_lower_ascii_local(adjustl(env_value(1:env_len)))
+         token = runtime_to_lower_ascii(adjustl(env_value(1:env_len)))
          select case (trim(token))
          case ("0", "off", "false", "no")
             fixed_retry_target = .false.
@@ -289,19 +290,6 @@ contains
          end if
       end do
    end subroutine initialize_random_start
-
-   pure function to_lower_ascii_local(text) result(lowered)
-      implicit none
-      character(len=*), intent(in) :: text
-      character(len=len(text)) :: lowered
-      integer :: i, c
-
-      lowered = text
-      do i = 1, len(text)
-         c = iachar(lowered(i:i))
-         if (c >= iachar('A') .and. c <= iachar('Z')) lowered(i:i) = achar(c + 32)
-      end do
-   end function to_lower_ascii_local
 
    subroutine adaptive_preflow_to_target(x_state, target_flow_time, trajectory_length, integration_steps, relax_level, success, stage_count)
       implicit none

@@ -6,7 +6,7 @@ Purpose: persistent full-program risk map for TLTM Stage3_3/Stage3_4 work. This 
 
 ## Program map
 - Driver and reports: `scripts/run_stage3_3_multiseed.py` creates per-seed workdirs, writes `parameters.dat`, applies method env overrides, runs `bin/run_tltm_stage2`, runs `bin/evaluate_expectations`, and builds per-seed/aggregate reports.
-- Config: `src/config/param_mod.f90` reads key-value `parameters.dat`, validates config, and syncs legacy globals such as `cttol` and `quasi_fallback_enabled`; `src/config/runtime_env_mod.f90` centralizes Stage1/Stage2 runtime env parser mechanics.
+- Config: `src/config/param_mod.f90` reads key-value `parameters.dat`, validates config, and syncs legacy globals such as `cttol` and `quasi_fallback_enabled`; `src/config/runtime_env_mod.f90` centralizes shared runtime env parser/token mechanics.
 - Stage2: `src/sampler/tltm_stage2_driver.f90` initializes replica slots, runs local HMC updates, writes history, attempts swaps, updates label traces, and writes summary counters.
 - Metropolis/HMC: `src/sampler/markovchain_metropolis.f90` calls `integrate_hmc_proposal`; `src/sampler/hmc.f90` generates/project momenta and runs RATTLE steps.
 - Constraint stage: `src/sampler/hmc_integrator_core.f90` does Newton first, then optional canonical p28 QN fallback, reverse gate, then returns to Metropolis.
@@ -30,7 +30,7 @@ Purpose: persistent full-program risk map for TLTM Stage3_3/Stage3_4 work. This 
 - 2026-05-09: the legacy RATTLE state-progress sentinel was downgraded to opt-in diagnostics and no longer defines proposal validity.
 - 2026-05-09: QN watchdog internals now use solver-assist terminology; legacy final-resort env/output names remain only as compatibility aliases.
 - 2026-05-09: legacy positional `parameters.dat` parsing and the unused `initial_x.dat` runtime path were deleted after user confirmation.
-- 2026-05-10: Stage1/Stage2 runtime env parser helpers were centralized in `runtime_env_mod` without changing env names, defaults, output schemas, or physics.
+- 2026-05-10: Runtime env parser/token helpers were centralized in `runtime_env_mod` without changing env names, defaults, output schemas, or physics.
 - 2026-05-07: Stage3 multiseed configs now fail fast if `warmup_cycles_optional != 0`, because the current Stage2/evaluation production path does not implement a separate discarded warmup window.
 - 2026-05-07: each Stage3 seed/method run now writes `run_manifest.json` with the resolved method, setup, selected algorithm env vars, thread env vars, output paths, and isolated `parameters.dat` path.
 

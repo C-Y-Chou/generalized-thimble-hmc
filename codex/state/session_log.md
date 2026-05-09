@@ -801,3 +801,8 @@ Use this file to append per-session notes.
 - Centralized Stage1/Stage2 runtime env parser helpers in `src/config/runtime_env_mod.f90`.
 - Removed duplicated parser implementations from the Stage drivers while preserving env names, caller defaults, invalid-env handling, output schemas, and physics paths.
 - Verified with `git diff --check`, Stage1/Stage2 executable build, `test_odex_solver`, `test1`, tiny Stage1/Stage2 smokes, ladder list-parser smokes, and invalid logical default-preservation smoke.
+
+## 2026-05-10 JST
+- Removed duplicated env-token lowercase helpers from `markovchain_mod.f90` and `hmc_reversibility_checks.f90`.
+- Reused `runtime_env_mod:to_lower_ascii`; kept existing boolean/default behavior.
+- Verified with `git diff --check`, build of `generate_markov_chain`, `run_tltm_stage2`, `test1`, and a tiny Stage2 reversibility-probe env smoke.

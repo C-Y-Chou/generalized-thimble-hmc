@@ -79,6 +79,7 @@ Latest behavior-neutral infrastructure cleanup:
 - Parser behavior is unchanged: caller defaults are preserved for missing/invalid env values; valid int/real/logical/list env values still override.
 - `build/makefile` now includes the new config module before `param_mod`.
 - Verification passed on 2026-05-10 JST: `git diff --check`, Stage1/Stage2 executable build, `test_odex_solver`, `test1`, tiny Stage1/Stage2 smokes, `TLTM_STAGE*_FLOW_TIME_LADDER` list-parser smokes, and invalid logical default-preservation smoke.
+- Follow-up cleanup removed duplicated ASCII-lower helpers from `markovchain_mod.f90` and `hmc_reversibility_checks.f90`; both now use the shared `runtime_env_mod` helper for env-token normalization.
 
 Next expected modernization area after this slice:
 

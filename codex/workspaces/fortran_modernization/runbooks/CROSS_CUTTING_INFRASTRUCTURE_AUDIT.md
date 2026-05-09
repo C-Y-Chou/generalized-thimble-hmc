@@ -58,7 +58,7 @@ Responsibilities observed:
 - validation.
 - legacy global synchronization.
 - key-value parameter reader.
-- shared Stage1/Stage2 runtime env parser helpers for int/real/logical/list values.
+- shared runtime env parser/token helpers for int/real/logical/list values and ASCII lowercase normalization.
 - environment/config interaction through downstream scripts.
 - Historical positional `parameters.dat` support has been deleted; config files must use `key=value`.
 

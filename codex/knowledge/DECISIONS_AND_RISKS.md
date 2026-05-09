@@ -31,7 +31,7 @@ Updated: 2026-05-10 JST
 - The legacy RATTLE state-progress sentinel is diagnostic only; proposal validity is carried by solver convergence, constraint residual handling, strict final flow, reverse gate, finite Hamiltonians, and Metropolis/status gates.
 - Preferred QN watchdog terminology is solver assist. `QN_SOLVER_ASSIST_BUDGET` is the preferred env name; `QUASI_FINAL_RESORT_BUDGET` remains a compatibility alias.
 - Runtime config now requires key-value `parameters.dat`; legacy positional parsing and the unused `initial_x.dat` runtime path were intentionally deleted.
-- Stage1/Stage2 runtime env parser mechanics are centralized in `runtime_env_mod`; caller defaults, env names, and valid/invalid override semantics are preserved.
+- Runtime env parser/token mechanics are centralized in `runtime_env_mod`; caller defaults, env names, and valid/invalid override semantics are preserved.
 
 ## Operational risks
 1. Queue congestion can dominate wall-clock completion.

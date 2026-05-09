@@ -1,4 +1,5 @@
 module hmc_reversibility_checks
+   use runtime_env_mod, only: to_lower_ascii
    use utils
    implicit none
 
@@ -125,7 +126,7 @@ contains
 
       call get_environment_variable("HMC_REVERSIBILITY_PROBE_FALLBACK_ONLY", env_value, length=env_len, status=env_stat)
       if (env_stat == 0 .and. env_len > 0) then
-         select case (lower_ascii(trim(env_value(1:env_len))))
+         select case (to_lower_ascii(trim(env_value(1:env_len))))
          case ("0", "false", "f", "no", "n", "off")
             probe_fallback_only = .false.
          case default
@@ -138,17 +139,5 @@ contains
             " fallback_only=", probe_fallback_only
       end if
    end subroutine load_reversibility_probe_config
-
-   pure function lower_ascii(text) result(lowered)
-      character(len=*), intent(in) :: text
-      character(len=len(text)) :: lowered
-      integer :: i, code
-
-      lowered = text
-      do i = 1, len(text)
-         code = iachar(lowered(i:i))
-         if (code >= iachar('A') .and. code <= iachar('Z')) lowered(i:i) = achar(code + 32)
-      end do
-   end function lower_ascii
 
 end module hmc_reversibility_checks

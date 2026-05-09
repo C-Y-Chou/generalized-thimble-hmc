@@ -282,3 +282,8 @@
 - Removed duplicated parser helpers from `tltm_stage1_driver.f90` and `tltm_stage2_driver.f90`; Stage2 init-mode lowercase handling now imports the shared helper.
 - Behavior-preservation note: env names, caller defaults, invalid-env default preservation, output schemas, RNG draw order, and physics code are unchanged.
 - Verification passed with `git diff --check`, Stage1/Stage2 executable build, `test_odex_solver`, `test1`, tiny Stage1/Stage2 smokes, flow-time ladder list-parser smokes, and invalid logical default-preservation smoke.
+
+## 2026-05-10 JST - Env-token lowercase helper cleanup
+- Removed duplicated local ASCII-lower helpers from `markovchain_mod.f90` and `hmc_reversibility_checks.f90`.
+- Both paths now import `runtime_env_mod:to_lower_ascii` for env-token normalization; boolean/default semantics are unchanged.
+- Verification passed with `git diff --check`, build of `generate_markov_chain`, `run_tltm_stage2`, `test1`, and a tiny Stage2 reversibility-probe env smoke showing `fallback_only=F` for `HMC_REVERSIBILITY_PROBE_FALLBACK_ONLY=OFF`.
