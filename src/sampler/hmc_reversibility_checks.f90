@@ -1,5 +1,5 @@
 module hmc_reversibility_checks
-   use runtime_env_mod, only: to_lower_ascii
+   use runtime_env_mod, only: parse_int_env, to_lower_ascii
    use utils
    implicit none
 
@@ -40,17 +40,11 @@ contains
    end subroutine report_state_progress_diagnostic
 
    subroutine load_state_progress_diagnostic_config()
-      character(len=64) :: env_value
-      integer :: env_len, env_stat, ios, parsed_value
-
       if (progress_diag_config_loaded) return
       progress_diag_config_loaded = .true.
 
-      call get_environment_variable("HMC_STATE_PROGRESS_DIAGNOSTIC_LIMIT", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         read (env_value(1:env_len), *, iostat=ios) parsed_value
-         if (ios == 0) progress_diag_limit = max(0, parsed_value)
-      end if
+      call parse_int_env("HMC_STATE_PROGRESS_DIAGNOSTIC_LIMIT", progress_diag_limit)
+      progress_diag_limit = max(0, progress_diag_limit)
 
       progress_diag_enabled = (progress_diag_limit > 0)
       if (progress_diag_enabled) then
@@ -112,16 +106,13 @@ contains
 
    subroutine load_reversibility_probe_config()
       character(len=64) :: env_value
-      integer :: env_len, env_stat, ios, parsed_value
+      integer :: env_len, env_stat
 
       if (probe_config_loaded) return
       probe_config_loaded = .true.
 
-      call get_environment_variable("HMC_REVERSIBILITY_PROBE_LIMIT", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         read (env_value(1:env_len), *, iostat=ios) parsed_value
-         if (ios == 0) probe_limit = max(0, parsed_value)
-      end if
+      call parse_int_env("HMC_REVERSIBILITY_PROBE_LIMIT", probe_limit)
+      probe_limit = max(0, probe_limit)
       if (probe_limit > 0) probe_enabled = .true.
 
       call get_environment_variable("HMC_REVERSIBILITY_PROBE_FALLBACK_ONLY", env_value, length=env_len, status=env_stat)

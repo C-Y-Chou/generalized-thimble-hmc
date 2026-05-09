@@ -1,4 +1,5 @@
 module constraint_solver_stats_mod
+   use runtime_env_mod, only: parse_int_env
    use utils, only: dp
    use param_mod, only: x_history_file
    use, intrinsic :: iso_fortran_env, only: int64
@@ -762,23 +763,14 @@ contains
 
    subroutine load_failure_capture_policy()
       implicit none
-      character(len=64) :: env_value
-      integer :: env_len, env_stat, ios, parsed_value
 
       if (failure_capture_policy_ready) return
       failure_capture_policy_ready = .true.
 
-      call get_environment_variable("CONSTRAINT_FAIL_CAPTURE_LIMIT", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         read (env_value(1:env_len), *, iostat=ios) parsed_value
-         if (ios == 0) failure_capture_limit_runtime = parsed_value
-      end if
+      call parse_int_env("CONSTRAINT_FAIL_CAPTURE_LIMIT", failure_capture_limit_runtime)
 
-      call get_environment_variable("CONSTRAINT_FAIL_CAPTURE_START_SAMPLE", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         read (env_value(1:env_len), *, iostat=ios) parsed_value
-         if (ios == 0) failure_capture_start_sample = max(0, parsed_value)
-      end if
+      call parse_int_env("CONSTRAINT_FAIL_CAPTURE_START_SAMPLE", failure_capture_start_sample)
+      failure_capture_start_sample = max(0, failure_capture_start_sample)
 
       if (failure_capture_limit_runtime > 0) then
          write (*, '(A,I0)') "[INFO] constraint fail capture limit=", failure_capture_limit_runtime

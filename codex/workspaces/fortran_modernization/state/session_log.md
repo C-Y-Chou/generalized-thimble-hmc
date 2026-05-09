@@ -287,3 +287,8 @@
 - Removed duplicated local ASCII-lower helpers from `markovchain_mod.f90` and `hmc_reversibility_checks.f90`.
 - Both paths now import `runtime_env_mod:to_lower_ascii` for env-token normalization; boolean/default semantics are unchanged.
 - Verification passed with `git diff --check`, build of `generate_markov_chain`, `run_tltm_stage2`, `test1`, and a tiny Stage2 reversibility-probe env smoke showing `fallback_only=F` for `HMC_REVERSIBILITY_PROBE_FALLBACK_ONLY=OFF`.
+
+## 2026-05-10 JST - Runtime int env parser reuse
+- Replaced local integer env reads for `HMC_STATE_PROGRESS_DIAGNOSTIC_LIMIT`, `HMC_REVERSIBILITY_PROBE_LIMIT`, `CONSTRAINT_FAIL_CAPTURE_LIMIT`, and `CONSTRAINT_FAIL_CAPTURE_START_SAMPLE` with `runtime_env_mod:parse_int_env`.
+- Behavior-preservation note: negative HMC limits are still clamped to zero; constraint capture limit still allows `0`/negative as unlimited; invalid env values still preserve defaults.
+- Verification passed with `git diff --check`, Stage1/Stage2 executable build, `test1`, tiny Stage2 reversibility-probe smoke, and `CONSTRAINT_FAIL_CAPTURE_LIMIT=0 HMC_SKIP_PLOT=1 bin/test_program` showing `constraint fail capture limit=unlimited`.
