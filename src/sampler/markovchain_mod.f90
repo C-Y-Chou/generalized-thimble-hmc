@@ -1,4 +1,5 @@
 module markovchain_mod
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use solve_flow, only: flow, &
                          get_intode_fallback_stats, &
                          get_intode_fallback_context_stats, &
@@ -420,7 +421,7 @@ contains
 
       do iter = 1, max_iter
          call integrate_hmc_warmup(x_state, z_state, step_size, num_steps, x_trial, z_trial, h_initial, h_proposed, jac_state, jac_trial)
-         if (h_proposed == 0.0_dp .and. h_initial /= 0.0_dp) exit
+         if ((.not. ieee_is_finite(h_initial)) .or. (.not. ieee_is_finite(h_proposed))) exit
 
          action_delta = abs(h_proposed - h_initial)
          action_scale = max(1.0_dp, abs(h_initial))

@@ -42,6 +42,13 @@
 - Recorded policy: solver-internal ODE assist can help NT/QN residual evaluation, but it must not finalize a proposal; final `flow(...)` remains strict.
 - Future refactor should introduce typed state/status propagation, explicit HMC rejection-state semantics, sentinel-free residual/Hamiltonian handling, and separated assist/replay/proposal counters after solver-assist validation is analyzed.
 
+## 2026-05-09 JST - HMC unavailable-Hamiltonian sentinel patch implemented
+- Implemented the first state/information propagation source slice locally: HMC failed/unavailable Hamiltonians now use IEEE quiet NaN instead of `0.0`.
+- Updated Hamiltonian conservation test to consume `proposal_ok` and finite-Hamiltonian checks.
+- Updated warmup handling to branch on finite Hamiltonians rather than the legacy `H==0` sentinel.
+- Verification passed: `make -C build FC=gfortran LDFLAGS= ../bin/test_program` and `make -C build FC=gfortran LDFLAGS= test1`.
+- A tiny local Stage2 smoke still fails slot-1 initialization, but the same smoke fails on clean `HEAD`; recorded as pre-existing local smoke behavior rather than a patch regression.
+
 ## 2026-05-08 JST - Planning information collection complete
 - Read relevant Fortran source sections for ODEX/flow, Newton/RATTLE, quasi-Newton projection, HMC/Metropolis, Stage2 driver, tests, and existing program-map docs.
 - Added low-level review notes for ODEX, simplified Newton/RATTLE, quasi-Newton projection, and HMC/Metropolis/TLTM driver.

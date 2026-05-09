@@ -1,7 +1,7 @@
 # State and Information Propagation Refactor
 
 Updated: 2026-05-09 JST
-Status: future overall modernization item; do not implement until the current solver-assist 10k -> 50k -> 100k validation is complete and analyzed.
+Status: first narrow source slice implemented locally; broader typed-status refactor remains future work after patch review.
 
 ## Purpose
 
@@ -111,9 +111,17 @@ Reason:
 
 The solver-assist 10k -> 50k -> 100k validation completed and supports solver-internal assist as part of the canonical flow-policy candidate.
 
-Do not start source-level state/status refactoring until the next implementation slice is explicitly opened. The required taxonomy should assume:
+The first approved source slice removes `H=0` as an unavailable-Hamiltonian sentinel in HMC proposal/test/warmup paths. The broader typed state/status refactor remains gated and should proceed patch-by-patch. The required taxonomy should assume:
 
 - ODEX primary integration.
 - Solver-internal residual assist for NT/QN.
 - Strict final proposal flow.
 - Distinct rejected proposal, failed proposal, unavailable Hamiltonian, assist, replay, and live-chain state-update statuses.
+
+## First Source Slice - 2026-05-09 JST
+
+- `src/sampler/hmc.f90`: failed/unavailable Hamiltonian outputs are initialized or set to IEEE quiet NaN instead of `0.0`.
+- `tests/test_hamiltonian_conservation.f90`: failure detection now uses optional `proposal_ok` and finite-Hamiltonian checks.
+- `src/sampler/markovchain_mod.f90`: warmup exits on unavailable/non-finite Hamiltonians instead of checking for `H==0`.
+- Verification: local macOS/gfortran build of `../bin/test_program` passes; `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
+- Local Stage2 smoke note: the selected tiny smoke fails slot-1 initialization both on the patch and on clean `HEAD`, so it is recorded as a pre-existing local smoke limitation, not this slice's regression evidence.

@@ -1,4 +1,5 @@
 module hmc
+   use, intrinsic :: ieee_arithmetic, only: ieee_quiet_nan, ieee_value
    use param_mod
    use utils
    use model, only: grand
@@ -90,10 +91,10 @@ contains
       method_converged = .false.
       proposal_ok = .false.
       state_size = size(state_z)
+      initial_hamiltonian = unavailable_hamiltonian()
+      final_hamiltonian = unavailable_hamiltonian()
 
       if (size(final_x) /= size(state_x) .or. size(final_z) /= state_size) then
-         initial_hamiltonian = 0.0_dp
-         final_hamiltonian = 0.0_dp
          jacf = jaci
          return
       end if
@@ -217,6 +218,7 @@ contains
          local_momentum = start_momentum
 
          call calculate_hamiltonian(start_z, local_momentum, h_initial)
+         h_final = unavailable_hamiltonian()
          call clear_intode_runtime_trace()
          call reset_constraint_newton_warm_start()
 
@@ -228,7 +230,6 @@ contains
             call rattle_step_core(local_prev_x, local_prev_z, local_step_size, out_x, out_z, local_jac, out_jac, local_momentum, &
                                   local_method_converged, local_ws)
             if (.not. local_method_converged) then
-               h_final = 0.0_dp
                call release_rattle_step_workspace(local_ws)
                if (allocated(local_momentum)) deallocate (local_momentum)
                if (allocated(local_momentumuv)) deallocate (local_momentumuv)
@@ -244,7 +245,6 @@ contains
          end do
 
          if (.not. state_has_progress(local_prev_x, out_x)) then
-            h_final = 0.0_dp
             call release_rattle_step_workspace(local_ws)
             if (allocated(local_momentum)) deallocate (local_momentum)
             if (allocated(local_momentumuv)) deallocate (local_momentumuv)
@@ -259,7 +259,6 @@ contains
 
          call decompose2(local_momentum, local_momentumuv, local_momentumu, local_momentumv, local_jac, local_error)
          if (local_error) then
-            h_final = 0.0_dp
             call release_rattle_step_workspace(local_ws)
             if (allocated(local_momentum)) deallocate (local_momentum)
             if (allocated(local_momentumuv)) deallocate (local_momentumuv)
@@ -332,7 +331,7 @@ contains
       end subroutine deallocate_all
 
       subroutine abort_with_failure()
-         final_hamiltonian = 0.0_dp
+         final_hamiltonian = unavailable_hamiltonian()
          jacf = jaci
          call deallocate_all()
       end subroutine abort_with_failure
@@ -367,9 +366,10 @@ contains
 
       state_size = size(state_z)
       method_converged = .false.
+      initial_hamiltonian = unavailable_hamiltonian()
+      final_hamiltonian = unavailable_hamiltonian()
 
       if (size(final_x) /= size(state_x) .or. size(final_z) /= state_size) then
-         final_hamiltonian = 0.0_dp
          jacf = jaci
          return
       end if
@@ -465,11 +465,16 @@ contains
       end subroutine deallocate_all
 
       subroutine abort_with_failure()
-         final_hamiltonian = 0.0_dp
+         final_hamiltonian = unavailable_hamiltonian()
          jacf = jaci
          call deallocate_all()
       end subroutine abort_with_failure
 
    end subroutine rattle2
+
+   real(dp) function unavailable_hamiltonian() result(value)
+      implicit none
+      value = ieee_value(0.0_dp, ieee_quiet_nan)
+   end function unavailable_hamiltonian
 
 end module hmc

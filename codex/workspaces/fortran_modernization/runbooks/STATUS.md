@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-09 10:55 JST
+Updated: 2026-05-09 17:30 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -32,13 +32,20 @@ Updated: 2026-05-09 10:55 JST
 - Policy boundary: solver-internal ODE assist may help NT/QN residual evaluation, but strict final `flow(...)` must construct the actual proposal.
 - Solver-assist 10k -> 50k -> 100k validation is complete and analyzed; source-level state/status refactor still requires explicit user confirmation patch-by-patch.
 
+## HMC unavailable-Hamiltonian sentinel patch - 2026-05-09 JST
+- First source slice implemented in local worktree: failed/unavailable HMC Hamiltonians now use IEEE quiet NaN instead of `0.0` sentinel values.
+- Updated Hamiltonian conservation test to use `proposal_ok` plus finite-Hamiltonian checks.
+- Updated warmup guard in `markovchain_mod.f90` to exit on unavailable/non-finite Hamiltonians rather than `H==0`.
+- Local verification: `make -C build FC=gfortran LDFLAGS= ../bin/test_program` and `make -C build FC=gfortran LDFLAGS= test1` pass on macOS/gfortran.
+- Local Stage2 smoke with `TLTM_STAGE2_CYCLES=2`, `TLTM_STAGE2_NUM_REPLICAS=2`, `TLTM_STAGE2_MAX_FLOW_TIME=0.1` still fails slot-1 initialization; the same smoke fails on clean `HEAD`, so this is not attributable to the sentinel patch.
+
 ## State/information propagation audit - 2026-05-09 JST
 - Added `runbooks/STATE_INFORMATION_PROPAGATION_AUDIT.md`.
 - Audit result: live-chain state update on reject appears safe, but failed/unavailable Hamiltonian is still encoded as `0.0` in `hmc.f90`, `markovchain_mod.f90`, and `tests/test_hamiltonian_conservation.f90`.
 - First proposed code patch before broader typed-status redesign: replace `H=0` failure sentinels with explicit proposal status/non-finite unavailable Hamiltonian handling while preserving Metropolis physics.
 
 ## Next action
-Next discussion after ODEX sequence decision: QN p28 as BTN rescue, RATTLE failure/progress semantics, deterministic replay tests, and reverse-gate diagnostic accounting.
+Review the HMC unavailable-Hamiltonian sentinel patch before commit. Broader typed state/status redesign remains a later slice.
 
 ## After confirmation
 - Build baseline harness design first.

@@ -1,4 +1,5 @@
 program test_hamiltonian_conservation
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use param_mod
    use mt95, only: getseed, sgrnd
    use hmc, only: integrate_hmc_proposal
@@ -22,7 +23,7 @@ program test_hamiltonian_conservation
    real(dp) :: flow_time
    real(dp) :: order_estimate(method_count)
    real(dp) :: hamiltonian_delta(method_count, max_substeps)
-   logical :: flow_failed, order_unavailable(method_count)
+   logical :: flow_failed, order_unavailable(method_count), proposal_ok
 
    start_time = wall_time_seconds()
    call perf_reset()
@@ -64,9 +65,9 @@ program test_hamiltonian_conservation
       do substep_count = 1, max_substeps
          ckrv = .true.
          call integrate_hmc_proposal(x_state, z_state, total_step_size, substep_count, x_state_next, z_state_next, &
-                                     h_initial, h_final, jac_state, jac_state_next)
+                                     h_initial, h_final, jac_state, jac_state_next, proposal_ok)
 
-         if (h_final == 0.0_dp) then
+         if ((.not. proposal_ok) .or. (.not. ieee_is_finite(h_initial)) .or. (.not. ieee_is_finite(h_final))) then
             hamiltonian_delta(method_idx, substep_count) = -1.0_dp
             write (*, '(A,A,A,I0)') "[ERROR] Integrator failed: method=", trim(integrator_method), " substeps=", substep_count
             cycle
