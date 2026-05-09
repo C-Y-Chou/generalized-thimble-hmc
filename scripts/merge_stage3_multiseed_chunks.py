@@ -37,6 +37,8 @@ def main():
         aggregate_rows,
         local_transition_aggregate_columns,
         local_transition_count_columns,
+        qn_eval_flow_status_aggregate_columns,
+        qn_eval_flow_status_count_columns,
         read_protocol,
         reverse_gate_aggregate_columns,
         reverse_gate_count_columns,
@@ -122,6 +124,7 @@ def main():
         "quasi_global_filter_pass_count",
         "quasi_global_filter_reject_count",
         *reverse_gate_count_columns(),
+        *qn_eval_flow_status_count_columns(),
         *local_transition_count_columns(),
         "accepted_local_total",
         "accepted_local_newton_only_count",
@@ -206,6 +209,7 @@ def main():
         "mean_runtime_total",
         "median_runtime_total",
         *reverse_gate_aggregate_columns(),
+        *qn_eval_flow_status_aggregate_columns(),
         *local_transition_aggregate_columns(),
     ]
 

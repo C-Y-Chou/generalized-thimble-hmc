@@ -35,6 +35,17 @@ LOCAL_TRANSITION_NAMES = [
     "output_size_mismatch",
 ]
 
+QN_EVAL_FLOW_STATUS_NAMES = [
+    "success",
+    "zero_time",
+    "stiff_rescue",
+    "solver_assist",
+    "failure_max_steps",
+    "failure_invalid",
+    "failure_h_min",
+    "unknown",
+]
+
 METHOD_SPECS = {
     "no_fb": {
         "fallback_enabled": False,
@@ -75,6 +86,14 @@ def local_transition_count_columns():
 
 def local_transition_aggregate_columns():
     return ["total_{0}".format(column) for column in local_transition_count_columns()]
+
+
+def qn_eval_flow_status_count_columns():
+    return ["qn_eval_flow_{0}_count".format(name) for name in QN_EVAL_FLOW_STATUS_NAMES]
+
+
+def qn_eval_flow_status_aggregate_columns():
+    return ["total_{0}".format(column) for column in qn_eval_flow_status_count_columns()]
 
 
 def parse_args():
@@ -446,6 +465,7 @@ def parse_stage2_summary(summary_path):
         "fail_final": 0,
     }
     quasi_global_filter_stats = {"candidate": 0, "pass": 0, "reject": 0}
+    qn_eval_flow_status_stats = {name: 0 for name in QN_EVAL_FLOW_STATUS_NAMES}
     reverse_gate_route_stats = {
         "candidate": {route_name: 0 for route_name in REVERSE_GATE_ROUTE_NAMES},
         "pass": {route_name: 0 for route_name in REVERSE_GATE_ROUTE_NAMES},
@@ -549,6 +569,12 @@ def parse_stage2_summary(summary_path):
             for key in quasi_global_filter_stats:
                 if key in kv:
                     quasi_global_filter_stats[key] = int(kv[key])
+            continue
+        if line.startswith("# qn_eval_flow_status "):
+            kv = parse_key_value_ints(line[len("# qn_eval_flow_status ") :])
+            for key in qn_eval_flow_status_stats:
+                if key in kv:
+                    qn_eval_flow_status_stats[key] = int(kv[key])
             continue
         if line.startswith("# reverse_gate_route_candidates "):
             kv = parse_key_value_ints(line[len("# reverse_gate_route_candidates ") :])
@@ -670,6 +696,7 @@ def parse_stage2_summary(summary_path):
             for route_name in REVERSE_GATE_ROUTE_NAMES
             for status_name in ("candidate", "pass", "reject")
         },
+        **{"qn_eval_flow_{0}_count".format(name): qn_eval_flow_status_stats[name] for name in QN_EVAL_FLOW_STATUS_NAMES},
         **{"local_{0}_count".format(name): local_transition_stats[name] for name in LOCAL_TRANSITION_NAMES},
         "accepted_local_total": accepted_local_census["accepted_total"],
         "accepted_local_newton_only_count": accepted_local_census["newton_only"],
@@ -996,6 +1023,7 @@ def run_one_seed(
         "quasi_global_filter_pass_count": stage2_metrics["quasi_global_filter_pass_count"],
         "quasi_global_filter_reject_count": stage2_metrics["quasi_global_filter_reject_count"],
         **{column: stage2_metrics[column] for column in reverse_gate_count_columns()},
+        **{column: stage2_metrics[column] for column in qn_eval_flow_status_count_columns()},
         **{column: stage2_metrics[column] for column in local_transition_count_columns()},
         "accepted_local_total": stage2_metrics["accepted_local_total"],
         "accepted_local_newton_only_count": stage2_metrics["accepted_local_newton_only_count"],
@@ -1182,6 +1210,8 @@ def aggregate_rows(rows, observable_exact_re=0.0, observable_exact_im=0.0):
             "median_runtime_total": safe_median([r["runtime_total"] for r in group]),
         }
         for column in local_transition_count_columns():
+            agg["total_{0}".format(column)] = int(sum(as_finite_number(r.get(column)) or 0.0 for r in group))
+        for column in qn_eval_flow_status_count_columns():
             agg["total_{0}".format(column)] = int(sum(as_finite_number(r.get(column)) or 0.0 for r in group))
         if agg["total_post_refine_attempt_count"] > 0:
             agg["post_refine_success_ratio_from_totals"] = float(agg["total_post_refine_success_count"]) / float(
@@ -1510,6 +1540,7 @@ def main():
         "quasi_global_filter_pass_count",
         "quasi_global_filter_reject_count",
         *reverse_gate_count_columns(),
+        *qn_eval_flow_status_count_columns(),
         *local_transition_count_columns(),
         "accepted_local_total",
         "accepted_local_newton_only_count",
@@ -1594,6 +1625,7 @@ def main():
         "mean_runtime_total",
         "median_runtime_total",
         *reverse_gate_aggregate_columns(),
+        *qn_eval_flow_status_aggregate_columns(),
         *local_transition_aggregate_columns(),
     ]
 

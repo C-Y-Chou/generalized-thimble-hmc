@@ -1,7 +1,7 @@
 # State and Information Propagation Refactor
 
 Updated: 2026-05-09 JST
-Status: first five narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
+Status: first six narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
 
 ## Purpose
 
@@ -270,3 +270,34 @@ Verification:
 - `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
 - `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`.
 - Tiny local Stage2 smoke with `cycles=2`, `num_replicas=2`, `max_flow_time=0.0`, `local_updates=1`, and `swap_enabled=0` passes.
+
+## Sixth Source Slice - QN Residual Flow Status Counters - 2026-05-09 JST
+
+Purpose:
+
+- Make ODE/flow status visible inside QN residual evaluation without changing QN solver decisions.
+- Separate residual-evaluation flow outcomes from final proposal flow outcomes and legacy fallback counters.
+- Prepare later typed residual-evaluation status refactors by first adding behavior-preserving observability.
+
+Implemented boundary:
+
+- `quasi_newton_solver.f90`: `evaluate_constraint_residual(...)` now requests optional status from `flowzr(...)`.
+- `quasi_newton_solver.f90`: `evaluate_constraint_residual_newton_loss(...)` now requests optional status from `flowz(...)`.
+- Added module-level QN residual flow-status counters for strict success, zero-time success, stiff rescue, solver assist, max-step failure, invalid-state failure, h-min failure, and unknown status.
+- Stage1/Stage2 drivers reset these counters at run start and write `# qn_eval_flow_status ...` into summaries.
+- `run_stage3_3_multiseed.py` and `merge_stage3_multiseed_chunks.py` propagate the new per-seed and aggregate CSV columns.
+
+Compatibility:
+
+- `ierr` remains the only behavior-bearing residual-evaluation validity signal.
+- Invalid flow evaluations still return neutral `fq=0`, `Jl=0`, and `ierr=.true.` through `mark_constraint_eval_invalid(...)`.
+- No trust-region, line-search, acceptance, reverse-gate, RNG, or final proposal logic changed.
+
+Verification:
+
+- `python3 -m py_compile scripts/run_stage3_3_multiseed.py scripts/merge_stage3_multiseed_chunks.py scripts/fortran_module_deps.py`.
+- `git diff --check`.
+- `make -C build FC=gfortran LDFLAGS= test_odex_solver`.
+- `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
+- `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`.
+- Tiny local Stage2 smoke writes `# qn_eval_flow_status ...` and parser readback succeeds for all new columns.

@@ -715,3 +715,9 @@ Use this file to append per-session notes.
 - Strict final proposal flow accepts only strict ODEX success and zero-time no-op; max-step, invalid-state, h-min, and unexpected non-strict success statuses become explicit final-flow step failures.
 - HMC proposal-level compatibility is preserved by mapping those detailed step statuses back to the existing final-flow failure category.
 - Verified with `make -C build FC=gfortran LDFLAGS= test_odex_solver`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, and tiny local Stage2 smoke.
+
+## 2026-05-09 JST
+- QN residual evaluators now record optional `flowzr(...)` / `flowz(...)` status outcomes without changing solver behavior.
+- Added summary and CSV diagnostics for strict success, zero-time success, stiff rescue, solver assist, max-step failure, invalid-state failure, h-min failure, and unknown residual-flow statuses.
+- Stage1/Stage2 write `# qn_eval_flow_status ...`; multiseed run/merge scripts propagate the new columns.
+- Verified with `py_compile`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test_odex_solver`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, tiny local Stage2 smoke, and parser readback.

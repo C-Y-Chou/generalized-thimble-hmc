@@ -7,6 +7,7 @@ module tltm_stage1_driver
    use mt95, only: getseed, sgrnd
    use markovchain_metropolis, only: metropolis_step
    use markovchain_phase, only: compute_phase_factor
+   use quasi_newton_solver_mod, only: reset_quasi_eval_flow_status_counts, get_quasi_eval_flow_status_counts
    use tltm_types_mod, only: tltm_replica_t, allocate_tltm_replica, release_tltm_replica, record_tltm_local_transition
    implicit none
 
@@ -28,6 +29,7 @@ contains
 
       call set_intode_strict_mode(.true.)
       call read_parameters()
+      call reset_quasi_eval_flow_status_counts()
 
       x_size = config%state%x_size
       call resolve_base_seed(base_seed)
@@ -261,6 +263,9 @@ contains
       integer :: metropolis_reject_total, reverse_gate_reject_total, proposal_failure_total
       integer :: hamiltonian_invalid_total, delta_h_invalid_total, output_size_mismatch_total
       real(dp) :: accept_rate, abs_mean_phi
+      integer(int64) :: qn_flow_success_count, qn_flow_zero_time_count, qn_flow_stiff_rescue_count
+      integer(int64) :: qn_flow_solver_assist_count, qn_flow_failure_max_steps_count, qn_flow_failure_invalid_count
+      integer(int64) :: qn_flow_failure_h_min_count, qn_flow_unknown_count
 
       open (unit=unit_summary, file=trim(summary_file), status='replace', action='write', iostat=ios)
       if (ios /= 0) then
@@ -273,6 +278,14 @@ contains
       write (unit_summary, '(A,I0)') "# cycles=", cycle_count
       write (unit_summary, '(A,I0)') "# local_updates=", local_updates
       write (unit_summary, '(A,F12.6)') "# elapsed_sec=", elapsed
+      call get_quasi_eval_flow_status_counts(qn_flow_success_count, qn_flow_zero_time_count, qn_flow_stiff_rescue_count, &
+                                             qn_flow_solver_assist_count, qn_flow_failure_max_steps_count, &
+                                             qn_flow_failure_invalid_count, qn_flow_failure_h_min_count, qn_flow_unknown_count)
+      write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
+         "# qn_eval_flow_status success=", qn_flow_success_count, " zero_time=", qn_flow_zero_time_count, &
+         " stiff_rescue=", qn_flow_stiff_rescue_count, " solver_assist=", qn_flow_solver_assist_count, &
+         " failure_max_steps=", qn_flow_failure_max_steps_count, " failure_invalid=", qn_flow_failure_invalid_count, &
+         " failure_h_min=", qn_flow_failure_h_min_count, " unknown=", qn_flow_unknown_count
       metropolis_reject_total = 0
       reverse_gate_reject_total = 0
       proposal_failure_total = 0

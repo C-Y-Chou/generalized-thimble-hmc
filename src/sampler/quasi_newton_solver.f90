@@ -3,7 +3,9 @@ module quasi_newton_solver_mod
    use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_value, ieee_quiet_nan
    use solve_flow, only: flowzr, flowz, set_intode_stage_trace, set_intode_quasi_iter_trace, intode_stage_quasi, &
-                         get_intode_rescue_stats
+                         get_intode_rescue_stats, intode_status_unknown, intode_status_success, intode_status_success_zero_time, &
+                         intode_status_success_stiff_rescue, intode_status_success_solver_assist, &
+                         intode_status_failure_max_steps, intode_status_failure_invalid, intode_status_failure_h_min
    use quasi_newton_linear_solver_mod, only: solve_linear_direction, initial_guess_from_jacobian
    use quasi_newton_line_search_mod, only: accept_full_step, accept_backtracking, update_merit_from_ndls
    use quasi_newton_jacobian_update_mod, only: broyden_rank1_update
@@ -34,6 +36,14 @@ module quasi_newton_solver_mod
    integer(int64), save :: quasi_global_filter_candidate_count = 0_int64
    integer(int64), save :: quasi_global_filter_pass_count = 0_int64
    integer(int64), save :: quasi_global_filter_reject_count = 0_int64
+   integer(int64), save :: quasi_eval_flow_status_success = 0_int64
+   integer(int64), save :: quasi_eval_flow_status_zero_time = 0_int64
+   integer(int64), save :: quasi_eval_flow_status_stiff_rescue = 0_int64
+   integer(int64), save :: quasi_eval_flow_status_solver_assist = 0_int64
+   integer(int64), save :: quasi_eval_flow_status_failure_max_steps = 0_int64
+   integer(int64), save :: quasi_eval_flow_status_failure_invalid = 0_int64
+   integer(int64), save :: quasi_eval_flow_status_failure_h_min = 0_int64
+   integer(int64), save :: quasi_eval_flow_status_unknown = 0_int64
    logical, save :: quasi_final_resort_budget_loaded = .false.
    logical, save :: quasi_watchdog_scope_active = .false.
    integer, save :: quasi_watchdog_start_success_final_resort = 0
@@ -3200,6 +3210,58 @@ contains
       quasi_eval_flowed_is_inverse = .false.
    end subroutine mark_constraint_eval_invalid
 
+   subroutine reset_quasi_eval_flow_status_counts()
+      implicit none
+
+      quasi_eval_flow_status_success = 0_int64
+      quasi_eval_flow_status_zero_time = 0_int64
+      quasi_eval_flow_status_stiff_rescue = 0_int64
+      quasi_eval_flow_status_solver_assist = 0_int64
+      quasi_eval_flow_status_failure_max_steps = 0_int64
+      quasi_eval_flow_status_failure_invalid = 0_int64
+      quasi_eval_flow_status_failure_h_min = 0_int64
+      quasi_eval_flow_status_unknown = 0_int64
+   end subroutine reset_quasi_eval_flow_status_counts
+
+   subroutine get_quasi_eval_flow_status_counts(success, zero_time, stiff_rescue, solver_assist, &
+                                                failure_max_steps, failure_invalid, failure_h_min, unknown)
+      implicit none
+      integer(int64), intent(out) :: success, zero_time, stiff_rescue, solver_assist
+      integer(int64), intent(out) :: failure_max_steps, failure_invalid, failure_h_min, unknown
+
+      success = quasi_eval_flow_status_success
+      zero_time = quasi_eval_flow_status_zero_time
+      stiff_rescue = quasi_eval_flow_status_stiff_rescue
+      solver_assist = quasi_eval_flow_status_solver_assist
+      failure_max_steps = quasi_eval_flow_status_failure_max_steps
+      failure_invalid = quasi_eval_flow_status_failure_invalid
+      failure_h_min = quasi_eval_flow_status_failure_h_min
+      unknown = quasi_eval_flow_status_unknown
+   end subroutine get_quasi_eval_flow_status_counts
+
+   subroutine record_quasi_eval_flow_status(flow_status)
+      implicit none
+      integer, intent(in) :: flow_status
+
+      select case (flow_status)
+      case (intode_status_success)
+         quasi_eval_flow_status_success = quasi_eval_flow_status_success + 1_int64
+      case (intode_status_success_zero_time)
+         quasi_eval_flow_status_zero_time = quasi_eval_flow_status_zero_time + 1_int64
+      case (intode_status_success_stiff_rescue)
+         quasi_eval_flow_status_stiff_rescue = quasi_eval_flow_status_stiff_rescue + 1_int64
+      case (intode_status_success_solver_assist)
+         quasi_eval_flow_status_solver_assist = quasi_eval_flow_status_solver_assist + 1_int64
+      case (intode_status_failure_max_steps)
+         quasi_eval_flow_status_failure_max_steps = quasi_eval_flow_status_failure_max_steps + 1_int64
+      case (intode_status_failure_invalid)
+         quasi_eval_flow_status_failure_invalid = quasi_eval_flow_status_failure_invalid + 1_int64
+      case (intode_status_failure_h_min)
+         quasi_eval_flow_status_failure_h_min = quasi_eval_flow_status_failure_h_min + 1_int64
+      case default
+         quasi_eval_flow_status_unknown = quasi_eval_flow_status_unknown + 1_int64
+      end select
+   end subroutine record_quasi_eval_flow_status
 
    subroutine evaluate_constraint_residual(xt, z, xi, fq, del_z, ierr, Jl, jac)
       implicit none
@@ -3208,7 +3270,7 @@ contains
       real(dp), intent(out) :: fq(:), Jl(:)
       logical, intent(out) :: ierr
 
-      integer :: n
+      integer :: flow_status, n
 
       n = size(z)
       if (size(xt) /= n + 1 .or. size(xi) /= 2*n .or. size(del_z) /= 2*n .or. size(fq) /= 2*n .or. size(Jl) /= 2*n) then
@@ -3238,7 +3300,9 @@ contains
 
       call set_intode_stage_trace(intode_stage_quasi)
       call set_intode_quasi_iter_trace(quasi_trace_iter)
-      call flowzr(xt, residual_z_trial, ierr)
+      flow_status = intode_status_unknown
+      call flowzr(xt, residual_z_trial, ierr, flow_status)
+      call record_quasi_eval_flow_status(flow_status)
       if (ierr) then
          call mark_constraint_eval_invalid(fq, Jl, ierr)
          return
@@ -3263,7 +3327,7 @@ contains
       real(dp), intent(out) :: fq(:), Jl(:)
       logical, intent(out) :: ierr
 
-      integer :: n
+      integer :: flow_status, n
 
       n = size(z)
       if (size(xt) /= n + 1 .or. size(xi) /= 2*n .or. size(del_z) /= 2*n .or. size(fq) /= 2*n .or. size(Jl) /= 2*n) then
@@ -3299,7 +3363,9 @@ contains
       residual_xtu(2:) = xt(2:) + xi(1:n)
       call set_intode_stage_trace(intode_stage_quasi)
       call set_intode_quasi_iter_trace(quasi_trace_iter)
-      call flowz(residual_xtu, residual_z_flowed, ierr)
+      flow_status = intode_status_unknown
+      call flowz(residual_xtu, residual_z_flowed, ierr, flow_status)
+      call record_quasi_eval_flow_status(flow_status)
       if (ierr) then
          call mark_constraint_eval_invalid(fq, Jl, ierr)
          return

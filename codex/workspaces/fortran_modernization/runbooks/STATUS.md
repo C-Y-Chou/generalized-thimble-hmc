@@ -391,3 +391,10 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 - Proposal-level compatibility is preserved by mapping these detailed step statuses back to the existing final-flow failure category in `hmc.f90`.
 - Behavior-preservation note: current canonical paths should be unchanged because solver-internal assist is already gated to Newton/QN residual contexts and stiff rescue is disabled; the patch fails closed if a future legacy path tries to finalize a proposal through non-strict flow.
 - Verification passed: `make -C build FC=gfortran LDFLAGS= test_odex_solver`; `git diff --check`; `make -C build FC=gfortran LDFLAGS= test1`; Stage1/Stage2 executable build; tiny local Stage2 smoke.
+
+## QN residual flow-status counters - 2026-05-09 JST
+- Implemented the next state/information propagation slice: QN residual evaluators now request optional ODE/flow status from `flowzr(...)` and `flowz(...)`.
+- Added counters for strict success, zero-time success, stiff rescue, solver assist, max-step failure, invalid-state failure, h-min failure, and unknown status.
+- Stage1/Stage2 summaries now write `# qn_eval_flow_status ...`; multiseed run/merge scripts carry the new per-seed and aggregate columns.
+- Behavior-preservation note: this is observability only. `ierr` remains the behavior-bearing residual validity signal, and trust-region, line-search, acceptance, reverse-gate, RNG, and final proposal logic are unchanged.
+- Verification passed: `py_compile`, `git diff --check`, `make -C build FC=gfortran LDFLAGS= test_odex_solver`, `make -C build FC=gfortran LDFLAGS= test1`, Stage1/Stage2 executable build, tiny local Stage2 smoke, and parser readback of the new columns.
