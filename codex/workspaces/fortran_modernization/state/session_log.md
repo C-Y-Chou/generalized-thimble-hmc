@@ -219,3 +219,12 @@
 - Updated `tests/test_hamiltonian_conservation.f90` so its initial `flow(...)` requests optional status and requires strict success.
 - Behavior-preservation note: this only aligns the test guard with the production strict-flow contract.
 - Verification: `git diff --check` and `test1` passed.
+
+## 2026-05-09 JST - Legacy diagnostic and post-refine deletion
+- Removed tracked root-level source artifacts `hmc_integrator_core.f90` and `constraint_solver_stats.f90`.
+- Removed standalone diagnostic app sources and make targets for `sample_flow_manifold`, `replay_quasi_failures`, `probe_hmc_volume`, `scan_flow_vs_flowz`, and `scan_flowzr_stability`.
+- Removed helper scripts tied to those deleted diagnostic binaries and removed the active replay command documentation.
+- Deleted the active post-refine HMC/QN path, including `QN_POST_NEWTON_REFINE_*` controls, post-refine solver attempts/captures, and post-refine Stage2/multiseed summary columns.
+- Kept `fb_norefine` in the Stage3 runner as a compatibility alias for the now-canonical fallback-enabled/no-post-refine route.
+- Verification passed: `py_compile`, `git diff --check`, production executable build, `test_odex_solver`, `test1`, and tiny Stage2 smoke with explicit `TLTM_STAGE2_INIT_SIGMA=0.1`.
+- Follow-up decision: an existing Stage2 config aliasing hazard makes the default `TLTM_STAGE2_INIT_SIGMA` appear as `0.0000` in the local smoke when unset. Fixing it likely changes default initialization behavior and should be separated from the deletion patch.

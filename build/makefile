@@ -127,11 +127,6 @@ SAMPLER_SRC  = sampler/hmc_kernels sampler/hmc_constraints sampler/hmc_state_buf
                sampler/tltm_types sampler/tltm_stage1_driver sampler/tltm_stage2_driver
 APP_CHAIN    = apps/generate_markov_chain
 APP_EXPECT   = apps/evaluate_expectations
-APP_MANIFOLD = apps/sample_flow_manifold
-APP_REPLAY   = apps/replay_quasi_failures
-APP_VOLUME   = apps/probe_hmc_volume
-APP_SCAN     = apps/scan_flow_vs_flowz
-APP_SCAN_FLOWZR = apps/scan_flowzr_stability
 APP_TLTM_STAGE1 = apps/run_tltm_stage1
 APP_TLTM_STAGE2 = apps/run_tltm_stage2
 
@@ -145,11 +140,6 @@ endef
 SOURCES_COMMON := $(call mk_src,$(COMMON_SRC))
 SOURCES_STEP2  := $(SOURCES_COMMON) $(call mk_src,$(APP_CHAIN))
 SOURCES_STEP3  := $(SOURCES_COMMON) $(call mk_src,$(APP_EXPECT))
-SOURCES_STEP4  := $(SOURCES_COMMON) $(call mk_src,$(APP_MANIFOLD))
-SOURCES_STEP5  := $(SOURCES_COMMON) $(call mk_src,$(APP_REPLAY))
-SOURCES_STEP6  := $(SOURCES_COMMON) $(call mk_src,$(APP_VOLUME))
-SOURCES_STEP7  := $(SOURCES_COMMON) $(call mk_src,$(APP_SCAN))
-SOURCES_STEP8  := $(SOURCES_COMMON) $(call mk_src,$(APP_SCAN_FLOWZR))
 SOURCES_STEP9  := $(SOURCES_COMMON) $(call mk_src,$(APP_TLTM_STAGE1))
 SOURCES_STEP10 := $(SOURCES_COMMON) $(call mk_src,$(APP_TLTM_STAGE2))
 SOURCES_TEST1  := $(SOURCES_COMMON) $(TEST_DIR)/test_hamiltonian_conservation.f90
@@ -167,11 +157,6 @@ endef
 
 OBJECTS_STEP2 := $(call src_to_obj,$(SOURCES_STEP2))
 OBJECTS_STEP3 := $(call src_to_obj,$(SOURCES_STEP3))
-OBJECTS_STEP4 := $(call src_to_obj,$(SOURCES_STEP4))
-OBJECTS_STEP5 := $(call src_to_obj,$(SOURCES_STEP5))
-OBJECTS_STEP6 := $(call src_to_obj,$(SOURCES_STEP6))
-OBJECTS_STEP7 := $(call src_to_obj,$(SOURCES_STEP7))
-OBJECTS_STEP8 := $(call src_to_obj,$(SOURCES_STEP8))
 OBJECTS_STEP9 := $(call src_to_obj,$(SOURCES_STEP9))
 OBJECTS_STEP10 := $(call src_to_obj,$(SOURCES_STEP10))
 OBJECTS_TEST1 := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST1))) \
@@ -181,8 +166,7 @@ OBJECTS_TEST2 := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST2))) 
 OBJECTS_TEST_ODEX := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_ODEX))) \
                      $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_ODEX)))
 
-SOURCES_DEP := $(sort $(SOURCES_STEP2) $(SOURCES_STEP3) $(SOURCES_STEP4) $(SOURCES_STEP5) \
-                $(SOURCES_STEP6) $(SOURCES_STEP7) $(SOURCES_STEP8) $(SOURCES_STEP9) \
+SOURCES_DEP := $(sort $(SOURCES_STEP2) $(SOURCES_STEP3) $(SOURCES_STEP9) \
                 $(SOURCES_STEP10) $(SOURCES_TEST1) $(SOURCES_TEST2) $(SOURCES_TEST_ODEX))
 
 $(DEP_OUT): $(SOURCES_DEP) $(DEP_SCRIPT) | $(MOD_DIR)
@@ -197,7 +181,6 @@ endif
 
 # executables
 BINARIES     = generate_markov_chain evaluate_expectations \
-               sample_flow_manifold replay_quasi_failures probe_hmc_volume scan_flow_vs_flowz scan_flowzr_stability \
                run_tltm_stage1 run_tltm_stage2 \
                test_program test_program2 test_odex_solver
 EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
@@ -208,7 +191,7 @@ EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 .DEFAULT_GOAL := all
 override FFLAGS := $(FFLAGS_OPT) $(FFLAGS_INC)
 
-.PHONY: all fast help chain expect manifold tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver \
+.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver \
         test1_fb_on test1_fb_off test2_fb_on test2_fb_off test_fb_matrix \
         prepare_outputs clean_outputs clean veryclean
 all: regen_model_derivatives $(EXECUTABLES)
@@ -231,21 +214,6 @@ $(BIN_DIR)/generate_markov_chain: $(OBJECTS_STEP2) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $^
 
 $(BIN_DIR)/evaluate_expectations: $(OBJECTS_STEP3) | $(BIN_DIR)
-	$(FC) $(LDFLAGS) -o $@ $^
-
-$(BIN_DIR)/sample_flow_manifold: $(OBJECTS_STEP4) | $(BIN_DIR)
-	$(FC) $(LDFLAGS) -o $@ $^
-
-$(BIN_DIR)/replay_quasi_failures: $(OBJECTS_STEP5) | $(BIN_DIR)
-	$(FC) $(LDFLAGS) -o $@ $^
-
-$(BIN_DIR)/probe_hmc_volume: $(OBJECTS_STEP6) | $(BIN_DIR)
-	$(FC) $(LDFLAGS) -o $@ $^
-
-$(BIN_DIR)/scan_flow_vs_flowz: $(OBJECTS_STEP7) | $(BIN_DIR)
-	$(FC) $(LDFLAGS) -o $@ $^
-
-$(BIN_DIR)/scan_flowzr_stability: $(OBJECTS_STEP8) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $^
 
 $(BIN_DIR)/run_tltm_stage1: $(OBJECTS_STEP9) | $(BIN_DIR)
@@ -283,7 +251,6 @@ help:
 	@echo "Run targets:"
 	@echo "  make chain    - run generate_markov_chain (outputs -> $(OUT_PROD_DIR), log -> $(OUT_LOG_DIR))"
 	@echo "  make expect   - run evaluate_expectations (analysis -> $(OUT_PROD_DIR), log -> $(OUT_LOG_DIR))"
-	@echo "  make manifold - sample flowz manifold (set MANIFOLD_ARGS to override)"
 	@echo "  make tltm_stage1 - run stage-1 multi-replica baseline (no swap)"
 	@echo "  make test_tltm_stage1 - smoke run with max flow=0.3, L=2, nstep=20"
 	@echo "  make tltm_stage2 - run stage-2 multi-replica baseline with adjacent swap"
@@ -309,10 +276,6 @@ chain: $(BIN_DIR)/generate_markov_chain prepare_outputs
 
 expect: $(BIN_DIR)/evaluate_expectations prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/evaluate_expectations 2>&1 | tee $(OUT_LOG_DIR)/evaluate_expectations.log
-
-MANIFOLD_ARGS ?= $(OUT_TEST_DIR)/manifold.dat -2.0 2.0 2000
-manifold: $(BIN_DIR)/sample_flow_manifold prepare_outputs
-	@set -o pipefail; $(BIN_DIR)/sample_flow_manifold $(MANIFOLD_ARGS) 2>&1 | tee $(OUT_LOG_DIR)/sample_flow_manifold.log
 
 TLTM_STAGE1_NUM_REPLICAS ?= 2
 TLTM_STAGE1_CYCLES ?= 20

@@ -197,32 +197,6 @@ From repository root:
 - Runs `test_program` with `HMC_SKIP_PLOT=1` to remove plotting overhead.
 - Writes per-run logs to `build/bench/logs/` and summary to `build/bench/benchmark_summary.txt`.
 
-## Constraint Solver Replay (DFO-LS only)
-
-From repository root:
-
-```bash
-# Fresh 100-failure capture (DFO-LS solver path)
-rm -rf output/constraint_fail_cases_100 && mkdir -p output/constraint_fail_cases_100
-cd build
-CHAIN_RNG_SEED=2020548296 ../bin/generate_markov_chain \
-  | tee ../output/constraint_fail_cases_100/generate_markov_chain_dfols.log
-# Stop after this log line appears:
-# [INFO] Reached constraint failure capture target: 100.
-
-# Replay the captured 100 with DFO-LS (single solver path, no mode switch)
-../bin/replay_quasi_failures \
-  1e-10 200 \
-  ../output/constraint_fail_cases_100/constraint_solver_fail_z0.dat \
-  ../output/constraint_fail_cases_100/constraint_solver_fail_delz.dat \
-  ../output/constraint_fail_cases_100/constraint_solver_fail_x0.dat \
-  ../output/constraint_fail_cases_100/quasi_replay_results_dfo_ls_iter200.csv
-```
-
-- Output artifacts:
-  - failure captures: `constraint_solver_fail_{z0,delz,x0}.dat`, `constraint_solver_fail_quasi_trace.csv`
-  - replay summary CSV: `quasi_replay_results_dfo_ls_iter200.csv`
-
 ## Direct Binary Execution
 
 After build, executables are available under `../bin/`:

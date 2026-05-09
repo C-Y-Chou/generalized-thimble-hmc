@@ -21,9 +21,9 @@ This directory currently contains both active utility scripts and historical exp
 
 The following categories are from previous tuning campaigns and are not part of the current single-chain baseline:
 
-- `run_t*.sh`, `run_nofb_multiseed.sh`, `run_seed_pairs_with_without_fallback.sh`, `run_plain_benchmark_start.sh`
+- `run_t*.sh`, `run_nofb_multiseed.sh`, `run_seed_pairs_with_without_fallback.sh`
 - `run_multichain_auto.py`, `plot_multichain_virial_coverage.py`
 - `analyze_*`, `classify_*`, `inspect_*`, `sort_geometry_cases.py`, `summarize_rescue_impact.py`
 - `build_*bundle*.py`, `eval_*`
 
-If we no longer need these for future reference, they can be moved to an archive directory or removed in a later cleanup step.
+Diagnostic replay/geometry scripts tied to removed standalone binaries have been deleted from the active tree.

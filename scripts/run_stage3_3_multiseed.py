@@ -72,17 +72,11 @@ METHOD_SPECS = {
     },
     "fb": {
         "fallback_enabled": True,
-        "env_overrides": {
-            "QN_POST_NEWTON_REFINE_ENABLED": "1",
-            "QN_POST_NEWTON_REFINE_SKIP_ENABLED": "1",
-            "QN_POST_NEWTON_REFINE_MAX_ITER": "20",
-        },
+        "env_overrides": {},
     },
     "fb_norefine": {
         "fallback_enabled": True,
-        "env_overrides": {
-            "QN_POST_NEWTON_REFINE_ENABLED": "0",
-        },
+        "env_overrides": {},
     },
 }
 
@@ -478,7 +472,6 @@ def parse_stage2_summary(summary_path):
     total_round_trip = 0
     constraint_stats = {"total": 0, "newton": 0, "quasi": 0, "failed": 0}
     quasi_stage_stats = {"probe_attempt": 0, "probe_success": 0, "full_attempt": 0, "full_success": 0}
-    post_refine_stats = {"attempt": 0, "skip": 0, "success": 0, "fail": 0, "success_ratio": 0.0}
     quasi_class_stats = {"local": 0, "mid": 0, "global": 0}
     far_route_stats = {"skip": 0, "light": 0, "anchor": 0}
     near_rescue_stats = {"candidate": 0, "attempt": 0, "success": 0, "unusable": 0}
@@ -556,14 +549,6 @@ def parse_stage2_summary(summary_path):
             for key in ("probe_attempt", "probe_success", "full_attempt", "full_success"):
                 if key in kv:
                     quasi_stage_stats[key] = int(kv[key])
-            continue
-        if line.startswith("# post_refine_stats "):
-            kv = parse_key_value_ints(line[len("# post_refine_stats ") :])
-            for key in ("attempt", "skip", "success", "fail"):
-                if key in kv:
-                    post_refine_stats[key] = int(kv[key])
-            if "success_ratio" in kv:
-                post_refine_stats["success_ratio"] = float(kv["success_ratio"])
             continue
         if line.startswith("# quasi_class_stats "):
             kv = parse_key_value_ints(line[len("# quasi_class_stats ") :])
@@ -704,11 +689,6 @@ def parse_stage2_summary(summary_path):
         "quasi_probe_success_count": quasi_stage_stats["probe_success"],
         "full_stage_trigger_count": quasi_stage_stats["full_attempt"],
         "full_stage_success_count": quasi_stage_stats["full_success"],
-        "post_refine_attempt_count": post_refine_stats["attempt"],
-        "post_refine_skip_count": post_refine_stats["skip"],
-        "post_refine_success_count": post_refine_stats["success"],
-        "post_refine_fail_count": post_refine_stats["fail"],
-        "post_refine_success_ratio": post_refine_stats["success_ratio"],
         "quasi_class_local_count": quasi_class_stats["local"],
         "quasi_class_mid_count": quasi_class_stats["mid"],
         "quasi_class_global_count": quasi_class_stats["global"],
@@ -1045,11 +1025,6 @@ def run_one_seed(
         "quasi_probe_success_count": stage2_metrics["quasi_probe_success_count"],
         "full_stage_trigger_count": stage2_metrics["full_stage_trigger_count"],
         "full_stage_success_count": stage2_metrics["full_stage_success_count"],
-        "post_refine_attempt_count": stage2_metrics["post_refine_attempt_count"],
-        "post_refine_skip_count": stage2_metrics["post_refine_skip_count"],
-        "post_refine_success_count": stage2_metrics["post_refine_success_count"],
-        "post_refine_fail_count": stage2_metrics["post_refine_fail_count"],
-        "post_refine_success_ratio": stage2_metrics["post_refine_success_ratio"],
         "quasi_class_local_count": stage2_metrics["quasi_class_local_count"],
         "quasi_class_mid_count": stage2_metrics["quasi_class_mid_count"],
         "quasi_class_global_count": stage2_metrics["quasi_class_global_count"],
@@ -1249,19 +1224,6 @@ def aggregate_rows(rows, observable_exact_re=0.0, observable_exact_im=0.0):
             "mean_unresolved_failure_count": safe_mean([r["unresolved_failure_count"] for r in group]),
             "mean_quasi_probe_success_count": safe_mean([r["quasi_probe_success_count"] for r in group]),
             "mean_full_stage_trigger_count": safe_mean([r["full_stage_trigger_count"] for r in group]),
-            "total_post_refine_attempt_count": int(
-                sum(as_finite_number(r["post_refine_attempt_count"]) or 0.0 for r in group)
-            ),
-            "total_post_refine_skip_count": int(
-                sum(as_finite_number(r.get("post_refine_skip_count")) or 0.0 for r in group)
-            ),
-            "total_post_refine_success_count": int(
-                sum(as_finite_number(r["post_refine_success_count"]) or 0.0 for r in group)
-            ),
-            "total_post_refine_fail_count": int(
-                sum(as_finite_number(r["post_refine_fail_count"]) or 0.0 for r in group)
-            ),
-            "mean_post_refine_success_ratio": safe_mean([r["post_refine_success_ratio"] for r in group]),
             "mean_pair0_accept_rate": safe_mean([r["pair0_accept_rate"] for r in group]),
             "mean_total_round_trip": safe_mean([r["total_round_trip"] for r in group]),
             "mean_hot_end_hit_count": safe_mean([r["hot_end_hit_count"] for r in group]),
@@ -1276,12 +1238,6 @@ def aggregate_rows(rows, observable_exact_re=0.0, observable_exact_im=0.0):
             agg["total_{0}".format(column)] = int(sum(as_finite_number(r.get(column)) or 0.0 for r in group))
         for column in reverse_gate_replay_status_count_columns():
             agg["total_{0}".format(column)] = int(sum(as_finite_number(r.get(column)) or 0.0 for r in group))
-        if agg["total_post_refine_attempt_count"] > 0:
-            agg["post_refine_success_ratio_from_totals"] = float(agg["total_post_refine_success_count"]) / float(
-                agg["total_post_refine_attempt_count"]
-            )
-        else:
-            agg["post_refine_success_ratio_from_totals"] = float("nan")
         for column in reverse_gate_count_columns():
             agg["total_{0}".format(column)] = int(sum(as_finite_number(r.get(column)) or 0.0 for r in group))
         out.append(agg)
@@ -1334,15 +1290,15 @@ def write_report(repo_root, setup, rows, aggregated_rows, report_path, resource_
     lines.extend(
         [
             "",
-            "Failure / reverse-gate reject / post-refine breakdown:",
+            "Failure / reverse-gate reject breakdown:",
             "",
-            "| method | unresolved failures | reverse-gate rejects (total route) | post-refine skip | post-refine success/attempt |",
-            "|---|---:|---:|---:|---:|",
+            "| method | unresolved failures | reverse-gate rejects (total route) |",
+            "|---|---:|---:|",
         ]
     )
     for row in aggregated_rows:
         lines.append(
-            "| {method} | {total_unresolved_failure_count} | {total_reverse_gate_total_reject_count} | {total_post_refine_skip_count} | {total_post_refine_success_count}/{total_post_refine_attempt_count} |".format(
+            "| {method} | {total_unresolved_failure_count} | {total_reverse_gate_total_reject_count} |".format(
                 **row
             )
         )
@@ -1568,11 +1524,6 @@ def main():
         "quasi_probe_success_count",
         "full_stage_trigger_count",
         "full_stage_success_count",
-        "post_refine_attempt_count",
-        "post_refine_skip_count",
-        "post_refine_success_count",
-        "post_refine_fail_count",
-        "post_refine_success_ratio",
         "quasi_class_local_count",
         "quasi_class_mid_count",
         "quasi_class_global_count",
@@ -1678,12 +1629,6 @@ def main():
         "mean_unresolved_failure_count",
         "mean_quasi_probe_success_count",
         "mean_full_stage_trigger_count",
-        "total_post_refine_attempt_count",
-        "total_post_refine_skip_count",
-        "total_post_refine_success_count",
-        "total_post_refine_fail_count",
-        "mean_post_refine_success_ratio",
-        "post_refine_success_ratio_from_totals",
         "mean_pair0_accept_rate",
         "mean_total_round_trip",
         "mean_hot_end_hit_count",

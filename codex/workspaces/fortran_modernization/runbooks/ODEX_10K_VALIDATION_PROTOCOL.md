@@ -28,14 +28,13 @@ Before submitting any 10k job, the following local checks must pass on the exact
 
 1. `git status --short` must be clean except intentionally ignored output artifacts.
 2. `scripts/run_odex_solver_check.sh` must pass.
-3. `scripts/run_odex_flow_wrapper_check.sh` must pass.
-4. A short local Stage2 smoke must pass if the executable or linked objects changed since the last smoke.
-5. Record compiler, branch, commit, parameter file, command line, and output directory in the run manifest.
+3. A short local Stage2 smoke must pass if the executable or linked objects changed since the last smoke.
+4. Record compiler, branch, commit, parameter file, command line, and output directory in the run manifest.
 
 Current local preflight evidence after ODEX canonicalization:
 
 - `run_odex_solver_check`: analytic exponential/oscillator checks pass; fallback attempts/failures are 0.
-- `run_odex_flow_wrapper_check`: t=0.1 and t=0.3 wrapper scans pass; `flowz/flow` success is 21/21 for both; `flowzr` roundtrip success is 81/81 for both; fallback attempts/failures are 0.
+- Standalone flow-wrapper scan binaries were deleted with the legacy diagnostic app cleanup; use `test_odex_solver` plus Stage2 smoke/regression outputs as the active local gate.
 
 ## Canonical Configuration
 
@@ -43,7 +42,7 @@ Primary route:
 
 - Canonical p28 production route: `fb_norefine`.
 - Reverse gate: enabled and treated as part of proposal validity.
-- Post-refine: off unless explicitly re-promoted later.
+- Post-refine: deleted from the active code path.
 - Quasi p28 max iteration: current production p28 setting.
 - Constraint tolerances: use the current production-canonical values unless this protocol is explicitly updated.
 

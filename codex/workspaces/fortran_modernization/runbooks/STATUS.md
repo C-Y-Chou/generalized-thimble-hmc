@@ -432,3 +432,13 @@ Review/commit the Fortran module dependency build patch. Next implementation sli
 - Updated `tests/test_hamiltonian_conservation.f90` so initial flow requests optional ODE status and requires strict success.
 - Behavior-preservation note: this changes only the test guard; successful strict ODEX initialization and the Hamiltonian convergence calculation are unchanged.
 - Verification passed: `git diff --check` and `make -C build FC=gfortran LDFLAGS= test1`.
+
+## Legacy diagnostic and post-refine deletion - 2026-05-09 JST
+- Deleted the tracked root-level Fortran copies `hmc_integrator_core.f90` and `constraint_solver_stats.f90`; they were not build sources and polluted source search/audit.
+- Deleted standalone diagnostic apps and build targets: `sample_flow_manifold`, `replay_quasi_failures`, `probe_hmc_volume`, `scan_flow_vs_flowz`, and `scan_flowzr_stability`.
+- Deleted helper scripts that depended on those removed diagnostic binaries, and removed the replay command section from `docs/commands.md`.
+- Removed the post-refine executable path from HMC/QN fallback: no `QN_POST_NEWTON_REFINE_*` environment controls remain in active `src/`, no post-refine solver attempt/capture code remains, and Stage2/multiseed output schemas no longer report post-refine counters.
+- Preserved the canonical p28 QN route as fallback-enabled without post-refine; the `fb_norefine` method name remains as a compatibility alias in the Stage3 runner.
+- Behavior-preservation note: production proposal physics, ODEX/RATTLE/HMC acceptance logic, reverse gate decisions, RNG, and live-state updates were not intentionally changed by the deletion. Removed Newton `rescue_mode` branches were unreachable from active callers and corresponded to the deleted post-refine/newton-rescue path.
+- Verification passed: `python3 -m py_compile scripts/run_stage3_3_multiseed.py scripts/merge_stage3_multiseed_chunks.py scripts/fortran_module_deps.py`; `git diff --check`; production executable build; `make -C build FC=gfortran LDFLAGS= test_odex_solver`; `make -C build FC=gfortran LDFLAGS= test1`; tiny Stage2 smoke with explicit `TLTM_STAGE2_INIT_SIGMA=0.1`.
+- Follow-up decision needed: Stage2 currently has an existing aliasing hazard in `parse_real_env("TLTM_STAGE2_INIT_SIGMA", init_sigma, init_sigma)`. Without explicit `TLTM_STAGE2_INIT_SIGMA`, the local smoke printed `init_sigma=0.0000` and could fail initialization. Fixing this would change default initialization behavior for runs that do not set the variable, so it should be handled as a separate behavior-reviewed config/state cleanup.

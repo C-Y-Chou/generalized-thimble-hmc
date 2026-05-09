@@ -146,9 +146,7 @@ Implemented in `src/physics/solve_flow.f90`:
 Local pre-validation checks performed after the patch:
 
 - `git diff --check`.
-- `make -C build ../bin/scan_flow_vs_flowz ../bin/scan_flowzr_stability`.
-- `./bin/scan_flow_vs_flowz output/tests/odex_canonical/flow_vs_flowz_ft0p1.csv -0.5 0.5 21 0.1 0.0`: 21/21 `flowz` OK, 21/21 `flow` OK, max `|flowz-flow| = 5.00e-16`.
-- `./bin/scan_flowzr_stability output/tests/odex_canonical/flowzr_roundtrip_ft0p1.csv -0.2 0.2 9 -0.2 0.2 9 0.1 0 1`: 81/81 `flowzr` OK, 81/81 signed roundtrip OK, max roundtrip `4.42e-15`.
+- `make -C build test_odex_solver`.
 - `make -C build test_tltm_stage2 TLTM_STAGE2_CYCLES=2 TLTM_STAGE2_NUM_REPLICAS=2 TLTM_STAGE2_MAX_FLOW_TIME=0.1 TLTM_STAGE2_LOCAL_UPDATES=1`.
 
 These checks are smoke/self-consistency gates only. They do not replace the 10k -> 50k -> 100k physical-observable validation sequence.
@@ -160,11 +158,6 @@ Preferred ODE solver-level check before tolerance tuning:
 - Current coverage: scalar exponential forward/backward, harmonic oscillator forward/backward, full-step vs two-half-step consistency, and zero fallback accounting.
 - Current local result at `abs_tol=rel_tol=3.0e-14`: all checks pass; fallback attempts/failures are 0.
 
-Preferred TLTM-specific wrapper check before 10k validation:
-
-- Run `scripts/run_odex_flow_wrapper_check.sh`.
-- This exercises `flowz`, `flow`, and `flowzr` on the TLTM flow RHS at flow times 0.1 and 0.3.
-- Current local result: `flowz/flow` success 21/21 for both flow times; `flowzr` roundtrip success 81/81 for both flow times; fallback attempts/failures are 0.
-- Current max errors: `max|flowz-flow| = 5.00e-16` at t=0.1, `1.31e-13` at t=0.3; max roundtrip `4.42e-15` at t=0.1, `1.39e-14` at t=0.3.
+The old standalone TLTM flow-wrapper scan binaries were deleted with the diagnostic-app cleanup. TLTM-specific validation now comes from the Stage2 smoke plus the 10k -> 50k -> 100k physical-observable validation ladder.
 
 The 10k physical validation protocol is recorded in `runbooks/ODEX_10K_VALIDATION_PROTOCOL.md`.

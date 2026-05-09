@@ -15,7 +15,6 @@ module tltm_stage2_driver
                                       get_quasi_eval_flow_status_counts
    use constraint_solver_stats_mod, only: reset_constraint_solver_stats, get_constraint_solver_stats, &
                                           get_constraint_solver_quasi_stage_stats, &
-                                          get_constraint_solver_post_refine_stats, &
                                           get_constraint_solver_quasi_class_stats, &
                                           get_constraint_solver_far_route_stats, &
                                           get_constraint_near_rescue_stats, &
@@ -116,8 +115,6 @@ contains
       real(dp) :: solver_newton_ratio, solver_quasi_ratio, solver_fail_ratio
       integer(int64) :: quasi_probe_attempt_count, quasi_probe_success_count
       integer(int64) :: quasi_full_attempt_count, quasi_full_success_count
-      integer(int64) :: post_refine_attempt_count, post_refine_skip_count, post_refine_success_count, post_refine_fail_count
-      real(dp) :: post_refine_success_ratio
       integer(int64) :: quasi_class_local_count, quasi_class_mid_count, quasi_class_global_count
       integer(int64) :: far_route_skip_count, far_route_light_count, far_route_anchor_count
       integer(int64) :: near_candidate_count, near_attempt_count, near_success_count, near_unusable_count
@@ -356,8 +353,6 @@ contains
                                        solver_newton_ratio, solver_quasi_ratio, solver_fail_ratio)
       call get_constraint_solver_quasi_stage_stats(quasi_probe_attempt_count, quasi_probe_success_count, &
                                                    quasi_full_attempt_count, quasi_full_success_count)
-      call get_constraint_solver_post_refine_stats(post_refine_attempt_count, post_refine_skip_count, post_refine_success_count, &
-                                                   post_refine_fail_count, post_refine_success_ratio)
       call get_constraint_solver_quasi_class_stats(quasi_class_local_count, quasi_class_mid_count, &
                                                    quasi_class_global_count)
       call get_constraint_solver_far_route_stats(far_route_skip_count, far_route_light_count, &
@@ -381,7 +376,6 @@ contains
                                 solver_total_count, solver_newton_count, solver_quasi_count, solver_failed_count, &
                                 solver_newton_ratio, solver_quasi_ratio, solver_fail_ratio, &
                                 quasi_probe_attempt_count, quasi_probe_success_count, quasi_full_attempt_count, quasi_full_success_count, &
-                                post_refine_attempt_count, post_refine_skip_count, post_refine_success_count, post_refine_fail_count, post_refine_success_ratio, &
                                 quasi_class_local_count, quasi_class_mid_count, quasi_class_global_count, &
                                 far_route_skip_count, far_route_light_count, far_route_anchor_count, &
                                 near_candidate_count, near_attempt_count, near_success_count, near_unusable_count, &
@@ -942,7 +936,6 @@ contains
                                    solver_total_count, solver_newton_count, solver_quasi_count, solver_failed_count, &
                                    solver_newton_ratio, solver_quasi_ratio, solver_fail_ratio, &
                                    quasi_probe_attempt_count, quasi_probe_success_count, quasi_full_attempt_count, quasi_full_success_count, &
-                                   post_refine_attempt_count, post_refine_skip_count, post_refine_success_count, post_refine_fail_count, post_refine_success_ratio, &
                                    quasi_class_local_count, quasi_class_mid_count, quasi_class_global_count, &
                                    far_route_skip_count, far_route_light_count, far_route_anchor_count, &
                                    near_candidate_count, near_attempt_count, near_success_count, near_unusable_count, &
@@ -969,8 +962,6 @@ contains
       real(dp), intent(in) :: solver_newton_ratio, solver_quasi_ratio, solver_fail_ratio
       integer(int64), intent(in) :: quasi_probe_attempt_count, quasi_probe_success_count
       integer(int64), intent(in) :: quasi_full_attempt_count, quasi_full_success_count
-      integer(int64), intent(in) :: post_refine_attempt_count, post_refine_skip_count, post_refine_success_count, post_refine_fail_count
-      real(dp), intent(in) :: post_refine_success_ratio
       integer(int64), intent(in) :: quasi_class_local_count, quasi_class_mid_count, quasi_class_global_count
       integer(int64), intent(in) :: far_route_skip_count, far_route_light_count, far_route_anchor_count
       integer(int64), intent(in) :: near_candidate_count, near_attempt_count, near_success_count, near_unusable_count
@@ -1028,9 +1019,6 @@ contains
       write (unit_summary, '(A,I0,A,I0,A,I0,A,I0)') &
          "# quasi_stage_stats probe_attempt=", quasi_probe_attempt_count, " probe_success=", quasi_probe_success_count, &
          " full_attempt=", quasi_full_attempt_count, " full_success=", quasi_full_success_count
-      write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,F9.5)') &
-         "# post_refine_stats attempt=", post_refine_attempt_count, " skip=", post_refine_skip_count, " success=", post_refine_success_count, &
-         " fail=", post_refine_fail_count, " success_ratio=", post_refine_success_ratio
       write (unit_summary, '(A,I0,A,I0,A,I0)') &
          "# quasi_class_stats local=", quasi_class_local_count, " mid=", quasi_class_mid_count, &
          " global=", quasi_class_global_count

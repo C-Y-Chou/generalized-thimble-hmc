@@ -6,10 +6,6 @@ module constraint_solver_stats_mod
 
    integer(int64), save :: newton_success_count = 0_int64
    integer(int64), save :: quasi_success_count = 0_int64
-   integer(int64), save :: post_refine_attempt_count = 0_int64
-   integer(int64), save :: post_refine_skip_count = 0_int64
-   integer(int64), save :: post_refine_success_count = 0_int64
-   integer(int64), save :: post_refine_fail_count = 0_int64
    integer(int64), save :: quasi_probe_attempt_count = 0_int64
    integer(int64), save :: quasi_probe_success_count = 0_int64
    integer(int64), save :: quasi_full_attempt_count = 0_int64
@@ -133,10 +129,6 @@ contains
       implicit none
       newton_success_count = 0_int64
       quasi_success_count = 0_int64
-      post_refine_attempt_count = 0_int64
-      post_refine_skip_count = 0_int64
-      post_refine_success_count = 0_int64
-      post_refine_fail_count = 0_int64
       quasi_probe_attempt_count = 0_int64
       quasi_probe_success_count = 0_int64
       quasi_full_attempt_count = 0_int64
@@ -199,62 +191,6 @@ contains
       if (constraint_solver_stats_are_suppressed()) return
       quasi_success_count = quasi_success_count + 1_int64
    end subroutine record_constraint_solver_quasi_success
-
-   subroutine record_constraint_solver_post_refine_attempt()
-      implicit none
-      if (constraint_solver_stats_are_suppressed()) return
-      post_refine_attempt_count = post_refine_attempt_count + 1_int64
-   end subroutine record_constraint_solver_post_refine_attempt
-
-   subroutine record_constraint_solver_post_refine_skip()
-      implicit none
-      if (constraint_solver_stats_are_suppressed()) return
-      post_refine_skip_count = post_refine_skip_count + 1_int64
-   end subroutine record_constraint_solver_post_refine_skip
-
-   subroutine record_constraint_solver_post_refine_success()
-      implicit none
-      if (constraint_solver_stats_are_suppressed()) return
-      post_refine_success_count = post_refine_success_count + 1_int64
-   end subroutine record_constraint_solver_post_refine_success
-
-   subroutine record_constraint_solver_post_refine_fail()
-      implicit none
-      if (constraint_solver_stats_are_suppressed()) return
-      post_refine_fail_count = post_refine_fail_count + 1_int64
-   end subroutine record_constraint_solver_post_refine_fail
-
-   subroutine record_constraint_solver_post_refine_fail_capture(z0, del_z, x0, quasi_z_proposed, quasi_z_flowed, quasi_res_norm, &
-                                                                quasi_alpha, quasi_iter, quasi_backtrack, quasi_attempt, &
-                                                                quasi_accepted, quasi_eval_ok, trace_valid_fraction, &
-                                                                trace_progress_ratio, trace_regress_ratio, trace_best_over_tol)
-      implicit none
-      complex(dp), intent(in) :: z0(:)
-      real(dp), intent(in) :: del_z(:), x0(:)
-      complex(dp), intent(in), optional :: quasi_z_proposed(:), quasi_z_flowed(:)
-      real(dp), intent(in), optional :: quasi_res_norm(:), quasi_alpha(:)
-      integer, intent(in), optional :: quasi_iter(:), quasi_backtrack(:), quasi_attempt(:)
-      logical, intent(in), optional :: quasi_accepted(:), quasi_eval_ok(:)
-      real(dp), intent(in), optional :: trace_valid_fraction, trace_progress_ratio, trace_regress_ratio, trace_best_over_tol
-
-      if (constraint_solver_stats_are_suppressed()) return
-      if (has_complete_quasi_trace(quasi_z_proposed, quasi_z_flowed, quasi_res_norm, quasi_alpha, &
-                                   quasi_iter, quasi_backtrack, quasi_attempt, quasi_accepted, quasi_eval_ok)) then
-         call capture_constraint_failure_sample(z0, del_z, x0, quasi_z_proposed, quasi_z_flowed, quasi_res_norm, quasi_alpha, &
-                                                quasi_iter, quasi_backtrack, quasi_attempt, quasi_accepted, quasi_eval_ok, &
-                                                quasi_case=-2, online_class=-2, trace_valid_fraction=trace_valid_fraction, &
-                                                trace_progress_ratio=trace_progress_ratio, trace_regress_ratio=trace_regress_ratio, &
-                                                trace_best_over_tol=trace_best_over_tol, post_refine_failed=.true., &
-                                                force_capture=.true.)
-      else
-         call capture_constraint_failure_sample(z0, del_z, x0, quasi_case=-2, online_class=-2, &
-                                                trace_valid_fraction=trace_valid_fraction, &
-                                                trace_progress_ratio=trace_progress_ratio, &
-                                                trace_regress_ratio=trace_regress_ratio, &
-                                                trace_best_over_tol=trace_best_over_tol, post_refine_failed=.true., &
-                                                force_capture=.true.)
-      end if
-   end subroutine record_constraint_solver_post_refine_fail_capture
 
    subroutine record_constraint_solver_quasi_stage_attempt(stage_code)
       implicit none
@@ -321,8 +257,7 @@ contains
                                             attempt_flowz, attempt_flowzr, attempt_flow, attempt_unknown, &
                                             fail_flowz, fail_flowzr, fail_flow, fail_unknown, success_final_resort, &
                                             fail_final_resort, radau_rescue_ok, radau_rescue_fail, &
-                                            post_refine_failed, final_resort_budget_hit, final_resort_budget_used, &
-                                            final_resort_budget_limit)
+                                            final_resort_budget_hit, final_resort_budget_used, final_resort_budget_limit)
       implicit none
       complex(dp), intent(in), optional :: z0(:)
       real(dp), intent(in), optional :: del_z(:)
@@ -342,7 +277,6 @@ contains
       integer, intent(in), optional :: fail_flowz, fail_flowzr, fail_flow, fail_unknown
       integer, intent(in), optional :: success_final_resort, fail_final_resort
       integer, intent(in), optional :: radau_rescue_ok, radau_rescue_fail
-      logical, intent(in), optional :: post_refine_failed
       logical, intent(in), optional :: final_resort_budget_hit
       integer, intent(in), optional :: final_resort_budget_used, final_resort_budget_limit
 
@@ -360,8 +294,7 @@ contains
                                                    attempt_flowz, attempt_flowzr, attempt_flow, attempt_unknown, &
                                                    fail_flowz, fail_flowzr, fail_flow, fail_unknown, success_final_resort, &
                                                    fail_final_resort, radau_rescue_ok, radau_rescue_fail, &
-                                                   post_refine_failed, final_resort_budget_hit, final_resort_budget_used, &
-                                                   final_resort_budget_limit)
+                                                   final_resort_budget_hit, final_resort_budget_used, final_resort_budget_limit)
          else
             call capture_constraint_failure_sample(z0, del_z, x0, quasi_case=quasi_case, online_class=online_class, &
                                                    trace_valid_fraction=trace_valid_fraction, trace_progress_ratio=trace_progress_ratio, &
@@ -376,7 +309,6 @@ contains
                                                    fail_flow=fail_flow, fail_unknown=fail_unknown, &
                                                    success_final_resort=success_final_resort, fail_final_resort=fail_final_resort, &
                                                    radau_rescue_ok=radau_rescue_ok, radau_rescue_fail=radau_rescue_fail, &
-                                                   post_refine_failed=post_refine_failed, &
                                                    final_resort_budget_hit=final_resort_budget_hit, &
                                                    final_resort_budget_used=final_resort_budget_used, &
                                                    final_resort_budget_limit=final_resort_budget_limit)
@@ -617,22 +549,6 @@ contains
       full_success_count = quasi_full_success_count
    end subroutine get_constraint_solver_quasi_stage_stats
 
-   subroutine get_constraint_solver_post_refine_stats(attempt_count, skip_count, success_count, fail_count, success_ratio)
-      implicit none
-      integer(int64), intent(out) :: attempt_count, skip_count, success_count, fail_count
-      real(dp), intent(out) :: success_ratio
-
-      attempt_count = post_refine_attempt_count
-      skip_count = post_refine_skip_count
-      success_count = post_refine_success_count
-      fail_count = post_refine_fail_count
-      if (attempt_count > 0_int64) then
-         success_ratio = real(success_count, dp)/real(attempt_count, dp)
-      else
-         success_ratio = 0.0_dp
-      end if
-   end subroutine get_constraint_solver_post_refine_stats
-
    subroutine get_constraint_solver_quasi_class_stats(local_count, mid_count, global_count)
       implicit none
       integer(int64), intent(out) :: local_count, mid_count, global_count
@@ -694,7 +610,6 @@ contains
       integer(int64) :: total_count, newton_count, quasi_count, failed_count
       integer(int64) :: probe_attempt_count, probe_success_count
       integer(int64) :: full_attempt_count, full_success_count
-      integer(int64) :: post_refine_attempt_count_local, post_refine_skip_count_local, post_refine_success_count_local, post_refine_fail_count_local
       integer(int64) :: class_local_count, class_mid_count, class_global_count
       integer(int64) :: far_route_skip_count, far_route_light_count, far_route_anchor_count
       integer(int64) :: far_scope_count, far_success_count, far_fail_case_count, far_fail_fast_case_count
@@ -703,7 +618,6 @@ contains
       integer(int64) :: far_flowzr_used_success_sum, far_final_resort_used_success_sum
       integer(int64) :: far_flowzr_used_fail_sum, far_final_resort_used_fail_sum
       real(dp) :: newton_ratio, quasi_ratio, fail_ratio, budget_used_avg
-      real(dp) :: post_refine_success_ratio
       real(dp) :: far_unit_success_share, far_case_success_share
       real(dp) :: far_units_total, far_units_success
 
@@ -711,8 +625,6 @@ contains
                                        newton_ratio, quasi_ratio, fail_ratio)
       call get_constraint_solver_quasi_stage_stats(probe_attempt_count, probe_success_count, &
                                                    full_attempt_count, full_success_count)
-      call get_constraint_solver_post_refine_stats(post_refine_attempt_count_local, post_refine_skip_count_local, post_refine_success_count_local, &
-                                                   post_refine_fail_count_local, post_refine_success_ratio)
       call get_constraint_solver_quasi_class_stats(class_local_count, class_mid_count, class_global_count)
       call get_constraint_solver_far_route_stats(far_route_skip_count, far_route_light_count, far_route_anchor_count)
       call get_constraint_solver_far_investment_stats(far_scope_count, far_success_count, far_fail_case_count, &
@@ -749,9 +661,6 @@ contains
             failed_count, " ratio=", fail_ratio
          write (*, '(A,1X,A,I0,A,I0,A,I0,A,I0)') trim(summary_tag), "quasi_stage probe=", &
             probe_success_count, "/", probe_attempt_count, " full=", full_success_count, "/", full_attempt_count
-         write (*, '(A,1X,A,I0,A,I0,A,I0,A,I0,A,F8.5)') trim(summary_tag), "post_refine attempt=", &
-            post_refine_attempt_count_local, " skip=", post_refine_skip_count_local, " success=", post_refine_success_count_local, &
-            " fail=", post_refine_fail_count_local, " success_ratio=", post_refine_success_ratio
          write (*, '(A,1X,A,I0,A,I0,A,I0)') trim(summary_tag), "quasi_class local=", class_local_count, &
             " mid=", class_mid_count, " global=", class_global_count
          write (*, '(A,1X,A,I0,A,I0,A,I0)') trim(summary_tag), "quasi_far_route skip=", far_route_skip_count, &
@@ -786,9 +695,6 @@ contains
             failed_count, " ratio=", fail_ratio
          write (*, '(A,I0,A,I0,A,I0,A,I0)') "[SUMMARY] quasi_stage probe=", &
             probe_success_count, "/", probe_attempt_count, " full=", full_success_count, "/", full_attempt_count
-         write (*, '(A,I0,A,I0,A,I0,A,I0,A,F8.5)') "[SUMMARY] post_refine attempt=", &
-            post_refine_attempt_count_local, " skip=", post_refine_skip_count_local, " success=", post_refine_success_count_local, &
-            " fail=", post_refine_fail_count_local, " success_ratio=", post_refine_success_ratio
          write (*, '(A,I0,A,I0,A,I0)') "[SUMMARY] quasi_class local=", class_local_count, &
             " mid=", class_mid_count, " global=", class_global_count
          write (*, '(A,I0,A,I0,A,I0)') "[SUMMARY] quasi_far_route skip=", far_route_skip_count, &
@@ -965,7 +871,6 @@ contains
       end if
       write (failure_capture_meta_unit, '(A)') &
          "sample_idx,chain_sample_idx,hmc_repeat_idx,quasi_case,online_class,is_near_case,near_rescue_started,near_rescue_done,near_fail_fast,near_fail_fast_reason,far_fail_fast,far_fail_fast_reason," // &
-         "post_refine_failed," // &
          "trace_valid_fraction,trace_progress_ratio,trace_regress_ratio,trace_best_over_tol," // &
          "attempt_flowz,attempt_flowzr,attempt_flow,attempt_unknown,fail_flowz,fail_flowzr,fail_flow,fail_unknown," // &
          "success_final_resort,fail_final_resort,radau_rescue_ok,radau_rescue_fail," // &
@@ -1051,8 +956,7 @@ contains
                                                 attempt_flowz, attempt_flowzr, attempt_flow, attempt_unknown, &
                                                 fail_flowz, fail_flowzr, fail_flow, fail_unknown, success_final_resort, &
                                                 fail_final_resort, radau_rescue_ok, radau_rescue_fail, &
-                                                post_refine_failed, final_resort_budget_hit, final_resort_budget_used, &
-                                                final_resort_budget_limit, force_capture)
+                                                final_resort_budget_hit, final_resort_budget_used, final_resort_budget_limit, force_capture)
       implicit none
       complex(dp), intent(in) :: z0(:)
       real(dp), intent(in) :: del_z(:)
@@ -1072,7 +976,6 @@ contains
       integer, intent(in), optional :: fail_flowz, fail_flowzr, fail_flow, fail_unknown
       integer, intent(in), optional :: success_final_resort, fail_final_resort
       integer, intent(in), optional :: radau_rescue_ok, radau_rescue_fail
-      logical, intent(in), optional :: post_refine_failed
       logical, intent(in), optional :: final_resort_budget_hit
       integer, intent(in), optional :: final_resort_budget_used, final_resort_budget_limit
       logical, intent(in), optional :: force_capture
@@ -1130,8 +1033,7 @@ contains
                                   attempt_flowz, attempt_flowzr, attempt_flow, attempt_unknown, &
                                   fail_flowz, fail_flowzr, fail_flow, fail_unknown, success_final_resort, &
                                   fail_final_resort, radau_rescue_ok, radau_rescue_fail, &
-                                  post_refine_failed, final_resort_budget_hit, final_resort_budget_used, &
-                                  final_resort_budget_limit, io_ok)
+                                  final_resort_budget_hit, final_resort_budget_used, final_resort_budget_limit, io_ok)
       if (.not. io_ok) then
          call handle_failure_capture_error("[WARN] Failed writing failure-meta row.")
          return
@@ -1211,8 +1113,7 @@ contains
                                      attempt_flowz, attempt_flowzr, attempt_flow, attempt_unknown, &
                                      fail_flowz, fail_flowzr, fail_flow, fail_unknown, success_final_resort, &
                                      fail_final_resort, radau_rescue_ok, radau_rescue_fail, &
-                                     post_refine_failed, final_resort_budget_hit, final_resort_budget_used, &
-                                     final_resort_budget_limit, io_ok)
+                                     final_resort_budget_hit, final_resort_budget_used, final_resort_budget_limit, io_ok)
       implicit none
       integer, intent(in) :: sample_idx
       integer, intent(in), optional :: quasi_case, online_class
@@ -1226,13 +1127,11 @@ contains
       integer, intent(in), optional :: fail_flowz, fail_flowzr, fail_flow, fail_unknown
       integer, intent(in), optional :: success_final_resort, fail_final_resort
       integer, intent(in), optional :: radau_rescue_ok, radau_rescue_fail
-      logical, intent(in), optional :: post_refine_failed
       logical, intent(in), optional :: final_resort_budget_hit
       integer, intent(in), optional :: final_resort_budget_used, final_resort_budget_limit
       logical, intent(out) :: io_ok
       integer :: ios
       integer :: v_quasi_case, v_online_class
-      integer :: v_post_refine_failed
       integer :: v_is_near_case, v_near_rescue_started, v_near_rescue_done
       integer :: v_near_fail_fast, v_near_fail_fast_reason
       integer :: v_far_fail_fast, v_far_fail_fast_reason
@@ -1249,7 +1148,6 @@ contains
       io_ok = .true.
       v_quasi_case = optional_int(quasi_case, -1)
       v_online_class = optional_int(online_class, -1)
-      v_post_refine_failed = optional_logical_int(post_refine_failed, 0)
       v_is_near_case = optional_logical_int(is_near_case, -1)
       v_near_rescue_started = optional_logical_int(near_rescue_started, -1)
       v_near_rescue_done = optional_logical_int(near_rescue_done, -1)
@@ -1349,7 +1247,7 @@ contains
       write (failure_capture_meta_unit, '(*(g0,:,","))', iostat=ios) &
          sample_idx, context_chain_sample_idx, context_hmc_repeat_idx, v_quasi_case, v_online_class, &
          v_is_near_case, v_near_rescue_started, v_near_rescue_done, v_near_fail_fast, v_near_fail_fast_reason, &
-         v_far_fail_fast, v_far_fail_fast_reason, v_post_refine_failed, &
+         v_far_fail_fast, v_far_fail_fast_reason, &
          v_trace_valid_fraction, v_trace_progress_ratio, v_trace_regress_ratio, v_trace_best_over_tol, &
          v_attempt_flowz, v_attempt_flowzr, v_attempt_flow, v_attempt_unknown, &
          v_fail_flowz, v_fail_flowzr, v_fail_flow, v_fail_unknown, &

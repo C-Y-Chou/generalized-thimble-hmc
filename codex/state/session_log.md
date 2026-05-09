@@ -752,3 +752,10 @@ Use this file to append per-session notes.
 ## 2026-05-09 JST
 - Updated Hamiltonian conservation test initialization to request optional `flow(...)` status and require strict success.
 - Verified with `git diff --check` and `make -C build FC=gfortran LDFLAGS= test1`.
+
+## 2026-05-09 JST
+- Deleted legacy diagnostic app/build surfaces and root-level tracked Fortran artifacts that were outside the production build graph.
+- Removed the active post-refine HMC/QN path and its Stage2/multiseed reporting columns; `fb_norefine` remains as a compatibility alias for the canonical fallback-enabled/no-post-refine route.
+- Removed helper scripts that depended on the deleted diagnostic binaries and updated active command/ODEX validation docs accordingly.
+- Verification passed with `py_compile`, `git diff --check`, production executable build, `test_odex_solver`, `test1`, and tiny Stage2 smoke using explicit `TLTM_STAGE2_INIT_SIGMA=0.1`.
+- Noted separate decision item: Stage2 default `init_sigma` parsing appears to suffer from an existing same-variable `intent(in)`/`intent(out)` aliasing hazard; fixing it may change default initialization behavior.

@@ -27,11 +27,6 @@ module hmc_integrator_core
                                            record_constraint_solver_far_route, &
                                            record_constraint_solver_quasi_stage_attempt, &
                                            record_constraint_solver_quasi_stage_success, &
-                                           record_constraint_solver_post_refine_attempt, &
-                                           record_constraint_solver_post_refine_skip, &
-                                           record_constraint_solver_post_refine_success, &
-                                           record_constraint_solver_post_refine_fail, &
-                                           record_constraint_solver_post_refine_fail_capture, &
                                            record_constraint_solver_reverse_gate, &
                                            push_constraint_solver_stats_suppression, &
                                            pop_constraint_solver_stats_suppression, &
@@ -66,7 +61,6 @@ module hmc_integrator_core
    integer, parameter :: s1_probe_max_iter_default = 28
    integer, parameter :: s1_near_full_max_iter_default = 100
    integer, parameter :: s1_non_near_cheap_full_max_iter_default = 36
-   integer, parameter :: qn_post_newton_refine_max_iter_default = 40
    real(dp), parameter :: qn_reverse_gate_tol_default = 1.0e-8_dp
 
    logical, save :: s1_fallback_policy_loaded = .false.
@@ -75,9 +69,6 @@ module hmc_integrator_core
    integer, save :: s1_non_near_cheap_full_max_iter = s1_non_near_cheap_full_max_iter_default
    logical, save :: s1_near_rescue_enabled = .false.
    logical, save :: s1_nonnear_rescue_enabled = .false.
-   logical, save :: qn_post_newton_refine_enabled = .false.
-   logical, save :: qn_post_newton_refine_skip_enabled = .true.
-   integer, save :: qn_post_newton_refine_max_iter = qn_post_newton_refine_max_iter_default
    logical, save :: qn_reverse_gate_enabled = .false.
    logical, save :: qn_reverse_gate_active = .false.
    real(dp), save :: qn_reverse_gate_tol = qn_reverse_gate_tol_default
@@ -212,7 +203,6 @@ contains
       logical :: reverse_gate_used_class_local, reverse_gate_used_class_mid, reverse_gate_used_class_global
       logical :: reverse_gate_used_far_skip, reverse_gate_used_far_light, reverse_gate_used_far_anchor
       logical :: reverse_gate_passed
-      logical :: post_refine_failed_in_proposal
       integer :: reverse_gate_far_route
       integer :: reverse_gate_class_code
       integer :: trace_count, trace_valid_count
@@ -271,7 +261,6 @@ contains
       quasi_budget_hit = .false.
       quasi_budget_used = -1
       quasi_budget_limit = -1
-      post_refine_failed_in_proposal = .false.
 
       if (size(final_x) /= size(state_x) .or. size(final_z) /= n_state) then
          if (present(step_status)) step_status = hmc_step_status_output_size_mismatch
@@ -340,8 +329,7 @@ contains
             near_rescue_started = .false.
 
             ! S1-only fallback path: probe -> classify -> one stage-1 rescue pass.
-            call try_quasi_stage(quasi_tol, s1_probe_max_iter, constraint_quasi_stage_probe, ws, has_error, final_x, &
-                                 post_refine_failed_in_proposal)
+            call try_quasi_stage(quasi_tol, s1_probe_max_iter, constraint_quasi_stage_probe, ws, has_error, final_x)
             if (.not. has_error) then
                quasi_solved_ok = .true.
             else
@@ -375,7 +363,6 @@ contains
                                                 trace_stats_available, trace_valid_fraction, &
                                                 trace_progress_ratio, trace_regress_ratio, trace_best_over_tol, &
                                                 step_size, ws, has_error, final_x, near_rescue_started, near_rescue_done, &
-                                                post_refine_failed_in_proposal, &
                                                 quasi_solved_ok, reverse_gate_used_full_stage, &
                                                 reverse_gate_used_nonnear_route, reverse_gate_far_route)
 
@@ -451,7 +438,6 @@ contains
                                                      fail_unknown=fail_unknown, success_final_resort=success_final_resort, &
                                                      fail_final_resort=fail_final_resort, radau_rescue_ok=radau_rescue_ok, &
                                                      radau_rescue_fail=radau_rescue_fail, &
-                                                     post_refine_failed=post_refine_failed_in_proposal, &
                                                      final_resort_budget_hit=quasi_budget_hit, &
                                                      final_resort_budget_used=quasi_budget_used, &
                                                      final_resort_budget_limit=quasi_budget_limit)
@@ -469,7 +455,6 @@ contains
                                                      fail_unknown=fail_unknown, success_final_resort=success_final_resort, &
                                                      fail_final_resort=fail_final_resort, radau_rescue_ok=radau_rescue_ok, &
                                                      radau_rescue_fail=radau_rescue_fail, &
-                                                     post_refine_failed=post_refine_failed_in_proposal, &
                                                      final_resort_budget_hit=quasi_budget_hit, &
                                                      final_resort_budget_used=quasi_budget_used, &
                                                      final_resort_budget_limit=quasi_budget_limit)
@@ -498,7 +483,6 @@ contains
                                                fail_unknown=fail_unknown, success_final_resort=success_final_resort, &
                                                fail_final_resort=fail_final_resort, radau_rescue_ok=radau_rescue_ok, &
                                                radau_rescue_fail=radau_rescue_fail, &
-                                               post_refine_failed=post_refine_failed_in_proposal, &
                                                final_resort_budget_hit=quasi_budget_hit, &
                                                final_resort_budget_used=quasi_budget_used, &
                                                final_resort_budget_limit=quasi_budget_limit)
@@ -648,173 +632,21 @@ contains
       if (allocated(reverse_jac)) deallocate (reverse_jac)
    end function qn_reverse_gate_accepts
 
-   subroutine try_quasi_stage(quasi_tol, quasi_max_iter, stage_code, ws, has_error, final_x, post_refine_failed_in_proposal)
+   subroutine try_quasi_stage(quasi_tol, quasi_max_iter, stage_code, ws, has_error, final_x)
       implicit none
       real(dp), intent(in) :: quasi_tol
       integer, intent(in) :: quasi_max_iter, stage_code
       type(rattle_step_workspace_t), intent(inout) :: ws
       logical, intent(out) :: has_error
       real(dp), intent(inout) :: final_x(:)
-      logical, intent(inout) :: post_refine_failed_in_proposal
-      real(dp), allocatable :: qn_solution_xi(:)
 
       call record_constraint_solver_quasi_stage_attempt(stage_code)
-      allocate (qn_solution_xi(size(ws%del_z)))
       call solve_constraint_quasi_newton(evaluate_constraint_residual, quasi_tol, quasi_max_iter, ws%temp_x, ws%temp_z, ws%del_z, &
-                                         has_error, ws%Jl, final_x, ws%temp_jac, x_best_solution=qn_solution_xi)
-      if (.not. has_error) then
-         call refine_quasi_with_dfols_loss(cttol, ws, has_error, final_x, post_refine_failed_in_proposal, qn_solution_xi)
-      end if
+                                         has_error, ws%Jl, final_x, ws%temp_jac)
       if (.not. has_error) then
          call record_constraint_solver_quasi_stage_success(stage_code)
       end if
-      if (allocated(qn_solution_xi)) deallocate (qn_solution_xi)
    end subroutine try_quasi_stage
-
-   subroutine refine_quasi_with_dfols_loss(post_refine_tol, ws, has_error, final_x, post_refine_failed_in_proposal, qn_solution_xi)
-      implicit none
-      real(dp), intent(in) :: post_refine_tol
-      type(rattle_step_workspace_t), intent(inout) :: ws
-      logical, intent(inout) :: has_error
-      real(dp), intent(inout) :: final_x(:)
-      logical, intent(inout) :: post_refine_failed_in_proposal
-      real(dp), intent(in), optional :: qn_solution_xi(:)
-
-      real(dp), allocatable :: refined_jl(:), refined_x(:), post_refine_seed(:), post_refine_seed_residual(:)
-      complex(dp), allocatable :: post_refine_seed_zprop(:)
-      complex(dp), allocatable :: quasi_z_proposed(:), quasi_z_flowed(:)
-      real(dp), allocatable :: quasi_res_norm(:), quasi_alpha(:)
-      integer, allocatable :: quasi_iter(:), quasi_backtrack(:), quasi_attempt(:)
-      logical, allocatable :: quasi_accepted(:), quasi_eval_ok(:)
-      logical :: refine_error, seed_ready, seed_eval_error
-      logical :: trace_stats_available, trace_all_eval_ok, quasi_trace_available
-      integer :: trace_count, trace_valid_count, quasi_proposal_count
-      real(dp) :: trace_first_res, trace_best_res, trace_last_res, seed_res_norm
-      real(dp) :: trace_valid_fraction, trace_progress_ratio, trace_regress_ratio, trace_best_over_tol
-
-      if (.not. qn_post_newton_refine_enabled) return
-      if (has_error) return
-      if (.not. allocated(ws%Jl)) return
-
-      allocate (refined_jl(size(ws%Jl)), refined_x(size(final_x)))
-      allocate (post_refine_seed(size(ws%Jl)))
-      allocate (post_refine_seed_residual(size(ws%Jl)))
-      allocate (post_refine_seed_zprop(size(ws%temp_z)))
-
-      call build_post_refine_seed_from_qn(ws%temp_x, final_x, qn_solution_xi, post_refine_seed, seed_ready)
-      if (qn_post_newton_refine_skip_enabled .and. seed_ready) then
-         call evaluate_constraint_residual_newton_loss(ws%temp_x, ws%temp_z, post_refine_seed, post_refine_seed_residual, &
-                                                       ws%del_z, seed_eval_error, refined_jl, ws%temp_jac)
-         if (.not. seed_eval_error) then
-            seed_res_norm = norm2(post_refine_seed_residual)
-            if (ieee_is_finite(seed_res_norm) .and. seed_res_norm <= post_refine_tol) then
-               call real_to_complex(ws%del_z + refined_jl, post_refine_seed_zprop)
-               post_refine_seed_zprop = ws%temp_z + post_refine_seed_zprop
-               call set_intode_stage_trace(intode_stage_quasi)
-               call set_intode_quasi_iter_trace(0)
-               call flowzr(ws%temp_x, post_refine_seed_zprop, seed_eval_error)
-               if (.not. seed_eval_error) then
-                  call record_constraint_solver_post_refine_skip()
-                  ws%Jl = refined_jl
-                  final_x = ws%temp_x
-                  final_x(2:) = real(post_refine_seed_zprop, dp)
-                  has_error = .false.
-                  deallocate (refined_jl, refined_x, post_refine_seed, post_refine_seed_residual, post_refine_seed_zprop)
-                  return
-               end if
-            end if
-         end if
-      end if
-
-      call record_constraint_solver_post_refine_attempt()
-      ! 1A + 2B policy:
-      ! - Post-refine failure is treated as a solver failure for this proposal.
-      ! - Refine solver uses the standard DFOLS path (not strict continuation).
-      if (seed_ready) then
-         call solve_constraint_quasi_newton(evaluate_constraint_residual_newton_loss, post_refine_tol, &
-                                            qn_post_newton_refine_max_iter, ws%temp_x, ws%temp_z, ws%del_z, &
-                                            refine_error, refined_jl, refined_x, ws%temp_jac, x_seed_override=post_refine_seed)
-      else
-         call solve_constraint_quasi_newton(evaluate_constraint_residual_newton_loss, post_refine_tol, &
-                                            qn_post_newton_refine_max_iter, ws%temp_x, ws%temp_z, ws%del_z, &
-                                            refine_error, refined_jl, refined_x, ws%temp_jac)
-      end if
-      if (refine_error) then
-         call record_constraint_solver_post_refine_fail()
-         call get_quasi_newton_last_trace_stats(trace_stats_available, trace_count, trace_first_res, trace_best_res, trace_last_res, &
-                                                trace_all_eval_ok, trace_valid_count, trace_valid_fraction)
-         if (trace_stats_available .and. post_refine_tol > 0.0_dp) then
-            trace_best_over_tol = trace_best_res/post_refine_tol
-            trace_progress_ratio = trace_best_res/max(trace_first_res, tiny(1.0_dp))
-            trace_regress_ratio = trace_last_res/max(trace_best_res, tiny(1.0_dp))
-         else
-            trace_best_over_tol = -1.0_dp
-            trace_progress_ratio = -1.0_dp
-            trace_regress_ratio = -1.0_dp
-            trace_valid_fraction = -1.0_dp
-         end if
-         call get_quasi_newton_last_trace_r2c(quasi_trace_available, quasi_proposal_count, quasi_z_proposed, quasi_z_flowed, &
-                                              quasi_res_norm, quasi_alpha, quasi_iter, quasi_backtrack, quasi_attempt, &
-                                              quasi_accepted, quasi_eval_ok)
-         if (quasi_trace_available .and. quasi_proposal_count > 0) then
-            call record_constraint_solver_post_refine_fail_capture(ws%temp_z, ws%del_z, ws%temp_x, &
-                                                                   quasi_z_proposed=quasi_z_proposed, &
-                                                                   quasi_z_flowed=quasi_z_flowed, &
-                                                                   quasi_res_norm=quasi_res_norm, &
-                                                                   quasi_alpha=quasi_alpha, &
-                                                                   quasi_iter=quasi_iter, &
-                                                                   quasi_backtrack=quasi_backtrack, &
-                                                                   quasi_attempt=quasi_attempt, &
-                                                                   quasi_accepted=quasi_accepted, &
-                                                                   quasi_eval_ok=quasi_eval_ok, &
-                                                                   trace_valid_fraction=trace_valid_fraction, &
-                                                                   trace_progress_ratio=trace_progress_ratio, &
-                                                                   trace_regress_ratio=trace_regress_ratio, &
-                                                                   trace_best_over_tol=trace_best_over_tol)
-         else
-            call record_constraint_solver_post_refine_fail_capture(ws%temp_z, ws%del_z, ws%temp_x, &
-                                                                   trace_valid_fraction=trace_valid_fraction, &
-                                                                   trace_progress_ratio=trace_progress_ratio, &
-                                                                   trace_regress_ratio=trace_regress_ratio, &
-                                                                   trace_best_over_tol=trace_best_over_tol)
-         end if
-         post_refine_failed_in_proposal = .true.
-         has_error = .true.
-      else
-         call record_constraint_solver_post_refine_success()
-         ws%Jl = refined_jl
-         final_x = refined_x
-         has_error = .false.
-      end if
-
-      deallocate (refined_jl, refined_x, post_refine_seed, post_refine_seed_residual, post_refine_seed_zprop)
-   end subroutine refine_quasi_with_dfols_loss
-
-   subroutine build_post_refine_seed_from_qn(x_base, x_qn, qn_solution_xi, seed_xi, ready)
-      implicit none
-      real(dp), intent(in) :: x_base(:), x_qn(:)
-      real(dp), intent(in), optional :: qn_solution_xi(:)
-      real(dp), intent(out) :: seed_xi(:)
-      logical, intent(out) :: ready
-
-      integer :: n
-
-      ready = .false.
-      seed_xi = 0.0_dp
-      if (.not. present(qn_solution_xi)) return
-      n = size(seed_xi)/2
-      if (n <= 0) return
-      if (size(seed_xi) /= 2*n) return
-      if (size(x_base) /= n + 1 .or. size(x_qn) /= n + 1) return
-      if (size(qn_solution_xi) /= 2*n) return
-
-      ! Post-refine seed from BTN paper variables:
-      !   u0  = Re(zinv_qn) - x0
-      !   ld0 = b_qn
-      seed_xi(1:n) = x_qn(2:) - x_base(2:)
-      seed_xi(n + 1:2*n) = qn_solution_xi(1:n)
-      ready = all(ieee_is_finite(seed_xi))
-   end subroutine build_post_refine_seed_from_qn
 
    subroutine refresh_quasi_trace_gate_state(quasi_tol, trace_available, trace_valid_fraction, &
                                              trace_progress_ratio, trace_regress_ratio, trace_best_over_tol)
@@ -858,7 +690,7 @@ contains
                                           trace_stats_available, trace_valid_fraction, trace_progress_ratio, &
                                           trace_regress_ratio, trace_best_over_tol, &
                                           step_size, ws, has_error, final_x, near_rescue_started, near_rescue_done, &
-                                          post_refine_failed_in_proposal, quasi_solved_ok, used_full_stage, &
+                                          quasi_solved_ok, used_full_stage, &
                                           used_nonnear_route, far_route_used)
       implicit none
       real(dp), intent(in) :: quasi_tol
@@ -871,7 +703,6 @@ contains
       real(dp), intent(inout) :: final_x(:)
       logical, intent(inout) :: near_rescue_started
       logical, intent(inout) :: near_rescue_done
-      logical, intent(inout) :: post_refine_failed_in_proposal
       logical, intent(inout) :: quasi_solved_ok
       logical, intent(inout) :: used_full_stage
       logical, intent(inout) :: used_nonnear_route
@@ -888,8 +719,7 @@ contains
          near_rescue_started = .true.
          call record_constraint_near_rescue_attempt()
          used_full_stage = .true.
-         call try_quasi_stage(quasi_tol, s1_near_full_max_iter, constraint_quasi_stage_full, ws, has_error, final_x, &
-                              post_refine_failed_in_proposal)
+         call try_quasi_stage(quasi_tol, s1_near_full_max_iter, constraint_quasi_stage_full, ws, has_error, final_x)
          if (.not. has_error) then
             near_rescue_done = .true.
             call record_constraint_near_rescue_success()
@@ -910,8 +740,7 @@ contains
       if (s1_nonnear_rescue_enabled .and. far_route >= constraint_quasi_far_route_light) then
          used_full_stage = .true.
          used_nonnear_route = .true.
-         call try_quasi_stage(quasi_tol, s1_non_near_cheap_full_max_iter, constraint_quasi_stage_full, ws, has_error, final_x, &
-                              post_refine_failed_in_proposal)
+         call try_quasi_stage(quasi_tol, s1_non_near_cheap_full_max_iter, constraint_quasi_stage_full, ws, has_error, final_x)
       end if
       if (has_error) then
          call refresh_quasi_trace_gate_state(quasi_tol, trace_stats_available, trace_valid_fraction, &
@@ -1075,9 +904,6 @@ contains
       s1_non_near_cheap_full_max_iter = s1_non_near_cheap_full_max_iter_default
       s1_near_rescue_enabled = .false.
       s1_nonnear_rescue_enabled = .false.
-      qn_post_newton_refine_enabled = .false.
-      qn_post_newton_refine_skip_enabled = .true.
-      qn_post_newton_refine_max_iter = qn_post_newton_refine_max_iter_default
       qn_reverse_gate_enabled = .false.
       qn_reverse_gate_tol = qn_reverse_gate_tol_default
       qn_quasi_tol_override = -1.0_dp
@@ -1133,36 +959,6 @@ contains
          end select
       end if
 
-      call get_environment_variable("QN_POST_NEWTON_REFINE_ENABLED", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         select case (trim(adjustl(env_value(1:env_len))))
-         case ("0", "false", "FALSE", "False", "off", "OFF", "Off", "no", "NO", "No")
-            qn_post_newton_refine_enabled = .false.
-         case default
-            qn_post_newton_refine_enabled = .true.
-         end select
-      end if
-
-      call get_environment_variable("QN_POST_NEWTON_REFINE_MAX_ITER", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         read (env_value(1:env_len), *, iostat=ios) parsed_value
-         if (ios == 0 .and. parsed_value >= 1) then
-            qn_post_newton_refine_max_iter = parsed_value
-         else
-            write (*, '(A)') "[WARN] Invalid QN_POST_NEWTON_REFINE_MAX_ITER; using default 40."
-         end if
-      end if
-
-      call get_environment_variable("QN_POST_NEWTON_REFINE_SKIP_ENABLED", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         select case (trim(adjustl(env_value(1:env_len))))
-         case ("0", "false", "FALSE", "False", "off", "OFF", "Off", "no", "NO", "No")
-            qn_post_newton_refine_skip_enabled = .false.
-         case default
-            qn_post_newton_refine_skip_enabled = .true.
-         end select
-      end if
-
       call get_environment_variable("QN_REVERSE_GATE_ENABLED", env_value, length=env_len, status=env_stat)
       if (env_stat == 0 .and. env_len > 0) then
          select case (trim(adjustl(env_value(1:env_len))))
@@ -1196,9 +992,6 @@ contains
          " nonnear_cheap_iter=", s1_non_near_cheap_full_max_iter, &
          " near_rescue_enabled=", s1_near_rescue_enabled, &
          " nonnear_rescue_enabled=", s1_nonnear_rescue_enabled, &
-         " post_newton_refine_enabled=", qn_post_newton_refine_enabled, &
-         " post_newton_refine_skip_enabled=", qn_post_newton_refine_skip_enabled, &
-         " post_newton_refine_max_iter=", qn_post_newton_refine_max_iter, &
          " reverse_gate_enabled=", qn_reverse_gate_enabled, &
          " reverse_gate_tol=", qn_reverse_gate_tol, &
          " quasi_tol_override=", qn_quasi_tol_override
