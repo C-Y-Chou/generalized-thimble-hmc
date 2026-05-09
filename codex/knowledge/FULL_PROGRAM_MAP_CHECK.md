@@ -28,6 +28,7 @@ Purpose: persistent full-program risk map for TLTM Stage3_3/Stage3_4 work. This 
 - 2026-05-07: reverse gate now compares carried `jac` in addition to `x/z/p`, using the same `QN_REVERSE_GATE_TOL`. This aligns the gate with the actual state consumed later by projection, phase, and swap energy.
 - 2026-05-07: Metropolis no longer uses `h_final == 0` as the proposal-failure sentinel. HMC now returns an explicit `proposal_ok`; Metropolis rejects only failed or non-finite Hamiltonian proposals before computing the acceptance probability.
 - 2026-05-09: the legacy RATTLE state-progress sentinel was downgraded to opt-in diagnostics and no longer defines proposal validity.
+- 2026-05-09: QN watchdog internals now use solver-assist terminology; legacy final-resort env/output names remain only as compatibility aliases.
 - 2026-05-07: Stage3 multiseed configs now fail fast if `warmup_cycles_optional != 0`, because the current Stage2/evaluation production path does not implement a separate discarded warmup window.
 - 2026-05-07: each Stage3 seed/method run now writes `run_manifest.json` with the resolved method, setup, selected algorithm env vars, thread env vars, output paths, and isolated `parameters.dat` path.
 

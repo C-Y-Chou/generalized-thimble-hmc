@@ -24,8 +24,8 @@ module quasi_newton_solver_mod
    logical, save :: quasi_eval_has_flowed = .false.
    logical, save :: quasi_eval_flowed_is_inverse = .false.
    integer, save :: quasi_trace_route_code = 0
-   integer, parameter :: quasi_final_resort_budget_default = 20000
-   integer, save :: quasi_final_resort_budget = quasi_final_resort_budget_default
+   integer, parameter :: quasi_solver_assist_budget_default = 20000
+   integer, save :: quasi_solver_assist_budget = quasi_solver_assist_budget_default
    integer, parameter :: quasi_accepted_iter_budget_default = 0
    integer, save :: quasi_accepted_iter_budget = quasi_accepted_iter_budget_default
    logical, save :: qn_force_best_proposal_enabled = .false.
@@ -41,11 +41,11 @@ module quasi_newton_solver_mod
    integer(int64), save :: quasi_eval_flow_status_failure_invalid = 0_int64
    integer(int64), save :: quasi_eval_flow_status_failure_h_min = 0_int64
    integer(int64), save :: quasi_eval_flow_status_unknown = 0_int64
-   logical, save :: quasi_final_resort_budget_loaded = .false.
+   logical, save :: quasi_watchdog_policy_loaded = .false.
    logical, save :: quasi_watchdog_scope_active = .false.
-   integer, save :: quasi_watchdog_start_success_final_resort = 0
-   integer, save :: quasi_watchdog_used_success_final_resort = 0
-    integer, save :: quasi_watchdog_used_accepted_iter = 0
+   integer, save :: quasi_watchdog_start_solver_assist = 0
+   integer, save :: quasi_watchdog_used_solver_assist = 0
+   integer, save :: quasi_watchdog_used_accepted_iter = 0
    logical, save :: quasi_watchdog_hit = .false.
    logical, save :: quasi_watchdog_last_hit = .false.
    integer, save :: quasi_watchdog_last_used = 0
@@ -1092,11 +1092,11 @@ contains
       implicit none
 
       call load_quasi_watchdog_policy()
-      quasi_watchdog_scope_active = (quasi_final_resort_budget > 0 .or. quasi_accepted_iter_budget > 0)
+      quasi_watchdog_scope_active = (quasi_solver_assist_budget > 0 .or. quasi_accepted_iter_budget > 0)
       quasi_watchdog_hit = .false.
-      quasi_watchdog_used_success_final_resort = 0
+      quasi_watchdog_used_solver_assist = 0
       quasi_watchdog_used_accepted_iter = 0
-      quasi_watchdog_start_success_final_resort = current_success_final_resort_count()
+      quasi_watchdog_start_solver_assist = current_solver_assist_success_count()
       call reset_quasi_watchdog_last_status()
    end subroutine begin_quasi_watchdog_scope
 
@@ -1105,20 +1105,20 @@ contains
 
       call update_quasi_watchdog_scope()
       quasi_watchdog_last_hit = quasi_watchdog_hit
-      quasi_watchdog_last_used = quasi_watchdog_used_success_final_resort
+      quasi_watchdog_last_used = quasi_watchdog_used_solver_assist
       quasi_watchdog_last_used_accepted_iter = quasi_watchdog_used_accepted_iter
       quasi_watchdog_scope_active = .false.
    end subroutine end_quasi_watchdog_scope
 
    subroutine update_quasi_watchdog_scope()
       implicit none
-      integer :: current_success_final_resort
+      integer :: current_solver_assist_success
 
       if (.not. quasi_watchdog_scope_active) return
-      current_success_final_resort = current_success_final_resort_count()
-      quasi_watchdog_used_success_final_resort = max(0, current_success_final_resort - quasi_watchdog_start_success_final_resort)
-      if ((.not. quasi_watchdog_hit) .and. quasi_final_resort_budget > 0) then
-         if (quasi_watchdog_used_success_final_resort > quasi_final_resort_budget) then
+      current_solver_assist_success = current_solver_assist_success_count()
+      quasi_watchdog_used_solver_assist = max(0, current_solver_assist_success - quasi_watchdog_start_solver_assist)
+      if ((.not. quasi_watchdog_hit) .and. quasi_solver_assist_budget > 0) then
+         if (quasi_watchdog_used_solver_assist > quasi_solver_assist_budget) then
             quasi_watchdog_hit = .true.
             quasi_watchdog_hit_total = quasi_watchdog_hit_total + 1
          end if
@@ -1140,52 +1140,60 @@ contains
       if (quasi_watchdog_scope_active) call update_quasi_watchdog_scope()
       if (quasi_watchdog_scope_active) then
          budget_hit = quasi_watchdog_hit
-         if (quasi_final_resort_budget > 0) then
-            budget_used = quasi_watchdog_used_success_final_resort
+         if (quasi_solver_assist_budget > 0) then
+            budget_used = quasi_watchdog_used_solver_assist
          else
             budget_used = quasi_watchdog_used_accepted_iter
          end if
       else
          budget_hit = quasi_watchdog_last_hit
-         if (quasi_final_resort_budget > 0) then
+         if (quasi_solver_assist_budget > 0) then
             budget_used = quasi_watchdog_last_used
          else
             budget_used = quasi_watchdog_last_used_accepted_iter
          end if
       end if
-      if (quasi_final_resort_budget > 0) then
-         budget_limit = quasi_final_resort_budget
+      if (quasi_solver_assist_budget > 0) then
+         budget_limit = quasi_solver_assist_budget
       else
          budget_limit = quasi_accepted_iter_budget
       end if
    end subroutine get_quasi_newton_watchdog_status
 
-   integer function current_success_final_resort_count() result(success_final_resort)
+   integer function current_solver_assist_success_count() result(solver_assist_success)
       implicit none
       integer :: success_radau_adaptive, success_radau_adaptive_robust
       integer :: success_radau_fixed_tol, success_radau_chunked
       integer :: fail_radau_adaptive_robust, fail_radau_fixed_tol, fail_radau_chunked, fail_final_resort
 
       call get_intode_rescue_stats(success_radau_adaptive, success_radau_adaptive_robust, &
-                                   success_radau_fixed_tol, success_radau_chunked, success_final_resort, &
+                                   success_radau_fixed_tol, success_radau_chunked, solver_assist_success, &
                                    fail_radau_adaptive_robust, fail_radau_fixed_tol, fail_radau_chunked, fail_final_resort)
-   end function current_success_final_resort_count
+   end function current_solver_assist_success_count
 
    subroutine load_quasi_watchdog_policy()
       implicit none
       character(len=64) :: env_value
       integer :: env_len, env_stat, ios, parsed_value
 
-      if (quasi_final_resort_budget_loaded) return
-      quasi_final_resort_budget_loaded = .true.
+      if (quasi_watchdog_policy_loaded) return
+      quasi_watchdog_policy_loaded = .true.
+      quasi_solver_assist_budget = quasi_solver_assist_budget_default
       quasi_accepted_iter_budget = quasi_accepted_iter_budget_default
       qn_force_best_proposal_enabled = .false.
       qn_force_best_proposal_tol = -1.0_dp
 
-      call get_environment_variable("QUASI_FINAL_RESORT_BUDGET", env_value, length=env_len, status=env_stat)
+      call get_environment_variable("QN_SOLVER_ASSIST_BUDGET", env_value, length=env_len, status=env_stat)
       if (env_stat == 0 .and. env_len > 0) then
          read (env_value(1:env_len), *, iostat=ios) parsed_value
-         if (ios == 0) quasi_final_resort_budget = parsed_value
+         if (ios == 0) quasi_solver_assist_budget = parsed_value
+      else
+         ! Legacy alias retained for existing Stage3 scripts and historical run manifests.
+         call get_environment_variable("QUASI_FINAL_RESORT_BUDGET", env_value, length=env_len, status=env_stat)
+         if (env_stat == 0 .and. env_len > 0) then
+            read (env_value(1:env_len), *, iostat=ios) parsed_value
+            if (ios == 0) quasi_solver_assist_budget = parsed_value
+         end if
       end if
 
       call get_environment_variable("QN_ACCEPTED_ITER_BUDGET", env_value, length=env_len, status=env_stat)
@@ -1219,10 +1227,10 @@ contains
          end if
       end if
 
-      if (quasi_final_resort_budget > 0) then
-         write (*, '(A,I0)') "[INFO] quasi final_resort watchdog budget=", quasi_final_resort_budget
+      if (quasi_solver_assist_budget > 0) then
+         write (*, '(A,I0)') "[INFO] quasi solver-assist watchdog budget=", quasi_solver_assist_budget
       else
-         write (*, '(A)') "[INFO] quasi final_resort watchdog budget=disabled"
+         write (*, '(A)') "[INFO] quasi solver-assist watchdog budget=disabled"
       end if
       if (quasi_accepted_iter_budget > 0) then
          write (*, '(A,I0)') "[INFO] quasi accepted-iter watchdog budget=", quasi_accepted_iter_budget

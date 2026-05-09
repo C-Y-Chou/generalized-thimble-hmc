@@ -488,3 +488,10 @@ Complete and commit the Radau/JFNK rescue source deletion slice, then continue w
 - `hmc_proposal_status_no_progress` is kept only as a reserved legacy status value and is no longer emitted by the active proposal path.
 - Behavior-preservation note: this intentionally removes a previously identified non-reference-backed rejection criterion. Output schema and default logging remain unchanged.
 - Verification passed: `git diff --check`; `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2 test_odex_solver test1`; tiny Stage1 smoke; tiny Stage2 smoke; Stage1/Stage2 summary readback.
+
+## QN solver-assist watchdog naming cleanup - 2026-05-09 JST
+- Renamed QN watchdog internals from `final_resort` terminology to `solver_assist` terminology in `src/sampler/quasi_newton_solver.f90`.
+- Added preferred env `QN_SOLVER_ASSIST_BUDGET`; retained legacy `QUASI_FINAL_RESORT_BUDGET` as a fallback alias for existing scripts/manifests.
+- Preserved Stage2/failure-meta compatibility fields such as `final_resort_budget_*`; public output schema versioning is still a future task.
+- Behavior-preservation note: budget default, watchdog comparison, accepted-iter budget, force-best-proposal policy, QN residual logic, and Metropolis/RG behavior are unchanged.
+- Verification passed: `git diff --check`; `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2 test_odex_solver test1`.

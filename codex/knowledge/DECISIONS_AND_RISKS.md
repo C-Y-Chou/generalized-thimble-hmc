@@ -29,6 +29,7 @@ Updated: 2026-05-09 JST
 - DFO-GN paper, Broyden/line-search, global continuation/restart/sweep, and post-refine source paths were removed from active source.
 - Flow policy is ODEX primary plus solver-internal residual assist for NT/QN residual evaluation, with strict final proposal flow. Radau/JFNK secondary-integrator rescue source was removed.
 - The legacy RATTLE state-progress sentinel is diagnostic only; proposal validity is carried by solver convergence, constraint residual handling, strict final flow, reverse gate, finite Hamiltonians, and Metropolis/status gates.
+- Preferred QN watchdog terminology is solver assist. `QN_SOLVER_ASSIST_BUDGET` is the preferred env name; `QUASI_FINAL_RESORT_BUDGET` remains a compatibility alias.
 
 ## Operational risks
 1. Queue congestion can dominate wall-clock completion.

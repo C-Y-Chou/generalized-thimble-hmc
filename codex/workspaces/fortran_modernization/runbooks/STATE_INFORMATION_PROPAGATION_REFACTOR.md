@@ -1,7 +1,7 @@
 # State and Information Propagation Refactor
 
 Updated: 2026-05-09 JST
-Status: twelve narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
+Status: thirteen narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
 
 ## Purpose
 
@@ -465,3 +465,27 @@ Verification:
 - Tiny local Stage1 smoke with `max_flow=0`, `cycles=2`, `local_updates=1`.
 - Tiny local Stage2 smoke with `max_flow=0`, `cycles=2`, `local_updates=1`, and swaps disabled.
 - Stage1/Stage2 summary readback confirmed `newton_eval_flow_status`, `qn_eval_flow_status`, `reverse_gate_replay_status`, and `local_transition_totals` remain present.
+
+## Thirteenth Source Slice - QN Solver-Assist Watchdog Naming - 2026-05-09 JST
+
+Purpose:
+
+- Remove misleading final-resort terminology from retained QN watchdog internals.
+- Preserve compatibility for existing scripts/manifests and output schemas until public schema versioning.
+
+Implemented boundary:
+
+- `quasi_newton_solver.f90`: renamed internal budget, usage, and counter helper names from final-resort terminology to solver-assist terminology.
+- Added preferred `QN_SOLVER_ASSIST_BUDGET` env parsing.
+- Kept `QUASI_FINAL_RESORT_BUDGET` as a legacy fallback alias.
+
+Compatibility:
+
+- The default solver-assist budget remains `20000`.
+- Existing legacy env settings still work if the preferred env is not set.
+- Stage2/failure-meta fields such as `final_resort_budget_*` are unchanged.
+
+Verification:
+
+- `git diff --check`.
+- `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2 test_odex_solver test1`.

@@ -264,3 +264,9 @@
 - Added opt-in `HMC_STATE_PROGRESS_DIAGNOSTIC_LIMIT` reporting for zero/near-zero displacement across physical coordinates `x(2:)`.
 - Proposal validity now relies on solver convergence, constraint residual handling, strict final flow, reverse gate, finite Hamiltonians, and Metropolis/status gates.
 - Verification passed with `git diff --check`, production Stage1/Stage2 build, `test_odex_solver`, `test1`, tiny Stage1 smoke, tiny Stage2 smoke, and summary status readback.
+
+## 2026-05-09 JST - QN solver-assist watchdog naming cleanup
+- Renamed internal QN watchdog variables/functions from final-resort terminology to solver-assist terminology.
+- Added preferred `QN_SOLVER_ASSIST_BUDGET` env parsing while retaining `QUASI_FINAL_RESORT_BUDGET` as a legacy fallback alias.
+- Preserved compatibility output/schema names for `final_resort_budget_*`.
+- Verification passed with `git diff --check`, Stage1/Stage2 executable build, `test_odex_solver`, and `test1`.
