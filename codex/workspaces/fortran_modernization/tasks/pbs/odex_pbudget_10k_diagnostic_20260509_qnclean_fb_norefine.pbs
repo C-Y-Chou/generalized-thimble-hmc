@@ -1,0 +1,106 @@
+#!/bin/bash
+#PBS -N odex_pbud10
+#PBS -q C12
+#PBS -l select=1:ncpus=20:mpiprocs=20:mem=8gb
+#PBS -l walltime=02:00:00
+#PBS -o /lustre1/home/cychou/TLTM/output/logs/odex_validation/pbudget_diag_20260509_qnclean_fb_norefine.pbs.out
+#PBS -e /lustre1/home/cychou/TLTM/output/logs/odex_validation/pbudget_diag_20260509_qnclean_fb_norefine.pbs.err
+
+set -euo pipefail
+
+BOOT_LOG="/lustre1/home/cychou/TLTM/output/logs/odex_validation/pbudget_diag_20260509_qnclean_fb_norefine.boot.log"
+mkdir -p "$(dirname "${BOOT_LOG}")"
+exec > "${BOOT_LOG}" 2>&1
+
+date -Is
+hostname
+pwd
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  # shellcheck source=/dev/null
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+WORKTREE="/lustre1/home/cychou/TLTM"
+: "${TLTM_EXPECTED_GIT_BRANCH:=codex/preprod-hardening}"
+: "${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
+
+cd "${WORKTREE}"
+test -x bin/run_tltm_stage2
+test -x bin/evaluate_expectations
+
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
+
+export TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-13
+export QN_REVERSE_GATE_ENABLED=1
+export QN_REVERSE_GATE_TOL=1e-8
+export QN_S1_NEAR_RESCUE_ENABLED=0
+export QN_S1_NONNEAR_RESCUE_ENABLED=0
+export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
+export QN_QUASI_TOL_OVERRIDE=1e-13
+
+CONFIG_JSON="docs/stage_3_4_t035_paired_10k_10seed.json"
+ROOT_OUT="output/tests/odex_validation/20260509_pbudget_diag_10seed_10k_qnclean_fb_norefine_ct1e13_qn1e13"
+ROOT_LOG="output/logs/odex_validation/20260509_pbudget_diag_10seed_10k_qnclean_fb_norefine_ct1e13_qn1e13"
+rm -rf "${ROOT_OUT}" "${ROOT_LOG}"
+mkdir -p "${ROOT_OUT}" "${ROOT_LOG}"
+
+{
+  echo "job_tag=odex_pbudget_diag_10seed_10k_20260509_qnclean_fb_norefine"
+  echo "submitted_for=fortran_modernization_ODEX_pbudget_diagnostic"
+  echo "date_start=$(date -Is)"
+  echo "hostname=$(hostname)"
+  echo "pwd=$(pwd)"
+  echo "expected_branch=${TLTM_EXPECTED_GIT_BRANCH}"
+  echo "expected_commit=${TLTM_EXPECTED_GIT_COMMIT}"
+  echo "pbs_script=codex/workspaces/fortran_modernization/tasks/pbs/odex_pbudget_10k_diagnostic_20260509_qnclean_fb_norefine.pbs"
+  echo "config=${CONFIG_JSON}"
+  echo "method=fb_norefine"
+  echo "budgets=28,40,56"
+  echo "max_seeds=10"
+  echo "cycles_per_seed=10000"
+  echo "constraint_tol_override=${TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE}"
+  echo "qn_quasi_tol_override=${QN_QUASI_TOL_OVERRIDE}"
+  echo "reverse_gate_enabled=${QN_REVERSE_GATE_ENABLED}"
+  echo "reverse_gate_tol=${QN_REVERSE_GATE_TOL}"
+  echo "output_root=${ROOT_OUT}"
+  echo "logs_root=${ROOT_LOG}"
+} > "${ROOT_LOG}/run_manifest.txt"
+
+for budget in 28 40 56; do
+  export QN_S1_PROBE_MAX_ITER="${budget}"
+  OUT_SUBDIR="${ROOT_OUT}/p${budget}"
+  LOG_SUBDIR="${ROOT_LOG}/p${budget}"
+  mkdir -p "${OUT_SUBDIR}" "${LOG_SUBDIR}"
+  echo "[RUN] p${budget} $(date -Is)"
+  python3 scripts/run_stage3_3_multiseed.py \
+    --repo-root . \
+    --config "${CONFIG_JSON}" \
+    --methods fb_norefine \
+    --max-seeds 10 \
+    --output-subdir "${OUT_SUBDIR}" \
+    --logs-subdir "${LOG_SUBDIR}" \
+    --log-prefix "odex_pbudget_p${budget}_10k_qnclean_fb_norefine_ct1e13_qn1e13" \
+    --report-title "ODEX p-budget diagnostic p${budget} 10k QN-clean fb_norefine ct1e-13 qn1e-13" \
+    --schedule task \
+    --task-method-order fb_first \
+    --jobs 10 \
+    --stage2-threads 1 \
+    --eval-threads 1 \
+    --skip-build
+  echo "[DONE] p${budget} $(date -Is)"
+done
+
+echo "date_end=$(date -Is)" >> "${ROOT_LOG}/run_manifest.txt"
