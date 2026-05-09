@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-09 17:41 JST
+Updated: 2026-05-09 17:48 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -49,13 +49,20 @@ Updated: 2026-05-09 17:41 JST
 - Verification: after a clean rebuild, `make -C build FC=gfortran LDFLAGS= ../bin/test_program`, `make -C build FC=gfortran LDFLAGS= test1`, and `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage2` pass/build locally.
 - Build-system note: incremental build after public module API changes can leave stale objects because the local makefile lacks complete Fortran module dependency tracking. Use a clean rebuild for this patch; proper dependency/build tooling remains a modernization item.
 
+## Fortran module dependency build patch - 2026-05-09 JST
+- Promoted `build/makefile` into tracked source by narrowing `.gitignore` from ignoring all of `build/` to ignoring `build/*` except `build/makefile`.
+- Added `scripts/fortran_module_deps.py`, a conservative scanner for Fortran `module`/`use` relationships.
+- `build/makefile` now generates and includes `.obj/fortran_module_deps.mk`; consumer objects depend on provider objects, preventing stale-object ABI crashes after public module API changes.
+- Incremental rebuild check: after `touch src/sampler/hmc.f90`, `make -C build FC=gfortran LDFLAGS= ../bin/test_program` rebuilt `hmc.o`, downstream sampler/driver consumers, and `tests/test_hamiltonian_conservation.o`.
+- Verification: `make -C build clean && make -C build FC=gfortran LDFLAGS= ../bin/test_program`, `make -C build FC=gfortran LDFLAGS= test1`, and `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage2` pass/build locally.
+
 ## State/information propagation audit - 2026-05-09 JST
 - Added `runbooks/STATE_INFORMATION_PROPAGATION_AUDIT.md`.
 - Audit result: live-chain state update on reject appears safe, but failed/unavailable Hamiltonian is still encoded as `0.0` in `hmc.f90`, `markovchain_mod.f90`, and `tests/test_hamiltonian_conservation.f90`.
 - First proposed code patch before broader typed-status redesign: replace `H=0` failure sentinels with explicit proposal status/non-finite unavailable Hamiltonian handling while preserving Metropolis physics.
 
 ## Next action
-Review the proposal status surface patch before commit. Next implementation slice should decide whether to split Stage1/Stage2 counters using the new statuses or first fix Fortran module dependency tracking.
+Review/commit the Fortran module dependency build patch. Next implementation slice can safely split Stage1/Stage2 counters using the new proposal/transition statuses.
 
 ## After confirmation
 - Build baseline harness design first.

@@ -6,6 +6,8 @@ This directory currently contains both active utility scripts and historical exp
 
 - `generate_model_generated.py`
   - Regenerates `src/physics/model_generated.f90` from `src/physics/model_action_body.inc`.
+- `fortran_module_deps.py`
+  - Generates conservative Make dependencies from Fortran `module`/`use` relationships so incremental builds rebuild module consumers after public module API changes.
 - `st_backends/tapenade_codegen.py`
   - Tapenade source-transformation backend adapter.
 - `st_backends/enzyme_codegen.py`

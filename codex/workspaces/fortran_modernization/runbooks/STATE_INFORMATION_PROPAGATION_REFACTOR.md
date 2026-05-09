@@ -157,4 +157,25 @@ Build-system risk:
 
 - Incremental rebuild after this public module API change produced a stale-object crash before clean rebuild.
 - Cause: the local makefile does not track complete Fortran module dependencies.
-- Until build tooling is modernized, clean rebuild is required after module API changes.
+- Resolved by the follow-up build patch: `build/makefile` now includes generated Fortran module dependencies from `scripts/fortran_module_deps.py`.
+
+## Build Follow-Up - Fortran Module Dependencies - 2026-05-09 JST
+
+Problem:
+
+- Public module API changes can make existing object files ABI-incompatible with newly generated `.mod` files.
+- The previous local build recipe compiled clean builds correctly but did not force module consumers to rebuild during incremental builds.
+
+Implementation:
+
+- Track `build/makefile` as source while continuing to ignore generated `build/*` artifacts.
+- Add `scripts/fortran_module_deps.py` to scan project Fortran sources for `module` providers and `use` consumers.
+- Generate `.obj/fortran_module_deps.mk` and include it from `build/makefile`.
+- Use conservative object-to-object dependencies so any provider object update rebuilds consumers.
+
+Verification:
+
+- Clean rebuild: `make -C build clean && make -C build FC=gfortran LDFLAGS= ../bin/test_program`.
+- Incremental dependency check: `touch src/sampler/hmc.f90 && make -C build FC=gfortran LDFLAGS= ../bin/test_program` rebuilt `hmc.o`, downstream sampler/driver objects, and `tests/test_hamiltonian_conservation.o`.
+- Runtime smoke: `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
+- Stage2 executable rebuild: `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage2` passes.

@@ -56,6 +56,13 @@
 - Verification passed after clean rebuild: `make -C build FC=gfortran LDFLAGS= ../bin/test_program`, `make -C build FC=gfortran LDFLAGS= test1`, and `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage2`.
 - Found build-system risk: incremental build after public module API changes can crash because stale objects are not rebuilt automatically; clean rebuild is required until Fortran module dependency tracking is fixed.
 
+## 2026-05-09 JST - Fortran module dependency build patch implemented
+- Tracked `build/makefile` as the build entrypoint while keeping generated build artifacts ignored.
+- Added `scripts/fortran_module_deps.py` to generate Make dependencies from Fortran `module`/`use` relationships.
+- `build/makefile` now includes generated `.obj/fortran_module_deps.mk`, so module consumers rebuild when provider objects change.
+- Verified the stale-object fix by touching `src/sampler/hmc.f90`; incremental `make -C build FC=gfortran LDFLAGS= ../bin/test_program` rebuilt downstream consumers including `tests/test_hamiltonian_conservation.o`.
+- Verification passed: clean `../bin/test_program` rebuild, `test1`, and `../bin/run_tltm_stage2` build.
+
 ## 2026-05-08 JST - Planning information collection complete
 - Read relevant Fortran source sections for ODEX/flow, Newton/RATTLE, quasi-Newton projection, HMC/Metropolis, Stage2 driver, tests, and existing program-map docs.
 - Added low-level review notes for ODEX, simplified Newton/RATTLE, quasi-Newton projection, and HMC/Metropolis/TLTM driver.
