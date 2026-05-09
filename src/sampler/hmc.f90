@@ -7,14 +7,34 @@ module hmc
    use hmc_kernels, only: decompose2, calculate_hamiltonian
    use hmc_constraints, only: reset_constraint_newton_warm_start
    use hmc_state_buffers, only: rattle_step_workspace_t, release_rattle_step_workspace
-   use hmc_integrator_core, only: rattle_step_core
+   use hmc_integrator_core, only: rattle_step_core, &
+                                  hmc_step_status_output_size_mismatch, &
+                                  hmc_step_status_momentum_size_mismatch, &
+                                  hmc_step_status_initial_force_failed, &
+                                  hmc_step_status_constraint_failed, &
+                                  hmc_step_status_final_flow_failed, &
+                                  hmc_step_status_final_force_failed, &
+                                  hmc_step_status_final_projection_failed, &
+                                  hmc_step_status_reverse_gate_rejected
    use hmc_reversibility_checks, only: state_has_progress, reversibility_probe_should_run, report_reversibility_probe
    implicit none
+
+   integer, parameter :: hmc_proposal_status_success = 0
+   integer, parameter :: hmc_proposal_status_output_size_mismatch = 1
+   integer, parameter :: hmc_proposal_status_initial_projection_failed = 2
+   integer, parameter :: hmc_proposal_status_step_failed = 3
+   integer, parameter :: hmc_proposal_status_no_progress = 4
+   integer, parameter :: hmc_proposal_status_final_projection_failed = 5
+   integer, parameter :: hmc_proposal_status_reverse_gate_rejected = 6
+   integer, parameter :: hmc_proposal_status_constraint_failed = 7
+   integer, parameter :: hmc_proposal_status_final_flow_failed = 8
+   integer, parameter :: hmc_proposal_status_force_failed = 9
 
 contains
 
    subroutine integrate_hmc_proposal(state_x, state_z, step_size, num_steps, &
-                                     final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok)
+                                     final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok, &
+                                     proposal_status)
       implicit none
       real(dp), intent(in) :: state_x(:)
       complex(dp), intent(in) :: state_z(:)
@@ -27,10 +47,14 @@ contains
       real(dp), intent(out) :: initial_hamiltonian
       real(dp), intent(out) :: final_hamiltonian
       logical, intent(out), optional :: proposal_ok
+      integer, intent(out), optional :: proposal_status
       logical :: local_ok
+      integer :: local_status
 
-      call rattle(state_x, state_z, step_size, num_steps, final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, local_ok)
+      call rattle(state_x, state_z, step_size, num_steps, final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, &
+                  local_ok, local_status)
       if (present(proposal_ok)) proposal_ok = local_ok
+      if (present(proposal_status)) proposal_status = local_status
    end subroutine integrate_hmc_proposal
 
    subroutine integrate_hmc_warmup(state_x, state_z, step_size, num_steps, &
@@ -51,7 +75,7 @@ contains
    end subroutine integrate_hmc_warmup
 
    subroutine rattle(state_x, state_z, step_size, num_steps, &
-                     final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok)
+                     final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok, proposal_status)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -66,6 +90,7 @@ contains
       real(dp), intent(out) :: initial_hamiltonian
       real(dp), intent(out) :: final_hamiltonian
       logical, intent(out) :: proposal_ok
+      integer, intent(out) :: proposal_status
 
       integer :: step, state_size
       real(dp) :: integration_step_size
@@ -80,6 +105,7 @@ contains
       integer :: rev_max_steps_after, rev_invalid_after, rev_h_min_after
       real(dp) :: reverse_initial_hamiltonian, reverse_final_hamiltonian
       real(dp) :: dx_inf, dz_inf, dj_inf, dp_inf
+      integer :: step_status, reverse_status
 
       real(dp), allocatable :: momentum(:), momentumuv(:), momentumu(:), momentumv(:), initial_momentum(:)
       real(dp), allocatable :: temp_x(:)
@@ -90,11 +116,13 @@ contains
       has_error = .false.
       method_converged = .false.
       proposal_ok = .false.
+      proposal_status = hmc_proposal_status_step_failed
       state_size = size(state_z)
       initial_hamiltonian = unavailable_hamiltonian()
       final_hamiltonian = unavailable_hamiltonian()
 
       if (size(final_x) /= size(state_x) .or. size(final_z) /= state_size) then
+         proposal_status = hmc_proposal_status_output_size_mismatch
          jacf = jaci
          return
       end if
@@ -115,6 +143,7 @@ contains
       if (istest) momentum = testmom
       call decompose2(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error)
       if (has_error) then
+         proposal_status = hmc_proposal_status_initial_projection_failed
          call abort_with_failure()
          return
       end if
@@ -132,8 +161,10 @@ contains
          temp_z = final_z
 
          call set_intode_rattle_trace(step, 1)
-         call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, method_converged, ws)
+         call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, method_converged, ws, &
+                               step_status)
          if (.not. method_converged) then
+            proposal_status = proposal_status_from_step_status(step_status)
             call abort_with_failure()
             return
          end if
@@ -141,12 +172,14 @@ contains
       end do
 
       if (.not. state_has_progress(temp_x, final_x)) then
+         proposal_status = hmc_proposal_status_no_progress
          call abort_with_failure()
          return
       end if
 
       call decompose2(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error)
       if (has_error) then
+         proposal_status = hmc_proposal_status_final_projection_failed
          call abort_with_failure()
          return
       end if
@@ -161,7 +194,7 @@ contains
          call get_intode_fallback_stats(rev_calls_before, rev_calls_integrating_before, rev_attempts_before, rev_success_before, rev_failure_before, &
                                         rev_max_steps_before, rev_invalid_before, rev_h_min_before)
          call propagate_with_given_momentum(final_x, final_z, jacf, reverse_momentum, reverse_x, reverse_z, reverse_jac, reverse_momentum, &
-                                            reverse_initial_hamiltonian, reverse_final_hamiltonian, reverse_ok)
+                                            reverse_initial_hamiltonian, reverse_final_hamiltonian, reverse_ok, reverse_status)
          call get_intode_fallback_stats(rev_calls_after, rev_calls_integrating_after, rev_attempts_after, rev_success_after, rev_failure_after, &
                                         rev_max_steps_after, rev_invalid_after, rev_h_min_after)
          if (reverse_ok) then
@@ -183,22 +216,25 @@ contains
                                          dx_inf, dz_inf, dj_inf, dp_inf)
       end if
       proposal_ok = .true.
+      proposal_status = hmc_proposal_status_success
       call deallocate_all()
       return
 
    contains
 
       subroutine propagate_with_given_momentum(start_x, start_z, start_jac, start_momentum, out_x, out_z, out_jac, out_momentum, &
-                                               h_initial, h_final, ok)
+                                               h_initial, h_final, ok, local_proposal_status)
          real(dp), intent(in) :: start_x(:), start_momentum(:)
          complex(dp), intent(in) :: start_z(:), start_jac(:, :)
          real(dp), intent(out) :: out_x(:), out_momentum(:)
          complex(dp), intent(out) :: out_z(:), out_jac(:, :)
          real(dp), intent(out) :: h_initial, h_final
          logical, intent(out) :: ok
+         integer, intent(out) :: local_proposal_status
 
          integer :: local_step
          logical :: local_method_converged, local_error
+         integer :: local_step_status
          real(dp) :: local_step_size
          real(dp), allocatable :: local_momentum(:), local_momentumuv(:), local_momentumu(:), local_momentumv(:)
          real(dp), allocatable :: local_prev_x(:)
@@ -206,6 +242,7 @@ contains
          type(rattle_step_workspace_t) :: local_ws
 
          ok = .false.
+         local_proposal_status = hmc_proposal_status_step_failed
          allocate (local_momentum(2*state_size))
          allocate (local_momentumuv(2*state_size), local_momentumu(2*state_size), local_momentumv(2*state_size))
          allocate (local_prev_x(size(start_x)), local_prev_z(size(start_z)))
@@ -228,8 +265,9 @@ contains
             local_prev_z = out_z
             call set_intode_rattle_trace(local_step, 1)
             call rattle_step_core(local_prev_x, local_prev_z, local_step_size, out_x, out_z, local_jac, out_jac, local_momentum, &
-                                  local_method_converged, local_ws)
+                                  local_method_converged, local_ws, local_step_status)
             if (.not. local_method_converged) then
+               local_proposal_status = proposal_status_from_step_status(local_step_status)
                call release_rattle_step_workspace(local_ws)
                if (allocated(local_momentum)) deallocate (local_momentum)
                if (allocated(local_momentumuv)) deallocate (local_momentumuv)
@@ -245,6 +283,7 @@ contains
          end do
 
          if (.not. state_has_progress(local_prev_x, out_x)) then
+            local_proposal_status = hmc_proposal_status_no_progress
             call release_rattle_step_workspace(local_ws)
             if (allocated(local_momentum)) deallocate (local_momentum)
             if (allocated(local_momentumuv)) deallocate (local_momentumuv)
@@ -259,6 +298,7 @@ contains
 
          call decompose2(local_momentum, local_momentumuv, local_momentumu, local_momentumv, local_jac, local_error)
          if (local_error) then
+            local_proposal_status = hmc_proposal_status_final_projection_failed
             call release_rattle_step_workspace(local_ws)
             if (allocated(local_momentum)) deallocate (local_momentum)
             if (allocated(local_momentumuv)) deallocate (local_momentumuv)
@@ -274,6 +314,7 @@ contains
          out_momentum = local_momentumu
          call calculate_hamiltonian(out_z, out_momentum, h_final)
          ok = .true.
+         local_proposal_status = hmc_proposal_status_success
 
          call release_rattle_step_workspace(local_ws)
          if (allocated(local_momentum)) deallocate (local_momentum)
@@ -285,6 +326,27 @@ contains
          if (allocated(local_jac)) deallocate (local_jac)
          call clear_intode_runtime_trace()
       end subroutine propagate_with_given_momentum
+
+      pure integer function proposal_status_from_step_status(step_failure_status) result(status)
+         integer, intent(in) :: step_failure_status
+
+         select case (step_failure_status)
+         case (hmc_step_status_output_size_mismatch, hmc_step_status_momentum_size_mismatch)
+            status = hmc_proposal_status_output_size_mismatch
+         case (hmc_step_status_initial_force_failed, hmc_step_status_final_force_failed)
+            status = hmc_proposal_status_force_failed
+         case (hmc_step_status_constraint_failed)
+            status = hmc_proposal_status_constraint_failed
+         case (hmc_step_status_final_flow_failed)
+            status = hmc_proposal_status_final_flow_failed
+         case (hmc_step_status_final_projection_failed)
+            status = hmc_proposal_status_final_projection_failed
+         case (hmc_step_status_reverse_gate_rejected)
+            status = hmc_proposal_status_reverse_gate_rejected
+         case default
+            status = hmc_proposal_status_step_failed
+         end select
+      end function proposal_status_from_step_status
 
       pure real(dp) function maxabs_real_vec(vec)
          real(dp), intent(in) :: vec(:)

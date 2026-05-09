@@ -49,6 +49,13 @@
 - Verification passed: `make -C build FC=gfortran LDFLAGS= ../bin/test_program` and `make -C build FC=gfortran LDFLAGS= test1`.
 - A tiny local Stage2 smoke still fails slot-1 initialization, but the same smoke fails on clean `HEAD`; recorded as pre-existing local smoke behavior rather than a patch regression.
 
+## 2026-05-09 JST - Proposal status surface patch implemented
+- Audited the next state boundary: `proposal_failed` currently conflates proposal construction failure, reverse-gate rejection, unavailable Hamiltonian, invalid `Delta H`, and related unavailable-proposal cases.
+- Implemented optional RATTLE-step, HMC-proposal, and Metropolis-transition status codes while preserving existing `accept`, `proposal_ok`, and `proposal_failed` behavior.
+- Updated Hamiltonian conservation test to assert successful proposals return `hmc_proposal_status_success`.
+- Verification passed after clean rebuild: `make -C build FC=gfortran LDFLAGS= ../bin/test_program`, `make -C build FC=gfortran LDFLAGS= test1`, and `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage2`.
+- Found build-system risk: incremental build after public module API changes can crash because stale objects are not rebuilt automatically; clean rebuild is required until Fortran module dependency tracking is fixed.
+
 ## 2026-05-08 JST - Planning information collection complete
 - Read relevant Fortran source sections for ODEX/flow, Newton/RATTLE, quasi-Newton projection, HMC/Metropolis, Stage2 driver, tests, and existing program-map docs.
 - Added low-level review notes for ODEX, simplified Newton/RATTLE, quasi-Newton projection, and HMC/Metropolis/TLTM driver.

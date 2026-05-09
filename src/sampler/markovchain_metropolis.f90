@@ -2,12 +2,22 @@ module markovchain_metropolis
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use utils
    use mt95, only: grnd
-   use hmc, only: integrate_hmc_proposal
+   use hmc, only: integrate_hmc_proposal, &
+                  hmc_proposal_status_output_size_mismatch, &
+                  hmc_proposal_status_reverse_gate_rejected
    implicit none
+
+   integer, parameter :: metropolis_status_accepted = 0
+   integer, parameter :: metropolis_status_rejected = 1
+   integer, parameter :: metropolis_status_proposal_failed = 2
+   integer, parameter :: metropolis_status_reverse_gate_rejected = 3
+   integer, parameter :: metropolis_status_hamiltonian_invalid = 4
+   integer, parameter :: metropolis_status_delta_h_invalid = 5
+   integer, parameter :: metropolis_status_output_size_mismatch = 6
 
 contains
 
-   subroutine metropolis_step(x, z, j, total_step_size, num_steps, x_new, z_new, j_new, accept, proposal_failed)
+   subroutine metropolis_step(x, z, j, total_step_size, num_steps, x_new, z_new, j_new, accept, proposal_failed, transition_status)
       implicit none
 
       real(dp), intent(in) :: x(:)
@@ -21,6 +31,7 @@ contains
       complex(dp), intent(out) :: j_new(:, :)
       logical, intent(out) :: accept
       logical, intent(out), optional :: proposal_failed
+      integer, intent(out), optional :: transition_status
 
       real(dp) :: h_initial
       real(dp) :: h_final
@@ -28,22 +39,34 @@ contains
       real(dp) :: accept_probability
       real(dp) :: rand
       logical :: proposal_ok
+      integer :: hmc_status
 
       accept = .false.
       if (present(proposal_failed)) proposal_failed = .false.
+      if (present(transition_status)) transition_status = metropolis_status_rejected
 
       if (size(x_new) /= size(x) .or. size(z_new) /= size(z) .or. &
           size(j_new, 1) /= size(j, 1) .or. size(j_new, 2) /= size(j, 2)) then
          write (*, *) "Error(metropolis_step): output buffer size mismatch."
          if (present(proposal_failed)) proposal_failed = .true.
+         if (present(transition_status)) transition_status = metropolis_status_output_size_mismatch
          return
       end if
 
-      call integrate_hmc_proposal(x, z, total_step_size, num_steps, x_new, z_new, h_initial, h_final, j, j_new, proposal_ok)
+      call integrate_hmc_proposal(x, z, total_step_size, num_steps, x_new, z_new, h_initial, h_final, j, j_new, &
+                                  proposal_ok, hmc_status)
 
-      if ((.not. proposal_ok) .or. (.not. ieee_is_finite(h_initial)) .or. (.not. ieee_is_finite(h_final))) then
+      if (.not. proposal_ok) then
          accept = .false.
          if (present(proposal_failed)) proposal_failed = .true.
+         if (present(transition_status)) transition_status = metropolis_status_from_hmc_status(hmc_status)
+         return
+      end if
+
+      if ((.not. ieee_is_finite(h_initial)) .or. (.not. ieee_is_finite(h_final))) then
+         accept = .false.
+         if (present(proposal_failed)) proposal_failed = .true.
+         if (present(transition_status)) transition_status = metropolis_status_hamiltonian_invalid
          return
       end if
 
@@ -51,6 +74,7 @@ contains
       if (.not. ieee_is_finite(delta_h)) then
          accept = .false.
          if (present(proposal_failed)) proposal_failed = .true.
+         if (present(transition_status)) transition_status = metropolis_status_delta_h_invalid
          return
       end if
 
@@ -63,9 +87,24 @@ contains
       rand = grnd()
       if (accept_probability >= 1.0_dp .or. rand <= accept_probability) then
          accept = .true.
+         if (present(transition_status)) transition_status = metropolis_status_accepted
       else
          accept = .false.
+         if (present(transition_status)) transition_status = metropolis_status_rejected
       end if
    end subroutine metropolis_step
+
+   pure integer function metropolis_status_from_hmc_status(hmc_status) result(status)
+      integer, intent(in) :: hmc_status
+
+      select case (hmc_status)
+      case (hmc_proposal_status_output_size_mismatch)
+         status = metropolis_status_output_size_mismatch
+      case (hmc_proposal_status_reverse_gate_rejected)
+         status = metropolis_status_reverse_gate_rejected
+      case default
+         status = metropolis_status_proposal_failed
+      end select
+   end function metropolis_status_from_hmc_status
 
 end module markovchain_metropolis

@@ -1,7 +1,7 @@
 # State and Information Propagation Refactor
 
 Updated: 2026-05-09 JST
-Status: first narrow source slice implemented locally; broader typed-status refactor remains future work after patch review.
+Status: first two narrow source slices implemented locally; broader typed-status refactor remains future work after patch review.
 
 ## Purpose
 
@@ -125,3 +125,36 @@ The first approved source slice removes `H=0` as an unavailable-Hamiltonian sent
 - `src/sampler/markovchain_mod.f90`: warmup exits on unavailable/non-finite Hamiltonians instead of checking for `H==0`.
 - Verification: local macOS/gfortran build of `../bin/test_program` passes; `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
 - Local Stage2 smoke note: the selected tiny smoke fails slot-1 initialization both on the patch and on clean `HEAD`, so it is recorded as a pre-existing local smoke limitation, not this slice's regression evidence.
+
+## Second Source Slice - Proposal Status Surface - 2026-05-09 JST
+
+Audit result:
+
+- Existing `proposal_failed` remains useful as a compatibility boolean, but it is too coarse for publishable state propagation.
+- It can represent RATTLE/proposal construction failure, reverse-gate rejection, unavailable Hamiltonian, invalid `Delta H`, or other proposal-unavailable cases.
+- Ordinary Metropolis rejection is separate from proposal failure, but the status boundary was not machine-readable by callers.
+
+Implemented boundary:
+
+- `hmc_integrator_core.f90`: optional RATTLE-step status codes distinguish output mismatch, momentum mismatch, force failure, constraint failure, strict final-flow failure, final projection failure, and reverse-gate rejection.
+- `hmc.f90`: optional HMC proposal status maps step failures to proposal-level reasons, including reverse-gate rejection and no-progress failure.
+- `markovchain_metropolis.f90`: optional transition status maps proposal status to accepted, ordinary rejected, proposal failed, reverse-gate rejected, invalid Hamiltonian, invalid `Delta H`, or output mismatch.
+- `tests/test_hamiltonian_conservation.f90`: successful test proposals now assert `hmc_proposal_status_success`.
+
+Compatibility:
+
+- Existing `accept`, `proposal_ok`, and `proposal_failed` callers remain source-compatible.
+- Acceptance probability, RNG draw location, live-chain state update, and output schema are unchanged.
+- The new statuses are a surface for the next counter/output cleanup; they do not yet split Stage1/Stage2 summary columns.
+
+Verification:
+
+- Clean local rebuild: `make -C build clean && make -C build FC=gfortran LDFLAGS= ../bin/test_program`.
+- Hamiltonian test: `make -C build FC=gfortran LDFLAGS= test1` passes with `estimated_order_tail=2.0289`.
+- Stage2 executable rebuild: `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage2` passes.
+
+Build-system risk:
+
+- Incremental rebuild after this public module API change produced a stale-object crash before clean rebuild.
+- Cause: the local makefile does not track complete Fortran module dependencies.
+- Until build tooling is modernized, clean rebuild is required after module API changes.

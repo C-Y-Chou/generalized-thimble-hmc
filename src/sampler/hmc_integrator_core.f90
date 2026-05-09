@@ -45,6 +45,16 @@ module hmc_integrator_core
    integer, parameter :: quasi_case_near = 1
    integer, parameter :: quasi_case_mid = 2
 
+   integer, parameter :: hmc_step_status_success = 0
+   integer, parameter :: hmc_step_status_output_size_mismatch = 1
+   integer, parameter :: hmc_step_status_momentum_size_mismatch = 2
+   integer, parameter :: hmc_step_status_initial_force_failed = 3
+   integer, parameter :: hmc_step_status_constraint_failed = 4
+   integer, parameter :: hmc_step_status_final_flow_failed = 5
+   integer, parameter :: hmc_step_status_final_force_failed = 6
+   integer, parameter :: hmc_step_status_final_projection_failed = 7
+   integer, parameter :: hmc_step_status_reverse_gate_rejected = 8
+
    integer, parameter :: s1_probe_max_iter_default = 28
    integer, parameter :: s1_near_full_max_iter_default = 100
    integer, parameter :: s1_non_near_cheap_full_max_iter_default = 36
@@ -68,7 +78,7 @@ module hmc_integrator_core
 contains
 
    subroutine rattle_step_core(state_x, state_z, step_size, final_x, final_z, jaci, jacf, momentum, &
-                               method_converged, ws)
+                               method_converged, ws, step_status)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -81,6 +91,7 @@ contains
       real(dp), intent(inout) :: momentum(:)
       logical, intent(out) :: method_converged
       type(rattle_step_workspace_t), intent(inout) :: ws
+      integer, intent(out), optional :: step_status
 
       integer :: n_state
       logical :: has_error
@@ -124,6 +135,7 @@ contains
       n_state = size(state_z)
       has_error = .false.
       method_converged = .false.
+      if (present(step_status)) step_status = hmc_step_status_constraint_failed
       quasi_solved_ok = .false.
       trace_stats_available = .false.
       trace_count = 0
@@ -158,10 +170,12 @@ contains
       post_refine_failed_in_proposal = .false.
 
       if (size(final_x) /= size(state_x) .or. size(final_z) /= n_state) then
+         if (present(step_status)) step_status = hmc_step_status_output_size_mismatch
          call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
          return
       end if
       if (size(momentum) /= 2*n_state) then
+         if (present(step_status)) step_status = hmc_step_status_momentum_size_mismatch
          call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
          return
       end if
@@ -184,6 +198,7 @@ contains
       call complex_to_real(ws%E0, ws%E0_real)
       call calculate_dV(n_state, ws%E0_real, ws%E0_perp, ws%dV, has_error)
       if (has_error) then
+         if (present(step_status)) step_status = hmc_step_status_initial_force_failed
          if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
          call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
          return
@@ -387,6 +402,7 @@ contains
       end if
 
       if (has_error) then
+         if (present(step_status)) step_status = hmc_step_status_constraint_failed
          if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
          call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
          return
@@ -397,6 +413,7 @@ contains
       call set_intode_quasi_iter_trace(0)
       call flow(final_x, final_z, ws%temp_jac, has_error)
       if (has_error) then
+         if (present(step_status)) step_status = hmc_step_status_final_flow_failed
          if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
          call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
          return
@@ -410,6 +427,7 @@ contains
 
       call calculate_dV(n_state, ws%E0_real, ws%E0_perp, ws%dV, has_error)
       if (has_error) then
+         if (present(step_status)) step_status = hmc_step_status_final_force_failed
          if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
          call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
          return
@@ -418,6 +436,7 @@ contains
       momentum = momentum - step_size*ws%dV
       call decompose2(momentum, ws%E0_perp, ws%del_z, ws%Jl, ws%temp_jac, has_error)
       if (has_error) then
+         if (present(step_status)) step_status = hmc_step_status_final_projection_failed
          if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
          call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
          return
@@ -437,6 +456,7 @@ contains
                                                     reverse_gate_used_far_skip, reverse_gate_used_far_light, &
                                                     reverse_gate_used_far_anchor)
          if (.not. reverse_gate_passed) then
+            if (present(step_status)) step_status = hmc_step_status_reverse_gate_rejected
             if (size(state_z) >= 1 .and. size(ws%del_z) >= 2 .and. size(state_x) >= 2) then
                write (*, '(A,1X,ES24.16,1X,ES24.16,1X,ES24.16,1X,ES24.16,1X,ES24.16,1X,ES24.16,1X,ES24.16,1X,ES24.16)') &
                   '[RG_REJECT_CASE] z0_re z0_im delz_u delz_v x0_u zacc_re zacc_im xacc_u=', &
@@ -451,6 +471,7 @@ contains
 
       jacf = ws%temp_jac
       method_converged = .true.
+      if (present(step_status)) step_status = hmc_step_status_success
       call set_intode_stage_trace(intode_stage_external)
       if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
       call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)

@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-09 17:30 JST
+Updated: 2026-05-09 17:41 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -39,13 +39,23 @@ Updated: 2026-05-09 17:30 JST
 - Local verification: `make -C build FC=gfortran LDFLAGS= ../bin/test_program` and `make -C build FC=gfortran LDFLAGS= test1` pass on macOS/gfortran.
 - Local Stage2 smoke with `TLTM_STAGE2_CYCLES=2`, `TLTM_STAGE2_NUM_REPLICAS=2`, `TLTM_STAGE2_MAX_FLOW_TIME=0.1` still fails slot-1 initialization; the same smoke fails on clean `HEAD`, so this is not attributable to the sentinel patch.
 
+## Proposal status surface patch - 2026-05-09 JST
+- Next state/status audit finding: `proposal_failed` is still a compatibility boolean that conflates proposal construction failure, reverse-gate rejection, unavailable Hamiltonian, invalid `Delta H`, and ordinary Metropolis rejection context.
+- Implemented a narrow status-surface patch without changing the acceptance rule, RNG draw point, or output schema:
+  - `hmc_integrator_core.f90` now exposes optional RATTLE-step status codes.
+  - `hmc.f90` maps step status to proposal status and exposes optional proposal status from `integrate_hmc_proposal`.
+  - `markovchain_metropolis.f90` maps proposal status to optional transition status while preserving `accept` and `proposal_failed`.
+  - `tests/test_hamiltonian_conservation.f90` now verifies successful proposals return `hmc_proposal_status_success`.
+- Verification: after a clean rebuild, `make -C build FC=gfortran LDFLAGS= ../bin/test_program`, `make -C build FC=gfortran LDFLAGS= test1`, and `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage2` pass/build locally.
+- Build-system note: incremental build after public module API changes can leave stale objects because the local makefile lacks complete Fortran module dependency tracking. Use a clean rebuild for this patch; proper dependency/build tooling remains a modernization item.
+
 ## State/information propagation audit - 2026-05-09 JST
 - Added `runbooks/STATE_INFORMATION_PROPAGATION_AUDIT.md`.
 - Audit result: live-chain state update on reject appears safe, but failed/unavailable Hamiltonian is still encoded as `0.0` in `hmc.f90`, `markovchain_mod.f90`, and `tests/test_hamiltonian_conservation.f90`.
 - First proposed code patch before broader typed-status redesign: replace `H=0` failure sentinels with explicit proposal status/non-finite unavailable Hamiltonian handling while preserving Metropolis physics.
 
 ## Next action
-Review the HMC unavailable-Hamiltonian sentinel patch before commit. Broader typed state/status redesign remains a later slice.
+Review the proposal status surface patch before commit. Next implementation slice should decide whether to split Stage1/Stage2 counters using the new statuses or first fix Fortran module dependency tracking.
 
 ## After confirmation
 - Build baseline harness design first.
