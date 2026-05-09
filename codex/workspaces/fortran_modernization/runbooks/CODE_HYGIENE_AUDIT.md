@@ -1,6 +1,6 @@
 # Code Hygiene Audit
 
-Updated: 2026-05-08
+Updated: 2026-05-09
 Scope: sloppy handwritten artifact cleanup and Fortran modernization, behavior-preserving and baseline-gated.
 
 ## Purpose
@@ -46,7 +46,7 @@ Clean implementation quality without changing physics, sampling, or output behav
 - `/home/cychou/TLTM/src/sampler/quasi_newton_solver.f90`: p28 BTN/DFO-LS residual, fallback policy, traces, watchdog-style accounting, and compatibility counters.
 - `/home/cychou/TLTM/src/sampler/tltm_stage2_driver.f90`: orchestration, summaries, histories, swaps, config/env parsing.
 - `/home/cychou/TLTM/src/apps/evaluate_expectations.f90`: evaluation, diagnostics, plotting metadata, statistics, I/O.
-- `/home/cychou/TLTM/src/core/utils.f90`: mapping helpers, state helpers, I/O helpers, math helpers.
+- `/home/cychou/TLTM/src/core/utils.f90`: mapping helpers, state helpers, history I/O helpers, math helpers.
 - `/home/cychou/TLTM/src/core/mt95.f90`: global RNG state.
 - `/home/cychou/TLTM/src/config/param_mod.f90`: config + legacy global sync.
 
@@ -58,13 +58,13 @@ Reference queue:
 
 - `STATE_INFORMATION_PROPAGATION_REFACTOR.md`
 
-## Pre-Stage3_4 Actions
+## Current Actions
 
-- Do not edit source.
 - Build line/function-level inventory for high-risk files.
 - Mark possible pure helpers vs behavior-sensitive blocks.
 - Create later cleanup tickets with required baseline rows.
 - Identify comments/equation docs that should be added after baseline.
+- Source cleanup may proceed only when it is behavior-neutral, explicitly user-approved, and verified by the relevant build/smoke/baseline checks.
 
 ## Cleanup Rule
 

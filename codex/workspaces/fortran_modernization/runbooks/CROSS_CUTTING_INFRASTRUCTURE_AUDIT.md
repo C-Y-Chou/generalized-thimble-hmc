@@ -1,7 +1,7 @@
 # Cross-Cutting Infrastructure Audit
 
-Updated: 2026-05-08
-Scope: repo-wide infrastructure outside the five core numerical algorithm audits. Planning-only inventory.
+Updated: 2026-05-09
+Scope: repo-wide infrastructure outside the five core numerical algorithm audits. Live inventory.
 
 ## Purpose
 
@@ -19,7 +19,7 @@ Responsibilities observed:
 
 - real/complex matrix and vector mapping.
 - `x` state layout helpers: flow time and seed extraction/setters.
-- initial condition/state/history I/O helpers.
+- history I/O helpers.
 - determinant/log determinant helper.
 - basic math helpers such as factorial and outer product.
 
@@ -27,7 +27,7 @@ Risks:
 
 - State layout convention is global and implicit.
 - Mapping helpers are behavior-sensitive for flow/RATTLE/QN residuals.
-- I/O helpers mixed with math/state helpers.
+- History I/O helpers are still mixed with math/state helpers.
 - Any cleanup can affect residual sign/order or history compatibility.
 
 ### RNG / seed policy
@@ -56,8 +56,9 @@ Responsibilities observed:
 - config types/defaults.
 - validation.
 - legacy global synchronization.
-- key-value and legacy parameter readers.
+- key-value parameter reader.
 - environment/config interaction through downstream scripts.
+- Historical positional `parameters.dat` support has been deleted; config files must use `key=value`.
 
 Risks:
 
@@ -124,7 +125,7 @@ Risks:
 - Build modes, compiler flags, and dependencies need product-grade documentation.
 - Future CI/reproducibility workflow must separate fast tests from production campaigns.
 
-## Pre-Stage3_4 Actions
+## Current Safe Actions
 
 Safe now:
 
@@ -134,10 +135,10 @@ Safe now:
 - Draft RNG/config/output schema requirements.
 - Draft wrapper compatibility requirements.
 
-Blocked until after Stage3_4/TLTM judgment and characterization baseline:
+Decision-gated:
 
 - Moving RNG state.
-- Changing config semantics.
+- Changing config semantics beyond the completed key-value-only cleanup.
 - Changing output/history schema.
 - Rewriting scripts into wrapper entry points.
 - Refactoring `utils` mapping helpers.
