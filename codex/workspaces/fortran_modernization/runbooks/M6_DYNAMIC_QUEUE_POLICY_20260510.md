@@ -41,6 +41,23 @@ The launcher must score queues from live `qstat -Qf` state when available:
 - keep long queues and `F` as valid but more expensive fallback choices;
 - record the final queue plan in a manifest and JSON plan under `output/logs/fortran_modernization/reference_datasets/submit/`.
 
+## Shared Resource Assumption
+
+Cluster02 is shared with other users. Queue state and start latency are not stable properties of a queue.
+
+Queue decisions must therefore combine three evidence types:
+
+- Manual constraints: hard eligibility and maximum walltime/node/core limits.
+- Persistent observations: compatibility priors for a specific TLTM job shape, such as `Exit_status=0` or `Exit_status=127`.
+- Live state: current `qstat -Qf`, current user jobs, and optional short production-shape probes.
+
+Operational consequences:
+
+- A successful probe proves that the queue can run the job shape; it does not prove the queue is always the fastest future choice.
+- A queue backlog is a time-local observation; it should not become a permanent blacklist.
+- Large batches should use probe-first optimization when live pressure is ambiguous or when stale priors would dominate the plan.
+- Scheduler snapshots should be refreshed immediately before queue selection, not reused across sessions as current availability evidence.
+
 The active launcher is:
 
 ```bash
@@ -70,7 +87,7 @@ Future queue/work splitting decisions must consult this scheduler memory first, 
 - Stuck `C8-LONG` replacement chunks were superseded through cancel/resubmit/rebuild-merge:
   - R3 replacement: `14669` on `C12`, merge `14670`.
   - R4 replacements: `14671` on `C8`, `14672` on `C12-LONG`, `14673` on `C12`, `14674` on `C8`, merge `14675`.
-- Scheduler memory now treats `C8` and `C12` as preferred M6 production-shape queues, with `C12-LONG` as a validated long-queue pressure release.
+- Scheduler memory now treats `C8` and `C12` as preferred M6 production-shape compatibility priors, with `C12-LONG` as a validated long-queue pressure release. These are not fixed future availability guarantees.
 
 Dry-run:
 

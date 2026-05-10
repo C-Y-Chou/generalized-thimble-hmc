@@ -1,6 +1,6 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-10T19:39:43+09:00
+Generated: 2026-05-10T19:42:26+09:00
 Remote refreshed: 2026-05-10T19:36:11+09:00
 
 ## Hard Rules
@@ -35,14 +35,14 @@ Remote refreshed: 2026-05-10T19:36:11+09:00
 ## High-Priority Open Items
 
 - `CP-001` control_plane: Keep L0/L1 current after remote/job changes Next: Run refresh_remote_state and render_l0_boot before remote/PBS work
-- `CP-003` cluster02: Record new queue failures/successes into scheduler observations Next: 2026-05-10 probe observations recorded; continue recording notable future job outcomes
+- `CP-003` cluster02: Record new queue failures/successes into scheduler observations Next: Use fresh qstat/probes for current scheduling; record notable future outcomes as priors, not fixed availability
 
 ## Recent Decisions
 
-- 2026-05-10 `cluster02`: Do not use qmove as official repair
 - 2026-05-10 `cluster02`: Exclude GPU queues for CPU-only TLTM chunks
 - 2026-05-10 `cluster02`: Blacklist C17/C17-LONG for M6 8-core chunk shape
 - 2026-05-10 `cluster02`: Prefer probe-verified C8/C12 and use C12-LONG as pressure release for M6 chunks
+- 2026-05-10 `cluster02`: Treat cluster02 as a shared dynamic resource rather than a fixed machine
 - 2026-05-10 `stage3_4`: Stage3_4 queue optimization playbook is superseded for current scheduling
 - 2026-05-10 `remote`: Rename control-plane target id to fortran_modernization_m6_active
 

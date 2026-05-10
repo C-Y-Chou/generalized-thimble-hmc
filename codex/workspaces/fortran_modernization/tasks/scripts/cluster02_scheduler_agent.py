@@ -91,10 +91,14 @@ def show_policy(root: Path) -> int:
     queue_policy = knowledge.get("queue_policy", {})
     if not isinstance(queue_policy, dict):
         raise RuntimeError("invalid queue_policy in scheduler knowledge")
+    resource_model = knowledge.get("resource_model", {})
     candidates = queue_policy.get("default_cpu_candidates", [])
     excluded = queue_policy.get("excluded_by_default", {})
     print("cluster={}".format(knowledge.get("cluster", "unknown")))
     print("manual={}".format(knowledge.get("manual", {}).get("source", "unknown") if isinstance(knowledge.get("manual"), dict) else "unknown"))
+    if isinstance(resource_model, dict):
+        print("resource_model={}".format(resource_model.get("type", "unknown")))
+        print("resource_principle={}".format(resource_model.get("principle", "unknown")))
     print("default_cpu_candidates={}".format(",".join(candidates) if isinstance(candidates, list) else candidates))
     print("excluded_by_default:")
     if isinstance(excluded, dict):

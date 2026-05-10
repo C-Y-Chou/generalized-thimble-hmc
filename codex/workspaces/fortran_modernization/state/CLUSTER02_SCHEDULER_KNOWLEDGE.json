@@ -1,7 +1,20 @@
 {
   "schema_version": 1,
   "cluster": "iTHEMS cluster02",
-  "updated_at_jst": "2026-05-10T19:45:00+09:00",
+  "updated_at_jst": "2026-05-10T20:00:00+09:00",
+  "resource_model": {
+    "type": "shared_dynamic_cluster",
+    "principle": "Persistent observations are priors; current qstat/probes decide present scheduling.",
+    "live_snapshot_required_before_scheduling": true,
+    "snapshot_role": "current queue pressure and availability",
+    "observation_role": "job-shape compatibility and failure/success prior",
+    "probe_role": "current-session evidence when large batches or ambiguous live pressure make priors insufficient",
+    "do_not_infer": [
+      "A previously fast queue will remain fastest in future sessions.",
+      "A previously backlogged queue is permanently bad.",
+      "A successful probe is an availability guarantee beyond the current scheduling window."
+    ]
+  },
   "manual": {
     "source": "/Users/ccy/Downloads/ithems_cluster02_users_guide_rev10.0_en.pdf",
     "title": "iTHEMS cluster02 Users Guide rev10.0",
@@ -59,6 +72,8 @@
       "Penalize queued, waiting, and held backlog.",
       "Penalize queues already assigned many chunks in the current launch.",
       "Prefer short CPU queues before long queues when comparable.",
+      "Treat observed successes as compatibility priors, not as fixed availability guarantees.",
+      "Use fresh qstat snapshots and production-shape probes for large or ambiguous batches.",
       "Record queue plan and observations for future reuse."
     ]
   },
