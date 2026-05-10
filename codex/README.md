@@ -40,6 +40,7 @@ bash tasks/refresh_live_board.sh
   - `runbooks/M5_PRE_M6_GATE_ASSESSMENT.md`
   - `runbooks/M6_PRE_DATASET_PRODUCT_READINESS_PLAN.md`
   - `runbooks/M6_DATASET_REGENERATION_CHECKLIST.md`
+  - `runbooks/M6_PROVENANCE_READBACK_CHECKLIST.md`
 - Local guardrail before source changes or dataset planning: `make -C build modernization_guardrails`
 - Dataset regeneration remains paused until the user explicitly starts it.
 

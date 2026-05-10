@@ -133,6 +133,7 @@ Current protocol state:
 - M6 product-readiness docs are now started:
   - `runbooks/M6_PRE_DATASET_PRODUCT_READINESS_PLAN.md`
   - `runbooks/M6_DATASET_REGENERATION_CHECKLIST.md`
+  - `runbooks/M6_PROVENANCE_READBACK_CHECKLIST.md`
 - Official dataset regeneration remains paused until user explicitly starts it after M6 review.
 - Repo entry docs now point to M6 guardrails/checklists and no longer describe single-chain output as the current official dataset path.
 

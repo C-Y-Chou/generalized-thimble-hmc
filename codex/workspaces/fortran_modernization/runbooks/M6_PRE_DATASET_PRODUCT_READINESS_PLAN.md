@@ -95,8 +95,8 @@ M6 is complete when these are present and current:
 
 - M6 product-readiness plan: this document.
 - Dataset-regeneration checklist with exact preflight, run, audit, and analysis steps.
-- README/docs update pointing new work to the current M3-M6 workflow and guardrails.
 - Provenance/readback checklist for v1alpha sidecars and Stage3 summaries.
+- README/docs update pointing new work to the current M3-M6 workflow and guardrails.
 - Explicit deferral list for RNG ownership, large `save` workspace migration, model/tape cache ownership, public schema deprecation, and full `param_mod` global replacement.
 
 ## Dataset Regeneration Start Checklist
