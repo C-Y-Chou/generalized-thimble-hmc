@@ -481,8 +481,8 @@ Label-trace checks:
 
 Protocol declaration checks:
 
-- v0 timing should be reported explicitly as `local_update -> measure/history -> swap -> label_trace`.
-- The audit report should mark this as a historical compatibility convention, not a v1 recommendation.
+- Current timing should be reported explicitly as `local_update -> swap -> measure/history/label_trace`.
+- The audit report should mark this as the selected replica-exchange-style convention for regenerated datasets.
 - If a future manifest declares a different timing, the audit should fail unless the output files also carry a schema-version transition.
 
 Stage3 cross-checks:
@@ -639,9 +639,8 @@ M3b.5: v1 observables/diagnostics package.
 
 M3b.6: wrapper sweep-order decision.
 
-- Decide whether to retain v0 timing for compatibility or migrate the unified wrapper to a paper-aligned `swap -> local -> measure` convention.
-- Treat migration as a baseline-gated behavior change.
-- This remains the next true design-decision node because both conventions can be legitimate Markov kernels, but they differ in finite-run outputs, histories, labels, and reproducibility.
+- Decision recorded 2026-05-10 JST: do not preserve old dataset timing. Regenerate datasets after adopting the standard replica-exchange-style `local update -> swap -> measure/history/label trace` boundary.
+- `swap -> local -> measure` remains a valid paper-aligned alternative but is not the selected convention for this codebase.
 
 ## Stop Gates
 
@@ -661,4 +660,4 @@ Stop and ask before implementing if the next patch would:
 
 The safest immediate next code step is not a writer refactor.
 
-The next executable step should be a parser-only protocol audit tool that reads current outputs and proves we can detect basic accounting, label/walker, and v0 timing contracts. Only after that should we add source-level swap-kernel tests and then v1 manifest/protocol files beside v0 outputs.
+The next executable step after the protocol-timing change is to run local smoke/audit verification and then regenerate the scientific datasets under the selected post-swap measurement boundary.

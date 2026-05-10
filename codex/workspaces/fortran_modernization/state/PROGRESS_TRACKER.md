@@ -52,6 +52,7 @@
 - 2026-05-10 JST: Added `runbooks/M3_V0_OUTPUT_INVENTORY_AND_PROTOCOL_AUDIT_PLAN.md` to inventory current v0 output fields/artifacts and define the parser-only/replay protocol audit sequence before v1 writer work.
 - 2026-05-10 JST: Implemented parser-only TLTM protocol audit script and a source-level adjacent-swap kernel contract test.
 - 2026-05-10 JST: Implemented opt-in Stage2 v1alpha sidecar manifest/protocol plus minimal diagnostics/observables package; next true design-decision node is unified-wrapper sweep order and measurement boundary.
+- 2026-05-10 JST: User selected the common replica-exchange-style `local update -> swap -> measure/history/label trace` boundary and explicitly dropped old dataset timing compatibility; future datasets should be regenerated.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit

@@ -298,6 +298,16 @@ contains
             slot_t0 = wall_time_seconds()
             call run_local_updates(slots(i), local_updates, local_accept_census(i), cycle_idx)
             slots(i)%local_runtime = slots(i)%local_runtime + (wall_time_seconds() - slot_t0)
+         end do
+
+         if (swap_enabled .and. n_slots > 1) then
+            call perform_swap_sweep(slots, pair_stats, cycle_idx)
+         end if
+
+         call refresh_label_positions(slots, label_tracks)
+         call update_round_trip_bookkeeping(label_tracks, cycle_idx, hot_slot)
+
+         do i = 1, n_slots
             call measure_slot(slots(i))
          end do
          if (write_cold_history) then
@@ -330,13 +340,6 @@ contains
                error stop 1
             end if
          end if
-
-         if (swap_enabled .and. n_slots > 1) then
-            call perform_swap_sweep(slots, pair_stats, cycle_idx)
-         end if
-
-         call refresh_label_positions(slots, label_tracks)
-         call update_round_trip_bookkeeping(label_tracks, cycle_idx, hot_slot)
          call write_label_trace(unit_trace, cycle_idx, label_tracks)
 
          if (cycle_idx == 1 .or. mod(cycle_idx, 10) == 0 .or. cycle_idx == cycle_count) then
@@ -1484,10 +1487,10 @@ contains
       call write_json_string_field(unit_manifest, "canonical_route_id", "newton_p28_btn_reverse_gate_metropolis", .true.)
       call write_json_string_field(unit_manifest, "flow_policy_id", "odex_primary_solver_assist_residual_strict_final_flow", .true.)
       call write_json_string_field(unit_manifest, "reverse_gate_policy_id", "required_for_canonical_p28_route", .true.)
-      call write_json_string_field(unit_manifest, "tempering_protocol_id", "stage2_v0_local_measure_swap_labeltrace", .true.)
-      call write_json_string_field(unit_manifest, "sweep_order", "local_update_measure_history_swap_label_trace", .true.)
-      call write_json_string_field(unit_manifest, "measurement_boundary", "post_local_pre_swap", .true.)
-      call write_json_string_field(unit_manifest, "history_boundary", "post_local_pre_swap", .true.)
+      call write_json_string_field(unit_manifest, "tempering_protocol_id", "stage2_replica_exchange_local_swap_measure", .true.)
+      call write_json_string_field(unit_manifest, "sweep_order", "local_update_swap_measure_history_label_trace", .true.)
+      call write_json_string_field(unit_manifest, "measurement_boundary", "post_swap", .true.)
+      call write_json_string_field(unit_manifest, "history_boundary", "post_swap", .true.)
       call write_json_string_field(unit_manifest, "label_trace_boundary", "post_swap", .true.)
       call write_json_real_array_field(unit_manifest, "flow_ladder", flow_ladder, .true.)
       call write_json_string_field(unit_manifest, "seed_policy", "CHAIN_RNG_SEED base seed plus deterministic per-slot derived seeds", .true.)
@@ -1568,9 +1571,9 @@ contains
       write (unit_manifest, '(A)') '  },'
 
       write (unit_manifest, '(A)') '  "compatibility": {'
-      call write_json_string_field(unit_manifest, "v0_output_contract", "preserved", .true., 4)
+      call write_json_string_field(unit_manifest, "v0_output_contract", "field_names_preserved_timing_changed", .true., 4)
       call write_json_string_field(unit_manifest, "v1_sidecar_default", "opt_in_only", .true., 4)
-      call write_json_string_field(unit_manifest, "sample_boundary_note", "Stage2 v0 samples and histories are written before swap; label trace is written after swap.", .false., 4)
+      call write_json_string_field(unit_manifest, "sample_boundary_note", "Stage2 samples, histories, and label trace are written after the swap sweep.", .false., 4)
       write (unit_manifest, '(A)') '  },'
 
       call write_json_real_field(unit_manifest, "elapsed_sec", elapsed, .false.)
@@ -1711,7 +1714,7 @@ contains
          end if
          write (unit_csv, '(I0,A,ES23.15E3,A,I0,A,ES23.15E3,A,ES23.15E3,A,ES23.15E3,A,A)') &
             slots(i)%slot_id, ",", slots(i)%flow_time, ",", slots(i)%observable_samples, ",", &
-            real(mean_phi, dp), ",", aimag(mean_phi), ",", abs(mean_phi), ",post_local_pre_swap"
+            real(mean_phi, dp), ",", aimag(mean_phi), ",", abs(mean_phi), ",post_swap"
       end do
       close (unit_csv)
    end subroutine write_stage2_v1_phase_summary_csv
@@ -1756,7 +1759,7 @@ contains
 
       write (unit_protocol, '(A)') "{"
       call write_json_string_field(unit_protocol, "schema_version", "tltm.stage2.protocol.v1alpha1", .true.)
-      call write_json_string_field(unit_protocol, "protocol_id", "stage2_v0_local_measure_swap_labeltrace", .true.)
+      call write_json_string_field(unit_protocol, "protocol_id", "stage2_replica_exchange_local_swap_measure", .true.)
       call write_json_string_field(unit_protocol, "tempering_parameter", "flow_time", .true.)
       call write_json_string_field(unit_protocol, "fixed_zone_identifier", "slot_id", .true.)
       call write_json_string_field(unit_protocol, "mobile_walker_identifier", "label_id", .true.)
@@ -1781,26 +1784,26 @@ contains
       write (unit_protocol, '(A)') '  },'
 
       write (unit_protocol, '(A)') '  "sweep_schedule": {'
-      call write_json_string_field(unit_protocol, "cycle_order", "local_update_measure_history_swap_label_trace", .true., 4)
+      call write_json_string_field(unit_protocol, "cycle_order", "local_update_swap_measure_history_label_trace", .true., 4)
       call write_json_string_field(unit_protocol, "pairing", "one alternating adjacent-pair parity sub-sweep per cycle", .true., 4)
       call write_json_string_field(unit_protocol, "odd_cycles", "(0,1),(2,3),...", .true., 4)
       call write_json_string_field(unit_protocol, "even_cycles", "(1,2),(3,4),...", .false., 4)
       write (unit_protocol, '(A)') '  },'
 
       write (unit_protocol, '(A)') '  "measurement_policy": {'
-      call write_json_string_field(unit_protocol, "sample_boundary", "post_local_pre_swap", .true., 4)
+      call write_json_string_field(unit_protocol, "sample_boundary", "post_swap", .true., 4)
       call write_json_string_field(unit_protocol, "label_trace_boundary", "post_swap", .true., 4)
-      call write_json_string_field(unit_protocol, "status", "v0 compatibility convention, not final wrapper recommendation", .false., 4)
+      call write_json_string_field(unit_protocol, "status", "replica-exchange convention selected for regenerated datasets", .false., 4)
       write (unit_protocol, '(A)') '  },'
 
       write (unit_protocol, '(A)') '  "history_policy": {'
-      call write_json_string_field(unit_protocol, "cold_history", "fixed max-flow slot sampled post-local/pre-swap when enabled", .true., 4)
-      call write_json_string_field(unit_protocol, "all_replica_history", "fixed slots sampled post-local/pre-swap when enabled", .false., 4)
+      call write_json_string_field(unit_protocol, "cold_history", "fixed max-flow slot sampled post-swap when enabled", .true., 4)
+      call write_json_string_field(unit_protocol, "all_replica_history", "fixed slots sampled post-swap when enabled", .false., 4)
       write (unit_protocol, '(A)') '  },'
 
       write (unit_protocol, '(A)') '  "compatibility": {'
-      call write_json_string_field(unit_protocol, "v0_summary", "unchanged", .true., 4)
-      call write_json_string_field(unit_protocol, "v0_label_trace", "unchanged", .true., 4)
+      call write_json_string_field(unit_protocol, "v0_summary", "field_names_preserved_timing_changed", .true., 4)
+      call write_json_string_field(unit_protocol, "v0_label_trace", "field_names_preserved_timing_changed", .true., 4)
       call write_json_string_field(unit_protocol, "sidecar_default", "opt_in_only", .false., 4)
       write (unit_protocol, '(A)') '  }'
       write (unit_protocol, '(A)') "}"

@@ -136,39 +136,40 @@ Preliminary assessment:
 - The code uses one parity sub-sweep per cycle, whereas the 1912 example repeats multiple swap sub-sweeps with alternating pairings. This is not automatically wrong, but it is a production policy choice that must be explicit in v1.
 - Current Stage2 measurement and history timing are v0 conventions, not yet a publishable protocol contract.
 
-Important v0 timing detail:
+Superseded v0 timing detail:
 
 - Within each Stage2 cycle, local updates and `measure_slot(...)` happen before the swap sweep.
 - Max-flow and all-replica histories are also written before the swap sweep.
 - Label trace is refreshed and written after the swap sweep.
 - Therefore v0 mixes a `post-local/pre-swap` sample stream with a `post-swap` label trace. This can be valid as a historical output convention, but v1 must not leave this implicit.
+- User decision, 2026-05-10 JST: do not preserve this old dataset timing. Regenerate datasets after changing Stage2 to the standard replica-exchange-style `local update -> swap -> measure/history/label trace` boundary.
 
 ## Canonical v1 Tempering Recommendation
 
-For a future unified wrapper, use an explicit sweep contract:
+Canonical selected sweep contract:
 
 ```text
 for sweep k:
-  1. attempt configured adjacent swap sub-sweeps
-  2. refresh labels and round-trip state
-  3. run local HMC/RATTLE updates independently in each fixed slot
-  4. measure and write samples at the declared measurement boundary
+  1. run local HMC/RATTLE updates independently in each fixed slot
+  2. attempt configured adjacent swap sub-sweeps
+  3. refresh labels and round-trip state
+  4. measure and write histories/diagnostics at the declared post-swap boundary
 ```
 
 Rationale:
 
-- This follows the ordering described in the 1912 HMC-on-TLTM example: swap first, then transitions on flowed surfaces, then measurements.
-- Labels and measured slot states are aligned at the same declared cycle boundary.
+- This follows the common replica-exchange production habit: local evolution at each fixed tempering level, then exchange attempts, then measurement at the composite-sweep boundary.
+- Labels and measured fixed-slot states are aligned at the same post-swap declared cycle boundary.
 - It separates sweep scheduling from output writing, making future parallel implementation easier.
 
 Compatibility warning:
 
-- Changing Stage2 from v0 `post-local/pre-swap` sampling to v1 `post-swap/local/measure` timing is behavior-changing for finite runs and must not be done silently.
-- v0 compatibility writers should preserve current timing until an explicit wrapper/schema migration is approved.
+- Changing Stage2 from old `post-local/pre-swap` sampling to post-swap sampling is behavior-changing for finite runs.
+- This change is now intentional: existing datasets are not treated as compatible baselines and should be regenerated.
 
 Allowed v1 alternatives:
 
-- A wrapper may choose `local -> swap -> measure` instead if declared in the manifest and validated by fixed-seed baselines.
+- `swap -> local -> measure` remains a valid paper-aligned alternative, but it is not the selected production convention for this codebase.
 - What is forbidden is an undocumented measurement boundary.
 
 ## v0 Output Inventory
@@ -178,8 +179,8 @@ v0 consists of several related but not unified artifacts:
 - Stage1 summary text: replica-level local transition and flow-status diagnostics.
 - Stage2 summary text: slot, pair, label, local transition, solver, flow-status, reverse-gate, and accepted-route diagnostics.
 - Stage2 label trace: `cycle label_id slot_id round_trip_count`.
-- Stage2 cold/max-flow history: binary `z_history.dat` and `phi_history.dat` for a fixed max-flow slot, currently sampled before swap.
-- Optional all-replica histories: per-slot binary histories, currently sampled before swap.
+- Stage2 cold/max-flow history: binary `z_history.dat` and `phi_history.dat` for a fixed max-flow slot, sampled at the declared post-swap boundary after the protocol change.
+- Optional all-replica histories: per-slot binary histories, sampled at the declared post-swap boundary after the protocol change.
 - Constraint failure capture files: binary `z0`, `delz`, `x0` snapshots plus quasi trace CSV and failure-meta CSV.
 - Stage3 per-seed CSV: parsed and flattened Stage2/evaluation metrics.
 - Stage3 aggregate CSV/report: per-method aggregate physical and diagnostic summaries.
@@ -392,7 +393,7 @@ Regression gate:
 
 These require user confirmation before code changes:
 
-- Final v1 wrapper sweep order: keep v0 timing for compatibility, adopt paper-aligned `swap -> local -> measure`, or adopt standard `local -> swap -> measure`.
+- Final v1 wrapper sweep order: selected standard `local -> swap -> measure/history/trace`; old v0 timing is legacy and existing datasets should be regenerated.
 - Which slot(s) are publication-observable targets: max-flow slot, fit window over high-flow slots, or all slots with automatic constant-fit selection.
 - Whether v1 should write histories for fixed slots, mobile labels, or both.
 - Whether current one-parity-swap-per-cycle policy is sufficient, or whether the wrapper should support multiple alternating swap sub-sweeps per measurement.

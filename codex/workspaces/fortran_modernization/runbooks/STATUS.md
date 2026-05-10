@@ -98,12 +98,13 @@ Next expected modernization area after this slice:
   - `TLTM_STAGE2_V1_OUTPUT_DIR` writes `manifest.json`, `protocol.json`, diagnostics CSVs, and per-slot phase summary CSV.
   - `TLTM_STAGE2_V1_MANIFEST_FILE` and `TLTM_STAGE2_V1_PROTOCOL_FILE` allow individual sidecar file output.
   - Default output behavior is unchanged when these env vars are absent.
-- The protocol audit script now accepts optional `--manifest` and `--protocol` sidecars and cross-checks schema, v0 timing, flow ladder, controls, and v1 diagnostics row counts.
+- The protocol audit script now accepts optional `--manifest` and `--protocol` sidecars and cross-checks schema, declared timing, flow ladder, controls, and v1 diagnostics row counts.
+- User decision recorded 2026-05-10 JST: old dataset timing compatibility is not required. Stage2/TLTM should use the common replica-exchange habit `local update -> swap -> measure/history/label trace`, and datasets will be regenerated.
 
-Current true design-decision node:
+Current protocol state:
 
-- The next M3b item is wrapper-level sweep-order / measurement-boundary policy: keep v0 `local -> measure/history -> swap -> label_trace`, or migrate the future unified wrapper to a paper-aligned `swap -> local -> measure` convention.
-- This is not a simple approval gate; it is a real design choice because both can be valid kernels but they produce different finite-run histories and reproducibility contracts.
+- Stage2 cycle order is being migrated to post-swap measurement/history/label trace.
+- `swap -> local -> measure` remains a valid paper-aligned alternative but is not the selected convention for regenerated datasets.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.

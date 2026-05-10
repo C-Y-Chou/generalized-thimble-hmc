@@ -318,7 +318,7 @@
 ## 2026-05-10 JST - M3 tempering protocol and schema design
 - Added `runbooks/M3_TEMPERING_PROTOCOL_AND_OUTPUT_SCHEMA_DESIGN.md`.
 - Design explicitly combines TLTM flowed-surface rules with standard replica-exchange requirements before defining v1 output schema.
-- Recorded current Stage2 timing convention: local updates and histories are sampled before swap, while label trace is written after swap; this remains v0 compatibility unless explicitly changed.
+- Recorded the then-current Stage2 timing convention: local updates and histories were sampled before swap, while label trace was written after swap. This was later superseded by the replica-exchange timing decision below.
 - No Fortran source, output writer, production workflow, or job submission changes were made in this planning-only slice.
 
 ## 2026-05-10 JST - M3 v0 output inventory and protocol-audit plan
@@ -339,4 +339,10 @@
 - Individual `TLTM_STAGE2_V1_MANIFEST_FILE` and `TLTM_STAGE2_V1_PROTOCOL_FILE` paths are also supported.
 - Default Stage2 output behavior is unchanged when v1 sidecar env vars are absent.
 - Extended `scripts/audit_tltm_tempering_protocol.py` to cross-check optional v1 sidecars and diagnostics row counts.
-- Current true design-decision node: whether the future unified wrapper should keep v0 timing or migrate to a paper-aligned `swap -> local -> measure` measurement boundary.
+- Follow-up decision recorded below: the selected convention is standard replica-exchange-style `local update -> swap -> measure/history/label trace`.
+
+## 2026-05-10 JST - Replica-exchange timing decision
+- User decided not to preserve existing dataset timing compatibility.
+- Selected protocol convention: local updates, then adjacent swap sweep, then measurement/history/label trace at the post-swap boundary.
+- Existing datasets should be regenerated after this change.
+- `swap -> local -> measure` remains a valid paper-aligned alternative, but it is not the selected convention for this codebase.

@@ -2,7 +2,7 @@
 """Audit the current TLTM Stage2 v0 tempering output contract.
 
 This script is intentionally parser-only. It reads existing Stage2/Stage3
-artifacts and checks accounting, label-trace, and v0 timing invariants without
+artifacts and checks accounting, label-trace, and declared timing invariants without
 changing Fortran source, output writers, production workflows, or binary files.
 """
 
@@ -71,7 +71,7 @@ KNOWN_UNVERIFIABLE_FROM_V0 = [
     "Whether RNG draw points are preserved across refactors.",
 ]
 
-V0_TIMING_CONVENTION = "local_update -> measure/history -> swap -> label_trace"
+V0_TIMING_CONVENTION = "local_update -> swap -> measure/history/label_trace"
 
 
 def parse_args():
@@ -769,8 +769,8 @@ def check_v1_sidecars(summary, manifest, protocol, rate_tol):
         add_check(
             checks,
             "v1 manifest timing convention",
-            manifest_data.get("sweep_order") == "local_update_measure_history_swap_label_trace"
-            and manifest_data.get("measurement_boundary") == "post_local_pre_swap"
+            manifest_data.get("sweep_order") == "local_update_swap_measure_history_label_trace"
+            and manifest_data.get("measurement_boundary") == "post_swap"
             and manifest_data.get("label_trace_boundary") == "post_swap",
             details={
                 "sweep_order": manifest_data.get("sweep_order"),
@@ -858,8 +858,8 @@ def check_v1_sidecars(summary, manifest, protocol, rate_tol):
         add_check(
             checks,
             "v1 protocol timing convention",
-            protocol_data.get("sweep_schedule", {}).get("cycle_order") == "local_update_measure_history_swap_label_trace"
-            and protocol_data.get("measurement_policy", {}).get("sample_boundary") == "post_local_pre_swap"
+            protocol_data.get("sweep_schedule", {}).get("cycle_order") == "local_update_swap_measure_history_label_trace"
+            and protocol_data.get("measurement_policy", {}).get("sample_boundary") == "post_swap"
             and protocol_data.get("measurement_policy", {}).get("label_trace_boundary") == "post_swap",
             details={
                 "cycle_order": protocol_data.get("sweep_schedule", {}).get("cycle_order"),
@@ -949,7 +949,7 @@ def make_report(summary, label_trace, stage3, manifest, protocol, rate_tol):
             "mobile_walker_identifier": "label_id",
             "swap_schedule": "v0 one adjacent-pair parity sub-sweep per cycle",
             "cycle_order": V0_TIMING_CONVENTION,
-            "measurement_boundary_status": "v0 compatibility convention; not a v1 recommendation",
+            "measurement_boundary_status": "replica-exchange convention selected for regenerated datasets",
         },
         "summary_parse": {
             "scalars": summary["scalars"],
