@@ -20,9 +20,9 @@ The inventory includes source and tests and records conservative hits for:
 
 Inventory count:
 
-- 337 total ownership-surface rows after the third Lane A env consolidation slice.
+- 336 total ownership-surface rows after the final Lane A direct-env consolidation slice.
 - 275 `save` declarations.
-- 5 runtime env reads.
+- 4 runtime env reads.
 - 43 RNG calls.
 - 14 `param_mod` import sites.
 
@@ -37,7 +37,6 @@ Main `save` hotspots:
 Main env-read hotspots:
 
 - `src/config/runtime_env_mod.f90`: 4
-- `tests/test_hamiltonian_conservation.f90`: 1
 
 Main RNG surface:
 
@@ -148,3 +147,6 @@ Recommendation: choose Lane A first, then Lane B, then targeted Lane C slices. D
 - Preserved policy defaults, primary-vs-legacy alias precedence, invalid-value handling, false-token semantics, seed fallback, and `sgrnd` timing.
 - M4 guardrails passed after the core-policy/source slice.
 - Inventory env-read rows dropped from 24 to 5; production/source direct env reads now live only in `runtime_env_mod`.
+- Replaced the test-local `HMC_SKIP_PLOT` direct env read with `read_string_env`.
+- M4 guardrails passed after the test-local slice.
+- Inventory env-read rows dropped from 5 to 4; direct `get_environment_variable` calls are now centralized in `runtime_env_mod`.

@@ -329,9 +329,8 @@ tests/test_action_derivatives.f90	132		program:test_action_derivatives	rng_call	
 tests/test_action_derivatives.f90	133		program:test_action_derivatives	rng_call	random_number	procedure	rng	call random_number(random_imag)
 tests/test_hamiltonian_conservation.f90	3		program:test_hamiltonian_conservation	param_mod_import	, only: ckrv, config, integrator_method, istest, read_parameters, set_integrator_method, &	procedure	config_global	use param_mod, only: ckrv, config, integrator_method, istest, read_parameters, set_integrator_method, &
 tests/test_hamiltonian_conservation.f90	5		program:test_hamiltonian_conservation	rng_call	getseed	procedure	rng	use mt95, only: getseed, sgrnd
-tests/test_hamiltonian_conservation.f90	31		program:test_hamiltonian_conservation	rng_call	getseed	procedure	rng	rng_seed = getseed()
-tests/test_hamiltonian_conservation.f90	32		program:test_hamiltonian_conservation	rng_call	sgrnd	procedure	rng	call sgrnd(rng_seed)
-tests/test_hamiltonian_conservation.f90	170		subroutine:save_and_plot_hamiltonian_loglog	env_read	HMC_SKIP_PLOT	procedure	runtime_env	"call get_environment_variable(""HMC_SKIP_PLOT"", env_value, length=env_len, status=env_status)"
+tests/test_hamiltonian_conservation.f90	32		program:test_hamiltonian_conservation	rng_call	getseed	procedure	rng	rng_seed = getseed()
+tests/test_hamiltonian_conservation.f90	33		program:test_hamiltonian_conservation	rng_call	sgrnd	procedure	rng	call sgrnd(rng_seed)
 tests/test_odex_solver.f90	23	test_odex_solver_rhs	program:test_odex_solver	param_mod_import	, only: at, rt	procedure	config_global	use param_mod, only: at, rt
 tests/test_tltm_swap_kernel_contract.f90	2		program:test_tltm_swap_kernel_contract	param_mod_import	, only: read_parameters, state_seed_size_cfg	procedure	config_global	use param_mod, only: read_parameters, state_seed_size_cfg
 tests/test_tltm_swap_kernel_contract.f90	3		program:test_tltm_swap_kernel_contract	rng_call	sgrnd	procedure	rng	use mt95, only: sgrnd

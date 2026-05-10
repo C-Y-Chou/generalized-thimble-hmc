@@ -395,3 +395,9 @@
 - Preserved policy defaults, primary-vs-legacy alias precedence, invalid-value handling, false-token semantics, seed fallback, and `sgrnd` timing.
 - Verification passed through `make -C build modernization_guardrails`.
 - Regenerated M5 ownership inventory: total rows dropped from 356 to 337 and env-read rows dropped from 24 to 5; production/source direct env reads now live only in `runtime_env_mod`.
+
+## 2026-05-10 JST - Lane A final direct-env cleanup
+- Replaced the test-local `HMC_SKIP_PLOT` direct env read with `runtime_env_mod:read_string_env`.
+- Verification passed through `make -C build modernization_guardrails`.
+- Regenerated M5 ownership inventory: total rows dropped from 337 to 336 and env-read rows dropped from 5 to 4.
+- Direct `get_environment_variable` calls are now centralized in `runtime_env_mod`.

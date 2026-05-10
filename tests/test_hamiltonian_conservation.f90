@@ -8,6 +8,7 @@ program test_hamiltonian_conservation
    use solve_flow, only: flow, intode_status_unknown, intode_status_is_strict_success
    use perf_profile, only: perf_reset, perf_report
    use constraint_solver_stats_mod, only: reset_constraint_solver_stats, report_constraint_solver_stats
+   use runtime_env_mod, only: read_string_env
    use utils, only: dp, wall_time_seconds, x_set_flow_time, x_set_seed_real
    implicit none
 
@@ -119,11 +120,11 @@ contains
       real(dp), intent(in) :: h_data(method_count, max_entries)
       character(len=*), intent(in) :: method_labels(method_count)
 
-      integer :: idx, method_idx, data_col, exit_status, env_len, env_status
+      integer :: idx, method_idx, data_col, exit_status
       character(len=16) :: env_value
       character(len=32) :: col_text
       character(len=4096) :: plot_line
-      logical :: skip_plot
+      logical :: skip_plot, env_present
 
       open (unit=20, file="hamiltonian_conservation.dat", status="replace", action="write")
       write (20, '(A)', advance='no') "# num_step"
@@ -167,9 +168,9 @@ contains
 
       skip_plot = .false.
       env_value = ""
-      call get_environment_variable("HMC_SKIP_PLOT", env_value, length=env_len, status=env_status)
-      if (env_status == 0 .and. env_len > 0) then
-         if (trim(adjustl(env_value(1:env_len))) /= "0") skip_plot = .true.
+      call read_string_env("HMC_SKIP_PLOT", env_value, env_present)
+      if (env_present) then
+         if (trim(adjustl(env_value)) /= "0") skip_plot = .true.
       end if
       if (skip_plot) then
          write (*, '(A)') "[SUMMARY] HMC_SKIP_PLOT is set; skipped gnuplot rendering."
