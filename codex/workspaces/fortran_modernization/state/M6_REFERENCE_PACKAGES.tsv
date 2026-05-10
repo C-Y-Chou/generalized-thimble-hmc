@@ -1,0 +1,2 @@
+package_id	status	package_class	design_context	generating_workspace	package_root	source_commit	physical_point	methods	seed_policy	protocol_status	sidecar_status	accepted_for_scopes	notes
+TEMPLATE	pending	stage3_4_context_aligned_reference	stage3_4_nofb_vs_withfb_t035_L2_nstep20	codex/workspaces/fortran_modernization	/path/to/package	<commit>	t=0.35,L=2,nstep=20	no_fb,withfb	<matched_seed_policy>	<pending|pass|fail>	<present|absent|partial>	<scope_list>	Replace this row with real accepted packages.

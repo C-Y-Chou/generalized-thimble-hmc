@@ -34,7 +34,7 @@
 
 The local M4 guardrail runner is `scripts/run_m4_guardrails.py`.
 
-It is a small-run development check only; it does not submit production jobs and does not create official datasets.
+It is a small-run development check only; it does not submit production jobs and does not create final datasets or modernization reference packages.
 
 Current checks:
 

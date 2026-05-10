@@ -69,14 +69,14 @@ Current source state has passed the Radau/JFNK deletion, non-p28 QN deletion, po
 
 Current sequencing decision:
 
-- User decision, 2026-05-10 JST: continue modernization through M6 before regenerating official datasets.
-- Dataset regeneration is now gated by M3 protocol/schema completion, M4 guardrails, M5 repo-wide refactor decisions, and M6 product-readiness/provenance docs.
-- Temporary smoke runs remain allowed for development; they are not official regenerated datasets.
+- User decision, 2026-05-10 JST: continue modernization through M6 before building/registering modernization reference packages.
+- Modernization reference-dataset construction/registration is now gated by M3 protocol/schema completion, M4 guardrails, M5 repo-wide refactor decisions, and M6 product-readiness/provenance docs.
+- Temporary smoke runs remain allowed for development; they are not final datasets and are not sufficient modernization reference packages.
 
 Stop-for-decision rule:
 
 - Continue without routine approval for behavior-preserving hygiene, audit/readback/test additions, parser/reporting improvements that preserve existing fields, already-confirmed M3 -> M6 work, and clear status/sentinel/state-propagation bug fixes.
-- Stop only when there are multiple reasonable paths with no clear winner and the choice affects physics semantics, data interpretation, RNG/seed streams, public schema meaning/removal/renaming, wrapper/product interface, production workflow deletion, or future dataset regeneration/provenance.
+- Stop only when there are multiple reasonable paths with no clear winner and the choice affects physics semantics, data interpretation, RNG/seed streams, public schema meaning/removal/renaming, wrapper/product interface, production workflow deletion, or future modernization reference-package provenance.
 
 Latest source-level compatibility decision:
 
@@ -103,7 +103,7 @@ Next expected modernization area after this slice:
 - `runbooks/M3_ARCHITECTURE_CONTRACT.md` now records the next-phase rules before public schema, wrapper, config, or module-state refactors begin.
 - `runbooks/M3_TEMPERING_PROTOCOL_AND_OUTPUT_SCHEMA_DESIGN.md` now records that schema design must first verify the TLTM tempering protocol against both TLTM-specific rules and standard replica-exchange practice.
 - `runbooks/M3_V0_OUTPUT_INVENTORY_AND_PROTOCOL_AUDIT_PLAN.md` now records the current v0 output inventory and the parser/replay audit sequence needed before v1 writer work.
-- `runbooks/M3_TO_M6_BEFORE_DATASET_PLAN.md` now records that official dataset regeneration waits until after the M6 pre-dataset gate.
+- `runbooks/M3_TO_M6_BEFORE_REFERENCE_DATASET_PLAN.md` now records that modernization reference-dataset construction/registration waits until after the M6 gate.
 - `scripts/audit_tltm_tempering_protocol.py` now provides a parser-only Stage2/label-trace/optional-Stage3 protocol audit without changing production output.
 - `tests/test_tltm_swap_kernel_contract.f90` now checks the source-level TLTM adjacent-swap energy/probability contract and invalid-current-energy rejection behavior.
 - Stage2 now has opt-in v1alpha sidecars:
@@ -111,13 +111,13 @@ Next expected modernization area after this slice:
   - `TLTM_STAGE2_V1_MANIFEST_FILE` and `TLTM_STAGE2_V1_PROTOCOL_FILE` allow individual sidecar file output.
   - Default output behavior is unchanged when these env vars are absent.
 - The protocol audit script now accepts optional `--manifest` and `--protocol` sidecars and cross-checks schema, declared timing, flow ladder, controls, and v1 diagnostics row counts.
-- User decision recorded 2026-05-10 JST: old dataset timing compatibility is not required. Stage2/TLTM should use the common replica-exchange habit `local update -> swap -> measure/history/label trace`, and datasets will be regenerated.
+- User decision recorded 2026-05-10 JST: old dataset timing compatibility is not required. Stage2/TLTM should use the common replica-exchange habit `local update -> swap -> measure/history/label trace`; Stage3_4 production outputs and modernization reference datasets are separate outputs under that convention.
 
 Current protocol state:
 
 - Stage2 cycle order has been migrated to post-swap measurement/history/label trace.
-- `swap -> local -> measure` remains a valid paper-aligned alternative but is not the selected convention for regenerated datasets.
-- Dataset regeneration should not start now; it starts only after the M6 pre-dataset gate.
+- `swap -> local -> measure` remains a valid paper-aligned alternative but is not the selected convention for regenerated production/reference outputs.
+- Modernization reference-dataset construction/registration should not start now; it starts only after the M6 gate and an explicit user instruction. Stage3_4 production remains separate.
 - Current M3 code slice complete: Stage3 multiseed orchestration can opt into Stage2 v1alpha sidecars, record sidecar/audit paths in per-seed CSV rows, run sidecar-aware protocol audit/readback, and preserve those metadata columns through chunk merge.
 - Current M4 entry slice complete: `scripts/run_m4_guardrails.py` and `make -C build modernization_guardrails` collect the local compile/build/audit/Stage3 sidecar smoke/merge checks into a repeatable guardrail runner.
 - Verification passed on 2026-05-10 JST through direct script invocation and the make target, including Python compile, `git diff --check`, ODEX/swap tests, Stage3 sidecar dry-run, Stage2 protocol audit smoke, sidecar-on/off tiny Stage3 smokes, and chunk merge preservation.
@@ -131,16 +131,24 @@ Current protocol state:
 - M4 guardrails now include a source-level check that blocks direct env reads outside `runtime_env_mod`.
 - `runbooks/M5_PRE_M6_GATE_ASSESSMENT.md` records the M5 gate result: proceed to M6 product-readiness work while deferring RNG ownership, large module `save` workspace migration, model/tape cache ownership, public schema deletion/renaming, and full `param_mod` global replacement until stronger baselines or explicit wrapper/schema decisions exist.
 - M6 product-readiness docs are now started:
-  - `runbooks/M6_PRE_DATASET_PRODUCT_READINESS_PLAN.md`
-  - `runbooks/M6_DATASET_REGENERATION_CHECKLIST.md`
+  - `runbooks/M6_REFERENCE_DATASET_PRODUCT_READINESS_PLAN.md`
+  - `runbooks/M6_REFERENCE_DATASET_CHECKLIST.md`
   - `runbooks/M6_PROVENANCE_READBACK_CHECKLIST.md`
-- Official dataset regeneration remains paused until user explicitly starts it after M6 review.
-- Repo entry docs now point to M6 guardrails/checklists and no longer describe single-chain output as the current official dataset path.
-- Master/M3-to-M6 planning docs now mark M3/M4/M5 as completed or explicitly deferred where appropriate, with M6 review as the next gate before dataset regeneration.
+- User clarified on 2026-05-10 JST that this modernization workstream is separate from the Stage3_4 `nofb` vs `withfb` production-comparison workstream.
+- `runbooks/PARALLEL_WORKSTREAM_BOUNDARY_AND_REFERENCE_DATASET_POLICY.md` now records that Stage3_4 owns production completion, scheduling, output cleanup, and possible workspace rename/reorganization.
+- Modernization owns the future behavior-preservation reference dataset/package contract, using Stage3_4 as workflow-design context rather than a required result source.
+- `runbooks/M6_REFERENCE_DATASET_DESIGN_SPEC.md` now defines the reference dataset/package shape, Stage3_4-context alignment, manifest fields, artifact pointers, and acceptance criteria.
+- `runbooks/M6_REFERENCE_DATASET_READBACK_PLAN.md` now defines manual/future-automated readback checks and acceptance states.
+- `runbooks/M6_REFERENCE_DATASET_GENERATION_AND_COVERAGE_PLAN.md` now defines R0-R4 reference levels, protected refactor classes, required outputs, pre-generation checklist, and stop-for-decision points.
+- `runbooks/M6_TO_CODE_MODERNIZATION_ENTRY_GATE.md` now records the boundary before future source-code refactors resume.
+- `state/M6_REFERENCE_PACKAGES.tsv` now exists as the reference-package registry template.
+- Modernization is now stopped at the R1 reference-dataset generation gate; generation starts only after explicit user instruction.
+- Repo entry docs now point to M6 guardrails/checklists and no longer describe single-chain output as the Stage3_4 production or modernization reference-package path.
+- Master/M3-to-M6 planning docs now mark M3/M4/M5 as completed or explicitly deferred where appropriate, with M6 review as the next gate before modernization reference-dataset construction/registration.
 
 ## After confirmation
-- Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.
-- Already-approved cleanup slices may proceed when they preserve the canonical p28 route, keep output schemas compatible, and pass build/smoke/source-search checks.
+- Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md` plus the M6 code-entry gate.
+- Already-approved cleanup slices may proceed only after the code-entry gate is satisfied or the user explicitly approves a narrower baseline.
 - Public input compatibility, output schema, wrapper API, and production workflow deprecations remain explicit user-decision gates.
 
 ## Quasi route decision - 2026-05-08 JST

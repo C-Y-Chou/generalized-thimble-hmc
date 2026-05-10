@@ -2,7 +2,7 @@
 
 Updated: 2026-05-10 JST
 
-Scope: decide whether the current behavior-preserving M5 refactor work is sufficient to move into the M6 pre-dataset product-readiness package, without starting dataset regeneration.
+Scope: decide whether the current behavior-preserving M5 refactor work is sufficient to move into the M6 modernization reference-dataset product-readiness package, without starting production or reference-package generation.
 
 ## Gate Result
 
@@ -67,12 +67,12 @@ M6 should now assemble:
 
 - A coherent TLTM runner/wrapper implementation path, with current Stage entry points explicitly retained as compatibility tools.
 - A versioned output/provenance contract covering git commit, algorithm id, flow policy, QN route, reverse-gate policy, tempering protocol, sweep order, measurement boundary, config, env overrides, seed policy, and writer version.
-- A dataset-regeneration checklist that starts only after M6 signoff.
+- A modernization reference-package checklist that starts only after M6 signoff.
 - Documentation that clearly states which M5 high-risk architecture items are intentionally deferred until fresh baselines exist.
 
 ## Not Allowed Yet
 
-- Do not regenerate official datasets.
+- Do not submit Stage3_4 production jobs or build/register modernization reference packages.
 - Do not delete Stage scripts or PBS wrappers.
 - Do not rename or remove public output fields.
 - Do not move RNG streams, large solver workspaces, or model/tape caches.

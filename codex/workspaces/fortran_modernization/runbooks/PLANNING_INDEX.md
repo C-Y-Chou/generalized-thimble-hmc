@@ -7,8 +7,13 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 - `CONFIRMED_DECISIONS_AND_NEXT_PLAN.md`
 - `PRE_STAGE3_4_COMPLETION_PLAN.md`
-- `M3_TO_M6_BEFORE_DATASET_PLAN.md`
+- `M3_TO_M6_BEFORE_REFERENCE_DATASET_PLAN.md`
 - `STATUS.md`
+- `PARALLEL_WORKSTREAM_BOUNDARY_AND_REFERENCE_DATASET_POLICY.md`
+- `M6_REFERENCE_DATASET_DESIGN_SPEC.md`
+- `M6_REFERENCE_DATASET_READBACK_PLAN.md`
+- `M6_REFERENCE_DATASET_GENERATION_AND_COVERAGE_PLAN.md`
+- `M6_TO_CODE_MODERNIZATION_ENTRY_GATE.md`
 
 ## Governance
 
@@ -42,13 +47,18 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 - `M3_ARCHITECTURE_CONTRACT.md`
 - `M3_TEMPERING_PROTOCOL_AND_OUTPUT_SCHEMA_DESIGN.md`
 - `M3_V0_OUTPUT_INVENTORY_AND_PROTOCOL_AUDIT_PLAN.md`
-- `M3_TO_M6_BEFORE_DATASET_PLAN.md`
+- `M3_TO_M6_BEFORE_REFERENCE_DATASET_PLAN.md`
 - `M5_STATE_CONFIG_OWNERSHIP_PLAN.md`
 - `M5_STATE_CONFIG_OWNERSHIP_INVENTORY_SUMMARY.md`
 - `M5_PRE_M6_GATE_ASSESSMENT.md`
-- `M6_PRE_DATASET_PRODUCT_READINESS_PLAN.md`
-- `M6_DATASET_REGENERATION_CHECKLIST.md`
+- `M6_REFERENCE_DATASET_PRODUCT_READINESS_PLAN.md`
+- `M6_REFERENCE_DATASET_CHECKLIST.md`
 - `M6_PROVENANCE_READBACK_CHECKLIST.md`
+- `PARALLEL_WORKSTREAM_BOUNDARY_AND_REFERENCE_DATASET_POLICY.md`
+- `M6_REFERENCE_DATASET_DESIGN_SPEC.md`
+- `M6_REFERENCE_DATASET_READBACK_PLAN.md`
+- `M6_REFERENCE_DATASET_GENERATION_AND_COVERAGE_PLAN.md`
+- `M6_TO_CODE_MODERNIZATION_ENTRY_GATE.md`
 - `CROSS_CUTTING_INFRASTRUCTURE_AUDIT.md`
 - `CODE_HYGIENE_AUDIT.md`
 - `STATE_INFORMATION_PROPAGATION_REFACTOR.md`
@@ -61,10 +71,10 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 ## Current Position
 
-- Current phase: entering M6 product-readiness planning after M3/M4 completion and M5 direct-env/config ownership slices.
+- Current phase: stopped at the M6 reference-dataset generation gate after M3/M4 completion and M5 direct-env/config ownership slices.
 - Completed source wave: ODEX sequence canonicalization, QN BTN sign cleanup, QN invalid-evaluation handling, post-refine/non-p28 QN source deletion, Radau/JFNK source deletion, solver-assist naming cleanup, RATTLE progress guard diagnostic downgrade, and state/status surface patches.
 - Latest completed M3 slice: parser-only TLTM protocol audit, adjacent-swap kernel contract test, opt-in Stage2 v1alpha sidecars, and Stage2 post-swap measurement/history/label-trace boundary.
-- Current next area: M6 wrapper/provenance contract and dataset-regeneration checklist; official datasets remain gated.
+- Current next area: user review/explicit start of R1 reference generation. No source-code modernization should begin before an accepted reference baseline or an explicitly approved narrower baseline.
 
 - `M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`: completed static audit findings and discussion blockers for retained ODEX/Newton/RATTLE/QN/HMC code.
 - `M2_REFERENCE_BACKED_CORE_AUDIT.md`: reference-first retained-core audit superseding the earlier source-level risk scan where conclusions differ.

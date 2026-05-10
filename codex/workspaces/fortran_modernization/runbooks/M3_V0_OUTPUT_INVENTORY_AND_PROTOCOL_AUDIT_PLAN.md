@@ -666,4 +666,4 @@ The next executable step after the protocol-timing change is:
 - append sidecar and audit paths/verdicts to the per-seed CSV without removing v0 columns;
 - run parser-only protocol audit/readback on Stage2 outputs and sidecars;
 - preserve those metadata columns through chunk merge;
-- defer official dataset regeneration until the M6 pre-dataset gate.
+- defer modernization reference-dataset construction/registration until the M6 gate, while leaving Stage3_4 production completion to the Stage3_4 workstream.

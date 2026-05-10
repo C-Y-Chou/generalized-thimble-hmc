@@ -1,14 +1,20 @@
-# M6 Pre-Dataset Product Readiness Plan
+# M6 Reference-Dataset Product Readiness Plan
 
 Updated: 2026-05-10 JST
 
-Scope: define the product-readiness gate that must be satisfied before official regenerated TLTM datasets begin. This is a planning/contract document, not a production job submission and not a final public wrapper-name decision.
+Scope: define the product-readiness gate that must be satisfied before modernization starts using a curated TLTM reference dataset/package for later behavior-preserving refactors. This is a planning/contract document, not a Stage3_4 production job plan, not a production job submission, and not a final public wrapper-name decision.
 
 ## M6 Goal
 
-M6 makes the current TLTM implementation interpretable as a mature coding project/product before expensive datasets are regenerated.
+M6 makes the current TLTM implementation interpretable as a mature coding project/product before expensive modernization reference packages are trusted as behavior baselines.
 
-M6 does not require deleting Stage scripts or completing long-term OpenMP/reentrant architecture work. It requires that the retained Stage workflow, v1 sidecars, provenance fields, audit commands, and dataset start checklist are coherent enough that new datasets will not need to be reinterpreted later from private context.
+M6 does not require deleting Stage scripts or completing long-term OpenMP/reentrant architecture work. It requires that the retained Stage workflow, v1 sidecars, provenance fields, audit commands, and reference-package checklist are coherent enough that later modernization baselines will not need to be reinterpreted from private context.
+
+Production boundary:
+
+- The `nofb` vs `withfb` production comparison belongs to the Stage3_4 workstream.
+- This modernization workstream uses the Stage3_4 task definition as design context for reference datasets; it does not require Stage3_4 outputs as a prerequisite.
+- See `PARALLEL_WORKSTREAM_BOUNDARY_AND_REFERENCE_DATASET_POLICY.md`.
 
 ## Product Interface Direction
 
@@ -29,14 +35,14 @@ M6 target interface:
 
 Recommended wrapper modes:
 
-- `production`: run the canonical p28 TLTM chain with v1 sidecars and v0 compatibility outputs.
+- `production`: run the canonical p28 TLTM chain with v1 sidecars and v0 compatibility outputs when used by the production workstream.
 - `diagnostic`: run small fixed-seed checks with expanded counters and protocol audit.
-- `benchmark`: run timing/guardrail workloads without declaring official datasets.
+- `benchmark`: run timing/guardrail workloads without declaring final datasets or modernization reference packages.
 - `regression`: run deterministic local smokes used by modernization guardrails.
 
-## Canonical Algorithm Contract For New Datasets
+## Canonical Algorithm Contract For Modernization References
 
-The canonical algorithm contract to declare in run provenance is:
+The canonical algorithm contract to declare in reference-package provenance is:
 
 - Canonical route: Newton -> p28 QN BTN/backflow rescue residual -> reverse gate -> Metropolis.
 - Flow policy: ODEX primary integration plus solver-internal ODE assist for Newton/QN residual evaluation.
@@ -48,7 +54,7 @@ The canonical algorithm contract to declare in run provenance is:
 
 ## Provenance Contract
 
-Every official regenerated run must record:
+Every generated or registered package accepted as a modernization reference must record:
 
 - git commit and branch
 - compiler and linked numerical libraries
@@ -69,14 +75,14 @@ Every official regenerated run must record:
 - protocol-audit command and verdict
 - M4 guardrail command and verdict
 
-The current v1alpha sidecars already cover part of this contract. M6 should finish the documentation/readback contract before dataset regeneration.
+The current v1alpha sidecars already cover part of this contract. M6 should finish the documentation/readback contract before modernization trusts Stage3_4-context-aligned reference packages.
 
 ## Output Package Contract
 
 Short-term:
 
 - Continue writing v0 summaries, label traces, histories, and Stage3 CSVs so existing readers remain usable.
-- Enable v1alpha sidecars for official regenerated datasets.
+- Enable v1alpha sidecars for runs that will be consumed as modernization references.
 - Preserve sidecar paths and protocol-audit verdicts through Stage3 per-seed and aggregate summaries.
 
 Target v1 package:
@@ -94,14 +100,18 @@ Do not rename or remove v0 public fields until v1 readers and a migration map ex
 M6 is complete when these are present and current:
 
 - M6 product-readiness plan: this document.
-- Dataset-regeneration checklist with exact preflight, run, audit, and analysis steps.
+- Modernization reference-package checklist with exact preflight, run, audit, and analysis steps.
+- Modernization reference-dataset design spec that uses Stage3_4 as workflow context rather than a required result source.
+- Reference-package readback plan and acceptance states.
+- Reference-dataset generation/coverage plan defining R0-R4 baselines and protected refactor classes.
+- Source-code modernization entry gate that defines when code refactors may resume.
 - Provenance/readback checklist for v1alpha sidecars and Stage3 summaries.
 - README/docs update pointing new work to the current M3-M6 workflow and guardrails.
 - Explicit deferral list for RNG ownership, large `save` workspace migration, model/tape cache ownership, public schema deprecation, and full `param_mod` global replacement.
 
-## Dataset Regeneration Start Checklist
+## Modernization Reference-Package Start Checklist
 
-Official regeneration may start only when all are true:
+Modernization may start building or registering a reference package only when all are true:
 
 - Git worktree is clean.
 - The intended branch/commit is recorded.
@@ -109,9 +119,10 @@ Official regeneration may start only when all are true:
 - No direct env reads exist outside `runtime_env_mod`.
 - Stage3 sidecar-on tiny smoke passes and preserves sidecar metadata through merge.
 - Stage2 protocol audit passes for the intended configuration.
-- v1alpha sidecars are enabled for production runs.
+- v1alpha sidecars are enabled for reference-consumed runs.
 - The config, seed list, flow ladder, sweep order, measurement boundary, and output directories are recorded.
-- The run plan starts with 10k -> 50k -> 100k validation before larger campaigns.
+- If modernization generates its own validation reference, the run plan starts with 10k -> 50k -> 100k validation before larger campaigns.
+- If modernization aligns to Stage3_4, the reference manifest records the Stage3_4 context assumptions and equivalent validation/provenance evidence.
 - Physical observables, acceptance/reverse-gate diagnostics, failure counters, and protocol audit verdicts are reviewed at each scale.
 
 ## Not In M6
@@ -127,6 +138,9 @@ Official regeneration may start only when all are true:
 
 The next M6 slice should be documentation/readback, not physics code:
 
-- Add the dataset-regeneration checklist.
-- Update project README/docs to point to M4 guardrails, M5 gate assessment, and M6 pre-dataset requirements.
-- Keep all production jobs paused until the user explicitly starts dataset regeneration.
+- Keep the parallel-workstream boundary current.
+- Add or refine the modernization reference-package checklist.
+- Keep the reference-dataset design/readback/code-entry gate docs current.
+- Keep the generation/coverage plan current before starting R1.
+- Update project README/docs to point to M4 guardrails, M5 gate assessment, and M6 reference-package requirements.
+- Keep Stage3_4 production execution in the Stage3_4 workspace.

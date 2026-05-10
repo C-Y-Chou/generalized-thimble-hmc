@@ -1,20 +1,26 @@
-# M6 Dataset Regeneration Checklist
+# M6 Modernization Reference Dataset Checklist
 
 Updated: 2026-05-10 JST
 
-Scope: the exact preflight checklist that must be satisfied before official regenerated TLTM datasets start. This document does not start jobs.
+Scope: the exact preflight checklist that must be satisfied before the modernization workstream builds, registers, or trusts a TLTM reference dataset/package for future behavior-preserving refactors. This document does not start jobs and does not own the Stage3_4 `nofb` vs `withfb` production campaign.
 
 ## Hard Preconditions
 
-- User explicitly says to start dataset regeneration.
+- User explicitly says to build/register the modernization reference dataset/package.
 - Git worktree is clean.
 - Branch and commit are recorded.
 - No uncommitted source, script, config, or runbook changes are present.
 - The intended parameter/config files and seed lists are frozen for the validation ladder.
-- v1alpha sidecars are enabled for official runs.
+- v1alpha sidecars are enabled for reference-consumed runs.
 - v0 compatibility outputs remain enabled.
-- Production output directory is new or intentionally empty.
+- Reference-package output/registration directory is new, intentionally empty, or explicitly archived as a read-only modernization reference.
 - The run is not using stale local `bin/` executables.
+
+Production boundary:
+
+- Stage3_4 owns final production scheduling, chunking, workspace naming, and output cleanup.
+- Modernization owns only the reference-dataset consumer contract and refactor regression use.
+- Local `output/tests` guardrail artifacts are not the final dataset.
 
 ## Local Preflight
 
@@ -43,7 +49,7 @@ Confirm:
 - The final proposal path uses strict final `flow(...)`.
 - Solver-internal assist is limited to Newton/QN residual evaluation.
 
-## Run Provenance To Record
+## Reference Provenance To Record
 
 Record these before submitting jobs:
 
@@ -62,9 +68,9 @@ Record these before submitting jobs:
 - v1 sidecar output root
 - v0 compatibility output root
 - audit command
-- expected validation scale: 10k, 50k, 100k
+- expected validation scale and Stage3_4 workflow-context assumptions: 10k, 50k, 100k, or larger
 
-## Required Validation Ladder
+## Required Validation Ladder For Modernization-Generated References
 
 Run in order:
 
@@ -72,7 +78,9 @@ Run in order:
 2. 50k validation
 3. 100k validation
 
-Do not skip directly to larger campaigns.
+Do not skip directly to larger campaigns when modernization itself generates the reference data.
+
+Stage3_4 is used as workflow context, not as a required result source. If the reference is Stage3_4-context-aligned, record the context assumptions instead of treating Stage3_4 outputs as a prerequisite.
 
 At each scale, review:
 
@@ -96,9 +104,9 @@ Escalate before larger runs if:
 - unresolved/projection/final-flow failures jump outside expected ODEX-assist behavior
 - any output schema field is missing or renamed
 
-## Post-Run Artifacts
+## Reference Dataset Artifacts
 
-Each validation scale should leave:
+Each generated or registered reference package should leave or point to:
 
 - Stage2/Stage3 raw outputs
 - v0 compatibility summaries
@@ -111,21 +119,22 @@ Each validation scale should leave:
 - merge log
 - provenance note linking commit/config/seed/output
 
-## Not Allowed During Regeneration
+## Not Allowed During Reference Dataset Construction
 
-- Editing source while a validation ladder is in progress.
+- Editing source while a modernization-generated validation ladder is in progress.
 - Reusing partial outputs after source/config changes unless the recovery path is explicitly documented.
 - Changing seed lists between matched comparisons.
 - Renaming output fields.
 - Deleting compatibility outputs.
-- Mixing old timing-convention outputs with new post-swap datasets.
+- Mixing old timing-convention outputs with new post-swap references.
+- Submitting, deleting, or relocating Stage3_4 production jobs/artifacts from this modernization workspace.
 
 ## Completion Criteria
 
-The validation ladder is ready for user review when:
+The modernization reference dataset/package is ready for user review when:
 
 - 10k, 50k, and 100k artifacts are complete.
 - All protocol audits pass.
 - v1 sidecar/readback checks pass.
 - A concise result note records physical observables and diagnostic counters at all scales.
-- Any deviations from previous characterization are explained before larger production runs begin.
+- Any deviations from previous characterization or the intended Stage3_4 workflow context are explained before the package is used as a refactor baseline.

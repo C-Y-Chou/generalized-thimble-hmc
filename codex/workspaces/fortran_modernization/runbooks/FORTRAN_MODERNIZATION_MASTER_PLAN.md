@@ -86,21 +86,23 @@ The active milestone map is M0-M6:
 - M3: architecture, tempering protocol, output schema, Stage2 sidecars, and Stage3 protocol propagation.
 - M4: guardrail tests, parser/readback checks, protocol audits, and benchmark harnesses.
 - M5: repo-wide refactor waves for typed config, explicit state/status propagation, diagnostics, output ownership, RNG/state inventory, and module boundaries.
-- M6: pre-dataset product-readiness package, unified wrapper direction, provenance contract, docs, examples, and release/checklist notes.
+- M6: modernization reference-dataset product-readiness package, unified wrapper direction, provenance contract, docs, examples, and release/checklist notes.
 
 Current sequencing decision:
 
-- Official dataset regeneration waits until after M6.
-- Small smoke/regression runs may still be used during development, but they are not official regenerated datasets.
-- See `M3_TO_M6_BEFORE_DATASET_PLAN.md` for the executable gate sequence.
+- The Stage3_4 workstream owns final `nofb` vs `withfb` production completion.
+- Modernization reference-dataset construction/registration waits until after M6.
+- Small smoke/regression runs may still be used during development, but they are not final datasets and are not sufficient modernization reference packages.
+- See `M3_TO_M6_BEFORE_REFERENCE_DATASET_PLAN.md` for the executable gate sequence.
 
 Current implementation status:
 
 - M3 protocol/schema propagation is complete for the current Stage workflow.
 - M4 local guardrails are available through `make -C build modernization_guardrails`.
 - M5 direct-env/config ownership is complete; high-risk RNG/workspace/model-cache/schema-removal/global-config replacement work is explicitly deferred in `M5_PRE_M6_GATE_ASSESSMENT.md`.
-- M6 product-readiness docs are available in `M6_PRE_DATASET_PRODUCT_READINESS_PLAN.md`, `M6_DATASET_REGENERATION_CHECKLIST.md`, and `M6_PROVENANCE_READBACK_CHECKLIST.md`.
-- Dataset regeneration remains paused until explicit user instruction.
+- M6 product-readiness docs are available in `M6_REFERENCE_DATASET_PRODUCT_READINESS_PLAN.md`, `M6_REFERENCE_DATASET_CHECKLIST.md`, `M6_PROVENANCE_READBACK_CHECKLIST.md`, `PARALLEL_WORKSTREAM_BOUNDARY_AND_REFERENCE_DATASET_POLICY.md`, `M6_REFERENCE_DATASET_DESIGN_SPEC.md`, `M6_REFERENCE_DATASET_READBACK_PLAN.md`, `M6_REFERENCE_DATASET_GENERATION_AND_COVERAGE_PLAN.md`, and `M6_TO_CODE_MODERNIZATION_ENTRY_GATE.md`.
+- Modernization is stopped at the reference-dataset generation gate until explicit user instruction.
+- Future source-code modernization is gated by an accepted reference package or explicit user approval of a narrower baseline.
 
 ## Success criteria
 - major modules have stable, limited responsibilities

@@ -34,15 +34,22 @@ bash tasks/refresh_live_board.sh
 
 ## Current Fortran Modernization Entry
 - Workspace: `/home/cychou/TLTM/codex/workspaces/fortran_modernization`
-- Current phase: M6 pre-dataset product-readiness planning after M5 direct-env/config ownership consolidation.
+- Current phase: M6 modernization reference-dataset product-readiness planning after M5 direct-env/config ownership consolidation.
 - Read next:
   - `runbooks/STATUS.md`
+  - `runbooks/PARALLEL_WORKSTREAM_BOUNDARY_AND_REFERENCE_DATASET_POLICY.md`
+  - `runbooks/M6_REFERENCE_DATASET_DESIGN_SPEC.md`
+  - `runbooks/M6_REFERENCE_DATASET_READBACK_PLAN.md`
+  - `runbooks/M6_REFERENCE_DATASET_GENERATION_AND_COVERAGE_PLAN.md`
+  - `runbooks/M6_TO_CODE_MODERNIZATION_ENTRY_GATE.md`
   - `runbooks/M5_PRE_M6_GATE_ASSESSMENT.md`
-  - `runbooks/M6_PRE_DATASET_PRODUCT_READINESS_PLAN.md`
-  - `runbooks/M6_DATASET_REGENERATION_CHECKLIST.md`
+  - `runbooks/M6_REFERENCE_DATASET_PRODUCT_READINESS_PLAN.md`
+  - `runbooks/M6_REFERENCE_DATASET_CHECKLIST.md`
   - `runbooks/M6_PROVENANCE_READBACK_CHECKLIST.md`
 - Local guardrail before source changes or dataset planning: `make -C build modernization_guardrails`
-- Dataset regeneration remains paused until the user explicitly starts it.
+- Stage3_4 owns the `nofb` vs `withfb` production-comparison workflow.
+- Modernization is stopped at the reference-dataset generation gate; R1 generation starts only after explicit user instruction.
+- Future source-code modernization resumes only after the M6 code-entry gate or explicit user approval of a narrower baseline.
 
 ## Policy
 - Read `/home/cychou/TLTM/docs/AGENT_GUIDE.md` first.

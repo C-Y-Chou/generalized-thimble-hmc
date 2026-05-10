@@ -19,8 +19,8 @@ The architecture contract starts from the current canonical numerical policy:
 - Final physical proposal/live-state construction: strict `flow(...)` only, accepting strict ODEX success or zero-time no-op; solver assist must not finalize proposals.
 - Reverse gate: permanent production algorithm requirement, not a diagnostic option.
 - Output compatibility: current Stage-facing output schema remains `v0 compatibility` until a versioned replacement exists.
-- Superseding decision, 2026-05-10 JST: existing dataset/output-timing compatibility is no longer a governing constraint for Stage2 tempering modernization. Datasets will be regenerated after the canonical protocol change; compatibility is preserved only where it does not conflict with the selected replica-exchange protocol and current schema/audit clarity.
-- Sequencing decision, 2026-05-10 JST: official dataset regeneration waits until after M6, not immediately after the M3 protocol/schema slice.
+- Superseding decision, 2026-05-10 JST: existing dataset/output-timing compatibility is no longer a governing constraint for Stage2 tempering modernization. Stage3_4 production outputs and modernization reference datasets are separate outputs under the selected canonical protocol; compatibility is preserved only where it does not conflict with the selected replica-exchange protocol and current schema/audit clarity.
+- Sequencing decision, 2026-05-10 JST: modernization reference-dataset construction/registration waits until after M6, not immediately after the M3 protocol/schema slice. Stage3_4 production completion remains a separate workstream and is not a prerequisite result dependency.
 
 ## Non-Negotiable Rules
 

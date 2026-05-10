@@ -21,7 +21,8 @@ Current modernization state:
 - Canonical TLTM route is Newton -> p28 QN BTN/backflow rescue residual -> reverse gate -> Metropolis.
 - Flow policy is ODEX primary integration plus solver-internal ODE assist for Newton/QN residual evaluation, with strict final `flow(...)` for live proposals.
 - Stage2/Stage3 remain compatibility workflow entry points while M6 product-readiness work defines the future unified TLTM wrapper path.
-- Official dataset regeneration is paused until the M6 checklist is reviewed and explicitly started.
+- Stage3_4 owns the separate `nofb` vs `withfb` production-comparison workflow.
+- Modernization reference-dataset construction/registration is paused until the M6 checklist is reviewed and explicitly started.
 
 ## Quick Start
 
@@ -55,12 +56,17 @@ For the current compatibility TLTM workflow, use Stage2/Stage3 entry points and 
 
 Important runbooks:
 
-- `M6_PRE_DATASET_PRODUCT_READINESS_PLAN.md`
-- `M6_DATASET_REGENERATION_CHECKLIST.md`
+- `PARALLEL_WORKSTREAM_BOUNDARY_AND_REFERENCE_DATASET_POLICY.md`
+- `M6_REFERENCE_DATASET_DESIGN_SPEC.md`
+- `M6_REFERENCE_DATASET_READBACK_PLAN.md`
+- `M6_REFERENCE_DATASET_GENERATION_AND_COVERAGE_PLAN.md`
+- `M6_TO_CODE_MODERNIZATION_ENTRY_GATE.md`
+- `M6_REFERENCE_DATASET_PRODUCT_READINESS_PLAN.md`
+- `M6_REFERENCE_DATASET_CHECKLIST.md`
 - `M6_PROVENANCE_READBACK_CHECKLIST.md`
 - `M5_PRE_M6_GATE_ASSESSMENT.md`
 - `M5_STATE_CONFIG_OWNERSHIP_PLAN.md`
-- `M3_TO_M6_BEFORE_DATASET_PLAN.md`
+- `M3_TO_M6_BEFORE_REFERENCE_DATASET_PLAN.md`
 
 ## Legacy Single-Chain Workflow
 
@@ -73,7 +79,7 @@ make expect
 ```
 
 - Parameters come from `data/parameters.dat`.
-- This is not the current official dataset-regeneration path.
+- This is not the Stage3_4 production-comparison path and is not sufficient as a modernization reference-package path.
 
 ## Build System
 

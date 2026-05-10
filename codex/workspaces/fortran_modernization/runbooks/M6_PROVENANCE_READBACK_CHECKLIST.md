@@ -1,8 +1,8 @@
-# M6 Provenance And Readback Checklist
+# M6 Provenance And Reference Readback Checklist
 
 Updated: 2026-05-10 JST
 
-Scope: checklist for verifying that v1alpha sidecars, Stage3 summaries, and protocol-audit outputs are sufficient to interpret regenerated TLTM datasets.
+Scope: checklist for verifying that v1alpha sidecars, Stage3 summaries, and protocol-audit outputs are sufficient for the modernization workstream to interpret and reuse TLTM reference packages. This is not the Stage3_4 production-completion plan.
 
 ## Required Files Per Seed
 
@@ -35,7 +35,7 @@ For sidecar-enabled Stage3 runs, each seed output directory should contain:
 - `stage2_protocol_audit_warnings`
 - `stage2_protocol_audit_checks`
 
-Expected official-run values:
+Expected reference-package values:
 
 - `stage2_v1_sidecar_enabled == 1`
 - `stage2_protocol_audit_verdict == pass`
@@ -118,7 +118,7 @@ After chunk merge, confirm:
 
 ## Failure Conditions
 
-Treat these as M6 blockers before official dataset regeneration:
+Treat these as M6 blockers before a run or registered package is accepted as a modernization reference:
 
 - missing v1 manifest/protocol file
 - invalid JSON sidecar
@@ -142,4 +142,4 @@ Treat these as M6 blockers before official dataset regeneration:
 - tiny sidecar-off Stage3 smoke keeps sidecars disabled
 - chunk merge preserves sidecar metadata and audit summary
 
-This is sufficient for local preflight. Official dataset regeneration still requires the full 10k -> 50k -> 100k validation ladder.
+This is sufficient for local preflight. A modernization-generated reference package still requires the full 10k -> 50k -> 100k validation ladder or an explicitly approved narrower baseline; Stage3_4 provides workflow context, not a required result dependency.
