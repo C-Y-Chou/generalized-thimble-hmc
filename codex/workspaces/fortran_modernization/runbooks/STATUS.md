@@ -129,6 +129,7 @@ Current protocol state:
 - Final direct-env consolidation slice complete: the test-local `HMC_SKIP_PLOT` read now uses `runtime_env_mod:read_string_env`; env-read inventory dropped from 5 to 4 rows; M4 guardrails passed.
 - All direct `get_environment_variable` calls are now centralized in `runtime_env_mod`.
 - M4 guardrails now include a source-level check that blocks direct env reads outside `runtime_env_mod`.
+- `runbooks/M5_PRE_M6_GATE_ASSESSMENT.md` records the M5 gate result: proceed to M6 product-readiness work while deferring RNG ownership, large module `save` workspace migration, model/tape cache ownership, public schema deletion/renaming, and full `param_mod` global replacement until stronger baselines or explicit wrapper/schema decisions exist.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.

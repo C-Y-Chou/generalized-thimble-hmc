@@ -405,3 +405,8 @@
 ## 2026-05-10 JST - Lane A direct-env guardrail
 - Added an M4 source guardrail that scans `src/` and `tests/` and fails if any file outside `src/config/runtime_env_mod.f90` directly calls `get_environment_variable`.
 - Verification passed through `make -C build modernization_guardrails`; the run now reports `direct env reads centralized`.
+
+## 2026-05-10 JST - M5 pre-M6 gate assessment
+- Added `runbooks/M5_PRE_M6_GATE_ASSESSMENT.md`.
+- Gate result: proceed to M6 product-readiness work, not dataset regeneration.
+- Explicitly deferred RNG ownership, large module `save` workspace migration, model/tape cache ownership, public schema deletion/renaming, and full `param_mod` global replacement until stronger baselines or explicit wrapper/schema decisions exist.

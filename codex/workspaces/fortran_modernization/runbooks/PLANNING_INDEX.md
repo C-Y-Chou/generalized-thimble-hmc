@@ -45,6 +45,7 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 - `M3_TO_M6_BEFORE_DATASET_PLAN.md`
 - `M5_STATE_CONFIG_OWNERSHIP_PLAN.md`
 - `M5_STATE_CONFIG_OWNERSHIP_INVENTORY_SUMMARY.md`
+- `M5_PRE_M6_GATE_ASSESSMENT.md`
 - `CROSS_CUTTING_INFRASTRUCTURE_AUDIT.md`
 - `CODE_HYGIENE_AUDIT.md`
 - `STATE_INFORMATION_PROPAGATION_REFACTOR.md`
@@ -57,10 +58,10 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 ## Current Position
 
-- Current phase: M3 active, with M4-M6 now scheduled before official dataset regeneration.
+- Current phase: entering M6 product-readiness planning after M3/M4 completion and M5 direct-env/config ownership slices.
 - Completed source wave: ODEX sequence canonicalization, QN BTN sign cleanup, QN invalid-evaluation handling, post-refine/non-p28 QN source deletion, Radau/JFNK source deletion, solver-assist naming cleanup, RATTLE progress guard diagnostic downgrade, and state/status surface patches.
 - Latest completed M3 slice: parser-only TLTM protocol audit, adjacent-swap kernel contract test, opt-in Stage2 v1alpha sidecars, and Stage2 post-swap measurement/history/label-trace boundary.
-- Current next area: M5 first-lane decision after M4 guardrail entry and source-backed state/config ownership inventory.
+- Current next area: M6 wrapper/provenance contract and dataset-regeneration checklist; official datasets remain gated.
 
 - `M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`: completed static audit findings and discussion blockers for retained ODEX/Newton/RATTLE/QN/HMC code.
 - `M2_REFERENCE_BACKED_CORE_AUDIT.md`: reference-first retained-core audit superseding the earlier source-level risk scan where conclusions differ.
