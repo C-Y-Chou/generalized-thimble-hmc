@@ -602,3 +602,10 @@ Current protocol state:
 - R4 original jobs: chunks `14579.anode01` through `14610.anode01`; original merge `14611.anode01` was canceled because several chunks hit node-local `Exit_status=127`.
 - R4 replacement jobs: failed chunks `03`, `06`, `07`, `12`, and `14` were resubmitted as `14612.anode01` through `14621.anode01`, avoiding the observed failing C12/C17 node placements; replacement merge is `14622.anode01`.
 - Queue check after replacement showed active R/Q chunks and held merge dependencies as expected; continue monitoring for additional node-local `Exit_status=127` before final readback.
+
+## M6 reference dataset triage - 2026-05-10 JST
+- Added `runbooks/M6_REFERENCE_DATASET_TRIAGE_20260510.md`.
+- Read-only triage result: R1 and R2 are structurally merged and ready for full package readback; R3 and R4 are still in progress.
+- Current semantic remote target id is `fortran_modernization_m6_active`; the physical path/branch still use the legacy `qn_error_handling_validation` name while pinned PBS jobs run.
+- No repair is currently indicated: R3/R4 missing or partial chunks correspond to queued/running jobs; R3 merge `14658` and R4 merge `14663` are held pending dependencies.
+- Updated `codex/state/DATASETS.tsv` and `codex/state/OPEN_ITEMS.tsv` to reflect triage status.
