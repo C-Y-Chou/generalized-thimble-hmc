@@ -360,3 +360,11 @@
 - `scripts/run_stage3_3_multiseed.py` now supports opt-in `--stage2-v1-sidecars on`, parser-only protocol audit control, per-seed sidecar/audit metadata columns, and Stage3 row cross-check audit summaries.
 - `scripts/merge_stage3_multiseed_chunks.py` preserves sidecar/audit metadata columns and merges chunk-level protocol audit summaries when present.
 - Verification: Python compile, dry-run with sidecars enabled, existing Stage2 audit smoke, tiny sidecar-on Stage3 smoke, tiny sidecar-off Stage3 smoke, and one-chunk merge smoke.
+
+## 2026-05-10 JST - M4 guardrail entry point
+- Added `scripts/run_m4_guardrails.py`.
+- Added `make -C build modernization_guardrails`.
+- The guardrail runner collects Python compile, `git diff --check`, optional Fortran build plus ODEX/swap tests, Stage3 sidecar dry-run, Stage2 protocol audit smoke, tiny sidecar-on/off Stage3 smokes, and chunk merge preservation checks.
+- This is a local development guardrail only; it does not submit production jobs or define official datasets.
+- Verification passed by running `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags ""`.
+- Verification also passed through `make -C build FC=gfortran M4_GUARDRAIL_LDFLAGS= modernization_guardrails`.

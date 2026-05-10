@@ -55,6 +55,7 @@
 - 2026-05-10 JST: User selected the common replica-exchange-style `local update -> swap -> measure/history/label trace` boundary and explicitly dropped old dataset timing compatibility; future datasets should be regenerated.
 - 2026-05-10 JST: Recorded the new sequencing decision in `runbooks/M3_TO_M6_BEFORE_DATASET_PLAN.md`: complete M3, M4, M5, and M6 before official dataset regeneration.
 - 2026-05-10 JST: Completed M3 Stage3 propagation for v1alpha sidecars: opt-in Stage3 sidecar env setup, per-seed sidecar/audit metadata columns, sidecar-aware audit/readback, and chunk-merge preservation.
+- 2026-05-10 JST: Added the first M4 repeatable local guardrail entry point: `scripts/run_m4_guardrails.py` plus `make -C build modernization_guardrails`.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit

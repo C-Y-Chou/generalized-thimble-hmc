@@ -64,6 +64,11 @@ Required deliverables:
 
 M4 should protect behavior before broad refactors resume.
 
+Initial implementation status:
+
+- Completed on 2026-05-10 JST: `scripts/run_m4_guardrails.py` and `make -C build modernization_guardrails` provide the first repeatable local guardrail entry point.
+- Verification passed through both direct script invocation and the make target.
+
 ## M5 Definition Of Done
 
 M5 is the repo-wide refactor phase.
