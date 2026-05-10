@@ -33,11 +33,13 @@ Updated: 2026-05-10 JST
 - `repo_cleanup`: planned control-plane/local/remote cleanup; no deletion without registry/readback.
 - `kernel_correctness_audit` and `ngport_rg_single_replica_t03_nstep_grid`: existing workspaces; read their task briefs/status only when entering those tasks.
 - `stage3_3_rg_redo`: historical workspace only; raw output was cleared after summary preservation.
+- Local `/Users/ccy/Documents/New project/TLTM_repo` was safely stashed and fast-forwarded on 2026-05-11; local worktrees are now tracked in `codex/state/LOCAL_WORKTREES.tsv`.
 
 ## Shared rules
 - Use PBS-only execution for heavy runs.
 - For cluster02 queue decisions, use the cluster02 scheduling agent before live queue choice.
 - Refresh remote state before SSH/PBS/git cleanup work.
+- Refresh local state before local TLTM `git pull`, branch switch, cleanup, or overwrite.
 - Do not fast-forward or clean active pinned remote worktrees.
 - Record manifests, job trackers, and session logs in the matching workspace.
 - Do not delete generated outputs/logs until summarized, registered, or archived.

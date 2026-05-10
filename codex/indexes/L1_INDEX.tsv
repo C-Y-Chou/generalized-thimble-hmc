@@ -4,6 +4,7 @@ remote_ssh	current	codex/state/REMOTE_LIVE_CACHE.json	Before ssh/qsub/qdel/remot
 cluster02_scheduling	current	codex/workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_KNOWLEDGE.json	Before queue choice/work splitting/job repair	codex/workspaces/fortran_modernization/runbooks/CLUSTER02_SCHEDULING_AGENT.md
 jobs	current	codex/state/JOBS.tsv	Before interpreting or repairing PBS jobs	codex/logs/REMOTE_EVENTS.tsv
 worktrees	current	codex/state/WORKTREES.tsv	Before remote fast-forward or cleanup	codex/state/REMOTE_TARGETS.tsv
+local_worktrees	current	codex/state/LOCAL_WORKTREES.tsv	Before local git pull/switch/cleanup/overwrite	codex/state/LOCAL_TARGETS.tsv
 decisions	current	codex/state/DECISIONS.tsv	When checking whether a choice was already made	codex/knowledge/DECISIONS_AND_RISKS.md
 open_items	current	codex/state/OPEN_ITEMS.tsv	When choosing next action	codex/runbooks/GLOBAL_STATUS.md
 datasets	current	codex/state/DATASETS.tsv	Before dataset cleanup/readback/reference registration	codex/workspaces/fortran_modernization/state/M6_REFERENCE_PACKAGES.tsv

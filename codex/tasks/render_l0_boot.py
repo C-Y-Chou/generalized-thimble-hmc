@@ -37,6 +37,7 @@ def main() -> int:
     codex = root / "codex"
     jobs = read_tsv(codex / "state" / "JOBS.tsv")
     worktrees = read_tsv(codex / "state" / "WORKTREES.tsv")
+    local_worktrees = read_tsv(codex / "state" / "LOCAL_WORKTREES.tsv")
     open_items = read_tsv(codex / "state" / "OPEN_ITEMS.tsv")
     decisions = read_tsv(codex / "state" / "DECISIONS.tsv")
     live_path = codex / "state" / "REMOTE_LIVE_CACHE.json"
@@ -49,6 +50,12 @@ def main() -> int:
 
     active_jobs = [row for row in jobs if row.get("state") in {"R", "Q", "H", "B"}]
     unsafe_worktrees = [row for row in worktrees if row.get("safe_to_fast_forward") == "no"]
+    local_risks = [
+        row
+        for row in local_worktrees
+        if row.get("safe_to_pull") not in {"yes", ""}
+        or row.get("dirty") not in {"0", "", "NA"}
+    ]
     high_open = [row for row in open_items if row.get("priority") == "high" and row.get("status") == "active"]
     recent_decisions = decisions[-6:]
     refreshed = live.get("refreshed_at_jst", "not refreshed")
@@ -63,6 +70,7 @@ def main() -> int:
     lines.append("")
     lines.append("- Heavy TLTM execution must use PBS compute nodes, not the login/frontend node.")
     lines.append("- Before remote SSH/PBS/git cleanup work, run `bash codex/tasks/refresh_remote_state.sh` and `bash codex/tasks/render_l0_boot.sh`.")
+    lines.append("- Before local TLTM `git pull`, branch switch, cleanup, or overwrite, run `bash codex/tasks/refresh_local_state.sh` and `bash codex/tasks/render_l0_boot.sh`.")
     lines.append("- If a remote worktree has active pinned jobs, do not fast-forward or clean it.")
     lines.append("- For cluster02 queue choice, work splitting, submission, or job repair, use the cluster02 scheduling agent.")
     lines.append("- Do not use `qmove` as the official repair path; cancel/resubmit/rebuild dependencies.")
@@ -84,6 +92,16 @@ def main() -> int:
             )
     else:
         lines.append("- No unsafe worktree recorded in the latest registry. If cache is stale, refresh before acting.")
+    lines.append("")
+    lines.append("## Active Local Risk")
+    lines.append("")
+    if local_risks:
+        for row in local_risks[:6]:
+            lines.append(
+                f"- `{row.get('target_id')}`: branch `{row.get('branch')}`, commit `{row.get('commit')}`, dirty `{row.get('dirty')}`, ahead `{row.get('ahead')}`, behind `{row.get('behind')}`, stashes `{row.get('stash_count')}`, safe_to_pull `{row.get('safe_to_pull')}`."
+            )
+    else:
+        lines.append("- No local worktree risk recorded in `codex/state/LOCAL_WORKTREES.tsv`.")
     lines.append("")
     lines.append("## Active/Pending Jobs")
     lines.append("")
@@ -114,6 +132,7 @@ def main() -> int:
     lines.append("")
     lines.append("- L1 index: `codex/indexes/L1_INDEX.tsv`")
     lines.append("- Remote live cache: `codex/state/REMOTE_LIVE_CACHE.json`")
+    lines.append("- Local worktrees: `codex/state/LOCAL_WORKTREES.tsv`")
     lines.append("- Jobs: `codex/state/JOBS.tsv`")
     lines.append("- Worktrees: `codex/state/WORKTREES.tsv`")
     lines.append("- Control-plane plan: `codex/runbooks/CONTROL_PLANE_MEMORY_COMPACTION_PLAN.md`")

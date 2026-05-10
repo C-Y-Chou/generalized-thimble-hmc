@@ -34,3 +34,14 @@ bash codex/tasks/render_l0_boot.sh
 ```
 
 If a remote worktree has active pinned jobs, do not fast-forward or clean that worktree.
+
+## Local Worktree Rule
+
+Local worktrees are also first-class state. Before local `git pull`, branch switch, cleanup, or any operation that may overwrite files in a TLTM checkout:
+
+```bash
+bash codex/tasks/refresh_local_state.sh
+bash codex/tasks/render_l0_boot.sh
+```
+
+If a local worktree is dirty or locally ahead, do not pull or overwrite it until the change is preserved, stashed, committed, or explicitly discarded.
