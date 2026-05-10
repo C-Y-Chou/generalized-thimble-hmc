@@ -585,12 +585,16 @@ Current protocol state:
 ## M6 reference dataset R1-R4 submission - 2026-05-10 JST
 - Remote repository guard was added to the M6 execution plan: PBS/queue work must commit locally, push to `origin`, SSH to `cychou@ithems_fe02.intra.riken.jp`, fast-forward the target remote worktree, verify branch/commit/clean status/`qsub`, and submit only from the verified remote worktree.
 - Target remote worktree: `/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation`.
-- Submitted from commit `c11c35b` on branch `codex/qn-error-handling-validation`.
-- Submit manifest: `output/logs/fortran_modernization/reference_datasets/submit/submit_manifest_20260510T180128.env`.
-- PBS job range: `14416.anode01` through `14464.anode01`.
-- Build job: `14416.anode01` (`m6refbuild`) started running immediately.
-- R1 jobs: chunks `14417.anode01`, `14418.anode01`; merge `14419.anode01`.
-- R2 jobs: chunks `14420.anode01`, `14421.anode01`; merge `14422.anode01`.
-- R3 jobs: chunks `14423.anode01` through `14430.anode01`; merge `14431.anode01`.
-- R4 jobs: chunks `14432.anode01` through `14463.anode01`; merge `14464.anode01`.
-- Queue check immediately after submission showed build running (`R`) and dependent chunk/merge jobs held (`H`) as expected.
+- Additional operational guard learned during submission: do not update or fast-forward the remote worktree after PBS jobs are submitted and before they finish, because the job guard pins `TLTM_EXPECTED_GIT_COMMIT`.
+- Additional cluster-build guard learned during submission: preflight must run `make -C build clean` before building, and M4 guardrails must use the normal build `LDFLAGS`; otherwise stale or Intel `-ipo` object/link mismatches can fail before large chunks start.
+- Superseded submissions: `14416-14464`, `14465-14513`, and `14514-14562` were canceled or superseded after preflight/early chunk failures exposed the above guards.
+- Active submitted commit: `a1028ad` on branch `codex/qn-error-handling-validation`.
+- Active submit manifest: `output/logs/fortran_modernization/reference_datasets/submit/submit_manifest_20260510T180815.env`.
+- Active PBS job range: `14563.anode01` through `14611.anode01`, plus R4 replacement chunks `14612.anode01` through `14621.anode01` and replacement R4 merge `14622.anode01`.
+- Build job: `14563.anode01` (`m6refbuild`) completed preflight with `Exit_status=0`; latest preflight log reports `[M4][SUMMARY] all guardrails passed`.
+- R1 jobs: chunks `14564.anode01`, `14565.anode01`; merge `14566.anode01`. R1 merge started, confirming chunk `afterok` release.
+- R2 jobs: chunks `14567.anode01`, `14568.anode01`; merge `14569.anode01`.
+- R3 jobs: chunks `14570.anode01` through `14577.anode01`; merge `14578.anode01`.
+- R4 original jobs: chunks `14579.anode01` through `14610.anode01`; original merge `14611.anode01` was canceled because several chunks hit node-local `Exit_status=127`.
+- R4 replacement jobs: failed chunks `03`, `06`, `07`, `12`, and `14` were resubmitted as `14612.anode01` through `14621.anode01`, avoiding the observed failing C12/C17 node placements; replacement merge is `14622.anode01`.
+- Queue check after replacement showed active R/Q chunks and held merge dependencies as expected; continue monitoring for additional node-local `Exit_status=127` before final readback.
