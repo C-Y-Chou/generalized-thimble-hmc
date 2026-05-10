@@ -1,4 +1,5 @@
 module quasi_newton_solver_mod
+   use runtime_env_mod, only: read_string_env
    use utils, only: dp, complex_to_real, real_to_complex
    use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_value, ieee_quiet_nan
@@ -1174,7 +1175,8 @@ contains
    subroutine load_quasi_watchdog_policy()
       implicit none
       character(len=64) :: env_value
-      integer :: env_len, env_stat, ios, parsed_value
+      integer :: ios, parsed_value
+      logical :: env_present
 
       if (quasi_watchdog_policy_loaded) return
       quasi_watchdog_policy_loaded = .true.
@@ -1183,34 +1185,34 @@ contains
       qn_force_best_proposal_enabled = .false.
       qn_force_best_proposal_tol = -1.0_dp
 
-      call get_environment_variable("QN_SOLVER_ASSIST_BUDGET", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         read (env_value(1:env_len), *, iostat=ios) parsed_value
+      call read_string_env("QN_SOLVER_ASSIST_BUDGET", env_value, env_present)
+      if (env_present) then
+         read (env_value, *, iostat=ios) parsed_value
          if (ios == 0) quasi_solver_assist_budget = parsed_value
       else
          ! Legacy alias retained for existing Stage3 scripts and historical run manifests.
-         call get_environment_variable("QUASI_FINAL_RESORT_BUDGET", env_value, length=env_len, status=env_stat)
-         if (env_stat == 0 .and. env_len > 0) then
-            read (env_value(1:env_len), *, iostat=ios) parsed_value
+         call read_string_env("QUASI_FINAL_RESORT_BUDGET", env_value, env_present)
+         if (env_present) then
+            read (env_value, *, iostat=ios) parsed_value
             if (ios == 0) quasi_solver_assist_budget = parsed_value
          end if
       end if
 
-      call get_environment_variable("QN_ACCEPTED_ITER_BUDGET", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         read (env_value(1:env_len), *, iostat=ios) parsed_value
+      call read_string_env("QN_ACCEPTED_ITER_BUDGET", env_value, env_present)
+      if (env_present) then
+         read (env_value, *, iostat=ios) parsed_value
          if (ios == 0) quasi_accepted_iter_budget = max(0, parsed_value)
       else
-         call get_environment_variable("QUASI_ACCEPTED_ITER_BUDGET", env_value, length=env_len, status=env_stat)
-         if (env_stat == 0 .and. env_len > 0) then
-            read (env_value(1:env_len), *, iostat=ios) parsed_value
+         call read_string_env("QUASI_ACCEPTED_ITER_BUDGET", env_value, env_present)
+         if (env_present) then
+            read (env_value, *, iostat=ios) parsed_value
             if (ios == 0) quasi_accepted_iter_budget = max(0, parsed_value)
          end if
       end if
 
-      call get_environment_variable("QN_FORCE_BEST_PROPOSAL_ENABLED", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         select case (trim(adjustl(env_value(1:env_len))))
+      call read_string_env("QN_FORCE_BEST_PROPOSAL_ENABLED", env_value, env_present)
+      if (env_present) then
+         select case (trim(adjustl(env_value)))
          case ("0", "false", "FALSE", "False", "no", "NO", "No", "off", "OFF", "Off")
             qn_force_best_proposal_enabled = .false.
          case default
@@ -1218,9 +1220,9 @@ contains
          end select
       end if
 
-      call get_environment_variable("QN_FORCE_BEST_PROPOSAL_TOL", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         read (env_value(1:env_len), *, iostat=ios) qn_force_best_proposal_tol
+      call read_string_env("QN_FORCE_BEST_PROPOSAL_TOL", env_value, env_present)
+      if (env_present) then
+         read (env_value, *, iostat=ios) qn_force_best_proposal_tol
          if (ios /= 0 .or. qn_force_best_proposal_tol <= 0.0_dp) then
             qn_force_best_proposal_tol = -1.0_dp
             write (*, '(A)') "[WARN] Invalid QN_FORCE_BEST_PROPOSAL_TOL; using quasi tol."

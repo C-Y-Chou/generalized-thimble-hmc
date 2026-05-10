@@ -1,6 +1,7 @@
 module hmc_integrator_core
    use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+   use runtime_env_mod, only: read_string_env
    use solve_flow, only: flow, flowz, flowzr, set_intode_stage_trace, set_intode_newton_iter_trace, set_intode_quasi_iter_trace, &
                          intode_stage_newton, intode_stage_quasi, intode_stage_rattle_flow, intode_stage_external, &
                          intode_status_success_stiff_rescue, intode_status_success_solver_assist, intode_status_failure_max_steps, &
@@ -893,7 +894,7 @@ contains
    subroutine load_s1_fallback_policy()
       implicit none
       character(len=64) :: env_value
-      integer :: env_len, env_stat
+      logical :: env_present
       integer :: parsed_value, ios
 
       if (s1_fallback_policy_loaded) return
@@ -908,9 +909,9 @@ contains
       qn_quasi_tol_override = -1.0_dp
 
 
-      call get_environment_variable("QN_S1_PROBE_MAX_ITER", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         read (env_value(1:env_len), *, iostat=ios) parsed_value
+      call read_string_env("QN_S1_PROBE_MAX_ITER", env_value, env_present)
+      if (env_present) then
+         read (env_value, *, iostat=ios) parsed_value
          if (ios == 0 .and. parsed_value >= 1) then
             s1_probe_max_iter = parsed_value
          else
@@ -918,9 +919,9 @@ contains
          end if
       end if
 
-      call get_environment_variable("QN_S1_NEAR_FULL_MAX_ITER", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         read (env_value(1:env_len), *, iostat=ios) parsed_value
+      call read_string_env("QN_S1_NEAR_FULL_MAX_ITER", env_value, env_present)
+      if (env_present) then
+         read (env_value, *, iostat=ios) parsed_value
          if (ios == 0 .and. parsed_value >= 1) then
             s1_near_full_max_iter = parsed_value
          else
@@ -928,9 +929,9 @@ contains
          end if
       end if
 
-      call get_environment_variable("QN_S1_NONNEAR_CHEAP_MAX_ITER", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         read (env_value(1:env_len), *, iostat=ios) parsed_value
+      call read_string_env("QN_S1_NONNEAR_CHEAP_MAX_ITER", env_value, env_present)
+      if (env_present) then
+         read (env_value, *, iostat=ios) parsed_value
          if (ios == 0 .and. parsed_value >= 1) then
             s1_non_near_cheap_full_max_iter = parsed_value
          else
@@ -938,9 +939,9 @@ contains
          end if
       end if
 
-      call get_environment_variable("QN_S1_NONNEAR_RESCUE_ENABLED", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         select case (trim(adjustl(env_value(1:env_len))))
+      call read_string_env("QN_S1_NONNEAR_RESCUE_ENABLED", env_value, env_present)
+      if (env_present) then
+         select case (trim(adjustl(env_value)))
          case ("0", "false", "FALSE", "False", "off", "OFF", "Off", "no", "NO", "No")
             s1_nonnear_rescue_enabled = .false.
          case default
@@ -948,9 +949,9 @@ contains
          end select
       end if
 
-      call get_environment_variable("QN_S1_NEAR_RESCUE_ENABLED", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         select case (trim(adjustl(env_value(1:env_len))))
+      call read_string_env("QN_S1_NEAR_RESCUE_ENABLED", env_value, env_present)
+      if (env_present) then
+         select case (trim(adjustl(env_value)))
          case ("0", "false", "FALSE", "False", "off", "OFF", "Off", "no", "NO", "No")
             s1_near_rescue_enabled = .false.
          case default
@@ -958,9 +959,9 @@ contains
          end select
       end if
 
-      call get_environment_variable("QN_REVERSE_GATE_ENABLED", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         select case (trim(adjustl(env_value(1:env_len))))
+      call read_string_env("QN_REVERSE_GATE_ENABLED", env_value, env_present)
+      if (env_present) then
+         select case (trim(adjustl(env_value)))
          case ("0", "false", "FALSE", "False", "off", "OFF", "Off", "no", "NO", "No")
             qn_reverse_gate_enabled = .false.
          case default
@@ -968,18 +969,18 @@ contains
          end select
       end if
 
-      call get_environment_variable("QN_REVERSE_GATE_TOL", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         read (env_value(1:env_len), *, iostat=ios) qn_reverse_gate_tol
+      call read_string_env("QN_REVERSE_GATE_TOL", env_value, env_present)
+      if (env_present) then
+         read (env_value, *, iostat=ios) qn_reverse_gate_tol
          if (ios /= 0 .or. qn_reverse_gate_tol <= 0.0_dp) then
             qn_reverse_gate_tol = qn_reverse_gate_tol_default
             write (*, '(A)') "[WARN] Invalid QN_REVERSE_GATE_TOL; using default 1e-8."
          end if
       end if
 
-      call get_environment_variable("QN_QUASI_TOL_OVERRIDE", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         read (env_value(1:env_len), *, iostat=ios) qn_quasi_tol_override
+      call read_string_env("QN_QUASI_TOL_OVERRIDE", env_value, env_present)
+      if (env_present) then
+         read (env_value, *, iostat=ios) qn_quasi_tol_override
          if (ios /= 0 .or. qn_quasi_tol_override <= 0.0_dp) then
             qn_quasi_tol_override = -1.0_dp
             write (*, '(A)') "[WARN] Invalid QN_QUASI_TOL_OVERRIDE; using cttol."

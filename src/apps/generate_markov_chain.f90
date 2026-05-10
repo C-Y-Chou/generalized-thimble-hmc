@@ -1,5 +1,6 @@
 program generate_markov_chain_app
    use param_mod, only: read_parameters
+   use runtime_env_mod, only: read_string_env
    use utils, only: dp
    use markovchain_mod, only: execute_generate_markov_chain
    use mt95, only: getseed, sgrnd
@@ -9,7 +10,7 @@ program generate_markov_chain_app
    implicit none
 
    integer :: rng_seed
-   integer :: env_status, env_len, io_status
+   integer :: io_status
    integer :: calls_total, calls_integrating
    integer :: fallback_attempts, fallback_success, fallback_failure
    integer :: fallback_max_steps, fallback_invalid, fallback_h_min
@@ -19,16 +20,17 @@ program generate_markov_chain_app
    integer :: rescue_fail_total
    logical :: solver_assist_enabled, fast_hmin_assist, solver_assist_unlimited
    integer :: solver_assist_max_uses
+   logical :: has_seed_env
    character(len=64) :: seed_env
    real(dp) :: fallback_rate
 
    seed_env = ""
-   call get_environment_variable("CHAIN_RNG_SEED", seed_env, length=env_len, status=env_status)
-   if (env_status == 0 .and. env_len > 0) then
-      read (seed_env(1:env_len), *, iostat=io_status) rng_seed
+   call read_string_env("CHAIN_RNG_SEED", seed_env, has_seed_env)
+   if (has_seed_env) then
+      read (seed_env, *, iostat=io_status) rng_seed
       if (io_status /= 0 .or. rng_seed == 0) then
          rng_seed = getseed()
-         write (*, '(A,A,A,I0)') "[RNG] Invalid CHAIN_RNG_SEED='", trim(seed_env(1:env_len)), "'. Using random seed=", rng_seed
+         write (*, '(A,A,A,I0)') "[RNG] Invalid CHAIN_RNG_SEED='", trim(seed_env), "'. Using random seed=", rng_seed
       else
          write (*, '(A,I0)') "[RNG] Using fixed CHAIN_RNG_SEED=", rng_seed
       end if

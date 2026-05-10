@@ -1,4 +1,5 @@
 module perf_profile
+   use runtime_env_mod, only: read_string_env
    use utils, only: dp, wall_time_seconds
    implicit none
 
@@ -22,15 +23,15 @@ contains
    subroutine perf_init()
       implicit none
       character(len=32) :: env_value
-      integer :: env_len, env_status
+      logical :: env_present
 
       if (perf_initialized) return
       perf_initialized = .true.
 
       env_value = ""
-      call get_environment_variable("PERF_PROFILE", env_value, length=env_len, status=env_status)
-      if (env_status == 0 .and. env_len > 0) then
-         if (trim(adjustl(env_value(1:env_len))) /= "0") then
+      call read_string_env("PERF_PROFILE", env_value, env_present)
+      if (env_present) then
+         if (trim(adjustl(env_value)) /= "0") then
             perf_enabled_flag = .true.
          end if
       end if

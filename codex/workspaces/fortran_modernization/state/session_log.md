@@ -389,3 +389,9 @@
 - Preserved existing env names, empty-env behavior, too-long env rejection behavior, invalid-value warnings, defaults, min-bound checks, sample-count clamps, and statistical formulas.
 - Verification passed through `make -C build modernization_guardrails`.
 - Regenerated M5 ownership inventory: total rows dropped from 368 to 356 and env-read rows dropped from 36 to 24.
+
+## 2026-05-10 JST - Lane A core-policy env consolidation
+- Replaced remaining production/source direct env reads in HMC/QN policy loaders, Markov-chain random-start controls, perf profiling, reversibility probe config, and `generate_markov_chain` seed selection with `runtime_env_mod:read_string_env`.
+- Preserved policy defaults, primary-vs-legacy alias precedence, invalid-value handling, false-token semantics, seed fallback, and `sgrnd` timing.
+- Verification passed through `make -C build modernization_guardrails`.
+- Regenerated M5 ownership inventory: total rows dropped from 356 to 337 and env-read rows dropped from 24 to 5; production/source direct env reads now live only in `runtime_env_mod`.

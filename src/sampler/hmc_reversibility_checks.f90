@@ -1,5 +1,5 @@
 module hmc_reversibility_checks
-   use runtime_env_mod, only: parse_int_env, to_lower_ascii
+   use runtime_env_mod, only: parse_int_env, read_string_env, to_lower_ascii
    use utils, only: dp
    implicit none
 
@@ -106,7 +106,7 @@ contains
 
    subroutine load_reversibility_probe_config()
       character(len=64) :: env_value
-      integer :: env_len, env_stat
+      logical :: env_present
 
       if (probe_config_loaded) return
       probe_config_loaded = .true.
@@ -115,9 +115,9 @@ contains
       probe_limit = max(0, probe_limit)
       if (probe_limit > 0) probe_enabled = .true.
 
-      call get_environment_variable("HMC_REVERSIBILITY_PROBE_FALLBACK_ONLY", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         select case (to_lower_ascii(trim(env_value(1:env_len))))
+      call read_string_env("HMC_REVERSIBILITY_PROBE_FALLBACK_ONLY", env_value, env_present)
+      if (env_present) then
+         select case (to_lower_ascii(trim(env_value)))
          case ("0", "false", "f", "no", "n", "off")
             probe_fallback_only = .false.
          case default

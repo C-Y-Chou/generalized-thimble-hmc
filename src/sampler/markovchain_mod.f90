@@ -1,6 +1,6 @@
 module markovchain_mod
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-   use runtime_env_mod, only: runtime_to_lower_ascii => to_lower_ascii
+   use runtime_env_mod, only: read_string_env, runtime_to_lower_ascii => to_lower_ascii
    use solve_flow, only: flow, &
                          get_intode_fallback_stats, &
                          get_intode_fallback_context_stats, &
@@ -217,7 +217,8 @@ contains
       logical :: fixed_retry_target
       real(dp) :: retry_shrink
       character(len=64) :: env_value, token
-      integer :: env_len, env_stat, ios
+      integer :: ios
+      logical :: env_present
 
       if (size(x_initial) < 2) then
          write (*, '(A)') "[ERROR] initialize_random_start requires x size >= 2."
@@ -229,9 +230,9 @@ contains
       fixed_retry_target = .true.
       retry_shrink = 0.85_dp
 
-      call get_environment_variable("RANDOM_START_FIXED_TARGET", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         token = runtime_to_lower_ascii(adjustl(env_value(1:env_len)))
+      call read_string_env("RANDOM_START_FIXED_TARGET", env_value, env_present)
+      if (env_present) then
+         token = runtime_to_lower_ascii(adjustl(env_value))
          select case (trim(token))
          case ("0", "off", "false", "no")
             fixed_retry_target = .false.
@@ -240,9 +241,9 @@ contains
          end select
       end if
 
-      call get_environment_variable("RANDOM_START_RETRY_SHRINK", env_value, length=env_len, status=env_stat)
-      if (env_stat == 0 .and. env_len > 0) then
-         read (env_value(1:env_len), *, iostat=ios) retry_shrink
+      call read_string_env("RANDOM_START_RETRY_SHRINK", env_value, env_present)
+      if (env_present) then
+         read (env_value, *, iostat=ios) retry_shrink
          if (ios /= 0 .or. retry_shrink <= 0.0_dp .or. retry_shrink >= 1.0_dp) retry_shrink = 0.85_dp
       end if
 

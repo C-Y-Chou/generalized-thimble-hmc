@@ -20,9 +20,9 @@ The inventory includes source and tests and records conservative hits for:
 
 Inventory count:
 
-- 356 total ownership-surface rows after the second Lane A env consolidation slice.
+- 337 total ownership-surface rows after the third Lane A env consolidation slice.
 - 275 `save` declarations.
-- 24 runtime env reads.
+- 5 runtime env reads.
 - 43 RNG calls.
 - 14 `param_mod` import sites.
 
@@ -36,10 +36,8 @@ Main `save` hotspots:
 
 Main env-read hotspots:
 
-- `src/sampler/hmc_integrator_core.f90`: 8
-- `src/sampler/quasi_newton_solver.f90`: 6
 - `src/config/runtime_env_mod.f90`: 4
-- `src/sampler/markovchain_mod.f90`: 2
+- `tests/test_hamiltonian_conservation.f90`: 1
 
 Main RNG surface:
 
@@ -146,3 +144,7 @@ Recommendation: choose Lane A first, then Lane B, then targeted Lane C slices. D
 - Replaced `evaluate_expectations` direct env reads for multichain input selection and evaluation/diagnostic thresholds with `read_string_env`, preserving invalid-value warnings, defaults, min-bound checks, sample-count clamps, and statistical formulas.
 - M4 guardrails passed after the evaluation slice.
 - Inventory env-read rows dropped from 36 to 24; `evaluate_expectations` no longer directly calls `get_environment_variable`.
+- Replaced remaining production/source direct env reads in HMC/QN policy loaders, Markov-chain random-start controls, perf profiling, reversibility probe config, and `generate_markov_chain` seed selection with `read_string_env`.
+- Preserved policy defaults, primary-vs-legacy alias precedence, invalid-value handling, false-token semantics, seed fallback, and `sgrnd` timing.
+- M4 guardrails passed after the core-policy/source slice.
+- Inventory env-read rows dropped from 24 to 5; production/source direct env reads now live only in `runtime_env_mod`.

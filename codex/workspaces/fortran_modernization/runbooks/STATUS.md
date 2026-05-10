@@ -125,7 +125,8 @@ Current protocol state:
 - User chose Lane A: config/env/provenance ownership.
 - First Lane A source slice complete: Stage1/Stage2 string env reads now use `runtime_env_mod:read_string_env`; env-read inventory dropped from 52 to 36 rows; M4 guardrails passed.
 - Second Lane A source slice complete: `evaluate_expectations` env reads now use `runtime_env_mod:read_string_env`; env-read inventory dropped from 36 to 24 rows; M4 guardrails passed.
-- Next Lane A area: continue consolidating diagnostic-policy env parsing in HMC/QN/Markov-chain modules when existing invalid/default semantics can be preserved exactly.
+- Third Lane A source slice complete: HMC/QN policy loaders, Markov-chain random-start controls, perf profiling, reversibility probe config, and `generate_markov_chain` seed selection now use `runtime_env_mod:read_string_env`; env-read inventory dropped from 24 to 5 rows; M4 guardrails passed.
+- Remaining direct env reads are centralized in `runtime_env_mod` plus one test-local `HMC_SKIP_PLOT` read.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.
