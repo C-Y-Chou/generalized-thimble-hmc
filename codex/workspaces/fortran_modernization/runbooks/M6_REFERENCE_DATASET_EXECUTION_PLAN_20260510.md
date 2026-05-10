@@ -86,10 +86,25 @@ Rationale:
 
 ## Cluster Submit Command
 
-Run from the cluster worktree:
+Remote repository guard for PBS/queue work:
+
+- commit local changes before submission;
+- push the target branch to `origin`;
+- SSH to `cychou@ithems_fe02.intra.riken.jp`;
+- update the remote target worktree by fast-forward only;
+- verify the remote branch, commit, clean status, and `qsub`;
+- submit only from the verified remote worktree.
+
+Current target worktree for this branch:
 
 ```bash
-cd /lustre1/home/cychou/TLTM
+/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation
+```
+
+Run from the verified cluster worktree:
+
+```bash
+cd /lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation
 bash codex/workspaces/fortran_modernization/tasks/scripts/submit_m6_reference_datasets.sh
 ```
 
