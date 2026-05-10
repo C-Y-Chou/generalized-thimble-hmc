@@ -12,12 +12,19 @@
             "exists": "1",
             "worktree_path": "/home/cychou/TLTM"
           },
-          "/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation": {
-            "branch": "codex/qn-error-handling-validation",
-            "commit": "a1028ad6d68eabfd6c400ec135b3df9cab1e4af2",
+          "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization": {
+            "branch": "codex/fortran-modernization",
+            "commit": "47d3c080765e0eb71401a0fe9aa1c90026da1a60",
             "dirty_count": "0",
             "exists": "1",
-            "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation"
+            "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization"
+          },
+          "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison": {
+            "branch": "codex/tltm-production-comparison",
+            "commit": "47d3c080765e0eb71401a0fe9aa1c90026da1a60",
+            "dirty_count": "0",
+            "exists": "1",
+            "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison"
           }
         }
       },
@@ -25,7 +32,7 @@
       "stderr": ""
     }
   },
-  "refreshed_at_jst": "2026-05-10T23:16:40+09:00",
+  "refreshed_at_jst": "2026-05-10T23:30:30+09:00",
   "targets": [
     {
       "branch": "unknown",
@@ -39,15 +46,26 @@
       "worktree_path": "/home/cychou/TLTM"
     },
     {
-      "branch": "codex/qn-error-handling-validation",
+      "branch": "codex/fortran-modernization",
       "fast_forward_policy": "do_not_fast_forward_if_active_pinned_jobs",
       "host": "ithems_fe02.intra.riken.jp",
-      "notes": "Legacy path/branch name is qn_error_handling_validation; keep unchanged until all pinned M6 jobs finish.",
-      "purpose": "active_fortran_modernization_m6_reference_pbs",
+      "notes": "Semantic modernization worktree after accepted M6 reference baseline; legacy qn_error_handling_validation path is historical only.",
+      "purpose": "active_fortran_modernization_code_refine",
       "repo_path": "/home/cychou/TLTM",
-      "target_id": "fortran_modernization_m6_active",
+      "target_id": "fortran_modernization",
       "user": "cychou",
-      "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation"
+      "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization"
+    },
+    {
+      "branch": "codex/tltm-production-comparison",
+      "fast_forward_policy": "do_not_fast_forward_if_active_pinned_jobs",
+      "host": "ithems_fe02.intra.riken.jp",
+      "notes": "Canonical production-comparison worktree; legacy workspace alias was stage3_4.",
+      "purpose": "provisional_nofb_vs_withfb_production_comparison",
+      "repo_path": "/home/cychou/TLTM",
+      "target_id": "tltm_production_comparison_provisional",
+      "user": "cychou",
+      "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison"
     }
   ]
 }
