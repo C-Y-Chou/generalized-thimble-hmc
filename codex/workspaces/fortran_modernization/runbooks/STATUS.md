@@ -581,3 +581,16 @@ Current protocol state:
 - Preserved Stage2/failure-meta compatibility fields such as `final_resort_budget_*`; public output schema versioning is still a future task.
 - Behavior-preservation note: budget default, watchdog comparison, accepted-iter budget, force-best-proposal policy, QN residual logic, and Metropolis/RG behavior are unchanged.
 - Verification passed: `git diff --check`; `make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage1 ../bin/run_tltm_stage2 test_odex_solver test1`.
+
+## M6 reference dataset R1-R4 submission - 2026-05-10 JST
+- Remote repository guard was added to the M6 execution plan: PBS/queue work must commit locally, push to `origin`, SSH to `cychou@ithems_fe02.intra.riken.jp`, fast-forward the target remote worktree, verify branch/commit/clean status/`qsub`, and submit only from the verified remote worktree.
+- Target remote worktree: `/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation`.
+- Submitted from commit `c11c35b` on branch `codex/qn-error-handling-validation`.
+- Submit manifest: `output/logs/fortran_modernization/reference_datasets/submit/submit_manifest_20260510T180128.env`.
+- PBS job range: `14416.anode01` through `14464.anode01`.
+- Build job: `14416.anode01` (`m6refbuild`) started running immediately.
+- R1 jobs: chunks `14417.anode01`, `14418.anode01`; merge `14419.anode01`.
+- R2 jobs: chunks `14420.anode01`, `14421.anode01`; merge `14422.anode01`.
+- R3 jobs: chunks `14423.anode01` through `14430.anode01`; merge `14431.anode01`.
+- R4 jobs: chunks `14432.anode01` through `14463.anode01`; merge `14464.anode01`.
+- Queue check immediately after submission showed build running (`R`) and dependent chunk/merge jobs held (`H`) as expected.
