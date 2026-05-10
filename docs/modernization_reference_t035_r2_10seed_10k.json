@@ -1,0 +1,67 @@
+{
+  "stage_3_4_todo": {
+    "version": "m6-reference-r2-t035-10seed-10k",
+    "name": "modernization_reference_t035_r2_10seed_10k",
+    "goal": "R2 matched modernization reference for first serious behavior-preservation checks before low-risk code cleanup.",
+    "frozen_setup": {
+      "model": "1d_toy_model",
+      "flow_time_ladder": [0.05, 0.35],
+      "max_flow_time": 0.35,
+      "trajectory_length_L": 2,
+      "nstep": 20,
+      "local_updates_per_cycle": 1,
+      "swap_scheme": "adjacent_pair",
+      "swap_schedule": "odd_even_alternating",
+      "exchange_frequency": "once_per_global_cycle",
+      "stage2_init_mode": "adaptive",
+      "write_all_replica_history": true,
+      "all_replicas_share_same_local_parameters": true
+    },
+    "comparison_policy": {
+      "matched_controls": true,
+      "same_seed_set_for_all_methods": true,
+      "same_initialization_policy": true,
+      "same_cycle_count": true,
+      "same_measurement_protocol": true,
+      "judgment_sets": ["no_fb", "fb_norefine"]
+    },
+    "observable_definition": {
+      "observable_name": "virial",
+      "exact_re": 0.0,
+      "exact_im": 0.0,
+      "error_source": "error_robust_virial_re_im",
+      "error_source_note": "Use robust component-wise error from multichain expectations metadata.",
+      "zp_component_definition": {
+        "Zp_re": "(Re<Ohat> - Re<O_exact>) / err_re",
+        "Zp_im": "(Im<Ohat> - Im<O_exact>) / err_im"
+      },
+      "zp_joint_definition": "Zp = max(|Zp_re|, |Zp_im|)"
+    },
+    "sampling_plan": {
+      "independent_runs_unit": "seed",
+      "n_seeds": 10,
+      "seed_list": [
+        20260421, 20260518, 20260615, 20260712, 20260809,
+        20260906, 20261003, 20261100, 20261197, 20261294
+      ],
+      "cycles_per_seed": 10000,
+      "warmup_cycles_optional": 0,
+      "measurement_stride": 1,
+      "diagnostic_stride": 1
+    },
+    "run_policy": {
+      "reference_level": "R2",
+      "schedule": "task",
+      "chunks_per_method": 1,
+      "chunk_seed_counts": [10],
+      "chunk_seed_offsets": [0],
+      "chunk_worker_counts": [10],
+      "queue_plan_no_fb": ["C8"],
+      "queue_plan_fb_norefine": ["C12"],
+      "stage2_threads": 1,
+      "eval_threads": 1,
+      "output_subdir": "output/reference/fortran_modernization/m6/r2_10seed_10k",
+      "logs_subdir": "output/logs/fortran_modernization/reference_datasets/r2_10seed_10k"
+    }
+  }
+}

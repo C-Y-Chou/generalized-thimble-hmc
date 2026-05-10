@@ -1,0 +1,196 @@
+#!/bin/bash
+#PBS -N m6refmerge
+#PBS -j oe
+
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM}"
+: "${TLTM_EXPECTED_GIT_BRANCH:?TLTM_EXPECTED_GIT_BRANCH is required}"
+: "${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
+: "${TLTM_REF_LEVEL:?TLTM_REF_LEVEL is required}"
+: "${TLTM_REF_LABEL:?TLTM_REF_LABEL is required}"
+: "${TLTM_CONFIG_JSON:?TLTM_CONFIG_JSON is required}"
+: "${TLTM_ROOT_SUBDIR:?TLTM_ROOT_SUBDIR is required}"
+: "${TLTM_ROOT_LOG_SUBDIR:?TLTM_ROOT_LOG_SUBDIR is required}"
+: "${TLTM_EXPECTED_ROWS_PER_METHOD:?TLTM_EXPECTED_ROWS_PER_METHOD is required}"
+: "${TLTM_REQUESTED_CPUS:=0}"
+: "${TLTM_CHUNKS_LABEL:=chunks}"
+
+cd "${TLTM_WORKTREE}"
+
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+CURRENT_COMMIT="$(git rev-parse HEAD)"
+if [ "${CURRENT_BRANCH}" != "${TLTM_EXPECTED_GIT_BRANCH}" ]; then
+  echo "[ERROR] expected branch ${TLTM_EXPECTED_GIT_BRANCH}, got ${CURRENT_BRANCH}" >&2
+  exit 2
+fi
+if [ "${CURRENT_COMMIT}" != "${TLTM_EXPECTED_GIT_COMMIT}" ]; then
+  echo "[ERROR] expected commit ${TLTM_EXPECTED_GIT_COMMIT}, got ${CURRENT_COMMIT}" >&2
+  exit 2
+fi
+if [ -n "$(git status --porcelain)" ]; then
+  echo "[ERROR] working tree is dirty; refusing M6 reference merge" >&2
+  git status --short >&2
+  exit 2
+fi
+
+MERGE_LOG_DIR="${TLTM_ROOT_LOG_SUBDIR}/merge"
+mkdir -p "${MERGE_LOG_DIR}" "${TLTM_ROOT_SUBDIR}"
+exec > "${MERGE_LOG_DIR}/pbs_merge.log" 2>&1
+
+date -Is
+hostname
+pwd
+
+for METHOD in no_fb fb_norefine; do
+  python3 scripts/merge_stage3_multiseed_chunks.py \
+    --repo-root . \
+    --config "${TLTM_CONFIG_JSON}" \
+    --output-subdir "${TLTM_ROOT_SUBDIR}/${METHOD}" \
+    --chunk-glob "chunk_*" \
+    --log-prefix "m6_reference_${TLTM_REF_LEVEL}_${METHOD}" \
+    --report-title "M6 modernization reference ${TLTM_REF_LEVEL} ${METHOD}" \
+    --expected-rows "${TLTM_EXPECTED_ROWS_PER_METHOD}" \
+    --jobs-label "${TLTM_CHUNKS_LABEL}" \
+    --requested-cpus "${TLTM_REQUESTED_CPUS}"
+done
+
+python3 - <<'PY'
+import csv
+import json
+import os
+from pathlib import Path
+
+root = Path(os.environ["TLTM_ROOT_SUBDIR"])
+level = os.environ["TLTM_REF_LEVEL"]
+label = os.environ["TLTM_REF_LABEL"]
+config = os.environ["TLTM_CONFIG_JSON"]
+commit = os.environ["TLTM_EXPECTED_GIT_COMMIT"]
+branch = os.environ["TLTM_EXPECTED_GIT_BRANCH"]
+expected = int(os.environ["TLTM_EXPECTED_ROWS_PER_METHOD"])
+methods = ("no_fb", "fb_norefine")
+
+combined_rows = []
+registry_rows = []
+for method in methods:
+    method_root = root / method
+    agg_path = method_root / "aggregated_summary_table.csv"
+    per_seed_path = method_root / "per_seed_summary_table.csv"
+    audit_path = method_root / "protocol_audit_summary.csv"
+    if not agg_path.exists():
+        raise SystemExit(f"missing aggregate: {agg_path}")
+    if not per_seed_path.exists():
+        raise SystemExit(f"missing per-seed table: {per_seed_path}")
+    with per_seed_path.open(newline="") as f:
+        per_seed_count = sum(1 for _ in csv.DictReader(f))
+    if per_seed_count != expected:
+        raise SystemExit(f"{method}: got {per_seed_count} rows, expected {expected}")
+    audit_status = "absent"
+    if audit_path.exists():
+        with audit_path.open(newline="") as f:
+            audit_rows = list(csv.DictReader(f))
+        bad = [r for r in audit_rows if r.get("verdict") != "pass" or r.get("errors") not in ("0", 0)]
+        audit_status = "pass" if not bad else "fail"
+    with agg_path.open(newline="") as f:
+        rows = list(csv.DictReader(f))
+    if len(rows) != 1:
+        raise SystemExit(f"{method}: expected one aggregate row, got {len(rows)}")
+    row = dict(rows[0])
+    row["reference_level"] = level
+    row["reference_label"] = label
+    row["method"] = method
+    row["per_seed_rows"] = str(per_seed_count)
+    row["protocol_audit_status"] = audit_status
+    combined_rows.append(row)
+    registry_rows.append({
+        "package_id": f"{label}_{method}",
+        "status": "generated_pending_readback",
+        "package_class": "stage3_4_context_aligned_reference",
+        "design_context": "stage3_4_nofb_vs_withfb_t035_L2_nstep20",
+        "generating_workspace": "codex/workspaces/fortran_modernization",
+        "package_root": str(method_root),
+        "source_commit": commit,
+        "physical_point": "t=0.35,L=2,nstep=20",
+        "methods": method,
+        "seed_policy": f"matched_seed_count={expected}",
+        "protocol_status": audit_status,
+        "sidecar_status": "present",
+        "accepted_for_scopes": "pending_readback",
+        "notes": f"{level} generated; readback pending",
+    })
+
+fieldnames = []
+for row in combined_rows:
+    for key in row:
+        if key not in fieldnames:
+            fieldnames.append(key)
+with (root / "reference_aggregate_comparison.csv").open("w", newline="") as f:
+    writer = csv.DictWriter(f, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows(combined_rows)
+
+registry_fields = [
+    "package_id",
+    "status",
+    "package_class",
+    "design_context",
+    "generating_workspace",
+    "package_root",
+    "source_commit",
+    "physical_point",
+    "methods",
+    "seed_policy",
+    "protocol_status",
+    "sidecar_status",
+    "accepted_for_scopes",
+    "notes",
+]
+with (root / "reference_registry_rows.tsv").open("w", newline="") as f:
+    writer = csv.DictWriter(f, fieldnames=registry_fields, delimiter="\t")
+    writer.writeheader()
+    writer.writerows(registry_rows)
+
+manifest = {
+    "package_id": label,
+    "status": "generated_pending_readback",
+    "package_class": "stage3_4_context_aligned_reference",
+    "design_context": "stage3_4_nofb_vs_withfb_t035_L2_nstep20",
+    "reference_level": level,
+    "source_branch": branch,
+    "source_commit": commit,
+    "config": config,
+    "root": str(root),
+    "methods": list(methods),
+    "expected_rows_per_method": expected,
+    "protocol": "local_update_swap_measure_history_label_trace",
+    "physical_point": {"t": 0.35, "L": 2, "nstep": 20},
+    "canonical_route": "Newton -> p28 QN BTN/backflow rescue residual -> reverse gate -> Metropolis",
+    "flow_policy": "ODEX primary plus solver-internal residual assist; strict final flow for live proposals",
+}
+with (root / "reference_manifest.json").open("w") as f:
+    json.dump(manifest, f, indent=2, sort_keys=True)
+    f.write("\n")
+PY
+
+{
+  echo "job_tag=m6_reference_${TLTM_REF_LEVEL}_merge"
+  echo "date_end=$(date -Is)"
+  echo "ref_level=${TLTM_REF_LEVEL}"
+  echo "ref_label=${TLTM_REF_LABEL}"
+  echo "config=${TLTM_CONFIG_JSON}"
+  echo "root=${TLTM_ROOT_SUBDIR}"
+  echo "expected_rows_per_method=${TLTM_EXPECTED_ROWS_PER_METHOD}"
+} > "${MERGE_LOG_DIR}/run_manifest.txt"
+
+date -Is

@@ -140,9 +140,12 @@ Current protocol state:
 - `runbooks/M6_REFERENCE_DATASET_DESIGN_SPEC.md` now defines the reference dataset/package shape, Stage3_4-context alignment, manifest fields, artifact pointers, and acceptance criteria.
 - `runbooks/M6_REFERENCE_DATASET_READBACK_PLAN.md` now defines manual/future-automated readback checks and acceptance states.
 - `runbooks/M6_REFERENCE_DATASET_GENERATION_AND_COVERAGE_PLAN.md` now defines R0-R4 reference levels, protected refactor classes, required outputs, pre-generation checklist, and stop-for-decision points.
+- `runbooks/M6_REFERENCE_DATASET_EXECUTION_PLAN_20260510.md` now records the concrete R1-R4 config/PBS/chunk/queue plan.
 - `runbooks/M6_TO_CODE_MODERNIZATION_ENTRY_GATE.md` now records the boundary before future source-code refactors resume.
 - `state/M6_REFERENCE_PACKAGES.tsv` now exists as the reference-package registry template.
-- Modernization is now stopped at the R1 reference-dataset generation gate; generation starts only after explicit user instruction.
+- User explicitly started R1-R4 reference generation planning on 2026-05-10 JST.
+- Configs and PBS scripts for R1-R4 are prepared, but this desktop environment cannot submit PBS because `qsub` is unavailable.
+- Next executable action is to run `bash codex/workspaces/fortran_modernization/tasks/scripts/submit_m6_reference_datasets.sh` from `/lustre1/home/cychou/TLTM` on the PBS cluster.
 - Repo entry docs now point to M6 guardrails/checklists and no longer describe single-chain output as the Stage3_4 production or modernization reference-package path.
 - Master/M3-to-M6 planning docs now mark M3/M4/M5 as completed or explicitly deferred where appropriate, with M6 review as the next gate before modernization reference-dataset construction/registration.
 

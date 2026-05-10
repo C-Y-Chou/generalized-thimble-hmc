@@ -247,4 +247,16 @@ Modernization is ready to start R1 reference generation when:
 - local guardrails pass;
 - the user explicitly says to start reference dataset generation.
 
+Execution artifacts prepared after user start:
+
+- `M6_REFERENCE_DATASET_EXECUTION_PLAN_20260510.md`
+- `docs/modernization_reference_t035_r1_4seed_1k.json`
+- `docs/modernization_reference_t035_r2_10seed_10k.json`
+- `docs/modernization_reference_t035_r3_32seed_50k.json`
+- `docs/modernization_reference_t035_r4_128seed_100k.json`
+- `tasks/pbs/m6_reference_preflight_build.pbs`
+- `tasks/pbs/m6_reference_chunk.pbs`
+- `tasks/pbs/m6_reference_merge_level.pbs`
+- `tasks/scripts/submit_m6_reference_datasets.sh`
+
 Until then, no reference dataset generation, production job submission, output cleanup, or source-code modernization should occur in this workstream.

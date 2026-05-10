@@ -13,6 +13,7 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 - `M6_REFERENCE_DATASET_DESIGN_SPEC.md`
 - `M6_REFERENCE_DATASET_READBACK_PLAN.md`
 - `M6_REFERENCE_DATASET_GENERATION_AND_COVERAGE_PLAN.md`
+- `M6_REFERENCE_DATASET_EXECUTION_PLAN_20260510.md`
 - `M6_TO_CODE_MODERNIZATION_ENTRY_GATE.md`
 
 ## Governance
@@ -58,6 +59,7 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 - `M6_REFERENCE_DATASET_DESIGN_SPEC.md`
 - `M6_REFERENCE_DATASET_READBACK_PLAN.md`
 - `M6_REFERENCE_DATASET_GENERATION_AND_COVERAGE_PLAN.md`
+- `M6_REFERENCE_DATASET_EXECUTION_PLAN_20260510.md`
 - `M6_TO_CODE_MODERNIZATION_ENTRY_GATE.md`
 - `CROSS_CUTTING_INFRASTRUCTURE_AUDIT.md`
 - `CODE_HYGIENE_AUDIT.md`
@@ -71,10 +73,10 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 ## Current Position
 
-- Current phase: stopped at the M6 reference-dataset generation gate after M3/M4 completion and M5 direct-env/config ownership slices.
+- Current phase: R1-R4 reference dataset PBS/config package prepared; desktop cannot submit because `qsub` is unavailable.
 - Completed source wave: ODEX sequence canonicalization, QN BTN sign cleanup, QN invalid-evaluation handling, post-refine/non-p28 QN source deletion, Radau/JFNK source deletion, solver-assist naming cleanup, RATTLE progress guard diagnostic downgrade, and state/status surface patches.
 - Latest completed M3 slice: parser-only TLTM protocol audit, adjacent-swap kernel contract test, opt-in Stage2 v1alpha sidecars, and Stage2 post-swap measurement/history/label-trace boundary.
-- Current next area: user review/explicit start of R1 reference generation. No source-code modernization should begin before an accepted reference baseline or an explicitly approved narrower baseline.
+- Current next area: run `tasks/scripts/submit_m6_reference_datasets.sh` from the PBS cluster worktree to submit R1-R4. No source-code modernization should begin before an accepted reference baseline or an explicitly approved narrower baseline.
 
 - `M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`: completed static audit findings and discussion blockers for retained ODEX/Newton/RATTLE/QN/HMC code.
 - `M2_REFERENCE_BACKED_CORE_AUDIT.md`: reference-first retained-core audit superseding the earlier source-level risk scan where conclusions differ.
