@@ -4,8 +4,10 @@ Updated: 2026-05-10 JST
 
 ## Current Position
 
-- Modernization reached M6 reference dataset generation/readback work.
-- M3/M4/M5 modernization infrastructure work is treated as completed or explicitly deferred in the long status runbook.
+- Current position is `Completed foundation -> Active M6 reference baseline gate -> Remaining modernization blocks`.
+- M6 is not "modernization complete"; it is the active reference-baseline/product-readiness gate before larger source refactors resume.
+- The compact source of truth for this positioning is `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`.
+- M3/M4/M5 modernization infrastructure work is treated as completed, partial, or explicitly deferred by workstream in that matrix.
 - M6 R1-R4 reference generation is active on the cluster and must be read through remote/job registries before further repair or cleanup.
 - The active remote target is semantically `fortran_modernization_m6_active`, but the physical path/branch still carry the legacy `qn_error_handling_validation` name until pinned jobs finish.
 
@@ -17,6 +19,7 @@ Updated: 2026-05-10 JST
 
 ## Key Files
 
+- `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`: compact status matrix and current position.
 - `runbooks/STATUS.md`: long history.
 - `runbooks/CLUSTER02_SCHEDULING_AGENT.md`: scheduler agent.
 - `runbooks/M6_REFERENCE_DATASET_READBACK_PLAN.md`: readback gate.
@@ -25,4 +28,4 @@ Updated: 2026-05-10 JST
 
 ## Next Action
 
-Refresh remote state, inspect M6 jobs/readback outputs, then update `codex/state/JOBS.tsv`, `codex/state/DATASETS.tsv`, and M6 registry rows.
+Refresh remote state, inspect M6 jobs/readback outputs, then update `codex/state/JOBS.tsv`, `codex/state/DATASETS.tsv`, and M6 registry rows. After accepted M6 baseline, resume the remaining modernization blocks according to the workstream matrix rather than treating M6 as completion.

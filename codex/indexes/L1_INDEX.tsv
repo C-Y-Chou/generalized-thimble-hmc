@@ -8,7 +8,7 @@ decisions	current	codex/state/DECISIONS.tsv	When checking whether a choice was a
 open_items	current	codex/state/OPEN_ITEMS.tsv	When choosing next action	codex/runbooks/GLOBAL_STATUS.md
 datasets	current	codex/state/DATASETS.tsv	Before dataset cleanup/readback/reference registration	codex/workspaces/fortran_modernization/state/M6_REFERENCE_PACKAGES.tsv
 references	current	codex/state/REFERENCES.tsv	Before algorithm/reference-backed review	codex/workspaces/fortran_modernization/references/REFERENCES_INDEX.md
-fortran_modernization	active	codex/workspaces/fortran_modernization/context/STATE_BRIEF.md	When entering fortran_modernization	codex/workspaces/fortran_modernization/runbooks/STATUS.md
+fortran_modernization	active	codex/workspaces/fortran_modernization/context/STATE_BRIEF.md	When entering fortran_modernization	codex/workspaces/fortran_modernization/runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md
 stage3_4	historical_or_parallel	codex/workspaces/stage3_4/context/STATE_BRIEF.md	When entering Stage3_4 production-comparison workstream	codex/workspaces/stage3_4/runbooks/STATUS.md
 repo_cleanup	planned	codex/workspaces/repo_cleanup/context/STATE_BRIEF.md	Before local/remote/docs/output cleanup	codex/workspaces/repo_cleanup/runbooks/STATUS.md
 control_plane_cleanup	active	codex/runbooks/CONTROL_PLANE_MEMORY_COMPACTION_PLAN.md	When changing codex memory layout	codex/runbooks/READ_POLICY.md

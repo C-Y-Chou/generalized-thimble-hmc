@@ -1,6 +1,6 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-10T19:42:26+09:00
+Generated: 2026-05-10T19:55:02+09:00
 Remote refreshed: 2026-05-10T19:36:11+09:00
 
 ## Hard Rules
@@ -39,10 +39,10 @@ Remote refreshed: 2026-05-10T19:36:11+09:00
 
 ## Recent Decisions
 
-- 2026-05-10 `cluster02`: Exclude GPU queues for CPU-only TLTM chunks
 - 2026-05-10 `cluster02`: Blacklist C17/C17-LONG for M6 8-core chunk shape
 - 2026-05-10 `cluster02`: Prefer probe-verified C8/C12 and use C12-LONG as pressure release for M6 chunks
 - 2026-05-10 `cluster02`: Treat cluster02 as a shared dynamic resource rather than a fixed machine
+- 2026-05-10 `fortran_modernization`: Track modernization by workstream matrix, not linear M0-M6 completion
 - 2026-05-10 `stage3_4`: Stage3_4 queue optimization playbook is superseded for current scheduling
 - 2026-05-10 `remote`: Rename control-plane target id to fortran_modernization_m6_active
 

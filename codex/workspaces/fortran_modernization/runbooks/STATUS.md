@@ -9,6 +9,9 @@ Updated: 2026-05-10 JST
 ## Current state
 - Initial modernization governance set established.
 - User-confirmed alias: "code refine" means this `fortran_modernization` task, not a separate workspace.
+- Current position is now tracked by workstream matrix, not by treating M0-M6 as a linear completion ladder:
+  - `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`
+  - Position: completed foundation -> active M6 reference baseline gate -> remaining modernization blocks.
 - Algorithm reference bundle is collected under `references/`, including TLTM HMC, simplified Newton/RATTLE/HMC, DFO-GN/DFO-LS, Hairer ODEX, and the user original quasi-Newton projection formulation.
 - Low-level algorithm review set is complete and has already driven the first source canonicalization wave:
   - `runbooks/ODEX_FLOW_REVIEW_NOTES.md`
@@ -69,6 +72,8 @@ Current source state has passed the Radau/JFNK deletion, non-p28 QN deletion, po
 
 Current sequencing decision:
 
+- M6 is the active reference-baseline/product-readiness gate, not completion of all modernization.
+- Remaining modernization blocks are tracked in `WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`.
 - User decision, 2026-05-10 JST: continue modernization through M6 before building/registering modernization reference packages.
 - Modernization reference-dataset construction/registration is now gated by M3 protocol/schema completion, M4 guardrails, M5 repo-wide refactor decisions, and M6 product-readiness/provenance docs.
 - Temporary smoke runs remain allowed for development; they are not final datasets and are not sufficient modernization reference packages.

@@ -78,7 +78,13 @@ Turn the TLTM Fortran codebase into a mature, maintainable, verifiable, and publ
 
 ## Current Milestone Map - 2026-05-10
 
-The active milestone map is M0-M6:
+Important clarification:
+
+- M0-M6 is not a full modernization-completion ladder.
+- M0-M6 is the completed foundation plus active reference-baseline/product-readiness gate.
+- Use `WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md` as the compact source of truth for what is done, active, deferred, and still planned.
+
+The historical milestone map is M0-M6:
 
 - M0: planning and governance established.
 - M1: temporary characterization baseline collected from the completed Stage3_4/TLTM judgment context.
@@ -86,7 +92,7 @@ The active milestone map is M0-M6:
 - M3: architecture, tempering protocol, output schema, Stage2 sidecars, and Stage3 protocol propagation.
 - M4: guardrail tests, parser/readback checks, protocol audits, and benchmark harnesses.
 - M5: repo-wide refactor waves for typed config, explicit state/status propagation, diagnostics, output ownership, RNG/state inventory, and module boundaries.
-- M6: modernization reference-dataset product-readiness package, unified wrapper direction, provenance contract, docs, examples, and release/checklist notes.
+- M6: modernization reference-dataset product-readiness package, unified wrapper direction, provenance contract, docs, examples, and release/checklist notes. This is a baseline gate, not modernization completion.
 
 Current sequencing decision:
 
@@ -101,7 +107,7 @@ Current implementation status:
 - M4 local guardrails are available through `make -C build modernization_guardrails`.
 - M5 direct-env/config ownership is complete; high-risk RNG/workspace/model-cache/schema-removal/global-config replacement work is explicitly deferred in `M5_PRE_M6_GATE_ASSESSMENT.md`.
 - M6 product-readiness docs are available in `M6_REFERENCE_DATASET_PRODUCT_READINESS_PLAN.md`, `M6_REFERENCE_DATASET_CHECKLIST.md`, `M6_PROVENANCE_READBACK_CHECKLIST.md`, `PARALLEL_WORKSTREAM_BOUNDARY_AND_REFERENCE_DATASET_POLICY.md`, `M6_REFERENCE_DATASET_DESIGN_SPEC.md`, `M6_REFERENCE_DATASET_READBACK_PLAN.md`, `M6_REFERENCE_DATASET_GENERATION_AND_COVERAGE_PLAN.md`, and `M6_TO_CODE_MODERNIZATION_ENTRY_GATE.md`.
-- Modernization is stopped at the reference-dataset generation gate until explicit user instruction.
+- Modernization is active at the reference-dataset generation/readback gate.
 - Future source-code modernization is gated by an accepted reference package or explicit user approval of a narrower baseline.
 
 ## Success criteria
