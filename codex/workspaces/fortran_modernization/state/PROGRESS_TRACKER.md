@@ -63,6 +63,8 @@
 - 2026-05-10 JST: Completed final direct-env cleanup by moving the test-local `HMC_SKIP_PLOT` read behind `read_string_env`; all direct `get_environment_variable` calls now live in `runtime_env_mod`.
 - 2026-05-10 JST: Added an M4 source guardrail that fails on future direct env reads outside `runtime_env_mod`.
 - 2026-05-10 JST: Added `M5_PRE_M6_GATE_ASSESSMENT.md`; M5 can proceed to M6 while RNG/workspace/model-cache/schema-removal/global-config replacement work remains explicitly deferred.
+- 2026-05-10 JST: Started M6 product-readiness package with `M6_PRE_DATASET_PRODUCT_READINESS_PLAN.md` and `M6_DATASET_REGENERATION_CHECKLIST.md`; dataset regeneration remains paused.
+- 2026-05-10 JST: Updated repo and outer New Project README entry points to direct future sessions to the M6 gate/checklist and paused dataset-regeneration status.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit

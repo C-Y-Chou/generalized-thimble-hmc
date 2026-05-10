@@ -32,6 +32,17 @@ bash tasks/refresh_live_board.sh
 2. Pick the target task from `/home/cychou/TLTM/codex/runbooks/task_registry.tsv`
 3. Enter that workspace and read its `context/TASK.md`, `runbooks/STATUS.md`, and `state/` files
 
+## Current Fortran Modernization Entry
+- Workspace: `/home/cychou/TLTM/codex/workspaces/fortran_modernization`
+- Current phase: M6 pre-dataset product-readiness planning after M5 direct-env/config ownership consolidation.
+- Read next:
+  - `runbooks/STATUS.md`
+  - `runbooks/M5_PRE_M6_GATE_ASSESSMENT.md`
+  - `runbooks/M6_PRE_DATASET_PRODUCT_READINESS_PLAN.md`
+  - `runbooks/M6_DATASET_REGENERATION_CHECKLIST.md`
+- Local guardrail before source changes or dataset planning: `make -C build modernization_guardrails`
+- Dataset regeneration remains paused until the user explicitly starts it.
+
 ## Policy
 - Read `/home/cychou/TLTM/docs/AGENT_GUIDE.md` first.
 - Run heavy jobs only via PBS on compute nodes.

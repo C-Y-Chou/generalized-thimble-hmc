@@ -130,6 +130,11 @@ Current protocol state:
 - All direct `get_environment_variable` calls are now centralized in `runtime_env_mod`.
 - M4 guardrails now include a source-level check that blocks direct env reads outside `runtime_env_mod`.
 - `runbooks/M5_PRE_M6_GATE_ASSESSMENT.md` records the M5 gate result: proceed to M6 product-readiness work while deferring RNG ownership, large module `save` workspace migration, model/tape cache ownership, public schema deletion/renaming, and full `param_mod` global replacement until stronger baselines or explicit wrapper/schema decisions exist.
+- M6 product-readiness docs are now started:
+  - `runbooks/M6_PRE_DATASET_PRODUCT_READINESS_PLAN.md`
+  - `runbooks/M6_DATASET_REGENERATION_CHECKLIST.md`
+- Official dataset regeneration remains paused until user explicitly starts it after M6 review.
+- Repo entry docs now point to M6 guardrails/checklists and no longer describe single-chain output as the current official dataset path.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.

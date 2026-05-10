@@ -410,3 +410,10 @@
 - Added `runbooks/M5_PRE_M6_GATE_ASSESSMENT.md`.
 - Gate result: proceed to M6 product-readiness work, not dataset regeneration.
 - Explicitly deferred RNG ownership, large module `save` workspace migration, model/tape cache ownership, public schema deletion/renaming, and full `param_mod` global replacement until stronger baselines or explicit wrapper/schema decisions exist.
+
+## 2026-05-10 JST - M6 product-readiness package start
+- Added `runbooks/M6_PRE_DATASET_PRODUCT_READINESS_PLAN.md`.
+- Added `runbooks/M6_DATASET_REGENERATION_CHECKLIST.md`.
+- M6 now has a wrapper/provenance/output/readiness contract and an explicit preflight ladder for future 10k -> 50k -> 100k dataset regeneration.
+- No production jobs were submitted; dataset regeneration remains paused until explicit user instruction.
+- Updated repo entry docs (`docs/readme.md`, `codex/README.md`) and the outer `/Users/ccy/Documents/New project/README.md` to point new sessions at the M6 gate and paused-regeneration status.
