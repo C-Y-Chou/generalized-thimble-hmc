@@ -1,6 +1,6 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-11T00:18:07+09:00
+Generated: 2026-05-11T00:19:35+09:00
 Remote refreshed: 2026-05-10T23:59:14+09:00
 
 ## Hard Rules
@@ -19,7 +19,7 @@ Remote refreshed: 2026-05-10T23:59:14+09:00
 
 ## Active Local Risk
 
-- `active_control_plane`: branch `codex/fortran-modernization`, commit `392879a7e9416e9af4bdf224b2d08c50c5637d3f`, dirty `2`, ahead `1`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
+- No local worktree risk recorded in `codex/state/LOCAL_WORKTREES.tsv`.
 
 ## Active/Pending Jobs
 

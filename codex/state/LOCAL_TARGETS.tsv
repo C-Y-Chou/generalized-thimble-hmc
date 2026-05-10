@@ -1,3 +1,2 @@
 target_id	path	purpose	fast_forward_policy	notes
-active_control_plane	/Users/ccy/Documents/TLTM_qn_error_handling	Active local control-plane and modernization worktree	check_dirty_and_ahead	Primary local Codex workspace for current TLTM control-plane work.
 legacy_new_project_tltm_repo	/Users/ccy/Documents/New project/TLTM_repo	Legacy local TLTM repo checkout used by older workflows	check_dirty_and_ahead	Do not pull or overwrite if dirty; QN residue was stashed before 2026-05-11 sync.
