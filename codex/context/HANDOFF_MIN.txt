@@ -12,9 +12,17 @@ Read in this order:
 9) Refresh live board if queue/output state matters: bash /home/cychou/TLTM/codex/tasks/refresh_live_board.sh
 10) Read /home/cychou/TLTM/codex/runbooks/LIVE_BOARD.md if refreshed
 
+Cluster/PBS rule:
+- If the work involves iTHEMS cluster02 queues, PBS submission, dataset generation, or job repair, the responsible scheduling authority is the task-local cluster02 scheduling agent.
+- For fortran_modernization, read /home/cychou/TLTM/codex/workspaces/fortran_modernization/runbooks/CLUSTER02_SCHEDULING_AGENT.md before choosing queues or splitting work.
+- Use the persistent scheduler knowledge and observation log before live qstat-based decisions:
+  /home/cychou/TLTM/codex/workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_KNOWLEDGE.json
+  /home/cychou/TLTM/codex/workspaces/fortran_modernization/state/CLUSTER02_QUEUE_OBSERVATIONS.tsv
+
 Then choose exactly one task workspace and continue there.
 If the task is one of these, use:
 - /home/cychou/TLTM/codex/workspaces/stage3_4
 - /home/cychou/TLTM/codex/workspaces/stage3_3_rg_redo
 - /home/cychou/TLTM/codex/workspaces/ngport_rg_single_replica_t03_nstep_grid
 - /home/cychou/TLTM/codex/workspaces/repo_cleanup
+- /home/cychou/TLTM/codex/workspaces/fortran_modernization

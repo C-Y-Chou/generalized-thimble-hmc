@@ -37,16 +37,25 @@ bash tasks/refresh_live_board.sh
 - Current phase: M6 modernization reference-dataset product-readiness planning after M5 direct-env/config ownership consolidation.
 - Read next:
   - `runbooks/STATUS.md`
+  - `runbooks/CLUSTER02_SCHEDULING_AGENT.md`
   - `runbooks/PARALLEL_WORKSTREAM_BOUNDARY_AND_REFERENCE_DATASET_POLICY.md`
   - `runbooks/M6_REFERENCE_DATASET_DESIGN_SPEC.md`
   - `runbooks/M6_REFERENCE_DATASET_READBACK_PLAN.md`
   - `runbooks/M6_REFERENCE_DATASET_GENERATION_AND_COVERAGE_PLAN.md`
+  - `runbooks/M6_DYNAMIC_QUEUE_POLICY_20260510.md`
   - `runbooks/M6_TO_CODE_MODERNIZATION_ENTRY_GATE.md`
   - `runbooks/M5_PRE_M6_GATE_ASSESSMENT.md`
   - `runbooks/M6_REFERENCE_DATASET_PRODUCT_READINESS_PLAN.md`
   - `runbooks/M6_REFERENCE_DATASET_CHECKLIST.md`
   - `runbooks/M6_PROVENANCE_READBACK_CHECKLIST.md`
 - Local guardrail before source changes or dataset planning: `make -C build modernization_guardrails`
+- Cluster/PBS/dataset scheduling authority: use the cluster02 scheduling agent before splitting work, choosing queues, submitting jobs, or repairing failed chunks.
+- Persistent scheduler memory:
+  - `workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_KNOWLEDGE.json`
+  - `workspaces/fortran_modernization/state/CLUSTER02_QUEUE_OBSERVATIONS.tsv`
+- Agent utility:
+  - `python3 workspaces/fortran_modernization/tasks/scripts/cluster02_scheduler_agent.py show-policy`
+  - `python3 workspaces/fortran_modernization/tasks/scripts/cluster02_scheduler_agent.py snapshot`
 - Stage3_4 owns the `nofb` vs `withfb` production-comparison workflow.
 - Modernization is stopped at the reference-dataset generation gate; R1 generation starts only after explicit user instruction.
 - Future source-code modernization resumes only after the M6 code-entry gate or explicit user approval of a narrower baseline.
@@ -55,5 +64,6 @@ bash tasks/refresh_live_board.sh
 - Read `/home/cychou/TLTM/docs/AGENT_GUIDE.md` first.
 - Run heavy jobs only via PBS on compute nodes.
 - Commit and push production-relevant changes before validation or production submission.
+- For cluster02 PBS work, never choose queues ad hoc; consult the persistent scheduling agent first, then live `qstat -Qf`.
 - Do not treat top-level `state/` as a single live run state.
 - Record task-specific execution in `workspaces/<task_slug>/state/`.
