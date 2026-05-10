@@ -101,6 +101,21 @@ def local_transition_aggregate_columns():
     return ["total_{0}".format(column) for column in local_transition_count_columns()]
 
 
+def stage3_protocol_metadata_columns():
+    return [
+        "stage2_v1_sidecar_enabled",
+        "stage2_v1_output_dir",
+        "stage2_v1_manifest_file",
+        "stage2_v1_protocol_file",
+        "stage2_protocol_audit_json",
+        "stage2_protocol_audit_text",
+        "stage2_protocol_audit_verdict",
+        "stage2_protocol_audit_errors",
+        "stage2_protocol_audit_warnings",
+        "stage2_protocol_audit_checks",
+    ]
+
+
 def qn_eval_flow_status_count_columns():
     return ["qn_eval_flow_{0}_count".format(name) for name in QN_EVAL_FLOW_STATUS_NAMES]
 
@@ -126,6 +141,10 @@ def reverse_gate_replay_status_aggregate_columns():
 
 
 def parse_args():
+    def env_choice(name, default, choices):
+        value = os.environ.get(name, default).strip().lower()
+        return value if value in choices else default
+
     parser = argparse.ArgumentParser(
         description="Run stage-3.3 multiseed matched-control compare (fallback off vs on)."
     )
@@ -223,6 +242,24 @@ def parse_args():
         "--report-title",
         default="TLTM Stage-3.3 Multiseed Report",
         help="Markdown title for the generated report.",
+    )
+    parser.add_argument(
+        "--stage2-v1-sidecars",
+        choices=("off", "on"),
+        default=env_choice("STAGE3_3_STAGE2_V1_SIDECARS", "off", ("off", "on")),
+        help="When on, ask each Stage2 run to write v1alpha sidecars under its per-seed output directory.",
+    )
+    parser.add_argument(
+        "--stage2-protocol-audit",
+        choices=("off", "on", "auto"),
+        default=env_choice("STAGE3_3_STAGE2_PROTOCOL_AUDIT", "auto", ("off", "on", "auto")),
+        help="Run the parser-only Stage2 protocol audit. 'auto' runs it when --stage2-v1-sidecars=on.",
+    )
+    parser.add_argument(
+        "--stage2-protocol-audit-fail-on",
+        choices=("error", "warning", "never"),
+        default=env_choice("STAGE3_3_STAGE2_PROTOCOL_AUDIT_FAIL_ON", "error", ("error", "warning", "never")),
+        help="Failure policy passed to audit_tltm_tempering_protocol.py.",
     )
     return parser.parse_args()
 
@@ -361,6 +398,94 @@ def run_command(cmd, env, cwd, log_file):
     log_file.write_text(proc.stdout)
     if proc.returncode != 0:
         raise RuntimeError("Command failed: {0}\nSee log: {1}".format(" ".join(cmd), log_file))
+
+
+def relpath_text(repo_root, path):
+    if not path:
+        return ""
+    path = Path(path)
+    try:
+        return str(path.relative_to(repo_root))
+    except ValueError:
+        return str(path)
+
+
+def should_run_protocol_audit(audit_mode, stage2_v1_sidecars_enabled):
+    if audit_mode == "on":
+        return True
+    if audit_mode == "auto":
+        return bool(stage2_v1_sidecars_enabled)
+    return False
+
+
+def run_stage2_protocol_audit(
+    repo_root,
+    summary_file,
+    label_trace_file,
+    manifest_file=None,
+    protocol_file=None,
+    stage3_per_seed_file=None,
+    seed_id=None,
+    method_name=None,
+    out_json=None,
+    out_text=None,
+    fail_on="error",
+):
+    cmd = [
+        sys.executable,
+        str(repo_root / "scripts" / "audit_tltm_tempering_protocol.py"),
+        "--summary",
+        str(summary_file),
+        "--label-trace",
+        str(label_trace_file),
+        "--fail-on",
+        fail_on,
+    ]
+    if manifest_file:
+        cmd.extend(["--manifest", str(manifest_file)])
+    if protocol_file:
+        cmd.extend(["--protocol", str(protocol_file)])
+    if stage3_per_seed_file:
+        cmd.extend(["--stage3-per-seed", str(stage3_per_seed_file)])
+    if seed_id is not None:
+        cmd.extend(["--stage3-seed-id", str(seed_id)])
+    if method_name:
+        cmd.extend(["--stage3-method", str(method_name)])
+    if out_json:
+        out_json = Path(out_json)
+        out_json.parent.mkdir(parents=True, exist_ok=True)
+        cmd.extend(["--out-json", str(out_json)])
+    if out_text:
+        out_text = Path(out_text)
+        out_text.parent.mkdir(parents=True, exist_ok=True)
+        cmd.extend(["--out-text", str(out_text)])
+
+    proc = subprocess.run(
+        cmd,
+        cwd=str(repo_root),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        output_hint = ""
+        if out_text and Path(out_text).exists():
+            output_hint = "\nSee audit report: {0}".format(out_text)
+        raise RuntimeError("Stage2 protocol audit failed: {0}\n{1}{2}".format(" ".join(cmd), proc.stdout, output_hint))
+
+    report = {}
+    if out_json and Path(out_json).exists():
+        report = json.loads(Path(out_json).read_text())
+    verdict = report.get("verdict", {}) if isinstance(report, dict) else {}
+    return {
+        "json_file": "" if out_json is None else str(out_json),
+        "text_file": "" if out_text is None else str(out_text),
+        "verdict": verdict.get("verdict", ""),
+        "errors": verdict.get("errors", ""),
+        "warnings": verdict.get("warnings", ""),
+        "checks": verdict.get("total", ""),
+    }
 
 
 def build_binaries(repo_root, omp_enabled):
@@ -903,6 +1028,9 @@ def run_one_seed(
     logs_dir,
     log_prefix,
     method_env_overrides=None,
+    stage2_v1_sidecars_enabled=False,
+    protocol_audit_mode="auto",
+    protocol_audit_fail_on="error",
 ):
     out_root = out_dir / method_name / ("seed_{0}".format(seed_id))
     work_root = out_dir / "_work" / method_name / ("seed_{0}".format(seed_id))
@@ -921,6 +1049,11 @@ def run_one_seed(
     cold_z_history_file = eval_chain_output_dir / "z_history.dat"
     cold_phi_history_file = eval_chain_output_dir / "phi_history.dat"
     all_replica_history_dir = out_root / "all_replica_history"
+    stage2_v1_output_dir = out_root / "stage2_v1alpha"
+    stage2_v1_manifest_file = stage2_v1_output_dir / "manifest.json"
+    stage2_v1_protocol_file = stage2_v1_output_dir / "protocol.json"
+    protocol_audit_json = out_root / "protocol_audit.json"
+    protocol_audit_text = out_root / "protocol_audit.txt"
     capture_base_dir = out_root / "output"
     capture_base_dir.mkdir(parents=True, exist_ok=True)
     x_history_file = capture_base_dir / "x_history.dat"
@@ -967,6 +1100,8 @@ def run_one_seed(
         env_stage2["TLTM_STAGE2_INIT_MODE"] = setup["stage2_init_mode"]
     if setup.get("write_all_replica_history", False):
         env_stage2["TLTM_STAGE2_ALL_REPLICA_HISTORY_DIR"] = str(all_replica_history_dir)
+    if stage2_v1_sidecars_enabled:
+        env_stage2["TLTM_STAGE2_V1_OUTPUT_DIR"] = str(stage2_v1_output_dir)
 
     manifest = {
         "method": method_name,
@@ -992,11 +1127,44 @@ def run_one_seed(
             "cold_z_history_file": str(cold_z_history_file),
             "cold_phi_history_file": str(cold_phi_history_file),
             "parameters_file": str(work_data_dir / "parameters.dat"),
+            "stage2_v1_output_dir": str(stage2_v1_output_dir) if stage2_v1_sidecars_enabled else "",
+            "stage2_v1_manifest_file": str(stage2_v1_manifest_file) if stage2_v1_sidecars_enabled else "",
+            "stage2_v1_protocol_file": str(stage2_v1_protocol_file) if stage2_v1_sidecars_enabled else "",
+            "protocol_audit_json": (
+                str(protocol_audit_json)
+                if should_run_protocol_audit(protocol_audit_mode, stage2_v1_sidecars_enabled)
+                else ""
+            ),
+            "protocol_audit_text": (
+                str(protocol_audit_text)
+                if should_run_protocol_audit(protocol_audit_mode, stage2_v1_sidecars_enabled)
+                else ""
+            ),
         },
     }
     (out_root / "run_manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
     run_command([str(repo_root / "bin" / "run_tltm_stage2")], env_stage2, work_build_dir, stage2_log)
+
+    audit_result = {
+        "json_file": "",
+        "text_file": "",
+        "verdict": "",
+        "errors": "",
+        "warnings": "",
+        "checks": "",
+    }
+    if should_run_protocol_audit(protocol_audit_mode, stage2_v1_sidecars_enabled):
+        audit_result = run_stage2_protocol_audit(
+            repo_root=repo_root,
+            summary_file=summary_file,
+            label_trace_file=label_trace_file,
+            manifest_file=stage2_v1_manifest_file if stage2_v1_sidecars_enabled else None,
+            protocol_file=stage2_v1_protocol_file if stage2_v1_sidecars_enabled else None,
+            out_json=protocol_audit_json,
+            out_text=protocol_audit_text,
+            fail_on=protocol_audit_fail_on,
+        )
 
     env_eval = dict(os.environ)
     configure_thread_env(env_eval, eval_threads)
@@ -1102,6 +1270,22 @@ def run_one_seed(
         "farthest_slot_reached_by_label": json.dumps(stage2_metrics["farthest_by_label"], sort_keys=True),
         "summary_file": str(summary_file.relative_to(repo_root)),
         "label_trace_file": str(label_trace_file.relative_to(repo_root)),
+        "stage2_v1_sidecar_enabled": int(bool(stage2_v1_sidecars_enabled)),
+        "stage2_v1_output_dir": relpath_text(
+            repo_root, stage2_v1_output_dir if stage2_v1_sidecars_enabled else ""
+        ),
+        "stage2_v1_manifest_file": relpath_text(
+            repo_root, stage2_v1_manifest_file if stage2_v1_sidecars_enabled else ""
+        ),
+        "stage2_v1_protocol_file": relpath_text(
+            repo_root, stage2_v1_protocol_file if stage2_v1_sidecars_enabled else ""
+        ),
+        "stage2_protocol_audit_json": relpath_text(repo_root, audit_result["json_file"]),
+        "stage2_protocol_audit_text": relpath_text(repo_root, audit_result["text_file"]),
+        "stage2_protocol_audit_verdict": audit_result["verdict"],
+        "stage2_protocol_audit_errors": audit_result["errors"],
+        "stage2_protocol_audit_warnings": audit_result["warnings"],
+        "stage2_protocol_audit_checks": audit_result["checks"],
         "stage2_log": str(stage2_log.relative_to(repo_root)),
         "eval_log": str(eval_log.relative_to(repo_root)),
         "multichain_meta_file": str(meta_file.relative_to(repo_root)),
@@ -1161,6 +1345,9 @@ def run_seed_pair(
     out_dir,
     logs_dir,
     log_prefix,
+    stage2_v1_sidecars_enabled=False,
+    protocol_audit_mode="auto",
+    protocol_audit_fail_on="error",
 ):
     rows = []
     for method_name, fallback_enabled, method_env_overrides in method_order_for_seed(seed_index, pair_order, methods):
@@ -1181,6 +1368,9 @@ def run_seed_pair(
                 logs_dir=logs_dir,
                 log_prefix=log_prefix,
                 method_env_overrides=method_env_overrides,
+                stage2_v1_sidecars_enabled=stage2_v1_sidecars_enabled,
+                protocol_audit_mode=protocol_audit_mode,
+                protocol_audit_fail_on=protocol_audit_fail_on,
             )
         )
         print("[DONE] seed={0} method={1}".format(seed_id, method_name))
@@ -1253,7 +1443,69 @@ def write_csv(path, rows, columns):
             writer.writerow({k: row.get(k, "") for k in columns})
 
 
-def write_report(repo_root, setup, rows, aggregated_rows, report_path, resource_policy, report_title, out_dir):
+def run_stage3_protocol_audit_crosschecks(
+    repo_root,
+    rows,
+    per_seed_csv,
+    out_dir,
+    stage2_v1_sidecars_enabled,
+    protocol_audit_fail_on,
+):
+    audit_root = out_dir / "protocol_audits" / "stage3_crosscheck"
+    summary_rows = []
+    for row in rows:
+        method_name = str(row["method"])
+        seed_id = int(row["seed_id"])
+        audit_json = audit_root / method_name / "seed_{0}.json".format(seed_id)
+        audit_text = audit_root / method_name / "seed_{0}.txt".format(seed_id)
+        manifest_file = resolve_repo_path(repo_root, row.get("stage2_v1_manifest_file", ""))
+        protocol_file = resolve_repo_path(repo_root, row.get("stage2_v1_protocol_file", ""))
+        result = run_stage2_protocol_audit(
+            repo_root=repo_root,
+            summary_file=resolve_repo_path(repo_root, row["summary_file"]),
+            label_trace_file=resolve_repo_path(repo_root, row["label_trace_file"]),
+            manifest_file=manifest_file if stage2_v1_sidecars_enabled else None,
+            protocol_file=protocol_file if stage2_v1_sidecars_enabled else None,
+            stage3_per_seed_file=per_seed_csv,
+            seed_id=seed_id,
+            method_name=method_name,
+            out_json=audit_json,
+            out_text=audit_text,
+            fail_on=protocol_audit_fail_on,
+        )
+        summary_rows.append(
+            {
+                "seed_id": seed_id,
+                "method": method_name,
+                "verdict": result["verdict"],
+                "errors": result["errors"],
+                "warnings": result["warnings"],
+                "checks": result["checks"],
+                "audit_json": relpath_text(repo_root, result["json_file"]),
+                "audit_text": relpath_text(repo_root, result["text_file"]),
+            }
+        )
+
+    audit_summary_csv = out_dir / "protocol_audit_summary.csv"
+    write_csv(
+        audit_summary_csv,
+        summary_rows,
+        ["seed_id", "method", "verdict", "errors", "warnings", "checks", "audit_json", "audit_text"],
+    )
+    return audit_summary_csv
+
+
+def write_report(
+    repo_root,
+    setup,
+    rows,
+    aggregated_rows,
+    report_path,
+    resource_policy,
+    report_title,
+    out_dir,
+    protocol_audit_summary_csv=None,
+):
     by_method = {}
     for row in aggregated_rows:
         by_method[row["method"]] = row
@@ -1335,6 +1587,8 @@ def write_report(repo_root, setup, rows, aggregated_rows, report_path, resource_
             "- `{0}`".format(report_path.relative_to(repo_root)),
         ]
     )
+    if protocol_audit_summary_csv:
+        lines.append("- `{0}`".format(protocol_audit_summary_csv.relative_to(repo_root)))
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text("\n".join(lines) + "\n")
@@ -1346,6 +1600,8 @@ def main():
     setup = read_protocol(repo_root, args.config)
     out_dir = resolve_repo_path(repo_root, args.output_subdir)
     logs_dir = resolve_repo_path(repo_root, args.logs_subdir)
+    stage2_v1_sidecars_enabled = args.stage2_v1_sidecars == "on"
+    protocol_audit_enabled = should_run_protocol_audit(args.stage2_protocol_audit, stage2_v1_sidecars_enabled)
     resource_budget = validate_resource_budget(
         args.jobs,
         args.stage2_threads,
@@ -1387,6 +1643,9 @@ def main():
         print("  task_method_order: {0}".format(args.task_method_order))
         print("  stage2_threads: {0}".format(args.stage2_threads))
         print("  eval_threads: {0}".format(args.eval_threads))
+        print("  stage2_v1_sidecars: {0}".format(args.stage2_v1_sidecars))
+        print("  stage2_protocol_audit: {0} (effective={1})".format(args.stage2_protocol_audit, protocol_audit_enabled))
+        print("  stage2_protocol_audit_fail_on: {0}".format(args.stage2_protocol_audit_fail_on))
         print("  replica_update_policy: serial-within-stage2-process")
         print("  detected_available_cpus: {0}".format(resource_budget["available_cpus"]))
         print("  requested_cpu_budget: {0}".format(resource_budget["requested_cpus"]))
@@ -1424,6 +1683,9 @@ def main():
                         out_dir=out_dir,
                         logs_dir=logs_dir,
                         log_prefix=args.log_prefix,
+                        stage2_v1_sidecars_enabled=stage2_v1_sidecars_enabled,
+                        protocol_audit_mode=args.stage2_protocol_audit,
+                        protocol_audit_fail_on=args.stage2_protocol_audit_fail_on,
                     )
                 )
         else:
@@ -1445,6 +1707,9 @@ def main():
                         out_dir=out_dir,
                         logs_dir=logs_dir,
                         log_prefix=args.log_prefix,
+                        stage2_v1_sidecars_enabled=stage2_v1_sidecars_enabled,
+                        protocol_audit_mode=args.stage2_protocol_audit,
+                        protocol_audit_fail_on=args.stage2_protocol_audit_fail_on,
                     )
                     future_map[future] = seed_id
 
@@ -1477,6 +1742,9 @@ def main():
                     logs_dir=logs_dir,
                     log_prefix=args.log_prefix,
                     method_env_overrides=method_env_overrides,
+                    stage2_v1_sidecars_enabled=stage2_v1_sidecars_enabled,
+                    protocol_audit_mode=args.stage2_protocol_audit,
+                    protocol_audit_fail_on=args.stage2_protocol_audit_fail_on,
                 )
                 rows.append(row)
         else:
@@ -1499,6 +1767,9 @@ def main():
                         logs_dir=logs_dir,
                         log_prefix=args.log_prefix,
                         method_env_overrides=method_env_overrides,
+                        stage2_v1_sidecars_enabled=stage2_v1_sidecars_enabled,
+                        protocol_audit_mode=args.stage2_protocol_audit,
+                        protocol_audit_fail_on=args.stage2_protocol_audit_fail_on,
                     )
                     future_map[future] = (method_name, seed_id)
 
@@ -1600,6 +1871,7 @@ def main():
         "farthest_slot_reached_by_label",
         "summary_file",
         "label_trace_file",
+        *stage3_protocol_metadata_columns(),
         "stage2_log",
         "eval_log",
         "multichain_meta_file",
@@ -1642,6 +1914,16 @@ def main():
     ]
 
     write_csv(per_seed_csv, rows_sorted, per_seed_columns)
+    protocol_audit_summary_csv = None
+    if protocol_audit_enabled:
+        protocol_audit_summary_csv = run_stage3_protocol_audit_crosschecks(
+            repo_root=repo_root,
+            rows=rows_sorted,
+            per_seed_csv=per_seed_csv,
+            out_dir=out_dir,
+            stage2_v1_sidecars_enabled=stage2_v1_sidecars_enabled,
+            protocol_audit_fail_on=args.stage2_protocol_audit_fail_on,
+        )
     write_csv(aggregated_csv, aggregated_rows, aggregated_columns)
     resource_policy = {
         "schedule": args.schedule,
@@ -1660,6 +1942,7 @@ def main():
         resource_policy,
         args.report_title,
         out_dir,
+        protocol_audit_summary_csv=protocol_audit_summary_csv,
     )
 
     print("[DONE] stage-3.3 multiseed comparison generated")

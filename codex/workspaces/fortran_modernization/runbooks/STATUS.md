@@ -73,6 +73,11 @@ Current sequencing decision:
 - Dataset regeneration is now gated by M3 protocol/schema completion, M4 guardrails, M5 repo-wide refactor decisions, and M6 product-readiness/provenance docs.
 - Temporary smoke runs remain allowed for development; they are not official regenerated datasets.
 
+Stop-for-decision rule:
+
+- Continue without routine approval for behavior-preserving hygiene, audit/readback/test additions, parser/reporting improvements that preserve existing fields, already-confirmed M3 -> M6 work, and clear status/sentinel/state-propagation bug fixes.
+- Stop only when there are multiple reasonable paths with no clear winner and the choice affects physics semantics, data interpretation, RNG/seed streams, public schema meaning/removal/renaming, wrapper/product interface, production workflow deletion, or future dataset regeneration/provenance.
+
 Latest source-level compatibility decision:
 
 - User confirmed deletion of legacy positional `parameters.dat` parsing and the unused `initial_x.dat` compatibility path.
@@ -113,6 +118,8 @@ Current protocol state:
 - Stage2 cycle order has been migrated to post-swap measurement/history/label trace.
 - `swap -> local -> measure` remains a valid paper-aligned alternative but is not the selected convention for regenerated datasets.
 - Dataset regeneration should not start now; it starts only after the M6 pre-dataset gate.
+- Current M3 code slice complete: Stage3 multiseed orchestration can opt into Stage2 v1alpha sidecars, record sidecar/audit paths in per-seed CSV rows, run sidecar-aware protocol audit/readback, and preserve those metadata columns through chunk merge.
+- Next M3 area: formalize the M4 guardrail entry point by collecting the existing ad hoc build/smoke/audit commands into repeatable scripts or make targets.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.

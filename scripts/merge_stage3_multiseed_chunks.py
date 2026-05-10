@@ -46,6 +46,7 @@ def main():
         reverse_gate_count_columns,
         reverse_gate_replay_status_aggregate_columns,
         reverse_gate_replay_status_count_columns,
+        stage3_protocol_metadata_columns,
         write_csv,
         write_report,
     )
@@ -57,11 +58,15 @@ def main():
         raise RuntimeError("No chunk directories found under {0}".format(out_dir))
 
     rows = []
+    protocol_audit_rows = []
     for chunk_dir in chunk_dirs:
         csv_path = chunk_dir / "per_seed_summary_table.csv"
         if not csv_path.exists():
             raise RuntimeError("Missing chunk summary: {0}".format(csv_path))
         rows.extend(read_csv_rows(csv_path))
+        audit_csv_path = chunk_dir / "protocol_audit_summary.csv"
+        if audit_csv_path.exists():
+            protocol_audit_rows.extend(read_csv_rows(audit_csv_path))
 
     rows_sorted = sorted(rows, key=lambda r: (r["method"], int(r["seed_id"])))
     if args.expected_rows > 0 and len(rows_sorted) != args.expected_rows:
@@ -83,6 +88,7 @@ def main():
     per_seed_csv = out_dir / "per_seed_summary_table.csv"
     aggregated_csv = out_dir / "aggregated_summary_table.csv"
     report_md = out_dir / "{0}_report.md".format(args.log_prefix)
+    protocol_audit_summary_csv = out_dir / "protocol_audit_summary.csv" if protocol_audit_rows else None
 
     per_seed_columns = [
         "seed_id",
@@ -169,6 +175,7 @@ def main():
         "farthest_slot_reached_by_label",
         "summary_file",
         "label_trace_file",
+        *stage3_protocol_metadata_columns(),
         "stage2_log",
         "eval_log",
         "multichain_meta_file",
@@ -212,6 +219,12 @@ def main():
 
     write_csv(per_seed_csv, rows_sorted, per_seed_columns)
     write_csv(aggregated_csv, aggregated_rows, aggregated_columns)
+    if protocol_audit_summary_csv:
+        write_csv(
+            protocol_audit_summary_csv,
+            protocol_audit_rows,
+            ["seed_id", "method", "verdict", "errors", "warnings", "checks", "audit_json", "audit_text"],
+        )
     write_report(
         repo_root,
         setup,
@@ -228,6 +241,7 @@ def main():
         },
         args.report_title,
         out_dir,
+        protocol_audit_summary_csv=protocol_audit_summary_csv,
     )
     print("[DONE] merged {0} rows from {1} chunks".format(len(rows_sorted), len(chunk_dirs)))
     print("  {0}".format(per_seed_csv))

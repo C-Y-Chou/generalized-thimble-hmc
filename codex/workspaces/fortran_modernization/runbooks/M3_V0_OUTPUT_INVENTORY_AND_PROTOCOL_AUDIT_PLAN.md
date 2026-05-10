@@ -658,6 +658,12 @@ Stop and ask before implementing if the next patch would:
 
 ## Current Recommendation
 
-The safest immediate next code step is not a writer refactor.
+The safest immediate next code step is Stage3 propagation of the already opt-in sidecar/audit contract.
 
-The next executable step after the protocol-timing change is to run local smoke/audit verification and then regenerate the scientific datasets under the selected post-swap measurement boundary.
+The next executable step after the protocol-timing change is:
+
+- let Stage3 multiseed runs opt into `TLTM_STAGE2_V1_OUTPUT_DIR` per seed/method;
+- append sidecar and audit paths/verdicts to the per-seed CSV without removing v0 columns;
+- run parser-only protocol audit/readback on Stage2 outputs and sidecars;
+- preserve those metadata columns through chunk merge;
+- defer official dataset regeneration until the M6 pre-dataset gate.

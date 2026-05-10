@@ -104,6 +104,29 @@ Do not regenerate official datasets until all of these are true:
 
 Temporary smoke runs remain allowed for development, but they are not official datasets.
 
+## Stop-For-Decision Rule
+
+Do not stop for routine approval.
+
+Stop for user decision only when the next step has multiple reasonable paths, no clear engineering or scientific winner, and the choice would affect at least one of these:
+
+- physical definition or canonical algorithm semantics
+- data/sample/history interpretation
+- RNG or seed-stream semantics
+- public output schema meaning, removal, or renaming
+- long-term TLTM wrapper/product interface
+- production workflow deletion
+- dataset regeneration cost or provenance interpretation
+
+Do not stop for:
+
+- behavior-preserving hygiene/refactor
+- source-backed audit/readback/test additions
+- parser/reporting improvements that preserve existing fields
+- already-confirmed M3 -> M6 sequencing work
+- clear bug fixes to unsafe status, sentinel, or state-propagation handling
+- appending sidecar/provenance metadata while preserving v0 compatibility readers
+
 ## Immediate Next Slice
 
 The next executable modernization slice is M3 completion, not dataset production:
@@ -113,3 +136,8 @@ The next executable modernization slice is M3 completion, not dataset production
 - Keep v0 compatibility outputs readable.
 - Run only small local smoke/audit checks unless explicitly starting a production job later.
 
+Implementation status:
+
+- Completed on 2026-05-10 JST: `scripts/run_stage3_3_multiseed.py` gained opt-in Stage2 v1alpha sidecar propagation and protocol audit/readback.
+- Chunk merge preserves the new sidecar/audit metadata columns when present.
+- Verification included sidecar-on and sidecar-off tiny Stage3 smokes plus a one-chunk merge smoke.

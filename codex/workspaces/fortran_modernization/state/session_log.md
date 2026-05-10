@@ -352,3 +352,11 @@
 - Added `runbooks/M3_TO_M6_BEFORE_DATASET_PLAN.md`.
 - Updated status/planning/progress docs so dataset regeneration is gated by M3 protocol/schema completion, M4 guardrails, M5 repo-wide refactor decisions, and M6 product-readiness/provenance docs.
 - Next executable modernization slice is M3 completion: Stage3 sidecar propagation and sidecar-aware protocol audit/readback, not production dataset generation.
+
+## 2026-05-10 JST - Stop-for-decision rule and M3 propagation slice
+- Recorded that routine behavior-preserving modernization should proceed without approval stops.
+- Stop only for unresolved choices that affect physics semantics, data interpretation, RNG/seed streams, public schema meaning/removal/renaming, wrapper/product interface, production workflow deletion, or dataset regeneration/provenance cost.
+- Completed Stage3 propagation for Stage2 v1alpha sidecars and sidecar-aware protocol audit/readback.
+- `scripts/run_stage3_3_multiseed.py` now supports opt-in `--stage2-v1-sidecars on`, parser-only protocol audit control, per-seed sidecar/audit metadata columns, and Stage3 row cross-check audit summaries.
+- `scripts/merge_stage3_multiseed_chunks.py` preserves sidecar/audit metadata columns and merges chunk-level protocol audit summaries when present.
+- Verification: Python compile, dry-run with sidecars enabled, existing Stage2 audit smoke, tiny sidecar-on Stage3 smoke, tiny sidecar-off Stage3 smoke, and one-chunk merge smoke.
