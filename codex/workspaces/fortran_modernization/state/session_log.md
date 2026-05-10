@@ -368,3 +368,10 @@
 - This is a local development guardrail only; it does not submit production jobs or define official datasets.
 - Verification passed by running `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags ""`.
 - Verification also passed through `make -C build FC=gfortran M4_GUARDRAIL_LDFLAGS= modernization_guardrails`.
+
+## 2026-05-10 JST - M5 state/config ownership inventory
+- Added `scripts/inventory_fortran_state.py`.
+- Generated `state/M5_STATE_CONFIG_OWNERSHIP_INVENTORY.tsv` and `runbooks/M5_STATE_CONFIG_OWNERSHIP_INVENTORY_SUMMARY.md`.
+- Added `runbooks/M5_STATE_CONFIG_OWNERSHIP_PLAN.md`.
+- Inventory result: 384 rows including 275 `save` declarations, 52 runtime env reads, 43 RNG calls, and 14 `param_mod` import sites.
+- First true M5 decision point: choose the first source-refactor lane. Recommendation is config/env/provenance ownership first; defer RNG and model/tape cache migration.

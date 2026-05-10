@@ -121,7 +121,8 @@ Current protocol state:
 - Current M3 code slice complete: Stage3 multiseed orchestration can opt into Stage2 v1alpha sidecars, record sidecar/audit paths in per-seed CSV rows, run sidecar-aware protocol audit/readback, and preserve those metadata columns through chunk merge.
 - Current M4 entry slice complete: `scripts/run_m4_guardrails.py` and `make -C build modernization_guardrails` collect the local compile/build/audit/Stage3 sidecar smoke/merge checks into a repeatable guardrail runner.
 - Verification passed on 2026-05-10 JST through direct script invocation and the make target, including Python compile, `git diff --check`, ODEX/swap tests, Stage3 sidecar dry-run, Stage2 protocol audit smoke, sidecar-on/off tiny Stage3 smokes, and chunk merge preservation.
-- Next M4 area after verification: decide whether the guardrail runner is sufficient as the first M4 gate or whether additional deterministic micro-baselines must be added before M5 refactors.
+- M5 source-backed inventory is now available in `state/M5_STATE_CONFIG_OWNERSHIP_INVENTORY.tsv`, with summary and interpretation in `runbooks/M5_STATE_CONFIG_OWNERSHIP_INVENTORY_SUMMARY.md` and `runbooks/M5_STATE_CONFIG_OWNERSHIP_PLAN.md`.
+- Current stop-for-decision point: choose the first M5 source-refactor lane. Recommendation is Lane A, config/env/provenance ownership, before diagnostics/counters, solver workspaces, RNG, or model/tape cache migration.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.

@@ -1,0 +1,385 @@
+file	line	module	program_unit	kind	name	scope	category	raw
+src/apps/evaluate_expectations.f90	2		program:evaluate_expectations_app	param_mod_import	, only: alpha, beta, n_size, phi_history_file, read_parameters, tra2, z_history_file	procedure	config_global	use param_mod, only: alpha, beta, n_size, phi_history_file, read_parameters, tra2, z_history_file
+src/apps/evaluate_expectations.f90	62		program:evaluate_expectations_app	env_read	EVAL_MULTICHAIN_RUN_DIR	procedure	runtime_env	"call get_environment_variable(""EVAL_MULTICHAIN_RUN_DIR"", multichain_run_dir, length=env_len, status=env_status)"
+src/apps/evaluate_expectations.f90	101		program:evaluate_expectations_app	env_read	EVAL_JK_MIN_BLOCKS	procedure	runtime_env	"call get_environment_variable(""EVAL_JK_MIN_BLOCKS"", env_value, length=env_len, status=env_status)"
+src/apps/evaluate_expectations.f90	111		program:evaluate_expectations_app	env_read	EVAL_JK_MIN_BIN	procedure	runtime_env	"call get_environment_variable(""EVAL_JK_MIN_BIN"", env_value, length=env_len, status=env_status)"
+src/apps/evaluate_expectations.f90	122		program:evaluate_expectations_app	env_read	EVAL_PHASE_MIN_EFFECTIVE	procedure	runtime_env	"call get_environment_variable(""EVAL_PHASE_MIN_EFFECTIVE"", env_value, length=env_len, status=env_status)"
+src/apps/evaluate_expectations.f90	165		program:evaluate_expectations_app	env_read	EVAL_DIRECT_TAU_SAMPLES_CAP	procedure	runtime_env	"call get_environment_variable(""EVAL_DIRECT_TAU_SAMPLES_CAP"", env_value, length=env_len, status=env_status)"
+src/apps/evaluate_expectations.f90	176		program:evaluate_expectations_app	env_read	EVAL_DIRECT_TAU_MAX_LAG	procedure	runtime_env	"call get_environment_variable(""EVAL_DIRECT_TAU_MAX_LAG"", env_value, length=env_len, status=env_status)"
+src/apps/evaluate_expectations.f90	504		subroutine:evaluate_multichain_run	env_read	EVAL_MULTICHAIN_DIAG_WINDOW	procedure	runtime_env	"call get_environment_variable(""EVAL_MULTICHAIN_DIAG_WINDOW"", env_value_local, length=env_len_local, status=env_status_local)"
+src/apps/evaluate_expectations.f90	524		subroutine:evaluate_multichain_run	env_read	EVAL_DIRECT_TAU_MAX_LAG	procedure	runtime_env	"call get_environment_variable(""EVAL_DIRECT_TAU_MAX_LAG"", env_value_local, length=env_len_local, status=env_status_local)"
+src/apps/evaluate_expectations.f90	655		subroutine:evaluate_multichain_run	env_read	EVAL_JK_MIN_BLOCKS	procedure	runtime_env	"call get_environment_variable(""EVAL_JK_MIN_BLOCKS"", env_value_local, length=env_len_local, status=env_status_local)"
+src/apps/evaluate_expectations.f90	664		subroutine:evaluate_multichain_run	env_read	EVAL_JK_MIN_BIN	procedure	runtime_env	"call get_environment_variable(""EVAL_JK_MIN_BIN"", env_value_local, length=env_len_local, status=env_status_local)"
+src/apps/evaluate_expectations.f90	2286		subroutine:ratio_block_bootstrap	rng_call	random_number	procedure	rng	call random_number(random_u)
+src/apps/evaluate_expectations.f90	2362		subroutine:estimate_autocorrelation_time_auto	env_read	EVAL_IAT_SAMPLES_CAP	procedure	runtime_env	"call get_environment_variable(""EVAL_IAT_SAMPLES_CAP"", env_value, length=env_len, status=env_status)"
+src/apps/evaluate_expectations.f90	3082		subroutine:estimate_autocorrelation_time_windowed	env_read	EVAL_IAT_MAX_LAG	procedure	runtime_env	"call get_environment_variable(""EVAL_IAT_MAX_LAG"", env_value, length=env_len, status=env_status)"
+src/apps/generate_markov_chain.f90	2		program:generate_markov_chain_app	param_mod_import	, only: read_parameters	procedure	config_global	use param_mod, only: read_parameters
+src/apps/generate_markov_chain.f90	5		program:generate_markov_chain_app	rng_call	getseed	procedure	rng	use mt95, only: getseed, sgrnd
+src/apps/generate_markov_chain.f90	26		program:generate_markov_chain_app	env_read	CHAIN_RNG_SEED	procedure	runtime_env	"call get_environment_variable(""CHAIN_RNG_SEED"", seed_env, length=env_len, status=env_status)"
+src/apps/generate_markov_chain.f90	30		program:generate_markov_chain_app	rng_call	getseed	procedure	rng	rng_seed = getseed()
+src/apps/generate_markov_chain.f90	36		program:generate_markov_chain_app	rng_call	getseed	procedure	rng	rng_seed = getseed()
+src/apps/generate_markov_chain.f90	39		program:generate_markov_chain_app	rng_call	sgrnd	procedure	rng	call sgrnd(rng_seed)
+src/config/param_mod.f90	67	param_mod		save_declaration	config	module	config_global	type(simulation_config_t), save :: config
+src/config/runtime_env_mod.f90	22	runtime_env_mod	subroutine:parse_int_env	env_read	(dynamic)	procedure	runtime_env	call get_environment_variable(name, env_text, length=env_len, status=env_status)
+src/config/runtime_env_mod.f90	37	runtime_env_mod	subroutine:parse_real_env	env_read	(dynamic)	procedure	runtime_env	call get_environment_variable(name, env_text, length=env_len, status=env_status)
+src/config/runtime_env_mod.f90	52	runtime_env_mod	subroutine:parse_logical_env	env_read	(dynamic)	procedure	runtime_env	call get_environment_variable(name, env_text, length=env_len, status=env_status)
+src/core/mt95.f90	148	mt95	subroutine:sgrnd	rng_call	sgrnd	procedure	rng	subroutine sgrnd(seed)
+src/core/mt95.f90	158	mt95		rng_call	sgrnd	module	rng	end subroutine sgrnd
+src/core/mt95.f90	166	mt95	function:grnd	rng_call	grnd	procedure	rng	function grnd()
+src/core/mt95.f90	168	mt95	function:grnd	rng_call	grnd	procedure	rng	real(rk_mt95) :: grnd
+src/core/mt95.f90	175	mt95	function:grnd	save_declaration	mag01	procedure	rng	integer, save :: mag01(0:1) = [0, MATA] ! mag01(x) = x * MATA for x=0,1
+src/core/mt95.f90	181	mt95	function:grnd	rng_call	sgrnd	procedure	rng	call sgrnd(defaultsd) ! a default initial seed is used
+src/core/mt95.f90	204	mt95	function:grnd	rng_call	grnd	procedure	rng	grnd = (dble(y) + 2.0d0**32)/(2.0d0**32 - 1.0d0)
+src/core/mt95.f90	206	mt95	function:grnd	rng_call	grnd	procedure	rng	grnd = dble(y)/(2.0d0**32 - 1.0d0)
+src/core/mt95.f90	234	mt95		rng_call	grnd	module	rng	end function grnd
+src/core/mt95.f90	250	mt95		rng_call	grnd	module	rng	u = grnd()
+src/core/mt95.f90	270	mt95	function:gaussrnd	save_declaration	gset	procedure	rng	real(rk_mt95), save :: gset
+src/core/mt95.f90	271	mt95	function:gaussrnd	save_declaration	iset	procedure	rng	integer, save :: iset = 0
+src/core/mt95.f90	276	mt95	function:gaussrnd	rng_call	grnd	procedure	rng	v1 = 2.0*grnd() - 1.0
+src/core/mt95.f90	277	mt95	function:gaussrnd	rng_call	grnd	procedure	rng	v2 = 2.0*grnd() - 1.0
+src/core/mt95.f90	434	mt95		rng_call	getseed	module	rng	integer function getseed(info, file)
+src/core/mt95.f90	483	mt95		rng_call	getseed	module	rng	getseed = rn
+src/core/mt95.f90	485	mt95		rng_call	getseed	module	rng	end function getseed
+src/core/perf_profile.f90	15	perf_profile		save_declaration	perf_accum	module	diagnostic_policy	real(dp), save :: perf_accum(PERF_NSLOTS) = 0.0_dp
+src/core/perf_profile.f90	16	perf_profile		save_declaration	perf_calls	module	diagnostic_policy	integer, save :: perf_calls(PERF_NSLOTS) = 0
+src/core/perf_profile.f90	17	perf_profile		save_declaration	perf_enabled_flag	module	diagnostic_policy	logical, save :: perf_enabled_flag = .false.
+src/core/perf_profile.f90	18	perf_profile		save_declaration	perf_initialized	module	diagnostic_policy	logical, save :: perf_initialized = .false.
+src/core/perf_profile.f90	31	perf_profile	subroutine:perf_init	env_read	PERF_PROFILE	procedure	diagnostic_policy	"call get_environment_variable(""PERF_PROFILE"", env_value, length=env_len, status=env_status)"
+src/physics/model.f90	2	model		param_mod_import	, only: alpha, beta	module	config_global	use param_mod, only: alpha, beta
+src/physics/model_generated.f90	10	model_generated		save_declaration	tape_ready	module	model_tape_cache	logical, save :: tape_ready = .false.
+src/physics/model_generated.f90	11	model_generated		save_declaration	tape_point_ready	module	model_tape_cache	logical, save :: tape_point_ready = .false.
+src/physics/model_generated.f90	12	model_generated		save_declaration	tape_n	module	model_tape_cache	integer, save :: tape_n = 0
+src/physics/model_generated.f90	13	model_generated		save_declaration	tape_out_id	module	model_tape_cache	integer, save :: tape_out_id = 0
+src/physics/model_generated.f90	14	model_generated		save_declaration	tape_alpha	module	model_tape_cache	complex(dp), save :: tape_alpha = cmplx(0.0_dp, 0.0_dp, dp)
+src/physics/model_generated.f90	15	model_generated		save_declaration	tape_beta	module	model_tape_cache	complex(dp), save :: tape_beta = cmplx(0.0_dp, 0.0_dp, dp)
+src/physics/model_generated.f90	16	model_generated		save_declaration	tape_last_z	module	model_tape_cache	complex(dp), allocatable, save :: tape_last_z(:)
+src/physics/model_tape_ad.f90	21	model_tape_ad		save_declaration	arg_l	module	model_tape_cache	integer, allocatable, save :: op_code(:), arg_l(:), arg_r(:), pow_int(:), in_pos(:), in_node(:)
+src/physics/model_tape_ad.f90	21	model_tape_ad		save_declaration	arg_r	module	model_tape_cache	integer, allocatable, save :: op_code(:), arg_l(:), arg_r(:), pow_int(:), in_pos(:), in_node(:)
+src/physics/model_tape_ad.f90	21	model_tape_ad		save_declaration	in_node	module	model_tape_cache	integer, allocatable, save :: op_code(:), arg_l(:), arg_r(:), pow_int(:), in_pos(:), in_node(:)
+src/physics/model_tape_ad.f90	21	model_tape_ad		save_declaration	in_pos	module	model_tape_cache	integer, allocatable, save :: op_code(:), arg_l(:), arg_r(:), pow_int(:), in_pos(:), in_node(:)
+src/physics/model_tape_ad.f90	21	model_tape_ad		save_declaration	op_code	module	model_tape_cache	integer, allocatable, save :: op_code(:), arg_l(:), arg_r(:), pow_int(:), in_pos(:), in_node(:)
+src/physics/model_tape_ad.f90	21	model_tape_ad		save_declaration	pow_int	module	model_tape_cache	integer, allocatable, save :: op_code(:), arg_l(:), arg_r(:), pow_int(:), in_pos(:), in_node(:)
+src/physics/model_tape_ad.f90	22	model_tape_ad		save_declaration	node_adj	module	model_tape_cache	complex(dp), allocatable, save :: node_val(:), node_dot(:), node_adj(:), node_hadj(:)
+src/physics/model_tape_ad.f90	22	model_tape_ad		save_declaration	node_dot	module	model_tape_cache	complex(dp), allocatable, save :: node_val(:), node_dot(:), node_adj(:), node_hadj(:)
+src/physics/model_tape_ad.f90	22	model_tape_ad		save_declaration	node_hadj	module	model_tape_cache	complex(dp), allocatable, save :: node_val(:), node_dot(:), node_adj(:), node_hadj(:)
+src/physics/model_tape_ad.f90	22	model_tape_ad		save_declaration	node_val	module	model_tape_cache	complex(dp), allocatable, save :: node_val(:), node_dot(:), node_adj(:), node_hadj(:)
+src/physics/model_tape_ad.f90	23	model_tape_ad		save_declaration	tape_size	module	model_tape_cache	integer, save :: tape_size = 0
+src/physics/model_tape_ad.f90	24	model_tape_ad		save_declaration	tape_cap	module	model_tape_cache	integer, save :: tape_cap = 0
+src/physics/model_tape_ad.f90	25	model_tape_ad		save_declaration	n_inputs	module	model_tape_cache	integer, save :: n_inputs = 0
+src/physics/model_tape_ad.f90	26	model_tape_ad		save_declaration	adj_valid	module	model_tape_cache	logical, save :: adj_valid = .false.
+src/physics/model_tape_ad.f90	27	model_tape_ad		save_declaration	adj_out_id	module	model_tape_cache	integer, save :: adj_out_id = 0
+src/physics/solve_flow.f90	2	solve_flow		param_mod_import	, only: at, rt	module	config_global	use param_mod, only: at, rt
+src/physics/solve_flow.f90	9	solve_flow		save_declaration	odex_T	module	flow_workspace_or_counter	real(dp), allocatable, save :: odex_T(:, :, :)
+src/physics/solve_flow.f90	10	solve_flow		save_declaration	odex_fval	module	flow_workspace_or_counter	real(dp), allocatable, save :: odex_yprev(:), odex_ycurr(:), odex_ynext(:), odex_fval(:)
+src/physics/solve_flow.f90	10	solve_flow		save_declaration	odex_ycurr	module	flow_workspace_or_counter	real(dp), allocatable, save :: odex_yprev(:), odex_ycurr(:), odex_ynext(:), odex_fval(:)
+src/physics/solve_flow.f90	10	solve_flow		save_declaration	odex_ynext	module	flow_workspace_or_counter	real(dp), allocatable, save :: odex_yprev(:), odex_ycurr(:), odex_ynext(:), odex_fval(:)
+src/physics/solve_flow.f90	10	solve_flow		save_declaration	odex_yprev	module	flow_workspace_or_counter	real(dp), allocatable, save :: odex_yprev(:), odex_ycurr(:), odex_ynext(:), odex_fval(:)
+src/physics/solve_flow.f90	11	solve_flow		save_declaration	odex_fbase	module	flow_workspace_or_counter	real(dp), allocatable, save :: odex_fbase(:)
+src/physics/solve_flow.f90	13	solve_flow		save_declaration	intode_yc	module	flow_workspace_or_counter	real(dp), allocatable, save :: intode_yc(:), intode_yf(:)
+src/physics/solve_flow.f90	13	solve_flow		save_declaration	intode_yf	module	flow_workspace_or_counter	real(dp), allocatable, save :: intode_yc(:), intode_yf(:)
+src/physics/solve_flow.f90	14	solve_flow		save_declaration	flow_vec_y	module	flow_workspace_or_counter	real(dp), allocatable, save :: flow_vec_y(:), flow_vec_yf(:)
+src/physics/solve_flow.f90	14	solve_flow		save_declaration	flow_vec_yf	module	flow_workspace_or_counter	real(dp), allocatable, save :: flow_vec_y(:), flow_vec_yf(:)
+src/physics/solve_flow.f90	15	solve_flow		save_declaration	flow_jac_y	module	flow_workspace_or_counter	real(dp), allocatable, save :: flow_jac_y(:), flow_jac_yf(:)
+src/physics/solve_flow.f90	15	solve_flow		save_declaration	flow_jac_yf	module	flow_workspace_or_counter	real(dp), allocatable, save :: flow_jac_y(:), flow_jac_yf(:)
+src/physics/solve_flow.f90	16	solve_flow		save_declaration	flow_vec_ds	module	flow_workspace_or_counter	complex(dp), allocatable, save :: flow_vec_z(:), flow_vec_ds(:)
+src/physics/solve_flow.f90	16	solve_flow		save_declaration	flow_vec_z	module	flow_workspace_or_counter	complex(dp), allocatable, save :: flow_vec_z(:), flow_vec_ds(:)
+src/physics/solve_flow.f90	17	solve_flow		save_declaration	flow_jac_ds	module	flow_workspace_or_counter	complex(dp), allocatable, save :: flow_jac_z(:), flow_jac_ds(:)
+src/physics/solve_flow.f90	17	solve_flow		save_declaration	flow_jac_z	module	flow_workspace_or_counter	complex(dp), allocatable, save :: flow_jac_z(:), flow_jac_ds(:)
+src/physics/solve_flow.f90	18	solve_flow		save_declaration	flow_jac_j	module	flow_workspace_or_counter	complex(dp), allocatable, save :: flow_jac_j(:,:), flow_jac_jprod(:,:)
+src/physics/solve_flow.f90	18	solve_flow		save_declaration	flow_jac_jprod	module	flow_workspace_or_counter	complex(dp), allocatable, save :: flow_jac_j(:,:), flow_jac_jprod(:,:)
+src/physics/solve_flow.f90	19	solve_flow		save_declaration	flow_vec_rhs_scale	module	flow_workspace_or_counter	real(dp), save :: flow_vec_rhs_scale = 1.0_dp
+src/physics/solve_flow.f90	47	solve_flow		save_declaration	odex_nsteps_cache	module	flow_workspace_or_counter	integer, save :: odex_nsteps_cache(odex_cache_size) = 0
+src/physics/solve_flow.f90	48	solve_flow		save_declaration	odex_ak_cache	module	flow_workspace_or_counter	real(dp), save :: odex_ak_cache(odex_cache_size) = 0.0_dp
+src/physics/solve_flow.f90	49	solve_flow		save_declaration	odex_invexp_cache	module	flow_workspace_or_counter	real(dp), save :: odex_invexp_cache(odex_cache_size) = 0.0_dp
+src/physics/solve_flow.f90	50	solve_flow		save_declaration	odex_ratio_cache	module	flow_workspace_or_counter	real(dp), save :: odex_ratio_cache(odex_cache_size, odex_cache_size) = 0.0_dp
+src/physics/solve_flow.f90	51	solve_flow		save_declaration	odex_tables_ready	module	flow_workspace_or_counter	logical, save :: odex_tables_ready = .false.
+src/physics/solve_flow.f90	52	solve_flow		save_declaration	intode_calls_total	module	flow_workspace_or_counter	integer, save :: intode_calls_total = 0
+src/physics/solve_flow.f90	53	solve_flow		save_declaration	intode_calls_integrating	module	flow_workspace_or_counter	integer, save :: intode_calls_integrating = 0
+src/physics/solve_flow.f90	54	solve_flow		save_declaration	intode_fallback_attempts	module	flow_workspace_or_counter	integer, save :: intode_fallback_attempts = 0
+src/physics/solve_flow.f90	55	solve_flow		save_declaration	intode_fallback_success	module	flow_workspace_or_counter	integer, save :: intode_fallback_success = 0
+src/physics/solve_flow.f90	56	solve_flow		save_declaration	intode_fallback_failure	module	flow_workspace_or_counter	integer, save :: intode_fallback_failure = 0
+src/physics/solve_flow.f90	57	solve_flow		save_declaration	intode_fallback_max_steps	module	flow_workspace_or_counter	integer, save :: intode_fallback_max_steps = 0
+src/physics/solve_flow.f90	58	solve_flow		save_declaration	intode_fallback_invalid	module	flow_workspace_or_counter	integer, save :: intode_fallback_invalid = 0
+src/physics/solve_flow.f90	59	solve_flow		save_declaration	intode_fallback_h_min	module	flow_workspace_or_counter	integer, save :: intode_fallback_h_min = 0
+src/physics/solve_flow.f90	60	solve_flow		save_declaration	intode_fallback_attempts_ctx	module	flow_workspace_or_counter	integer, save :: intode_fallback_attempts_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
+src/physics/solve_flow.f90	61	solve_flow		save_declaration	intode_fallback_failures_ctx	module	flow_workspace_or_counter	integer, save :: intode_fallback_failures_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
+src/physics/solve_flow.f90	62	solve_flow		save_declaration	intode_rescue_success_solver_assist	module	flow_workspace_or_counter	integer, save :: intode_rescue_success_solver_assist = 0
+src/physics/solve_flow.f90	63	solve_flow		save_declaration	intode_solver_assist_fail	module	flow_workspace_or_counter	integer, save :: intode_solver_assist_fail = 0
+src/physics/solve_flow.f90	69	solve_flow		save_declaration	intode_solver_assist_log_count	module	flow_workspace_or_counter	integer, save :: intode_solver_assist_log_count = 0
+src/physics/solve_flow.f90	71	solve_flow		save_declaration	intode_trace_rattle_step	module	flow_workspace_or_counter	integer, save :: intode_trace_rattle_step = 0
+src/physics/solve_flow.f90	72	solve_flow		save_declaration	intode_trace_rattle_substep	module	flow_workspace_or_counter	integer, save :: intode_trace_rattle_substep = 0
+src/physics/solve_flow.f90	73	solve_flow		save_declaration	intode_trace_stage	module	flow_workspace_or_counter	integer, save :: intode_trace_stage = intode_stage_unknown
+src/physics/solve_flow.f90	74	solve_flow		save_declaration	intode_trace_newton_iter	module	flow_workspace_or_counter	integer, save :: intode_trace_newton_iter = 0
+src/physics/solve_flow.f90	75	solve_flow		save_declaration	intode_trace_quasi_iter	module	flow_workspace_or_counter	integer, save :: intode_trace_quasi_iter = 0
+src/physics/solve_flow.f90	76	solve_flow		save_declaration	intode_current_context	module	flow_workspace_or_counter	integer, save :: intode_current_context = intode_ctx_unknown
+src/physics/solve_flow.f90	77	solve_flow		save_declaration	intode_capture_failures	module	flow_workspace_or_counter	logical, save :: intode_capture_failures = .true.
+src/physics/solve_flow.f90	78	solve_flow		save_declaration	intode_last_failure_available	module	flow_workspace_or_counter	logical, save :: intode_last_failure_available = .false.
+src/physics/solve_flow.f90	79	solve_flow		save_declaration	intode_last_failure_reason	module	flow_workspace_or_counter	integer, save :: intode_last_failure_reason = intode_reason_none
+src/physics/solve_flow.f90	80	solve_flow		save_declaration	intode_last_failure_context	module	flow_workspace_or_counter	integer, save :: intode_last_failure_context = intode_ctx_unknown
+src/physics/solve_flow.f90	81	solve_flow		save_declaration	intode_last_failure_rattle_step	module	flow_workspace_or_counter	integer, save :: intode_last_failure_rattle_step = 0
+src/physics/solve_flow.f90	82	solve_flow		save_declaration	intode_last_failure_rattle_substep	module	flow_workspace_or_counter	integer, save :: intode_last_failure_rattle_substep = 0
+src/physics/solve_flow.f90	83	solve_flow		save_declaration	intode_last_failure_stage	module	flow_workspace_or_counter	integer, save :: intode_last_failure_stage = intode_stage_unknown
+src/physics/solve_flow.f90	84	solve_flow		save_declaration	intode_last_failure_newton_iter	module	flow_workspace_or_counter	integer, save :: intode_last_failure_newton_iter = 0
+src/physics/solve_flow.f90	85	solve_flow		save_declaration	intode_last_failure_quasi_iter	module	flow_workspace_or_counter	integer, save :: intode_last_failure_quasi_iter = 0
+src/physics/solve_flow.f90	86	solve_flow		save_declaration	intode_failure_log_count	module	flow_workspace_or_counter	integer, save :: intode_failure_log_count = 0
+src/physics/solve_flow.f90	88	solve_flow		save_declaration	intode_last_failure_t	module	flow_workspace_or_counter	real(dp), save :: intode_last_failure_t = 0.0_dp
+src/physics/solve_flow.f90	89	solve_flow		save_declaration	intode_last_failure_y	module	flow_workspace_or_counter	real(dp), allocatable, save :: intode_last_failure_y(:)
+src/sampler/constraint_solver_stats.f90	4	constraint_solver_stats_mod		param_mod_import	, only: x_history_file	module	config_global	use param_mod, only: x_history_file
+src/sampler/constraint_solver_stats.f90	8	constraint_solver_stats_mod		save_declaration	newton_success_count	module	newton_workspace_or_counter	integer(int64), save :: newton_success_count = 0_int64
+src/sampler/constraint_solver_stats.f90	9	constraint_solver_stats_mod		save_declaration	quasi_success_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_success_count = 0_int64
+src/sampler/constraint_solver_stats.f90	10	constraint_solver_stats_mod		save_declaration	quasi_probe_attempt_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_probe_attempt_count = 0_int64
+src/sampler/constraint_solver_stats.f90	11	constraint_solver_stats_mod		save_declaration	quasi_probe_success_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_probe_success_count = 0_int64
+src/sampler/constraint_solver_stats.f90	12	constraint_solver_stats_mod		save_declaration	quasi_full_attempt_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_full_attempt_count = 0_int64
+src/sampler/constraint_solver_stats.f90	13	constraint_solver_stats_mod		save_declaration	quasi_full_success_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_full_success_count = 0_int64
+src/sampler/constraint_solver_stats.f90	14	constraint_solver_stats_mod		save_declaration	quasi_class_local_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_class_local_count = 0_int64
+src/sampler/constraint_solver_stats.f90	15	constraint_solver_stats_mod		save_declaration	quasi_class_mid_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_class_mid_count = 0_int64
+src/sampler/constraint_solver_stats.f90	16	constraint_solver_stats_mod		save_declaration	quasi_class_global_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_class_global_count = 0_int64
+src/sampler/constraint_solver_stats.f90	17	constraint_solver_stats_mod		save_declaration	quasi_far_route_skip_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_far_route_skip_count = 0_int64
+src/sampler/constraint_solver_stats.f90	18	constraint_solver_stats_mod		save_declaration	quasi_far_route_light_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_far_route_light_count = 0_int64
+src/sampler/constraint_solver_stats.f90	19	constraint_solver_stats_mod		save_declaration	quasi_far_route_anchor_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_far_route_anchor_count = 0_int64
+src/sampler/constraint_solver_stats.f90	20	constraint_solver_stats_mod		save_declaration	fail_count	module	unclassified_state	integer(int64), save :: fail_count = 0_int64
+src/sampler/constraint_solver_stats.f90	21	constraint_solver_stats_mod		save_declaration	near_fail_candidate_count	module	unclassified_state	integer(int64), save :: near_fail_candidate_count = 0_int64
+src/sampler/constraint_solver_stats.f90	22	constraint_solver_stats_mod		save_declaration	far_fail_count	module	unclassified_state	integer(int64), save :: far_fail_count = 0_int64
+src/sampler/constraint_solver_stats.f90	23	constraint_solver_stats_mod		save_declaration	near_rescue_attempt_count	module	unclassified_state	integer(int64), save :: near_rescue_attempt_count = 0_int64
+src/sampler/constraint_solver_stats.f90	24	constraint_solver_stats_mod		save_declaration	near_rescue_success_count	module	unclassified_state	integer(int64), save :: near_rescue_success_count = 0_int64
+src/sampler/constraint_solver_stats.f90	25	constraint_solver_stats_mod		save_declaration	near_unusable_count	module	unclassified_state	integer(int64), save :: near_unusable_count = 0_int64
+src/sampler/constraint_solver_stats.f90	26	constraint_solver_stats_mod		save_declaration	near_fail_fast_count	module	unclassified_state	integer(int64), save :: near_fail_fast_count = 0_int64
+src/sampler/constraint_solver_stats.f90	27	constraint_solver_stats_mod		save_declaration	far_fail_fast_count	module	unclassified_state	integer(int64), save :: far_fail_fast_count = 0_int64
+src/sampler/constraint_solver_stats.f90	28	constraint_solver_stats_mod		save_declaration	far_rescue_scope_count	module	unclassified_state	integer(int64), save :: far_rescue_scope_count = 0_int64
+src/sampler/constraint_solver_stats.f90	29	constraint_solver_stats_mod		save_declaration	far_rescue_success_count	module	unclassified_state	integer(int64), save :: far_rescue_success_count = 0_int64
+src/sampler/constraint_solver_stats.f90	30	constraint_solver_stats_mod		save_declaration	far_rescue_fail_count	module	unclassified_state	integer(int64), save :: far_rescue_fail_count = 0_int64
+src/sampler/constraint_solver_stats.f90	31	constraint_solver_stats_mod		save_declaration	far_rescue_fail_fast_case_count	module	unclassified_state	integer(int64), save :: far_rescue_fail_fast_case_count = 0_int64
+src/sampler/constraint_solver_stats.f90	32	constraint_solver_stats_mod		save_declaration	far_rescue_spent_success_count	module	unclassified_state	integer(int64), save :: far_rescue_spent_success_count = 0_int64
+src/sampler/constraint_solver_stats.f90	33	constraint_solver_stats_mod		save_declaration	far_rescue_spent_fail_count	module	unclassified_state	integer(int64), save :: far_rescue_spent_fail_count = 0_int64
+src/sampler/constraint_solver_stats.f90	34	constraint_solver_stats_mod		save_declaration	far_rescue_flowzr_used_sum	module	unclassified_state	integer(int64), save :: far_rescue_flowzr_used_sum = 0_int64
+src/sampler/constraint_solver_stats.f90	35	constraint_solver_stats_mod		save_declaration	far_rescue_final_resort_used_sum	module	unclassified_state	integer(int64), save :: far_rescue_final_resort_used_sum = 0_int64
+src/sampler/constraint_solver_stats.f90	36	constraint_solver_stats_mod		save_declaration	far_rescue_flowzr_used_success_sum	module	unclassified_state	integer(int64), save :: far_rescue_flowzr_used_success_sum = 0_int64
+src/sampler/constraint_solver_stats.f90	37	constraint_solver_stats_mod		save_declaration	far_rescue_final_resort_used_success_sum	module	unclassified_state	integer(int64), save :: far_rescue_final_resort_used_success_sum = 0_int64
+src/sampler/constraint_solver_stats.f90	38	constraint_solver_stats_mod		save_declaration	far_rescue_flowzr_used_fail_sum	module	unclassified_state	integer(int64), save :: far_rescue_flowzr_used_fail_sum = 0_int64
+src/sampler/constraint_solver_stats.f90	39	constraint_solver_stats_mod		save_declaration	far_rescue_final_resort_used_fail_sum	module	unclassified_state	integer(int64), save :: far_rescue_final_resort_used_fail_sum = 0_int64
+src/sampler/constraint_solver_stats.f90	40	constraint_solver_stats_mod		save_declaration	quasi_budget_hit_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_budget_hit_count = 0_int64
+src/sampler/constraint_solver_stats.f90	41	constraint_solver_stats_mod		save_declaration	quasi_budget_used_sum	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_budget_used_sum = 0_int64
+src/sampler/constraint_solver_stats.f90	42	constraint_solver_stats_mod		save_declaration	quasi_budget_used_max	module	quasi_newton_workspace_or_counter	integer, save :: quasi_budget_used_max = 0
+src/sampler/constraint_solver_stats.f90	43	constraint_solver_stats_mod		save_declaration	quasi_budget_limit_last	module	quasi_newton_workspace_or_counter	integer, save :: quasi_budget_limit_last = 0
+src/sampler/constraint_solver_stats.f90	44	constraint_solver_stats_mod		save_declaration	quasi_global_filter_candidate_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_global_filter_candidate_count = 0_int64
+src/sampler/constraint_solver_stats.f90	45	constraint_solver_stats_mod		save_declaration	quasi_global_filter_pass_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_global_filter_pass_count = 0_int64
+src/sampler/constraint_solver_stats.f90	46	constraint_solver_stats_mod		save_declaration	quasi_global_filter_reject_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_global_filter_reject_count = 0_int64
+src/sampler/constraint_solver_stats.f90	52	constraint_solver_stats_mod		save_declaration	failure_capture_limit_runtime	module	unclassified_state	integer, save :: failure_capture_limit_runtime = failure_capture_limit_default
+src/sampler/constraint_solver_stats.f90	53	constraint_solver_stats_mod		save_declaration	failure_capture_start_sample	module	unclassified_state	integer, save :: failure_capture_start_sample = 0
+src/sampler/constraint_solver_stats.f90	54	constraint_solver_stats_mod		save_declaration	failure_capture_policy_ready	module	unclassified_state	logical, save :: failure_capture_policy_ready = .false.
+src/sampler/constraint_solver_stats.f90	55	constraint_solver_stats_mod		save_declaration	failure_capture_count	module	unclassified_state	integer, save :: failure_capture_count = 0
+src/sampler/constraint_solver_stats.f90	56	constraint_solver_stats_mod		save_declaration	failure_capture_z0_unit	module	unclassified_state	integer, save :: failure_capture_z0_unit = -1
+src/sampler/constraint_solver_stats.f90	57	constraint_solver_stats_mod		save_declaration	failure_capture_delz_unit	module	unclassified_state	integer, save :: failure_capture_delz_unit = -1
+src/sampler/constraint_solver_stats.f90	58	constraint_solver_stats_mod		save_declaration	failure_capture_x0_unit	module	unclassified_state	integer, save :: failure_capture_x0_unit = -1
+src/sampler/constraint_solver_stats.f90	59	constraint_solver_stats_mod		save_declaration	failure_capture_quasi_unit	module	unclassified_state	integer, save :: failure_capture_quasi_unit = -1
+src/sampler/constraint_solver_stats.f90	60	constraint_solver_stats_mod		save_declaration	failure_capture_meta_unit	module	unclassified_state	integer, save :: failure_capture_meta_unit = -1
+src/sampler/constraint_solver_stats.f90	61	constraint_solver_stats_mod		save_declaration	failure_capture_files_ready	module	unclassified_state	logical, save :: failure_capture_files_ready = .false.
+src/sampler/constraint_solver_stats.f90	62	constraint_solver_stats_mod		save_declaration	failure_capture_write_error	module	unclassified_state	logical, save :: failure_capture_write_error = .false.
+src/sampler/constraint_solver_stats.f90	68	constraint_solver_stats_mod		save_declaration	failure_capture_z0_file	module	unclassified_state	"character(len=512), save :: failure_capture_z0_file = """""
+src/sampler/constraint_solver_stats.f90	69	constraint_solver_stats_mod		save_declaration	failure_capture_delz_file	module	unclassified_state	"character(len=512), save :: failure_capture_delz_file = """""
+src/sampler/constraint_solver_stats.f90	70	constraint_solver_stats_mod		save_declaration	failure_capture_x0_file	module	unclassified_state	"character(len=512), save :: failure_capture_x0_file = """""
+src/sampler/constraint_solver_stats.f90	71	constraint_solver_stats_mod		save_declaration	failure_capture_quasi_file	module	unclassified_state	"character(len=512), save :: failure_capture_quasi_file = """""
+src/sampler/constraint_solver_stats.f90	72	constraint_solver_stats_mod		save_declaration	failure_capture_meta_file	module	unclassified_state	"character(len=512), save :: failure_capture_meta_file = """""
+src/sampler/constraint_solver_stats.f90	73	constraint_solver_stats_mod		save_declaration	context_chain_sample_idx	module	unclassified_state	integer, save :: context_chain_sample_idx = 0
+src/sampler/constraint_solver_stats.f90	74	constraint_solver_stats_mod		save_declaration	context_hmc_repeat_idx	module	unclassified_state	integer, save :: context_hmc_repeat_idx = 0
+src/sampler/constraint_solver_stats.f90	75	constraint_solver_stats_mod		save_declaration	prev_meta_attempt_flowz	module	unclassified_state	integer, save :: prev_meta_attempt_flowz = 0
+src/sampler/constraint_solver_stats.f90	76	constraint_solver_stats_mod		save_declaration	prev_meta_attempt_flowzr	module	unclassified_state	integer, save :: prev_meta_attempt_flowzr = 0
+src/sampler/constraint_solver_stats.f90	77	constraint_solver_stats_mod		save_declaration	prev_meta_attempt_flow	module	unclassified_state	integer, save :: prev_meta_attempt_flow = 0
+src/sampler/constraint_solver_stats.f90	78	constraint_solver_stats_mod		save_declaration	prev_meta_attempt_unknown	module	unclassified_state	integer, save :: prev_meta_attempt_unknown = 0
+src/sampler/constraint_solver_stats.f90	79	constraint_solver_stats_mod		save_declaration	prev_meta_fail_flowz	module	unclassified_state	integer, save :: prev_meta_fail_flowz = 0
+src/sampler/constraint_solver_stats.f90	80	constraint_solver_stats_mod		save_declaration	prev_meta_fail_flowzr	module	unclassified_state	integer, save :: prev_meta_fail_flowzr = 0
+src/sampler/constraint_solver_stats.f90	81	constraint_solver_stats_mod		save_declaration	prev_meta_fail_flow	module	unclassified_state	integer, save :: prev_meta_fail_flow = 0
+src/sampler/constraint_solver_stats.f90	82	constraint_solver_stats_mod		save_declaration	prev_meta_fail_unknown	module	unclassified_state	integer, save :: prev_meta_fail_unknown = 0
+src/sampler/constraint_solver_stats.f90	83	constraint_solver_stats_mod		save_declaration	prev_meta_success_final_resort	module	unclassified_state	integer, save :: prev_meta_success_final_resort = 0
+src/sampler/constraint_solver_stats.f90	84	constraint_solver_stats_mod		save_declaration	prev_meta_fail_final_resort	module	unclassified_state	integer, save :: prev_meta_fail_final_resort = 0
+src/sampler/constraint_solver_stats.f90	105	constraint_solver_stats_mod		save_declaration	reverse_gate_candidate_count	module	unclassified_state	integer(int64), save :: reverse_gate_candidate_count(constraint_reverse_gate_path_count) = 0_int64
+src/sampler/constraint_solver_stats.f90	106	constraint_solver_stats_mod		save_declaration	reverse_gate_pass_count	module	unclassified_state	integer(int64), save :: reverse_gate_pass_count(constraint_reverse_gate_path_count) = 0_int64
+src/sampler/constraint_solver_stats.f90	107	constraint_solver_stats_mod		save_declaration	reverse_gate_reject_count	module	unclassified_state	integer(int64), save :: reverse_gate_reject_count(constraint_reverse_gate_path_count) = 0_int64
+src/sampler/constraint_solver_stats.f90	108	constraint_solver_stats_mod		save_declaration	constraint_solver_stats_suppression_depth	module	unclassified_state	integer, save :: constraint_solver_stats_suppression_depth = 0
+src/sampler/hmc.f90	3	hmc		param_mod_import	, only: eo, istest, testmom	module	config_global	use param_mod, only: eo, istest, testmom
+src/sampler/hmc_constraints.f90	12	hmc_constraints		save_declaration	newton_eval_flow_status_success	module	newton_workspace_or_counter	integer(int64), save :: newton_eval_flow_status_success = 0_int64
+src/sampler/hmc_constraints.f90	13	hmc_constraints		save_declaration	newton_eval_flow_status_zero_time	module	newton_workspace_or_counter	integer(int64), save :: newton_eval_flow_status_zero_time = 0_int64
+src/sampler/hmc_constraints.f90	14	hmc_constraints		save_declaration	newton_eval_flow_status_stiff_rescue	module	newton_workspace_or_counter	integer(int64), save :: newton_eval_flow_status_stiff_rescue = 0_int64
+src/sampler/hmc_constraints.f90	15	hmc_constraints		save_declaration	newton_eval_flow_status_solver_assist	module	newton_workspace_or_counter	integer(int64), save :: newton_eval_flow_status_solver_assist = 0_int64
+src/sampler/hmc_constraints.f90	16	hmc_constraints		save_declaration	newton_eval_flow_status_failure_max_steps	module	newton_workspace_or_counter	integer(int64), save :: newton_eval_flow_status_failure_max_steps = 0_int64
+src/sampler/hmc_constraints.f90	17	hmc_constraints		save_declaration	newton_eval_flow_status_failure_invalid	module	newton_workspace_or_counter	integer(int64), save :: newton_eval_flow_status_failure_invalid = 0_int64
+src/sampler/hmc_constraints.f90	18	hmc_constraints		save_declaration	newton_eval_flow_status_failure_h_min	module	newton_workspace_or_counter	integer(int64), save :: newton_eval_flow_status_failure_h_min = 0_int64
+src/sampler/hmc_constraints.f90	19	hmc_constraints		save_declaration	newton_eval_flow_status_unknown	module	newton_workspace_or_counter	integer(int64), save :: newton_eval_flow_status_unknown = 0_int64
+src/sampler/hmc_constraints.f90	95	hmc_constraints	subroutine:solve_constraint_newton	save_declaration	B	procedure	newton_workspace_or_counter	real(dp), allocatable, save :: B(:), jacr(:, :), jacr_lu(:, :)
+src/sampler/hmc_constraints.f90	95	hmc_constraints	subroutine:solve_constraint_newton	save_declaration	jacr	procedure	newton_workspace_or_counter	real(dp), allocatable, save :: B(:), jacr(:, :), jacr_lu(:, :)
+src/sampler/hmc_constraints.f90	95	hmc_constraints	subroutine:solve_constraint_newton	save_declaration	jacr_lu	procedure	newton_workspace_or_counter	real(dp), allocatable, save :: B(:), jacr(:, :), jacr_lu(:, :)
+src/sampler/hmc_constraints.f90	96	hmc_constraints	subroutine:solve_constraint_newton	save_declaration	au	procedure	newton_workspace_or_counter	real(dp), allocatable, save :: xtu(:), u(:), dxi(:), au(:), av(:)
+src/sampler/hmc_constraints.f90	96	hmc_constraints	subroutine:solve_constraint_newton	save_declaration	av	procedure	newton_workspace_or_counter	real(dp), allocatable, save :: xtu(:), u(:), dxi(:), au(:), av(:)
+src/sampler/hmc_constraints.f90	96	hmc_constraints	subroutine:solve_constraint_newton	save_declaration	dxi	procedure	newton_workspace_or_counter	real(dp), allocatable, save :: xtu(:), u(:), dxi(:), au(:), av(:)
+src/sampler/hmc_constraints.f90	96	hmc_constraints	subroutine:solve_constraint_newton	save_declaration	u	procedure	newton_workspace_or_counter	real(dp), allocatable, save :: xtu(:), u(:), dxi(:), au(:), av(:)
+src/sampler/hmc_constraints.f90	96	hmc_constraints	subroutine:solve_constraint_newton	save_declaration	xtu	procedure	newton_workspace_or_counter	real(dp), allocatable, save :: xtu(:), u(:), dxi(:), au(:), av(:)
+src/sampler/hmc_constraints.f90	97	hmc_constraints	subroutine:solve_constraint_newton	save_declaration	u_seed	procedure	newton_workspace_or_counter	real(dp), allocatable, save :: u_seed(:), x_trial(:)
+src/sampler/hmc_constraints.f90	97	hmc_constraints	subroutine:solve_constraint_newton	save_declaration	x_trial	procedure	newton_workspace_or_counter	real(dp), allocatable, save :: u_seed(:), x_trial(:)
+src/sampler/hmc_constraints.f90	98	hmc_constraints	subroutine:solve_constraint_newton	save_declaration	ld	procedure	newton_workspace_or_counter	complex(dp), allocatable, save :: ld(:), ld_seed(:)
+src/sampler/hmc_constraints.f90	98	hmc_constraints	subroutine:solve_constraint_newton	save_declaration	ld_seed	procedure	newton_workspace_or_counter	complex(dp), allocatable, save :: ld(:), ld_seed(:)
+src/sampler/hmc_constraints.f90	99	hmc_constraints	subroutine:solve_constraint_newton	save_declaration	ipiv	procedure	newton_workspace_or_counter	integer, allocatable, save :: ipiv(:)
+src/sampler/hmc_integrator_core.f90	9	hmc_integrator_core		param_mod_import	, only: cttol, quasi_fallback_enabled	module	config_global	use param_mod, only: cttol, quasi_fallback_enabled
+src/sampler/hmc_integrator_core.f90	65	hmc_integrator_core		save_declaration	s1_fallback_policy_loaded	module	unclassified_state	logical, save :: s1_fallback_policy_loaded = .false.
+src/sampler/hmc_integrator_core.f90	66	hmc_integrator_core		save_declaration	s1_probe_max_iter	module	diagnostic_policy	integer, save :: s1_probe_max_iter = s1_probe_max_iter_default
+src/sampler/hmc_integrator_core.f90	67	hmc_integrator_core		save_declaration	s1_near_full_max_iter	module	unclassified_state	integer, save :: s1_near_full_max_iter = s1_near_full_max_iter_default
+src/sampler/hmc_integrator_core.f90	68	hmc_integrator_core		save_declaration	s1_non_near_cheap_full_max_iter	module	unclassified_state	integer, save :: s1_non_near_cheap_full_max_iter = s1_non_near_cheap_full_max_iter_default
+src/sampler/hmc_integrator_core.f90	69	hmc_integrator_core		save_declaration	s1_near_rescue_enabled	module	unclassified_state	logical, save :: s1_near_rescue_enabled = .false.
+src/sampler/hmc_integrator_core.f90	70	hmc_integrator_core		save_declaration	s1_nonnear_rescue_enabled	module	unclassified_state	logical, save :: s1_nonnear_rescue_enabled = .false.
+src/sampler/hmc_integrator_core.f90	71	hmc_integrator_core		save_declaration	qn_reverse_gate_enabled	module	quasi_newton_workspace_or_counter	logical, save :: qn_reverse_gate_enabled = .false.
+src/sampler/hmc_integrator_core.f90	72	hmc_integrator_core		save_declaration	qn_reverse_gate_active	module	quasi_newton_workspace_or_counter	logical, save :: qn_reverse_gate_active = .false.
+src/sampler/hmc_integrator_core.f90	73	hmc_integrator_core		save_declaration	qn_reverse_gate_tol	module	quasi_newton_workspace_or_counter	real(dp), save :: qn_reverse_gate_tol = qn_reverse_gate_tol_default
+src/sampler/hmc_integrator_core.f90	74	hmc_integrator_core		save_declaration	qn_quasi_tol_override	module	quasi_newton_workspace_or_counter	real(dp), save :: qn_quasi_tol_override = -1.0_dp
+src/sampler/hmc_integrator_core.f90	75	hmc_integrator_core		save_declaration	reverse_gate_replay_status_success	module	unclassified_state	integer(int64), save :: reverse_gate_replay_status_success = 0_int64
+src/sampler/hmc_integrator_core.f90	76	hmc_integrator_core		save_declaration	reverse_gate_replay_status_output_size_mismatch	module	unclassified_state	integer(int64), save :: reverse_gate_replay_status_output_size_mismatch = 0_int64
+src/sampler/hmc_integrator_core.f90	77	hmc_integrator_core		save_declaration	reverse_gate_replay_status_momentum_size_mismatch	module	unclassified_state	integer(int64), save :: reverse_gate_replay_status_momentum_size_mismatch = 0_int64
+src/sampler/hmc_integrator_core.f90	78	hmc_integrator_core		save_declaration	reverse_gate_replay_status_initial_force_failed	module	unclassified_state	integer(int64), save :: reverse_gate_replay_status_initial_force_failed = 0_int64
+src/sampler/hmc_integrator_core.f90	79	hmc_integrator_core		save_declaration	reverse_gate_replay_status_constraint_failed	module	unclassified_state	integer(int64), save :: reverse_gate_replay_status_constraint_failed = 0_int64
+src/sampler/hmc_integrator_core.f90	80	hmc_integrator_core		save_declaration	reverse_gate_replay_status_final_flow_failed	module	unclassified_state	integer(int64), save :: reverse_gate_replay_status_final_flow_failed = 0_int64
+src/sampler/hmc_integrator_core.f90	81	hmc_integrator_core		save_declaration	reverse_gate_replay_status_final_force_failed	module	unclassified_state	integer(int64), save :: reverse_gate_replay_status_final_force_failed = 0_int64
+src/sampler/hmc_integrator_core.f90	82	hmc_integrator_core		save_declaration	reverse_gate_replay_status_final_projection_failed	module	unclassified_state	integer(int64), save :: reverse_gate_replay_status_final_projection_failed = 0_int64
+src/sampler/hmc_integrator_core.f90	83	hmc_integrator_core		save_declaration	reverse_gate_replay_status_reverse_gate_rejected	module	unclassified_state	integer(int64), save :: reverse_gate_replay_status_reverse_gate_rejected = 0_int64
+src/sampler/hmc_integrator_core.f90	84	hmc_integrator_core		save_declaration	reverse_gate_replay_status_final_flow_max_steps	module	unclassified_state	integer(int64), save :: reverse_gate_replay_status_final_flow_max_steps = 0_int64
+src/sampler/hmc_integrator_core.f90	85	hmc_integrator_core		save_declaration	reverse_gate_replay_status_final_flow_invalid	module	unclassified_state	integer(int64), save :: reverse_gate_replay_status_final_flow_invalid = 0_int64
+src/sampler/hmc_integrator_core.f90	86	hmc_integrator_core		save_declaration	reverse_gate_replay_status_final_flow_h_min	module	unclassified_state	integer(int64), save :: reverse_gate_replay_status_final_flow_h_min = 0_int64
+src/sampler/hmc_integrator_core.f90	87	hmc_integrator_core		save_declaration	reverse_gate_replay_status_final_flow_non_strict_success	module	unclassified_state	integer(int64), save :: reverse_gate_replay_status_final_flow_non_strict_success = 0_int64
+src/sampler/hmc_integrator_core.f90	88	hmc_integrator_core		save_declaration	reverse_gate_replay_status_unknown	module	unclassified_state	integer(int64), save :: reverse_gate_replay_status_unknown = 0_int64
+src/sampler/hmc_integrator_core.f90	911	hmc_integrator_core	subroutine:load_s1_fallback_policy	env_read	QN_S1_PROBE_MAX_ITER	procedure	diagnostic_policy	"call get_environment_variable(""QN_S1_PROBE_MAX_ITER"", env_value, length=env_len, status=env_stat)"
+src/sampler/hmc_integrator_core.f90	921	hmc_integrator_core	subroutine:load_s1_fallback_policy	env_read	QN_S1_NEAR_FULL_MAX_ITER	procedure	runtime_env	"call get_environment_variable(""QN_S1_NEAR_FULL_MAX_ITER"", env_value, length=env_len, status=env_stat)"
+src/sampler/hmc_integrator_core.f90	931	hmc_integrator_core	subroutine:load_s1_fallback_policy	env_read	QN_S1_NONNEAR_CHEAP_MAX_ITER	procedure	runtime_env	"call get_environment_variable(""QN_S1_NONNEAR_CHEAP_MAX_ITER"", env_value, length=env_len, status=env_stat)"
+src/sampler/hmc_integrator_core.f90	941	hmc_integrator_core	subroutine:load_s1_fallback_policy	env_read	QN_S1_NONNEAR_RESCUE_ENABLED	procedure	runtime_env	"call get_environment_variable(""QN_S1_NONNEAR_RESCUE_ENABLED"", env_value, length=env_len, status=env_stat)"
+src/sampler/hmc_integrator_core.f90	951	hmc_integrator_core	subroutine:load_s1_fallback_policy	env_read	QN_S1_NEAR_RESCUE_ENABLED	procedure	runtime_env	"call get_environment_variable(""QN_S1_NEAR_RESCUE_ENABLED"", env_value, length=env_len, status=env_stat)"
+src/sampler/hmc_integrator_core.f90	961	hmc_integrator_core	subroutine:load_s1_fallback_policy	env_read	QN_REVERSE_GATE_ENABLED	procedure	runtime_env	"call get_environment_variable(""QN_REVERSE_GATE_ENABLED"", env_value, length=env_len, status=env_stat)"
+src/sampler/hmc_integrator_core.f90	971	hmc_integrator_core	subroutine:load_s1_fallback_policy	env_read	QN_REVERSE_GATE_TOL	procedure	runtime_env	"call get_environment_variable(""QN_REVERSE_GATE_TOL"", env_value, length=env_len, status=env_stat)"
+src/sampler/hmc_integrator_core.f90	980	hmc_integrator_core	subroutine:load_s1_fallback_policy	env_read	QN_QUASI_TOL_OVERRIDE	procedure	runtime_env	"call get_environment_variable(""QN_QUASI_TOL_OVERRIDE"", env_value, length=env_len, status=env_stat)"
+src/sampler/hmc_kernels.f90	37	hmc_kernels	subroutine:decompose2	save_declaration	jacr	procedure	unclassified_state	real(dp), allocatable, save :: jacr(:, :), jacr_lu(:, :)
+src/sampler/hmc_kernels.f90	37	hmc_kernels	subroutine:decompose2	save_declaration	jacr_lu	procedure	unclassified_state	real(dp), allocatable, save :: jacr(:, :), jacr_lu(:, :)
+src/sampler/hmc_kernels.f90	39	hmc_kernels	subroutine:decompose2	save_declaration	ipiv	procedure	unclassified_state	integer, allocatable, save :: ipiv(:)
+src/sampler/hmc_reversibility_checks.f90	6	hmc_reversibility_checks		save_declaration	probe_config_loaded	module	diagnostic_policy	logical, save :: probe_config_loaded = .false.
+src/sampler/hmc_reversibility_checks.f90	7	hmc_reversibility_checks		save_declaration	probe_enabled	module	diagnostic_policy	logical, save :: probe_enabled = .false.
+src/sampler/hmc_reversibility_checks.f90	8	hmc_reversibility_checks		save_declaration	probe_fallback_only	module	diagnostic_policy	logical, save :: probe_fallback_only = .true.
+src/sampler/hmc_reversibility_checks.f90	9	hmc_reversibility_checks		save_declaration	probe_limit	module	diagnostic_policy	integer, save :: probe_limit = 0
+src/sampler/hmc_reversibility_checks.f90	10	hmc_reversibility_checks		save_declaration	probe_count	module	diagnostic_policy	integer, save :: probe_count = 0
+src/sampler/hmc_reversibility_checks.f90	11	hmc_reversibility_checks		save_declaration	progress_diag_config_loaded	module	diagnostic_policy	logical, save :: progress_diag_config_loaded = .false.
+src/sampler/hmc_reversibility_checks.f90	12	hmc_reversibility_checks		save_declaration	progress_diag_enabled	module	diagnostic_policy	logical, save :: progress_diag_enabled = .false.
+src/sampler/hmc_reversibility_checks.f90	13	hmc_reversibility_checks		save_declaration	progress_diag_limit	module	diagnostic_policy	integer, save :: progress_diag_limit = 0
+src/sampler/hmc_reversibility_checks.f90	14	hmc_reversibility_checks		save_declaration	progress_diag_count	module	diagnostic_policy	integer, save :: progress_diag_count = 0
+src/sampler/hmc_reversibility_checks.f90	118	hmc_reversibility_checks	subroutine:load_reversibility_probe_config	env_read	HMC_REVERSIBILITY_PROBE_FALLBACK_ONLY	procedure	diagnostic_policy	"call get_environment_variable(""HMC_REVERSIBILITY_PROBE_FALLBACK_ONLY"", env_value, length=env_len, status=env_stat)"
+src/sampler/markovchain_metropolis.f90	4	markovchain_metropolis		rng_call	grnd	module	rng	use mt95, only: grnd
+src/sampler/markovchain_metropolis.f90	83	markovchain_metropolis	subroutine:metropolis_step	rng_call	grnd	procedure	rng	rand = grnd()
+src/sampler/markovchain_mod.f90	9	markovchain_mod		param_mod_import	, only: ckrv, config, cttol, hmc_step, integrator_method, n_warm, phi_history_file, &	module	config_global	use param_mod, only: ckrv, config, cttol, hmc_step, integrator_method, n_warm, phi_history_file, &
+src/sampler/markovchain_mod.f90	232	markovchain_mod	subroutine:initialize_random_start	env_read	RANDOM_START_FIXED_TARGET	procedure	runtime_env	"call get_environment_variable(""RANDOM_START_FIXED_TARGET"", env_value, length=env_len, status=env_stat)"
+src/sampler/markovchain_mod.f90	243	markovchain_mod	subroutine:initialize_random_start	env_read	RANDOM_START_RETRY_SHRINK	procedure	runtime_env	"call get_environment_variable(""RANDOM_START_RETRY_SHRINK"", env_value, length=env_len, status=env_stat)"
+src/sampler/quasi_newton_linear_solver.f90	6	quasi_newton_linear_solver_mod		save_declaration	guess_ipiv	module	quasi_newton_workspace_or_counter	integer, allocatable, save :: linear_ipiv(:), guess_ipiv(:)
+src/sampler/quasi_newton_linear_solver.f90	6	quasi_newton_linear_solver_mod		save_declaration	linear_ipiv	module	quasi_newton_workspace_or_counter	integer, allocatable, save :: linear_ipiv(:), guess_ipiv(:)
+src/sampler/quasi_newton_linear_solver.f90	7	quasi_newton_linear_solver_mod		save_declaration	linear_jac_fact	module	quasi_newton_workspace_or_counter	real(dp), allocatable, save :: linear_jac_fact(:, :)
+src/sampler/quasi_newton_linear_solver.f90	8	quasi_newton_linear_solver_mod		save_declaration	guess_jacr	module	quasi_newton_workspace_or_counter	real(dp), allocatable, save :: guess_jacr(:, :), guess_rhs_r(:), guess_sol_r(:), guess_proj_r(:)
+src/sampler/quasi_newton_linear_solver.f90	8	quasi_newton_linear_solver_mod		save_declaration	guess_proj_r	module	quasi_newton_workspace_or_counter	real(dp), allocatable, save :: guess_jacr(:, :), guess_rhs_r(:), guess_sol_r(:), guess_proj_r(:)
+src/sampler/quasi_newton_linear_solver.f90	8	quasi_newton_linear_solver_mod		save_declaration	guess_rhs_r	module	quasi_newton_workspace_or_counter	real(dp), allocatable, save :: guess_jacr(:, :), guess_rhs_r(:), guess_sol_r(:), guess_proj_r(:)
+src/sampler/quasi_newton_linear_solver.f90	8	quasi_newton_linear_solver_mod		save_declaration	guess_sol_r	module	quasi_newton_workspace_or_counter	real(dp), allocatable, save :: guess_jacr(:, :), guess_rhs_r(:), guess_sol_r(:), guess_proj_r(:)
+src/sampler/quasi_newton_linear_solver.f90	9	quasi_newton_linear_solver_mod		save_declaration	guess_jac_fact	module	quasi_newton_workspace_or_counter	complex(dp), allocatable, save :: guess_jac_fact(:, :), guess_z(:), guess_rhs_c(:)
+src/sampler/quasi_newton_linear_solver.f90	9	quasi_newton_linear_solver_mod		save_declaration	guess_rhs_c	module	quasi_newton_workspace_or_counter	complex(dp), allocatable, save :: guess_jac_fact(:, :), guess_z(:), guess_rhs_c(:)
+src/sampler/quasi_newton_linear_solver.f90	9	quasi_newton_linear_solver_mod		save_declaration	guess_z	module	quasi_newton_workspace_or_counter	complex(dp), allocatable, save :: guess_jac_fact(:, :), guess_z(:), guess_rhs_c(:)
+src/sampler/quasi_newton_solver.f90	12	quasi_newton_solver_mod		save_declaration	residual_jlc	module	quasi_newton_workspace_or_counter	complex(dp), allocatable, save :: residual_jlc(:), residual_z_trial(:), residual_z_flowed(:)
+src/sampler/quasi_newton_solver.f90	12	quasi_newton_solver_mod		save_declaration	residual_z_flowed	module	quasi_newton_workspace_or_counter	complex(dp), allocatable, save :: residual_jlc(:), residual_z_trial(:), residual_z_flowed(:)
+src/sampler/quasi_newton_solver.f90	12	quasi_newton_solver_mod		save_declaration	residual_z_trial	module	quasi_newton_workspace_or_counter	complex(dp), allocatable, save :: residual_jlc(:), residual_z_trial(:), residual_z_flowed(:)
+src/sampler/quasi_newton_solver.f90	13	quasi_newton_solver_mod		save_declaration	residual_xtu	module	quasi_newton_workspace_or_counter	real(dp), allocatable, save :: residual_xtu(:)
+src/sampler/quasi_newton_solver.f90	14	quasi_newton_solver_mod		save_declaration	quasi_trace_iter	module	quasi_newton_workspace_or_counter	integer, save :: quasi_trace_iter = 0
+src/sampler/quasi_newton_solver.f90	15	quasi_newton_solver_mod		save_declaration	quasi_last_trace_count	module	quasi_newton_workspace_or_counter	integer, save :: quasi_last_trace_count = 0
+src/sampler/quasi_newton_solver.f90	16	quasi_newton_solver_mod		save_declaration	quasi_last_trace_capacity	module	quasi_newton_workspace_or_counter	integer, save :: quasi_last_trace_capacity = 0
+src/sampler/quasi_newton_solver.f90	17	quasi_newton_solver_mod		save_declaration	quasi_last_trace_dim	module	quasi_newton_workspace_or_counter	integer, save :: quasi_last_trace_dim = 0
+src/sampler/quasi_newton_solver.f90	18	quasi_newton_solver_mod		save_declaration	quasi_last_trace_z_flowed	module	quasi_newton_workspace_or_counter	complex(dp), allocatable, save :: quasi_last_trace_z_proposed(:, :), quasi_last_trace_z_flowed(:, :)
+src/sampler/quasi_newton_solver.f90	18	quasi_newton_solver_mod		save_declaration	quasi_last_trace_z_proposed	module	quasi_newton_workspace_or_counter	complex(dp), allocatable, save :: quasi_last_trace_z_proposed(:, :), quasi_last_trace_z_flowed(:, :)
+src/sampler/quasi_newton_solver.f90	19	quasi_newton_solver_mod		save_declaration	quasi_last_trace_alpha	module	quasi_newton_workspace_or_counter	real(dp), allocatable, save :: quasi_last_trace_res_norm(:), quasi_last_trace_alpha(:)
+src/sampler/quasi_newton_solver.f90	19	quasi_newton_solver_mod		save_declaration	quasi_last_trace_res_norm	module	quasi_newton_workspace_or_counter	real(dp), allocatable, save :: quasi_last_trace_res_norm(:), quasi_last_trace_alpha(:)
+src/sampler/quasi_newton_solver.f90	20	quasi_newton_solver_mod		save_declaration	quasi_last_trace_attempt	module	quasi_newton_workspace_or_counter	integer, allocatable, save :: quasi_last_trace_iter(:), quasi_last_trace_backtrack(:), quasi_last_trace_attempt(:)
+src/sampler/quasi_newton_solver.f90	20	quasi_newton_solver_mod		save_declaration	quasi_last_trace_backtrack	module	quasi_newton_workspace_or_counter	integer, allocatable, save :: quasi_last_trace_iter(:), quasi_last_trace_backtrack(:), quasi_last_trace_attempt(:)
+src/sampler/quasi_newton_solver.f90	20	quasi_newton_solver_mod		save_declaration	quasi_last_trace_iter	module	quasi_newton_workspace_or_counter	integer, allocatable, save :: quasi_last_trace_iter(:), quasi_last_trace_backtrack(:), quasi_last_trace_attempt(:)
+src/sampler/quasi_newton_solver.f90	21	quasi_newton_solver_mod		save_declaration	quasi_last_trace_route	module	quasi_newton_workspace_or_counter	integer, allocatable, save :: quasi_last_trace_route(:)
+src/sampler/quasi_newton_solver.f90	22	quasi_newton_solver_mod		save_declaration	quasi_last_trace_accepted	module	quasi_newton_workspace_or_counter	logical, allocatable, save :: quasi_last_trace_accepted(:), quasi_last_trace_eval_ok(:)
+src/sampler/quasi_newton_solver.f90	22	quasi_newton_solver_mod		save_declaration	quasi_last_trace_eval_ok	module	quasi_newton_workspace_or_counter	logical, allocatable, save :: quasi_last_trace_accepted(:), quasi_last_trace_eval_ok(:)
+src/sampler/quasi_newton_solver.f90	23	quasi_newton_solver_mod		save_declaration	quasi_eval_z_flowed	module	quasi_newton_workspace_or_counter	complex(dp), allocatable, save :: quasi_eval_z_proposed(:), quasi_eval_z_flowed(:)
+src/sampler/quasi_newton_solver.f90	23	quasi_newton_solver_mod		save_declaration	quasi_eval_z_proposed	module	quasi_newton_workspace_or_counter	complex(dp), allocatable, save :: quasi_eval_z_proposed(:), quasi_eval_z_flowed(:)
+src/sampler/quasi_newton_solver.f90	24	quasi_newton_solver_mod		save_declaration	quasi_eval_has_flowed	module	quasi_newton_workspace_or_counter	logical, save :: quasi_eval_has_flowed = .false.
+src/sampler/quasi_newton_solver.f90	25	quasi_newton_solver_mod		save_declaration	quasi_eval_flowed_is_inverse	module	quasi_newton_workspace_or_counter	logical, save :: quasi_eval_flowed_is_inverse = .false.
+src/sampler/quasi_newton_solver.f90	26	quasi_newton_solver_mod		save_declaration	quasi_trace_route_code	module	quasi_newton_workspace_or_counter	integer, save :: quasi_trace_route_code = 0
+src/sampler/quasi_newton_solver.f90	28	quasi_newton_solver_mod		save_declaration	quasi_solver_assist_budget	module	quasi_newton_workspace_or_counter	integer, save :: quasi_solver_assist_budget = quasi_solver_assist_budget_default
+src/sampler/quasi_newton_solver.f90	30	quasi_newton_solver_mod		save_declaration	quasi_accepted_iter_budget	module	quasi_newton_workspace_or_counter	integer, save :: quasi_accepted_iter_budget = quasi_accepted_iter_budget_default
+src/sampler/quasi_newton_solver.f90	31	quasi_newton_solver_mod		save_declaration	qn_force_best_proposal_enabled	module	quasi_newton_workspace_or_counter	logical, save :: qn_force_best_proposal_enabled = .false.
+src/sampler/quasi_newton_solver.f90	32	quasi_newton_solver_mod		save_declaration	qn_force_best_proposal_tol	module	quasi_newton_workspace_or_counter	real(dp), save :: qn_force_best_proposal_tol = -1.0_dp
+src/sampler/quasi_newton_solver.f90	33	quasi_newton_solver_mod		save_declaration	quasi_global_filter_candidate_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_global_filter_candidate_count = 0_int64
+src/sampler/quasi_newton_solver.f90	34	quasi_newton_solver_mod		save_declaration	quasi_global_filter_pass_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_global_filter_pass_count = 0_int64
+src/sampler/quasi_newton_solver.f90	35	quasi_newton_solver_mod		save_declaration	quasi_global_filter_reject_count	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_global_filter_reject_count = 0_int64
+src/sampler/quasi_newton_solver.f90	36	quasi_newton_solver_mod		save_declaration	quasi_eval_flow_status_success	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_eval_flow_status_success = 0_int64
+src/sampler/quasi_newton_solver.f90	37	quasi_newton_solver_mod		save_declaration	quasi_eval_flow_status_zero_time	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_eval_flow_status_zero_time = 0_int64
+src/sampler/quasi_newton_solver.f90	38	quasi_newton_solver_mod		save_declaration	quasi_eval_flow_status_stiff_rescue	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_eval_flow_status_stiff_rescue = 0_int64
+src/sampler/quasi_newton_solver.f90	39	quasi_newton_solver_mod		save_declaration	quasi_eval_flow_status_solver_assist	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_eval_flow_status_solver_assist = 0_int64
+src/sampler/quasi_newton_solver.f90	40	quasi_newton_solver_mod		save_declaration	quasi_eval_flow_status_failure_max_steps	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_eval_flow_status_failure_max_steps = 0_int64
+src/sampler/quasi_newton_solver.f90	41	quasi_newton_solver_mod		save_declaration	quasi_eval_flow_status_failure_invalid	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_eval_flow_status_failure_invalid = 0_int64
+src/sampler/quasi_newton_solver.f90	42	quasi_newton_solver_mod		save_declaration	quasi_eval_flow_status_failure_h_min	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_eval_flow_status_failure_h_min = 0_int64
+src/sampler/quasi_newton_solver.f90	43	quasi_newton_solver_mod		save_declaration	quasi_eval_flow_status_unknown	module	quasi_newton_workspace_or_counter	integer(int64), save :: quasi_eval_flow_status_unknown = 0_int64
+src/sampler/quasi_newton_solver.f90	44	quasi_newton_solver_mod		save_declaration	quasi_watchdog_policy_loaded	module	quasi_newton_workspace_or_counter	logical, save :: quasi_watchdog_policy_loaded = .false.
+src/sampler/quasi_newton_solver.f90	45	quasi_newton_solver_mod		save_declaration	quasi_watchdog_scope_active	module	quasi_newton_workspace_or_counter	logical, save :: quasi_watchdog_scope_active = .false.
+src/sampler/quasi_newton_solver.f90	46	quasi_newton_solver_mod		save_declaration	quasi_watchdog_start_solver_assist	module	quasi_newton_workspace_or_counter	integer, save :: quasi_watchdog_start_solver_assist = 0
+src/sampler/quasi_newton_solver.f90	47	quasi_newton_solver_mod		save_declaration	quasi_watchdog_used_solver_assist	module	quasi_newton_workspace_or_counter	integer, save :: quasi_watchdog_used_solver_assist = 0
+src/sampler/quasi_newton_solver.f90	48	quasi_newton_solver_mod		save_declaration	quasi_watchdog_used_accepted_iter	module	quasi_newton_workspace_or_counter	integer, save :: quasi_watchdog_used_accepted_iter = 0
+src/sampler/quasi_newton_solver.f90	49	quasi_newton_solver_mod		save_declaration	quasi_watchdog_hit	module	quasi_newton_workspace_or_counter	logical, save :: quasi_watchdog_hit = .false.
+src/sampler/quasi_newton_solver.f90	50	quasi_newton_solver_mod		save_declaration	quasi_watchdog_last_hit	module	quasi_newton_workspace_or_counter	logical, save :: quasi_watchdog_last_hit = .false.
+src/sampler/quasi_newton_solver.f90	51	quasi_newton_solver_mod		save_declaration	quasi_watchdog_last_used	module	quasi_newton_workspace_or_counter	integer, save :: quasi_watchdog_last_used = 0
+src/sampler/quasi_newton_solver.f90	52	quasi_newton_solver_mod		save_declaration	quasi_watchdog_last_used_accepted_iter	module	quasi_newton_workspace_or_counter	integer, save :: quasi_watchdog_last_used_accepted_iter = 0
+src/sampler/quasi_newton_solver.f90	53	quasi_newton_solver_mod		save_declaration	quasi_watchdog_hit_total	module	quasi_newton_workspace_or_counter	integer, save :: quasi_watchdog_hit_total = 0
+src/sampler/quasi_newton_solver.f90	1186	quasi_newton_solver_mod	subroutine:load_quasi_watchdog_policy	env_read	QN_SOLVER_ASSIST_BUDGET	procedure	quasi_newton_workspace_or_counter	"call get_environment_variable(""QN_SOLVER_ASSIST_BUDGET"", env_value, length=env_len, status=env_stat)"
+src/sampler/quasi_newton_solver.f90	1192	quasi_newton_solver_mod	subroutine:load_quasi_watchdog_policy	env_read	QUASI_FINAL_RESORT_BUDGET	procedure	quasi_newton_workspace_or_counter	"call get_environment_variable(""QUASI_FINAL_RESORT_BUDGET"", env_value, length=env_len, status=env_stat)"
+src/sampler/quasi_newton_solver.f90	1199	quasi_newton_solver_mod	subroutine:load_quasi_watchdog_policy	env_read	QN_ACCEPTED_ITER_BUDGET	procedure	quasi_newton_workspace_or_counter	"call get_environment_variable(""QN_ACCEPTED_ITER_BUDGET"", env_value, length=env_len, status=env_stat)"
+src/sampler/quasi_newton_solver.f90	1204	quasi_newton_solver_mod	subroutine:load_quasi_watchdog_policy	env_read	QUASI_ACCEPTED_ITER_BUDGET	procedure	quasi_newton_workspace_or_counter	"call get_environment_variable(""QUASI_ACCEPTED_ITER_BUDGET"", env_value, length=env_len, status=env_stat)"
+src/sampler/quasi_newton_solver.f90	1211	quasi_newton_solver_mod	subroutine:load_quasi_watchdog_policy	env_read	QN_FORCE_BEST_PROPOSAL_ENABLED	procedure	quasi_newton_workspace_or_counter	"call get_environment_variable(""QN_FORCE_BEST_PROPOSAL_ENABLED"", env_value, length=env_len, status=env_stat)"
+src/sampler/quasi_newton_solver.f90	1221	quasi_newton_solver_mod	subroutine:load_quasi_watchdog_policy	env_read	QN_FORCE_BEST_PROPOSAL_TOL	procedure	quasi_newton_workspace_or_counter	"call get_environment_variable(""QN_FORCE_BEST_PROPOSAL_TOL"", env_value, length=env_len, status=env_stat)"
+src/sampler/tltm_stage1_driver.f90	3	tltm_stage1_driver		param_mod_import	, only: config, read_parameters	module	config_global	use param_mod, only: config, read_parameters
+src/sampler/tltm_stage1_driver.f90	8	tltm_stage1_driver		rng_call	getseed	module	rng	use mt95, only: getseed, sgrnd
+src/sampler/tltm_stage1_driver.f90	65	tltm_stage1_driver	subroutine:execute_tltm_stage1	rng_call	sgrnd	procedure	rng	call sgrnd(base_seed)
+src/sampler/tltm_stage1_driver.f90	100	tltm_stage1_driver	subroutine:initialize_replica	rng_call	sgrnd	procedure	rng	call sgrnd(replica%rng_seed)
+src/sampler/tltm_stage1_driver.f90	169	tltm_stage1_driver	subroutine:resolve_base_seed	env_read	CHAIN_RNG_SEED	procedure	runtime_env	"call get_environment_variable(""CHAIN_RNG_SEED"", seed_env, length=env_len, status=env_status)"
+src/sampler/tltm_stage1_driver.f90	173	tltm_stage1_driver	subroutine:resolve_base_seed	rng_call	getseed	procedure	rng	base_seed = getseed()
+src/sampler/tltm_stage1_driver.f90	176	tltm_stage1_driver	subroutine:resolve_base_seed	rng_call	getseed	procedure	rng	base_seed = getseed()
+src/sampler/tltm_stage1_driver.f90	209	tltm_stage1_driver	subroutine:resolve_stage1_controls	env_read	TLTM_STAGE1_FLOW_TIME_LADDER	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE1_FLOW_TIME_LADDER"", ladder_text, length=env_len, status=env_status)"
+src/sampler/tltm_stage1_driver.f90	252	tltm_stage1_driver	subroutine:resolve_summary_file	env_read	TLTM_STAGE1_SUMMARY_FILE	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE1_SUMMARY_FILE"", path, length=env_len, status=env_status)"
+src/sampler/tltm_stage2_driver.f90	3	tltm_stage2_driver		param_mod_import	, only: config, read_parameters	module	config_global	use param_mod, only: config, read_parameters
+src/sampler/tltm_stage2_driver.f90	9	tltm_stage2_driver		rng_call	getseed	module	rng	use mt95, only: getseed, sgrnd, grnd
+src/sampler/tltm_stage2_driver.f90	65	tltm_stage2_driver		save_declaration	rg_reject_audit_loaded	module	unclassified_state	logical, save :: rg_reject_audit_loaded = .false.
+src/sampler/tltm_stage2_driver.f90	66	tltm_stage2_driver		save_declaration	rg_reject_audit_enabled	module	unclassified_state	logical, save :: rg_reject_audit_enabled = .false.
+src/sampler/tltm_stage2_driver.f90	67	tltm_stage2_driver		save_declaration	rg_reject_audit_unit	module	unclassified_state	integer, save :: rg_reject_audit_unit = -1
+src/sampler/tltm_stage2_driver.f90	68	tltm_stage2_driver		save_declaration	rg_reject_audit_file	module	unclassified_state	"character(len=512), save :: rg_reject_audit_file = """""
+src/sampler/tltm_stage2_driver.f90	294	tltm_stage2_driver	subroutine:execute_tltm_stage2	rng_call	sgrnd	procedure	rng	call sgrnd(base_seed)
+src/sampler/tltm_stage2_driver.f90	443	tltm_stage2_driver	subroutine:initialize_slot	rng_call	sgrnd	procedure	rng	call sgrnd(slot%rng_seed)
+src/sampler/tltm_stage2_driver.f90	568	tltm_stage2_driver	subroutine:load_rg_reject_audit_config	env_read	TLTM_RG_REJECT_AUDIT_FILE	procedure	runtime_env	"call get_environment_variable(""TLTM_RG_REJECT_AUDIT_FILE"", env_value, length=env_len, status=env_status)"
+src/sampler/tltm_stage2_driver.f90	768	tltm_stage2_driver	subroutine:attempt_adjacent_swap	rng_call	grnd	procedure	rng	accept = (grnd() <= acc_prob)
+src/sampler/tltm_stage2_driver.f90	1226	tltm_stage2_driver	subroutine:resolve_base_seed	env_read	CHAIN_RNG_SEED	procedure	runtime_env	"call get_environment_variable(""CHAIN_RNG_SEED"", seed_env, length=env_len, status=env_status)"
+src/sampler/tltm_stage2_driver.f90	1229	tltm_stage2_driver	subroutine:resolve_base_seed	rng_call	getseed	procedure	rng	if (ios /= 0 .or. base_seed <= 0) base_seed = getseed()
+src/sampler/tltm_stage2_driver.f90	1231	tltm_stage2_driver	subroutine:resolve_base_seed	rng_call	getseed	procedure	rng	base_seed = getseed()
+src/sampler/tltm_stage2_driver.f90	1267	tltm_stage2_driver	subroutine:resolve_stage2_controls	env_read	TLTM_STAGE2_FLOW_TIME_LADDER	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_FLOW_TIME_LADDER"", ladder_text, length=env_len, status=env_status)"
+src/sampler/tltm_stage2_driver.f90	1306	tltm_stage2_driver	subroutine:resolve_stage2_controls	env_read	TLTM_STAGE2_INIT_MODE	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_INIT_MODE"", env_value, length=env_len, status=env_status)"
+src/sampler/tltm_stage2_driver.f90	1330	tltm_stage2_driver	subroutine:resolve_stage2_output_paths	env_read	TLTM_STAGE2_SUMMARY_FILE	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_SUMMARY_FILE"", summary_file, length=env_len, status=env_status)"
+src/sampler/tltm_stage2_driver.f90	1338	tltm_stage2_driver	subroutine:resolve_stage2_output_paths	env_read	TLTM_STAGE2_LABEL_TRACE_FILE	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_LABEL_TRACE_FILE"", label_trace_file, length=env_len, status=env_status)"
+src/sampler/tltm_stage2_driver.f90	1355	tltm_stage2_driver	subroutine:resolve_stage2_cold_history_paths	env_read	TLTM_STAGE2_COLD_Z_HISTORY_FILE	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_COLD_Z_HISTORY_FILE"", cold_z_history_file, length=env_len, status=env_status)"
+src/sampler/tltm_stage2_driver.f90	1359	tltm_stage2_driver	subroutine:resolve_stage2_cold_history_paths	env_read	TLTM_STAGE2_COLD_PHI_HISTORY_FILE	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_COLD_PHI_HISTORY_FILE"", cold_phi_history_file, length=env_len, status=env_status)"
+src/sampler/tltm_stage2_driver.f90	1376	tltm_stage2_driver	subroutine:resolve_stage2_all_history_dir	env_read	TLTM_STAGE2_ALL_REPLICA_HISTORY_DIR	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_ALL_REPLICA_HISTORY_DIR"", all_history_dir, length=env_len, status=env_status)"
+src/sampler/tltm_stage2_driver.f90	1394	tltm_stage2_driver	subroutine:resolve_stage2_v1_sidecar_paths	env_read	TLTM_STAGE2_V1_OUTPUT_DIR	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_V1_OUTPUT_DIR"", output_dir, length=env_len, status=env_status)"
+src/sampler/tltm_stage2_driver.f90	1405	tltm_stage2_driver	subroutine:resolve_stage2_v1_sidecar_paths	env_read	TLTM_STAGE2_V1_MANIFEST_FILE	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_V1_MANIFEST_FILE"", env_value, length=env_len, status=env_status)"
+src/sampler/tltm_stage2_driver.f90	1412	tltm_stage2_driver	subroutine:resolve_stage2_v1_sidecar_paths	env_read	TLTM_STAGE2_V1_PROTOCOL_FILE	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_V1_PROTOCOL_FILE"", env_value, length=env_len, status=env_status)"
+src/sampler/tltm_stage2_driver.f90	1819	tltm_stage2_driver	subroutine:resolve_git_commit	env_read	TLTM_GIT_COMMIT	procedure	runtime_env	"call get_environment_variable(""TLTM_GIT_COMMIT"", git_commit, length=env_len, status=env_status)"
+src/sampler/tltm_stage2_driver.f90	1863	tltm_stage2_driver	subroutine:write_json_env_field	env_read	(dynamic)	procedure	runtime_env	call get_environment_variable(trim(env_name), env_value, length=env_len, status=env_status)
+tests/test_action_derivatives.f90	3		program:test_action_derivatives	param_mod_import	, only: read_parameters, set_derivative_mode, state_seed_size_cfg	procedure	config_global	use param_mod, only: read_parameters, set_derivative_mode, state_seed_size_cfg
+tests/test_action_derivatives.f90	26		program:test_action_derivatives	rng_call	random_seed	procedure	rng	call random_seed(size=seed_size)
+tests/test_action_derivatives.f90	30		program:test_action_derivatives	rng_call	random_seed	procedure	rng	call random_seed(put=rng_seed)
+tests/test_action_derivatives.f90	43		program:test_action_derivatives	rng_call	random_number	procedure	rng	call random_number(random_real)
+tests/test_action_derivatives.f90	44		program:test_action_derivatives	rng_call	random_number	procedure	rng	call random_number(random_imag)
+tests/test_action_derivatives.f90	132		program:test_action_derivatives	rng_call	random_number	procedure	rng	call random_number(random_real)
+tests/test_action_derivatives.f90	133		program:test_action_derivatives	rng_call	random_number	procedure	rng	call random_number(random_imag)
+tests/test_hamiltonian_conservation.f90	3		program:test_hamiltonian_conservation	param_mod_import	, only: ckrv, config, integrator_method, istest, read_parameters, set_integrator_method, &	procedure	config_global	use param_mod, only: ckrv, config, integrator_method, istest, read_parameters, set_integrator_method, &
+tests/test_hamiltonian_conservation.f90	5		program:test_hamiltonian_conservation	rng_call	getseed	procedure	rng	use mt95, only: getseed, sgrnd
+tests/test_hamiltonian_conservation.f90	31		program:test_hamiltonian_conservation	rng_call	getseed	procedure	rng	rng_seed = getseed()
+tests/test_hamiltonian_conservation.f90	32		program:test_hamiltonian_conservation	rng_call	sgrnd	procedure	rng	call sgrnd(rng_seed)
+tests/test_hamiltonian_conservation.f90	170		subroutine:save_and_plot_hamiltonian_loglog	env_read	HMC_SKIP_PLOT	procedure	runtime_env	"call get_environment_variable(""HMC_SKIP_PLOT"", env_value, length=env_len, status=env_status)"
+tests/test_odex_solver.f90	23	test_odex_solver_rhs	program:test_odex_solver	param_mod_import	, only: at, rt	procedure	config_global	use param_mod, only: at, rt
+tests/test_tltm_swap_kernel_contract.f90	2		program:test_tltm_swap_kernel_contract	param_mod_import	, only: read_parameters, state_seed_size_cfg	procedure	config_global	use param_mod, only: read_parameters, state_seed_size_cfg
+tests/test_tltm_swap_kernel_contract.f90	3		program:test_tltm_swap_kernel_contract	rng_call	sgrnd	procedure	rng	use mt95, only: sgrnd
+tests/test_tltm_swap_kernel_contract.f90	74		program:test_tltm_swap_kernel_contract	rng_call	sgrnd	procedure	rng	call sgrnd(rng_seed)
