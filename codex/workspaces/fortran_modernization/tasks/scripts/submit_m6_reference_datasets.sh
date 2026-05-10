@@ -46,7 +46,7 @@ TLTM_EXPECTED_GIT_COMMIT="${TLTM_EXPECTED_GIT_COMMIT:-$(git rev-parse HEAD)}"
 TLTM_RUN_GUARDRAILS="${TLTM_RUN_GUARDRAILS:-1}"
 TLTM_ALLOW_OVERWRITE="${TLTM_ALLOW_OVERWRITE:-0}"
 
-if [ -n "$(git status --porcelain)" ]; then
+if [ "${DRY_RUN}" = "0" ] && [ -n "$(git status --porcelain)" ]; then
   echo "[ERROR] working tree is dirty; commit or stash before submitting reference datasets" >&2
   git status --short >&2
   exit 2
@@ -77,7 +77,16 @@ submit_job() {
   local result
   if [ "${DRY_RUN}" = "1" ]; then
     run_or_print "$@" >&2
-    result="DRYRUN_$((++DRYRUN_ID))"
+    result="DRYRUN_job"
+    local previous_arg=""
+    local arg
+    for arg in "$@"; do
+      if [ "${previous_arg}" = "-N" ]; then
+        result="DRYRUN_${arg}"
+        break
+      fi
+      previous_arg="${arg}"
+    done
   else
     result="$("$@")"
   fi
@@ -88,8 +97,6 @@ join_by_colon() {
   local IFS=":"
   echo "$*"
 }
-
-DRYRUN_ID=0
 
 {
   echo "submitted_at=$(timestamp_utc)"
