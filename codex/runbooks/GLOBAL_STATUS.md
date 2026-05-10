@@ -29,6 +29,7 @@ Updated: 2026-05-10 JST
 - `tltm_production_comparison`: parallel provisional `nofb` vs `withfb` production-comparison workstream; legacy alias `stage3_4`; old queue playbook is superseded.
 - Legacy Stage1 to Stage3_4 raw outputs/logs were cleared on 2026-05-10 after preserving key summaries; new provisional runs should use `output/production_comparison/provisional/...`.
 - Obsolete ODEX validation raw data was cleared after confirming accepted M6 modernization reference datasets exist.
+- Accepted M6 reference datasets may be reused as production-calibration aliases before launching new production-comparison seed/cycle grids.
 - `repo_cleanup`: planned control-plane/local/remote cleanup; no deletion without registry/readback.
 - `kernel_correctness_audit` and `ngport_rg_single_replica_t03_nstep_grid`: existing workspaces; read their task briefs/status only when entering those tasks.
 - `stage3_3_rg_redo`: historical workspace only; raw output was cleared after summary preservation.

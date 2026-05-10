@@ -48,6 +48,19 @@ Legacy outputs under `output/tests/stage3_4/...` remain readable historical evid
 
 Superseding cleanup note, 2026-05-10 JST: legacy Stage1 to Stage3_4 raw outputs/logs were cleared after key readback summary preservation; obsolete ODEX validation raw data was also cleared because M6 modernization reference datasets are accepted. See `LEGACY_STAGE_OUTPUT_CLEANUP_20260510.md`.
 
+## M6 Reference Cross-Use
+
+Accepted M6 reference datasets may be reused as the first production-calibration tier for deciding production seed/cycle scaling.
+
+This is a registry/readback alias, not a transfer of raw-data ownership:
+
+- M6 raw data remains owned by `fortran_modernization`.
+- Production comparison may consume M6 R1-R4 aggregate/readback artifacts.
+- Derived production-calibration reports should be written under `output/production_comparison/calibration/...`.
+- Final publication production still needs regeneration after modernization converges.
+
+Read `M6_REFERENCE_AS_PRODUCTION_CALIBRATION_PLAN.md` before launching the next production-comparison jobs.
+
 ## Modernization Contract
 
 Modernization is not blocked on final production-comparison completion.
@@ -56,6 +69,7 @@ Current accepted modernization baselines:
 
 - M6 R1-R4 accepted reference packages.
 - Readback record: `codex/workspaces/fortran_modernization/runbooks/M6_REFERENCE_DATASET_READBACK_20260510.md`.
+- Production-calibration cross-use record: `codex/workspaces/tltm_production_comparison/runbooks/M6_REFERENCE_AS_PRODUCTION_CALIBRATION_PLAN.md`.
 
 Modernization should record any future change that affects production interpretation, especially:
 

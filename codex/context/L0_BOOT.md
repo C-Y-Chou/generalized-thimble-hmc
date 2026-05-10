@@ -1,6 +1,6 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-10T23:51:07+09:00
+Generated: 2026-05-10T23:58:02+09:00
 Remote refreshed: 2026-05-10T23:51:05+09:00
 
 ## Hard Rules
@@ -24,15 +24,16 @@ Remote refreshed: 2026-05-10T23:51:05+09:00
 
 - `CP-001` control_plane: Keep L0/L1 current after remote/job changes Next: Run refresh_remote_state and render_l0_boot before remote/PBS work
 - `CP-003` cluster02: Record new queue failures/successes into scheduler observations Next: Use fresh qstat/probes for current scheduling; record notable future outcomes as priors, not fixed availability
+- `CP-008` tltm_production_comparison: Read M6 R1-R4 as production-calibration aliases Next: Build a read-only production-calibration report from accepted M6 packages, then decide the next seed/cycle grid
 
 ## Recent Decisions
 
-- 2026-05-10 `tltm_production_comparison`: Legacy Stage3_4 queue optimization playbook is superseded for current scheduling
 - 2026-05-10 `remote`: Rename control-plane target id to fortran_modernization
 - 2026-05-10 `tltm_production_comparison`: Rename Stage3_4 workstream to tltm_production_comparison
 - 2026-05-10 `global`: Soft-decouple modernization and production comparison
 - 2026-05-10 `tltm_production_comparison`: Clear legacy Stage3_4 raw output/log folders before rerun
 - 2026-05-10 `global`: Clear legacy Stage1-Stage3_3 and obsolete ODEX validation raw datasets
+- 2026-05-10 `tltm_production_comparison`: Reuse accepted M6 reference datasets as first production-calibration tier
 
 ## Pointers
 

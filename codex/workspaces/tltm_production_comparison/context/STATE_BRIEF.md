@@ -12,6 +12,7 @@ Updated: 2026-05-10 JST
 - Cleanup of legacy production-comparison outputs/logs is allowed only after dataset/job/worktree registry refresh and summary/archive decisions.
 - Legacy Stage1 to Stage3_4 raw outputs/logs were cleared on 2026-05-10 after preserving key summaries. See `runbooks/LEGACY_STAGE_OUTPUT_CLEANUP_20260510.md`.
 - Obsolete ODEX validation raw data was also cleared because accepted M6 modernization reference datasets now own the modernization baseline.
+- Accepted M6 reference datasets are also production-calibration aliases for the same `t=0.35,L=2,nstep=20` `nofb`/`withfb` point. Read `runbooks/M6_REFERENCE_AS_PRODUCTION_CALIBRATION_PLAN.md` before choosing the next seed/cycle scale.
 
 ## Important Correction
 
@@ -32,7 +33,8 @@ Updated: 2026-05-10 JST
 Before production continuation:
 
 1. Run `bash codex/tasks/refresh_remote_state.sh`.
-2. Register any new production-comparison outputs in `codex/state/DATASETS.tsv`.
-3. Confirm no active pinned jobs depend on the target worktree.
-4. Archive or summarize evidence before deleting any newly generated outputs/logs.
-5. For any new provisional run, write outputs under a production-comparison namespace, preferably `output/production_comparison/provisional/...`, not a new `output/tests/stage3_4/...` namespace.
+2. Read M6 R1-R4 as the first production-calibration tier and estimate whether the next scale is seed-limited or cycle-limited.
+3. Register any new production-comparison outputs in `codex/state/DATASETS.tsv`.
+4. Confirm no active pinned jobs depend on the target worktree.
+5. Archive or summarize evidence before deleting any newly generated outputs/logs.
+6. For any new provisional run, write outputs under a production-comparison namespace, preferably `output/production_comparison/provisional/...`, not a new `output/tests/stage3_4/...` namespace.
