@@ -1,7 +1,7 @@
 module tltm_stage2_driver
    use, intrinsic :: iso_fortran_env, only: int64
    use param_mod, only: config, read_parameters
-   use runtime_env_mod, only: parse_int_env, parse_real_env, parse_logical_env, parse_real_list, to_lower_ascii
+   use runtime_env_mod, only: parse_int_env, parse_real_env, parse_logical_env, read_string_env, parse_real_list, to_lower_ascii
    use utils, only: dp, log_determinant, wall_time_seconds, x_set_flow_time, x_set_seed_real
    use solve_flow, only: flow, reset_intode_fallback_stats, get_intode_fallback_stats, &
                          intode_status_unknown, intode_status_is_strict_success
@@ -560,15 +560,17 @@ contains
 
    subroutine load_rg_reject_audit_config()
       character(len=512) :: env_value
-      integer :: env_len, env_status, io_status
+      integer :: io_status
+      logical :: has_audit_file
 
       if (rg_reject_audit_loaded) return
       rg_reject_audit_loaded = .true.
 
-      call get_environment_variable("TLTM_RG_REJECT_AUDIT_FILE", env_value, length=env_len, status=env_status)
-      if (env_status /= 0 .or. env_len <= 0) return
+      env_value = ""
+      call read_string_env("TLTM_RG_REJECT_AUDIT_FILE", env_value, has_audit_file)
+      if (.not. has_audit_file) return
 
-      rg_reject_audit_file = env_value(1:env_len)
+      rg_reject_audit_file = trim(env_value)
       open (newunit=rg_reject_audit_unit, file=trim(rg_reject_audit_file), status='replace', action='write', iostat=io_status)
       if (io_status /= 0) then
          write (*, '(A,1X,A)') "[WARN][TLTM-S2] Cannot open RG reject audit file:", trim(rg_reject_audit_file)
@@ -1220,12 +1222,13 @@ contains
    subroutine resolve_base_seed(base_seed)
       integer, intent(out) :: base_seed
       character(len=64) :: seed_env
-      integer :: env_len, env_status, ios
+      integer :: ios
+      logical :: has_seed_env
 
       seed_env = ""
-      call get_environment_variable("CHAIN_RNG_SEED", seed_env, length=env_len, status=env_status)
-      if (env_status == 0 .and. env_len > 0) then
-         read (seed_env(1:env_len), *, iostat=ios) base_seed
+      call read_string_env("CHAIN_RNG_SEED", seed_env, has_seed_env)
+      if (has_seed_env) then
+         read (seed_env, *, iostat=ios) base_seed
          if (ios /= 0 .or. base_seed <= 0) base_seed = getseed()
       else
          base_seed = getseed()
@@ -1245,8 +1248,8 @@ contains
 
       character(len=1024) :: ladder_text
       character(len=64) :: env_value
-      integer :: env_len, env_status
       logical :: ok
+      logical :: has_ladder_env, has_init_mode
       real(dp), allocatable :: parsed(:)
 
       n_slots = 4
@@ -1264,9 +1267,9 @@ contains
       end if
 
       ladder_text = ""
-      call get_environment_variable("TLTM_STAGE2_FLOW_TIME_LADDER", ladder_text, length=env_len, status=env_status)
-      if (env_status == 0 .and. env_len > 0) then
-         call parse_real_list(ladder_text(1:env_len), parsed, ok)
+      call read_string_env("TLTM_STAGE2_FLOW_TIME_LADDER", ladder_text, has_ladder_env)
+      if (has_ladder_env) then
+         call parse_real_list(ladder_text, parsed, ok)
          if (.not. ok .or. .not. allocated(parsed)) then
             write (*, '(A)') "[ERROR][TLTM-S2] Failed to parse TLTM_STAGE2_FLOW_TIME_LADDER."
             error stop 1
@@ -1303,10 +1306,8 @@ contains
 
       init_mode = "adaptive"
       env_value = ""
-      call get_environment_variable("TLTM_STAGE2_INIT_MODE", env_value, length=env_len, status=env_status)
-      if (env_status == 0 .and. env_len > 0) then
-         init_mode = trim(to_lower_ascii(adjustl(env_value(1:env_len))))
-      end if
+      call read_string_env("TLTM_STAGE2_INIT_MODE", env_value, has_init_mode)
+      if (has_init_mode) init_mode = trim(to_lower_ascii(adjustl(env_value)))
       select case (trim(init_mode))
       case ("adaptive", "preflow")
          init_mode = "adaptive"
@@ -1324,41 +1325,25 @@ contains
 
    subroutine resolve_stage2_output_paths(summary_file, label_trace_file)
       character(len=*), intent(out) :: summary_file, label_trace_file
-      integer :: env_len, env_status
 
       summary_file = "../output/tests/tltm_stage2_summary.dat"
-      call get_environment_variable("TLTM_STAGE2_SUMMARY_FILE", summary_file, length=env_len, status=env_status)
-      if (env_status == 0 .and. env_len > 0) then
-         summary_file = trim(summary_file(1:env_len))
-      else
-         summary_file = "../output/tests/tltm_stage2_summary.dat"
-      end if
+      call read_string_env("TLTM_STAGE2_SUMMARY_FILE", summary_file)
 
       label_trace_file = "../output/tests/tltm_stage2_label_trace.dat"
-      call get_environment_variable("TLTM_STAGE2_LABEL_TRACE_FILE", label_trace_file, length=env_len, status=env_status)
-      if (env_status == 0 .and. env_len > 0) then
-         label_trace_file = trim(label_trace_file(1:env_len))
-      else
-         label_trace_file = "../output/tests/tltm_stage2_label_trace.dat"
-      end if
+      call read_string_env("TLTM_STAGE2_LABEL_TRACE_FILE", label_trace_file)
    end subroutine resolve_stage2_output_paths
 
    subroutine resolve_stage2_cold_history_paths(cold_z_history_file, cold_phi_history_file, write_cold_history)
       character(len=*), intent(out) :: cold_z_history_file, cold_phi_history_file
       logical, intent(out) :: write_cold_history
-      integer :: env_len, env_status
       logical :: has_z_path, has_phi_path
 
       cold_z_history_file = ""
       cold_phi_history_file = ""
 
-      call get_environment_variable("TLTM_STAGE2_COLD_Z_HISTORY_FILE", cold_z_history_file, length=env_len, status=env_status)
-      has_z_path = (env_status == 0 .and. env_len > 0)
-      if (has_z_path) cold_z_history_file = trim(cold_z_history_file(1:env_len))
+      call read_string_env("TLTM_STAGE2_COLD_Z_HISTORY_FILE", cold_z_history_file, has_z_path)
 
-      call get_environment_variable("TLTM_STAGE2_COLD_PHI_HISTORY_FILE", cold_phi_history_file, length=env_len, status=env_status)
-      has_phi_path = (env_status == 0 .and. env_len > 0)
-      if (has_phi_path) cold_phi_history_file = trim(cold_phi_history_file(1:env_len))
+      call read_string_env("TLTM_STAGE2_COLD_PHI_HISTORY_FILE", cold_phi_history_file, has_phi_path)
 
       if (has_z_path .neqv. has_phi_path) then
          write (*, '(A)') "[ERROR][TLTM-S2] Both TLTM_STAGE2_COLD_Z_HISTORY_FILE and TLTM_STAGE2_COLD_PHI_HISTORY_FILE are required."
@@ -1370,19 +1355,16 @@ contains
    subroutine resolve_stage2_all_history_dir(all_history_dir, write_all_history)
       character(len=*), intent(out) :: all_history_dir
       logical, intent(out) :: write_all_history
-      integer :: env_len, env_status
 
       all_history_dir = ""
-      call get_environment_variable("TLTM_STAGE2_ALL_REPLICA_HISTORY_DIR", all_history_dir, length=env_len, status=env_status)
-      write_all_history = (env_status == 0 .and. env_len > 0)
-      if (write_all_history) all_history_dir = trim(all_history_dir(1:env_len))
+      call read_string_env("TLTM_STAGE2_ALL_REPLICA_HISTORY_DIR", all_history_dir, write_all_history)
    end subroutine resolve_stage2_all_history_dir
 
    subroutine resolve_stage2_v1_sidecar_paths(output_dir, manifest_file, protocol_file, write_manifest, write_protocol, write_package)
       character(len=*), intent(out) :: output_dir, manifest_file, protocol_file
       logical, intent(out) :: write_manifest, write_protocol, write_package
       character(len=512) :: env_value
-      integer :: env_len, env_status
+      logical :: has_output_dir, has_manifest_file, has_protocol_file
 
       output_dir = ""
       manifest_file = ""
@@ -1391,9 +1373,8 @@ contains
       write_protocol = .false.
       write_package = .false.
 
-      call get_environment_variable("TLTM_STAGE2_V1_OUTPUT_DIR", output_dir, length=env_len, status=env_status)
-      if (env_status == 0 .and. env_len > 0) then
-         output_dir = trim(output_dir(1:env_len))
+      call read_string_env("TLTM_STAGE2_V1_OUTPUT_DIR", output_dir, has_output_dir)
+      if (has_output_dir) then
          manifest_file = trim(output_dir)//"/manifest.json"
          protocol_file = trim(output_dir)//"/protocol.json"
          write_manifest = .true.
@@ -1402,16 +1383,16 @@ contains
       end if
 
       env_value = ""
-      call get_environment_variable("TLTM_STAGE2_V1_MANIFEST_FILE", env_value, length=env_len, status=env_status)
-      if (env_status == 0 .and. env_len > 0) then
-         manifest_file = trim(env_value(1:env_len))
+      call read_string_env("TLTM_STAGE2_V1_MANIFEST_FILE", env_value, has_manifest_file)
+      if (has_manifest_file) then
+         manifest_file = trim(env_value)
          write_manifest = .true.
       end if
 
       env_value = ""
-      call get_environment_variable("TLTM_STAGE2_V1_PROTOCOL_FILE", env_value, length=env_len, status=env_status)
-      if (env_status == 0 .and. env_len > 0) then
-         protocol_file = trim(env_value(1:env_len))
+      call read_string_env("TLTM_STAGE2_V1_PROTOCOL_FILE", env_value, has_protocol_file)
+      if (has_protocol_file) then
+         protocol_file = trim(env_value)
          write_protocol = .true.
       end if
    end subroutine resolve_stage2_v1_sidecar_paths
@@ -1813,15 +1794,9 @@ contains
 
    subroutine resolve_git_commit(git_commit)
       character(len=*), intent(out) :: git_commit
-      integer :: env_len, env_status
 
       git_commit = "unknown"
-      call get_environment_variable("TLTM_GIT_COMMIT", git_commit, length=env_len, status=env_status)
-      if (env_status == 0 .and. env_len > 0) then
-         git_commit = trim(git_commit(1:env_len))
-      else
-         git_commit = "unknown"
-      end if
+      call read_string_env("TLTM_GIT_COMMIT", git_commit)
    end subroutine resolve_git_commit
 
    subroutine write_json_string_field(unit_json, key, value, trailing_comma, indent)
@@ -1857,14 +1832,14 @@ contains
       integer, intent(in), optional :: indent
 
       character(len=1024) :: env_value
-      integer :: env_len, env_status
+      logical :: has_env_value
 
       env_value = ""
-      call get_environment_variable(trim(env_name), env_value, length=env_len, status=env_status)
+      call read_string_env(trim(env_name), env_value, has_env_value)
       call write_json_indent(unit_json, indent)
-      if (env_status == 0 .and. env_len > 0) then
+      if (has_env_value) then
          write (unit_json, '(A)', advance='no') '"'//json_escape(trim(env_name))//'": "'// &
-            json_escape(trim(env_value(1:env_len)))//'"'
+            json_escape(trim(env_value))//'"'
       else
          write (unit_json, '(A)', advance='no') '"'//json_escape(trim(env_name))//'": null'
       end if

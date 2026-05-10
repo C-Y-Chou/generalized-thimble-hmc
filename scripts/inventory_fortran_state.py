@@ -225,7 +225,7 @@ def write_tsv(path, rows):
     path.parent.mkdir(parents=True, exist_ok=True)
     columns = ["file", "line", "module", "program_unit", "kind", "name", "scope", "category", "raw"]
     with path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=columns, delimiter="\t")
+        writer = csv.DictWriter(f, fieldnames=columns, delimiter="\t", lineterminator="\n")
         writer.writeheader()
         for row in rows:
             writer.writerow(row)

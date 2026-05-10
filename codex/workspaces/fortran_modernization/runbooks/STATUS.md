@@ -122,7 +122,9 @@ Current protocol state:
 - Current M4 entry slice complete: `scripts/run_m4_guardrails.py` and `make -C build modernization_guardrails` collect the local compile/build/audit/Stage3 sidecar smoke/merge checks into a repeatable guardrail runner.
 - Verification passed on 2026-05-10 JST through direct script invocation and the make target, including Python compile, `git diff --check`, ODEX/swap tests, Stage3 sidecar dry-run, Stage2 protocol audit smoke, sidecar-on/off tiny Stage3 smokes, and chunk merge preservation.
 - M5 source-backed inventory is now available in `state/M5_STATE_CONFIG_OWNERSHIP_INVENTORY.tsv`, with summary and interpretation in `runbooks/M5_STATE_CONFIG_OWNERSHIP_INVENTORY_SUMMARY.md` and `runbooks/M5_STATE_CONFIG_OWNERSHIP_PLAN.md`.
-- Current stop-for-decision point: choose the first M5 source-refactor lane. Recommendation is Lane A, config/env/provenance ownership, before diagnostics/counters, solver workspaces, RNG, or model/tape cache migration.
+- User chose Lane A: config/env/provenance ownership.
+- First Lane A source slice complete: Stage1/Stage2 string env reads now use `runtime_env_mod:read_string_env`; env-read inventory dropped from 52 to 36 rows; M4 guardrails passed.
+- Next Lane A area: continue consolidating env parsing in evaluation/diagnostic modules when existing invalid/default semantics can be preserved exactly.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.

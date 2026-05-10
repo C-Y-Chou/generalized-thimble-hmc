@@ -6,10 +6,30 @@ module runtime_env_mod
    public :: parse_int_env
    public :: parse_real_env
    public :: parse_logical_env
+   public :: read_string_env
    public :: parse_real_list
    public :: to_lower_ascii
 
 contains
+
+   subroutine read_string_env(name, value, found)
+      character(len=*), intent(in) :: name
+      character(len=*), intent(inout) :: value
+      logical, intent(out), optional :: found
+      character(len=len(value)) :: env_text
+      integer :: env_len, env_status
+      logical :: has_value
+
+      env_text = ""
+      has_value = .false.
+      call get_environment_variable(name, env_text, length=env_len, status=env_status)
+      if (env_status == 0 .and. env_len > 0) then
+         value = trim(env_text(1:env_len))
+         has_value = .true.
+      end if
+
+      if (present(found)) found = has_value
+   end subroutine read_string_env
 
    ! Keep defaults in the caller; parsers only overwrite on valid env input.
    subroutine parse_int_env(name, value)

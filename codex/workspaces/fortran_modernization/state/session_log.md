@@ -375,3 +375,11 @@
 - Added `runbooks/M5_STATE_CONFIG_OWNERSHIP_PLAN.md`.
 - Inventory result: 384 rows including 275 `save` declarations, 52 runtime env reads, 43 RNG calls, and 14 `param_mod` import sites.
 - First true M5 decision point: choose the first source-refactor lane. Recommendation is config/env/provenance ownership first; defer RNG and model/tape cache migration.
+
+## 2026-05-10 JST - Lane A string env consolidation
+- User selected Lane A: config/env/provenance ownership first.
+- Added `runtime_env_mod:read_string_env`.
+- Replaced Stage1/Stage2 direct string env reads for flow ladders, summary/history paths, init mode, sidecar paths, git commit provenance, and v1 env manifest fields.
+- Preserved env names/defaults, empty-env behavior, too-long env rejection behavior, v0 output schema, RNG order, and numerical code paths.
+- M4 guardrails passed.
+- Regenerated M5 ownership inventory: total rows dropped from 384 to 368 and env-read rows dropped from 52 to 36.

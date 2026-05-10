@@ -1,7 +1,7 @@
 module tltm_stage1_driver
    use, intrinsic :: iso_fortran_env, only: int64
    use param_mod, only: config, read_parameters
-   use runtime_env_mod, only: parse_int_env, parse_real_env, parse_real_list
+   use runtime_env_mod, only: parse_int_env, parse_real_env, read_string_env, parse_real_list
    use utils, only: dp, wall_time_seconds, x_set_flow_time, x_set_seed_real
    use solve_flow, only: flow, intode_status_unknown, intode_status_is_strict_success
    use model, only: grand
@@ -163,12 +163,13 @@ contains
    subroutine resolve_base_seed(base_seed)
       integer, intent(out) :: base_seed
       character(len=64) :: seed_env
-      integer :: env_len, env_status, ios
+      integer :: ios
+      logical :: has_seed_env
 
       seed_env = ""
-      call get_environment_variable("CHAIN_RNG_SEED", seed_env, length=env_len, status=env_status)
-      if (env_status == 0 .and. env_len > 0) then
-         read (seed_env(1:env_len), *, iostat=ios) base_seed
+      call read_string_env("CHAIN_RNG_SEED", seed_env, has_seed_env)
+      if (has_seed_env) then
+         read (seed_env, *, iostat=ios) base_seed
          if (ios /= 0 .or. base_seed <= 0) then
             base_seed = getseed()
          end if
@@ -187,8 +188,8 @@ contains
       real(dp), intent(out) :: max_flow_time, init_sigma
 
       character(len=1024) :: ladder_text
-      integer :: env_len, env_status
       logical :: ok
+      logical :: has_ladder_env
       real(dp), allocatable :: parsed(:)
 
       n_replicas = 2
@@ -206,9 +207,9 @@ contains
       end if
 
       ladder_text = ""
-      call get_environment_variable("TLTM_STAGE1_FLOW_TIME_LADDER", ladder_text, length=env_len, status=env_status)
-      if (env_status == 0 .and. env_len > 0) then
-         call parse_real_list(ladder_text(1:env_len), parsed, ok)
+      call read_string_env("TLTM_STAGE1_FLOW_TIME_LADDER", ladder_text, has_ladder_env)
+      if (has_ladder_env) then
+         call parse_real_list(ladder_text, parsed, ok)
          if (.not. ok .or. .not. allocated(parsed)) then
             write (*, '(A)') "[ERROR][TLTM-S1] Failed to parse TLTM_STAGE1_FLOW_TIME_LADDER."
             error stop 1
@@ -246,15 +247,9 @@ contains
 
    subroutine resolve_summary_file(path)
       character(len=*), intent(out) :: path
-      integer :: env_len, env_status
 
       path = "../output/tests/tltm_stage1_summary.dat"
-      call get_environment_variable("TLTM_STAGE1_SUMMARY_FILE", path, length=env_len, status=env_status)
-      if (env_status == 0 .and. env_len > 0) then
-         path = trim(path(1:env_len))
-      else
-         path = "../output/tests/tltm_stage1_summary.dat"
-      end if
+      call read_string_env("TLTM_STAGE1_SUMMARY_FILE", path)
    end subroutine resolve_summary_file
 
    subroutine write_stage1_summary(summary_file, replicas, cycle_count, local_updates, elapsed)

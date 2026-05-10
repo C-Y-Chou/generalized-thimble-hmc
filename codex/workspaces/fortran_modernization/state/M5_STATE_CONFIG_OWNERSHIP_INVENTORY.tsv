@@ -20,9 +20,10 @@ src/apps/generate_markov_chain.f90	30		program:generate_markov_chain_app	rng_cal
 src/apps/generate_markov_chain.f90	36		program:generate_markov_chain_app	rng_call	getseed	procedure	rng	rng_seed = getseed()
 src/apps/generate_markov_chain.f90	39		program:generate_markov_chain_app	rng_call	sgrnd	procedure	rng	call sgrnd(rng_seed)
 src/config/param_mod.f90	67	param_mod		save_declaration	config	module	config_global	type(simulation_config_t), save :: config
-src/config/runtime_env_mod.f90	22	runtime_env_mod	subroutine:parse_int_env	env_read	(dynamic)	procedure	runtime_env	call get_environment_variable(name, env_text, length=env_len, status=env_status)
-src/config/runtime_env_mod.f90	37	runtime_env_mod	subroutine:parse_real_env	env_read	(dynamic)	procedure	runtime_env	call get_environment_variable(name, env_text, length=env_len, status=env_status)
-src/config/runtime_env_mod.f90	52	runtime_env_mod	subroutine:parse_logical_env	env_read	(dynamic)	procedure	runtime_env	call get_environment_variable(name, env_text, length=env_len, status=env_status)
+src/config/runtime_env_mod.f90	25	runtime_env_mod	subroutine:read_string_env	env_read	(dynamic)	procedure	runtime_env	call get_environment_variable(name, env_text, length=env_len, status=env_status)
+src/config/runtime_env_mod.f90	42	runtime_env_mod	subroutine:parse_int_env	env_read	(dynamic)	procedure	runtime_env	call get_environment_variable(name, env_text, length=env_len, status=env_status)
+src/config/runtime_env_mod.f90	57	runtime_env_mod	subroutine:parse_real_env	env_read	(dynamic)	procedure	runtime_env	call get_environment_variable(name, env_text, length=env_len, status=env_status)
+src/config/runtime_env_mod.f90	72	runtime_env_mod	subroutine:parse_logical_env	env_read	(dynamic)	procedure	runtime_env	call get_environment_variable(name, env_text, length=env_len, status=env_status)
 src/core/mt95.f90	148	mt95	subroutine:sgrnd	rng_call	sgrnd	procedure	rng	subroutine sgrnd(seed)
 src/core/mt95.f90	158	mt95		rng_call	sgrnd	module	rng	end subroutine sgrnd
 src/core/mt95.f90	166	mt95	function:grnd	rng_call	grnd	procedure	rng	function grnd()
@@ -337,11 +338,8 @@ src/sampler/tltm_stage1_driver.f90	3	tltm_stage1_driver		param_mod_import	, only
 src/sampler/tltm_stage1_driver.f90	8	tltm_stage1_driver		rng_call	getseed	module	rng	use mt95, only: getseed, sgrnd
 src/sampler/tltm_stage1_driver.f90	65	tltm_stage1_driver	subroutine:execute_tltm_stage1	rng_call	sgrnd	procedure	rng	call sgrnd(base_seed)
 src/sampler/tltm_stage1_driver.f90	100	tltm_stage1_driver	subroutine:initialize_replica	rng_call	sgrnd	procedure	rng	call sgrnd(replica%rng_seed)
-src/sampler/tltm_stage1_driver.f90	169	tltm_stage1_driver	subroutine:resolve_base_seed	env_read	CHAIN_RNG_SEED	procedure	runtime_env	"call get_environment_variable(""CHAIN_RNG_SEED"", seed_env, length=env_len, status=env_status)"
-src/sampler/tltm_stage1_driver.f90	173	tltm_stage1_driver	subroutine:resolve_base_seed	rng_call	getseed	procedure	rng	base_seed = getseed()
-src/sampler/tltm_stage1_driver.f90	176	tltm_stage1_driver	subroutine:resolve_base_seed	rng_call	getseed	procedure	rng	base_seed = getseed()
-src/sampler/tltm_stage1_driver.f90	209	tltm_stage1_driver	subroutine:resolve_stage1_controls	env_read	TLTM_STAGE1_FLOW_TIME_LADDER	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE1_FLOW_TIME_LADDER"", ladder_text, length=env_len, status=env_status)"
-src/sampler/tltm_stage1_driver.f90	252	tltm_stage1_driver	subroutine:resolve_summary_file	env_read	TLTM_STAGE1_SUMMARY_FILE	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE1_SUMMARY_FILE"", path, length=env_len, status=env_status)"
+src/sampler/tltm_stage1_driver.f90	174	tltm_stage1_driver	subroutine:resolve_base_seed	rng_call	getseed	procedure	rng	base_seed = getseed()
+src/sampler/tltm_stage1_driver.f90	177	tltm_stage1_driver	subroutine:resolve_base_seed	rng_call	getseed	procedure	rng	base_seed = getseed()
 src/sampler/tltm_stage2_driver.f90	3	tltm_stage2_driver		param_mod_import	, only: config, read_parameters	module	config_global	use param_mod, only: config, read_parameters
 src/sampler/tltm_stage2_driver.f90	9	tltm_stage2_driver		rng_call	getseed	module	rng	use mt95, only: getseed, sgrnd, grnd
 src/sampler/tltm_stage2_driver.f90	65	tltm_stage2_driver		save_declaration	rg_reject_audit_loaded	module	unclassified_state	logical, save :: rg_reject_audit_loaded = .false.
@@ -350,23 +348,9 @@ src/sampler/tltm_stage2_driver.f90	67	tltm_stage2_driver		save_declaration	rg_re
 src/sampler/tltm_stage2_driver.f90	68	tltm_stage2_driver		save_declaration	rg_reject_audit_file	module	unclassified_state	"character(len=512), save :: rg_reject_audit_file = """""
 src/sampler/tltm_stage2_driver.f90	294	tltm_stage2_driver	subroutine:execute_tltm_stage2	rng_call	sgrnd	procedure	rng	call sgrnd(base_seed)
 src/sampler/tltm_stage2_driver.f90	443	tltm_stage2_driver	subroutine:initialize_slot	rng_call	sgrnd	procedure	rng	call sgrnd(slot%rng_seed)
-src/sampler/tltm_stage2_driver.f90	568	tltm_stage2_driver	subroutine:load_rg_reject_audit_config	env_read	TLTM_RG_REJECT_AUDIT_FILE	procedure	runtime_env	"call get_environment_variable(""TLTM_RG_REJECT_AUDIT_FILE"", env_value, length=env_len, status=env_status)"
-src/sampler/tltm_stage2_driver.f90	768	tltm_stage2_driver	subroutine:attempt_adjacent_swap	rng_call	grnd	procedure	rng	accept = (grnd() <= acc_prob)
-src/sampler/tltm_stage2_driver.f90	1226	tltm_stage2_driver	subroutine:resolve_base_seed	env_read	CHAIN_RNG_SEED	procedure	runtime_env	"call get_environment_variable(""CHAIN_RNG_SEED"", seed_env, length=env_len, status=env_status)"
-src/sampler/tltm_stage2_driver.f90	1229	tltm_stage2_driver	subroutine:resolve_base_seed	rng_call	getseed	procedure	rng	if (ios /= 0 .or. base_seed <= 0) base_seed = getseed()
-src/sampler/tltm_stage2_driver.f90	1231	tltm_stage2_driver	subroutine:resolve_base_seed	rng_call	getseed	procedure	rng	base_seed = getseed()
-src/sampler/tltm_stage2_driver.f90	1267	tltm_stage2_driver	subroutine:resolve_stage2_controls	env_read	TLTM_STAGE2_FLOW_TIME_LADDER	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_FLOW_TIME_LADDER"", ladder_text, length=env_len, status=env_status)"
-src/sampler/tltm_stage2_driver.f90	1306	tltm_stage2_driver	subroutine:resolve_stage2_controls	env_read	TLTM_STAGE2_INIT_MODE	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_INIT_MODE"", env_value, length=env_len, status=env_status)"
-src/sampler/tltm_stage2_driver.f90	1330	tltm_stage2_driver	subroutine:resolve_stage2_output_paths	env_read	TLTM_STAGE2_SUMMARY_FILE	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_SUMMARY_FILE"", summary_file, length=env_len, status=env_status)"
-src/sampler/tltm_stage2_driver.f90	1338	tltm_stage2_driver	subroutine:resolve_stage2_output_paths	env_read	TLTM_STAGE2_LABEL_TRACE_FILE	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_LABEL_TRACE_FILE"", label_trace_file, length=env_len, status=env_status)"
-src/sampler/tltm_stage2_driver.f90	1355	tltm_stage2_driver	subroutine:resolve_stage2_cold_history_paths	env_read	TLTM_STAGE2_COLD_Z_HISTORY_FILE	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_COLD_Z_HISTORY_FILE"", cold_z_history_file, length=env_len, status=env_status)"
-src/sampler/tltm_stage2_driver.f90	1359	tltm_stage2_driver	subroutine:resolve_stage2_cold_history_paths	env_read	TLTM_STAGE2_COLD_PHI_HISTORY_FILE	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_COLD_PHI_HISTORY_FILE"", cold_phi_history_file, length=env_len, status=env_status)"
-src/sampler/tltm_stage2_driver.f90	1376	tltm_stage2_driver	subroutine:resolve_stage2_all_history_dir	env_read	TLTM_STAGE2_ALL_REPLICA_HISTORY_DIR	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_ALL_REPLICA_HISTORY_DIR"", all_history_dir, length=env_len, status=env_status)"
-src/sampler/tltm_stage2_driver.f90	1394	tltm_stage2_driver	subroutine:resolve_stage2_v1_sidecar_paths	env_read	TLTM_STAGE2_V1_OUTPUT_DIR	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_V1_OUTPUT_DIR"", output_dir, length=env_len, status=env_status)"
-src/sampler/tltm_stage2_driver.f90	1405	tltm_stage2_driver	subroutine:resolve_stage2_v1_sidecar_paths	env_read	TLTM_STAGE2_V1_MANIFEST_FILE	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_V1_MANIFEST_FILE"", env_value, length=env_len, status=env_status)"
-src/sampler/tltm_stage2_driver.f90	1412	tltm_stage2_driver	subroutine:resolve_stage2_v1_sidecar_paths	env_read	TLTM_STAGE2_V1_PROTOCOL_FILE	procedure	runtime_env	"call get_environment_variable(""TLTM_STAGE2_V1_PROTOCOL_FILE"", env_value, length=env_len, status=env_status)"
-src/sampler/tltm_stage2_driver.f90	1819	tltm_stage2_driver	subroutine:resolve_git_commit	env_read	TLTM_GIT_COMMIT	procedure	runtime_env	"call get_environment_variable(""TLTM_GIT_COMMIT"", git_commit, length=env_len, status=env_status)"
-src/sampler/tltm_stage2_driver.f90	1863	tltm_stage2_driver	subroutine:write_json_env_field	env_read	(dynamic)	procedure	runtime_env	call get_environment_variable(trim(env_name), env_value, length=env_len, status=env_status)
+src/sampler/tltm_stage2_driver.f90	770	tltm_stage2_driver	subroutine:attempt_adjacent_swap	rng_call	grnd	procedure	rng	accept = (grnd() <= acc_prob)
+src/sampler/tltm_stage2_driver.f90	1232	tltm_stage2_driver	subroutine:resolve_base_seed	rng_call	getseed	procedure	rng	if (ios /= 0 .or. base_seed <= 0) base_seed = getseed()
+src/sampler/tltm_stage2_driver.f90	1234	tltm_stage2_driver	subroutine:resolve_base_seed	rng_call	getseed	procedure	rng	base_seed = getseed()
 tests/test_action_derivatives.f90	3		program:test_action_derivatives	param_mod_import	, only: read_parameters, set_derivative_mode, state_seed_size_cfg	procedure	config_global	use param_mod, only: read_parameters, set_derivative_mode, state_seed_size_cfg
 tests/test_action_derivatives.f90	26		program:test_action_derivatives	rng_call	random_seed	procedure	rng	call random_seed(size=seed_size)
 tests/test_action_derivatives.f90	30		program:test_action_derivatives	rng_call	random_seed	procedure	rng	call random_seed(put=rng_seed)
