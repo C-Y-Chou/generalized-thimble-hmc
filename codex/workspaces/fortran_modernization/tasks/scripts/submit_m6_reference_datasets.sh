@@ -29,7 +29,8 @@ elif [ "${1:-}" != "" ]; then
   exit 2
 fi
 
-if [ ! -d .git ]; then
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -z "${REPO_ROOT}" ] || [ "${REPO_ROOT}" != "$(pwd)" ]; then
   echo "[ERROR] run from repository root" >&2
   exit 2
 fi
