@@ -69,10 +69,14 @@ run_or_print() {
   fi
 }
 
+timestamp_utc() {
+  date -u +"%Y-%m-%dT%H:%M:%SZ"
+}
+
 submit_job() {
   local result
   if [ "${DRY_RUN}" = "1" ]; then
-    run_or_print "$@"
+    run_or_print "$@" >&2
     result="DRYRUN_$((++DRYRUN_ID))"
   else
     result="$("$@")"
@@ -88,7 +92,7 @@ join_by_colon() {
 DRYRUN_ID=0
 
 {
-  echo "submitted_at=$(date -Is)"
+  echo "submitted_at=$(timestamp_utc)"
   echo "dry_run=${DRY_RUN}"
   echo "worktree=${TLTM_WORKTREE}"
   echo "expected_branch=${TLTM_EXPECTED_GIT_BRANCH}"
