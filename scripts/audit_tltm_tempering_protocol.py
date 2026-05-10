@@ -81,6 +81,8 @@ def parse_args():
     parser.add_argument("--summary", required=True, help="Path to tltm_stage2_summary.dat.")
     parser.add_argument("--label-trace", help="Optional path to tltm_stage2_label_trace.dat.")
     parser.add_argument("--stage3-per-seed", help="Optional Stage3 per-seed CSV for cross-checks.")
+    parser.add_argument("--manifest", help="Optional v1alpha manifest.json sidecar for cross-checks.")
+    parser.add_argument("--protocol", help="Optional v1alpha protocol.json sidecar for cross-checks.")
     parser.add_argument("--stage3-seed-id", type=int, help="Optional seed_id filter for --stage3-per-seed.")
     parser.add_argument("--stage3-method", help="Optional method filter for --stage3-per-seed.")
     parser.add_argument("--out-json", help="Optional JSON audit report path.")
@@ -268,6 +270,27 @@ def parse_stage3_row(stage3_path, seed_id=None, method=None):
         "path": str(stage3_path),
         "row": candidates[0],
         "selection_error": None,
+    }
+
+
+def parse_json_sidecar(path):
+    if not path:
+        return None
+
+    sidecar_path = Path(path)
+    try:
+        data = json.loads(sidecar_path.read_text())
+    except json.JSONDecodeError as exc:
+        return {
+            "path": str(sidecar_path),
+            "data": None,
+            "parse_error": str(exc),
+        }
+
+    return {
+        "path": str(sidecar_path),
+        "data": data,
+        "parse_error": None,
     }
 
 
@@ -608,6 +631,14 @@ def maybe_json_loads(text):
         return None
 
 
+def csv_row_count(path):
+    try:
+        with Path(path).open(newline="") as f:
+            return sum(1 for _ in csv.DictReader(f))
+    except OSError:
+        return None
+
+
 def check_stage3_cross(summary, label_trace, stage3, rate_tol):
     checks = []
     if stage3 is None:
@@ -699,6 +730,176 @@ def check_stage3_cross(summary, label_trace, stage3, rate_tol):
     }
 
 
+def check_v1_sidecars(summary, manifest, protocol, rate_tol):
+    checks = []
+    scalars = summary["scalars"]
+    slots = section_rows(summary, "slots")
+
+    if manifest is None and protocol is None:
+        add_check(
+            checks,
+            "v1 sidecar cross-check skipped",
+            True,
+            severity="warning",
+            details={"reason": "not provided"},
+        )
+        return {"checks": checks, "summary": None}
+
+    if manifest is not None:
+        if manifest.get("parse_error"):
+            add_check(checks, "v1 manifest parses as JSON", False, details={"error": manifest["parse_error"]})
+        else:
+            add_check(checks, "v1 manifest parses as JSON", True)
+    if protocol is not None:
+        if protocol.get("parse_error"):
+            add_check(checks, "v1 protocol parses as JSON", False, details={"error": protocol["parse_error"]})
+        else:
+            add_check(checks, "v1 protocol parses as JSON", True)
+
+    manifest_data = None if manifest is None else manifest.get("data")
+    protocol_data = None if protocol is None else protocol.get("data")
+
+    if manifest_data is not None:
+        add_check(
+            checks,
+            "v1 manifest schema_version",
+            manifest_data.get("schema_version") == "tltm.stage2.manifest.v1alpha1",
+            details={"observed": manifest_data.get("schema_version")},
+        )
+        add_check(
+            checks,
+            "v1 manifest timing convention",
+            manifest_data.get("sweep_order") == "local_update_measure_history_swap_label_trace"
+            and manifest_data.get("measurement_boundary") == "post_local_pre_swap"
+            and manifest_data.get("label_trace_boundary") == "post_swap",
+            details={
+                "sweep_order": manifest_data.get("sweep_order"),
+                "measurement_boundary": manifest_data.get("measurement_boundary"),
+                "label_trace_boundary": manifest_data.get("label_trace_boundary"),
+            },
+        )
+
+        controls = manifest_data.get("resolved_stage2_controls", {})
+        add_check(
+            checks,
+            "v1 manifest cycles match Stage2 summary",
+            as_int(controls.get("cycles")) == as_int(scalars.get("cycles")),
+            details={"manifest": controls.get("cycles"), "summary": scalars.get("cycles")},
+        )
+        add_check(
+            checks,
+            "v1 manifest local_updates match Stage2 summary",
+            as_int(controls.get("local_updates")) == as_int(scalars.get("local_updates")),
+            details={"manifest": controls.get("local_updates"), "summary": scalars.get("local_updates")},
+        )
+        try:
+            manifest_swap = as_bool(controls.get("swap_enabled"))
+            summary_swap = as_bool(scalars.get("swap_enabled"))
+            swap_matches = manifest_swap == summary_swap
+        except ValueError:
+            swap_matches = False
+        add_check(
+            checks,
+            "v1 manifest swap_enabled matches Stage2 summary",
+            swap_matches,
+            details={"manifest": controls.get("swap_enabled"), "summary": scalars.get("swap_enabled")},
+        )
+
+        manifest_ladder = manifest_data.get("flow_ladder", [])
+        slot_flow_times = [as_float(row.get("flow_time")) for row in slots]
+        add_check(
+            checks,
+            "v1 manifest flow_ladder length matches slots",
+            len(manifest_ladder) == len(slot_flow_times),
+            details={"manifest": len(manifest_ladder), "slots": len(slot_flow_times)},
+        )
+        if len(manifest_ladder) == len(slot_flow_times):
+            add_check(
+                checks,
+                "v1 manifest flow_ladder values match slots",
+                all(close_enough(as_float(a), as_float(b), rate_tol) for a, b in zip(manifest_ladder, slot_flow_times)),
+                details={"manifest": manifest_ladder, "slots": slot_flow_times, "tolerance": rate_tol},
+            )
+
+        diagnostics = manifest_data.get("diagnostics", {})
+        diagnostics_written = bool(diagnostics.get("v1_diagnostics_written"))
+        if diagnostics_written:
+            diagnostics_expectations = [
+                ("local_transition_summary_csv", len(slots)),
+                ("swap_summary_csv", len(section_rows(summary, "pairs"))),
+                ("label_summary_csv", len(section_rows(summary, "labels"))),
+                ("per_slot_phase_summary_csv", len(slots)),
+            ]
+            for field_name, expected_rows in diagnostics_expectations:
+                path = diagnostics.get(field_name)
+                exists = bool(path) and Path(path).exists()
+                add_check(
+                    checks,
+                    "v1 diagnostics file exists: {0}".format(field_name),
+                    exists,
+                    details={"path": path},
+                )
+                if exists:
+                    observed_rows = csv_row_count(path)
+                    add_check(
+                        checks,
+                        "v1 diagnostics row count: {0}".format(field_name),
+                        observed_rows == expected_rows,
+                        details={"path": path, "expected": expected_rows, "observed": observed_rows},
+                    )
+
+    if protocol_data is not None:
+        add_check(
+            checks,
+            "v1 protocol schema_version",
+            protocol_data.get("schema_version") == "tltm.stage2.protocol.v1alpha1",
+            details={"observed": protocol_data.get("schema_version")},
+        )
+        add_check(
+            checks,
+            "v1 protocol timing convention",
+            protocol_data.get("sweep_schedule", {}).get("cycle_order") == "local_update_measure_history_swap_label_trace"
+            and protocol_data.get("measurement_policy", {}).get("sample_boundary") == "post_local_pre_swap"
+            and protocol_data.get("measurement_policy", {}).get("label_trace_boundary") == "post_swap",
+            details={
+                "cycle_order": protocol_data.get("sweep_schedule", {}).get("cycle_order"),
+                "sample_boundary": protocol_data.get("measurement_policy", {}).get("sample_boundary"),
+                "label_trace_boundary": protocol_data.get("measurement_policy", {}).get("label_trace_boundary"),
+            },
+        )
+        add_check(
+            checks,
+            "v1 protocol target density fields present",
+            bool(protocol_data.get("target_density", {}).get("base_coordinate_density"))
+            and bool(protocol_data.get("target_density", {}).get("effective_energy")),
+        )
+        add_check(
+            checks,
+            "v1 protocol swap kernel fields present",
+            bool(protocol_data.get("swap_kernel", {}).get("acceptance_probability"))
+            and bool(protocol_data.get("swap_kernel", {}).get("invalid_reflow_semantics")),
+        )
+
+    if manifest_data is not None and protocol_data is not None:
+        add_check(
+            checks,
+            "v1 manifest protocol id matches protocol file",
+            manifest_data.get("tempering_protocol_id") == protocol_data.get("protocol_id"),
+            details={
+                "manifest": manifest_data.get("tempering_protocol_id"),
+                "protocol": protocol_data.get("protocol_id"),
+            },
+        )
+
+    return {
+        "checks": checks,
+        "summary": {
+            "manifest_path": None if manifest is None else manifest["path"],
+            "protocol_path": None if protocol is None else protocol["path"],
+        },
+    }
+
+
 def summarize_checks(sections):
     flat = []
     for section in sections:
@@ -721,17 +922,20 @@ def summarize_checks(sections):
     }
 
 
-def make_report(summary, label_trace, stage3, rate_tol):
+def make_report(summary, label_trace, stage3, manifest, protocol, rate_tol):
     summary_checks = check_stage2_summary(summary, rate_tol)
     label_checks = check_label_trace(summary, label_trace)
     stage3_checks = check_stage3_cross(summary, label_trace, stage3, rate_tol)
-    check_summary = summarize_checks([summary_checks, label_checks, stage3_checks])
+    sidecar_checks = check_v1_sidecars(summary, manifest, protocol, rate_tol)
+    check_summary = summarize_checks([summary_checks, label_checks, stage3_checks, sidecar_checks])
 
     return {
         "input_files": {
             "summary": summary["path"],
             "label_trace": None if label_trace is None else label_trace["path"],
             "stage3_per_seed": None if stage3 is None else stage3["path"],
+            "manifest": None if manifest is None else manifest["path"],
+            "protocol": None if protocol is None else protocol["path"],
         },
         "detected_v0_schema": {
             "summary_scalars": sorted(summary["scalars"].keys()),
@@ -756,6 +960,7 @@ def make_report(summary, label_trace, stage3, rate_tol):
         "accounting_checks": summary_checks,
         "label_trace_checks": label_checks,
         "stage3_cross_checks": stage3_checks,
+        "v1_sidecar_checks": sidecar_checks,
         "known_unverifiable_from_v0": KNOWN_UNVERIFIABLE_FROM_V0,
         "verdict": check_summary,
     }
@@ -787,6 +992,7 @@ def format_text_report(report):
         ("summary/accounting checks", "accounting_checks"),
         ("label trace checks", "label_trace_checks"),
         ("Stage3 cross-checks", "stage3_cross_checks"),
+        ("v1 sidecar checks", "v1_sidecar_checks"),
     ):
         lines.append(title + ":")
         for check in report[section_name]["checks"]:
@@ -833,7 +1039,9 @@ def main():
     summary = parse_stage2_summary(args.summary)
     label_trace = parse_label_trace(args.label_trace)
     stage3 = parse_stage3_row(args.stage3_per_seed, seed_id=args.stage3_seed_id, method=args.stage3_method)
-    report = make_report(summary, label_trace, stage3, args.rate_tol)
+    manifest = parse_json_sidecar(args.manifest)
+    protocol = parse_json_sidecar(args.protocol)
+    report = make_report(summary, label_trace, stage3, manifest, protocol, args.rate_tol)
     text_report = format_text_report(report)
 
     if args.out_json:

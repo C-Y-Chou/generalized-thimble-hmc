@@ -331,4 +331,12 @@
 - Added `scripts/audit_tltm_tempering_protocol.py`, a parser-only audit CLI for Stage2 summary, label trace, and optional Stage3 per-seed cross-checks.
 - Added `tests/test_tltm_swap_kernel_contract.f90` and a build target to verify the TLTM adjacent-swap acceptance probability and invalid-current-energy rejection behavior.
 - Verification passed: Python compile, parser audit on eight existing Stage2/label-trace fixtures, parser audit with a synthetic Stage3 per-seed cross-check fixture, and `make -C build FC=gfortran LDFLAGS= test_tltm_swap_kernel_contract`.
-- Stop point reached: the next M3b item is v1 manifest/protocol writer work, which touches output-writer/schema boundaries and requires explicit user approval.
+- Follow-up note: v1 manifest/protocol writer work proceeded as an opt-in sidecar after user clarified that only true no-clear-best-choice design nodes should pause the workflow.
+
+## 2026-05-10 JST - Stage2 v1alpha sidecar package
+- Added opt-in Stage2 v1alpha sidecars in `src/sampler/tltm_stage2_driver.f90`.
+- `TLTM_STAGE2_V1_OUTPUT_DIR` writes `manifest.json`, `protocol.json`, `diagnostics/local_transition_summary.csv`, `diagnostics/swap_summary.csv`, `diagnostics/label_summary.csv`, and `observables/per_slot_phase_summary.csv`.
+- Individual `TLTM_STAGE2_V1_MANIFEST_FILE` and `TLTM_STAGE2_V1_PROTOCOL_FILE` paths are also supported.
+- Default Stage2 output behavior is unchanged when v1 sidecar env vars are absent.
+- Extended `scripts/audit_tltm_tempering_protocol.py` to cross-check optional v1 sidecars and diagnostics row counts.
+- Current true design-decision node: whether the future unified wrapper should keep v0 timing or migrate to a paper-aligned `swap -> local -> measure` measurement boundary.

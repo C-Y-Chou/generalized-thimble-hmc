@@ -96,6 +96,7 @@ contains
       character(len=512) :: summary_file, label_trace_file
       character(len=512) :: cold_z_history_file, cold_phi_history_file
       character(len=512) :: all_history_dir
+      character(len=512) :: v1_output_dir, v1_manifest_file, v1_protocol_file
       character(len=32) :: init_mode
       integer :: n_slots, base_seed, cycle_count, local_updates, x_size
       real(dp) :: max_flow_time, init_sigma
@@ -108,6 +109,7 @@ contains
       integer :: io_status
       logical :: write_cold_history, cold_sample_ok
       logical :: write_all_history, all_sample_ok
+      logical :: write_v1_manifest, write_v1_protocol, write_v1_package
       logical :: path_ok
       integer :: calls_total, calls_integrating
       integer :: fallback_attempts, fallback_success, fallback_failure
@@ -146,6 +148,8 @@ contains
       call resolve_stage2_output_paths(summary_file, label_trace_file)
       call resolve_stage2_cold_history_paths(cold_z_history_file, cold_phi_history_file, write_cold_history)
       call resolve_stage2_all_history_dir(all_history_dir, write_all_history)
+      call resolve_stage2_v1_sidecar_paths(v1_output_dir, v1_manifest_file, v1_protocol_file, &
+                                           write_v1_manifest, write_v1_protocol, write_v1_package)
 
       write (*, '(A,I0,A,F8.4,A,I0,A,I0,A,F8.4,A,L1)') "[TLTM-S2] slots=", n_slots, &
          " max_flow=", max_flow_time, " cycles=", cycle_count, " local_updates=", local_updates, &
@@ -387,6 +391,11 @@ contains
                                 far_flowzr_used_fail_sum, far_final_resort_used_fail_sum, &
                                 global_filter_candidate_count, global_filter_pass_count, global_filter_reject_count, &
                                 reverse_gate_candidate_counts, reverse_gate_pass_counts, reverse_gate_reject_counts)
+      call write_stage2_v1_sidecars(v1_manifest_file, v1_protocol_file, write_v1_manifest, write_v1_protocol, &
+                                    v1_output_dir, write_v1_package, &
+                                    summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
+                                    write_cold_history, write_all_history, base_seed, flow_ladder, max_flow_time, cycle_count, &
+                                    local_updates, init_sigma, init_mode, swap_enabled, elapsed, slots, pair_stats, label_tracks)
       call release_all_slots(slots)
       if (allocated(flow_ladder)) deallocate (flow_ladder)
       if (allocated(pair_stats)) deallocate (pair_stats)
@@ -401,6 +410,15 @@ contains
       end if
       if (write_all_history) then
          write (*, '(A,1X,A)') "[DONE][TLTM-S2] All-replica histories written under", trim(all_history_dir)
+      end if
+      if (write_v1_manifest) then
+         write (*, '(A,1X,A)') "[DONE][TLTM-S2] v1alpha manifest written to", trim(v1_manifest_file)
+      end if
+      if (write_v1_protocol) then
+         write (*, '(A,1X,A)') "[DONE][TLTM-S2] v1alpha protocol written to", trim(v1_protocol_file)
+      end if
+      if (write_v1_package) then
+         write (*, '(A,1X,A)') "[DONE][TLTM-S2] v1alpha diagnostics package written under", trim(v1_output_dir)
       end if
       call close_rg_reject_audit()
    end subroutine execute_tltm_stage2
@@ -1356,6 +1374,618 @@ contains
       write_all_history = (env_status == 0 .and. env_len > 0)
       if (write_all_history) all_history_dir = trim(all_history_dir(1:env_len))
    end subroutine resolve_stage2_all_history_dir
+
+   subroutine resolve_stage2_v1_sidecar_paths(output_dir, manifest_file, protocol_file, write_manifest, write_protocol, write_package)
+      character(len=*), intent(out) :: output_dir, manifest_file, protocol_file
+      logical, intent(out) :: write_manifest, write_protocol, write_package
+      character(len=512) :: env_value
+      integer :: env_len, env_status
+
+      output_dir = ""
+      manifest_file = ""
+      protocol_file = ""
+      write_manifest = .false.
+      write_protocol = .false.
+      write_package = .false.
+
+      call get_environment_variable("TLTM_STAGE2_V1_OUTPUT_DIR", output_dir, length=env_len, status=env_status)
+      if (env_status == 0 .and. env_len > 0) then
+         output_dir = trim(output_dir(1:env_len))
+         manifest_file = trim(output_dir)//"/manifest.json"
+         protocol_file = trim(output_dir)//"/protocol.json"
+         write_manifest = .true.
+         write_protocol = .true.
+         write_package = .true.
+      end if
+
+      env_value = ""
+      call get_environment_variable("TLTM_STAGE2_V1_MANIFEST_FILE", env_value, length=env_len, status=env_status)
+      if (env_status == 0 .and. env_len > 0) then
+         manifest_file = trim(env_value(1:env_len))
+         write_manifest = .true.
+      end if
+
+      env_value = ""
+      call get_environment_variable("TLTM_STAGE2_V1_PROTOCOL_FILE", env_value, length=env_len, status=env_status)
+      if (env_status == 0 .and. env_len > 0) then
+         protocol_file = trim(env_value(1:env_len))
+         write_protocol = .true.
+      end if
+   end subroutine resolve_stage2_v1_sidecar_paths
+
+   subroutine write_stage2_v1_sidecars(manifest_file, protocol_file, write_manifest, write_protocol, output_dir, write_package, &
+                                       summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
+                                       write_cold_history, write_all_history, base_seed, flow_ladder, max_flow_time, cycle_count, &
+                                       local_updates, init_sigma, init_mode, swap_enabled, elapsed, slots, pair_stats, label_tracks)
+      character(len=*), intent(in) :: manifest_file, protocol_file
+      logical, intent(in) :: write_manifest, write_protocol
+      character(len=*), intent(in) :: output_dir
+      logical, intent(in) :: write_package
+      character(len=*), intent(in) :: summary_file, label_trace_file
+      character(len=*), intent(in) :: cold_z_history_file, cold_phi_history_file, all_history_dir
+      logical, intent(in) :: write_cold_history, write_all_history
+      integer, intent(in) :: base_seed, cycle_count, local_updates
+      real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma, elapsed
+      character(len=*), intent(in) :: init_mode
+      logical, intent(in) :: swap_enabled
+      type(tltm_slot_t), intent(in) :: slots(:)
+      type(tltm_pair_stats_t), intent(in) :: pair_stats(:)
+      type(tltm_label_track_t), intent(in) :: label_tracks(:)
+
+      if (write_protocol) call write_stage2_v1_protocol(protocol_file)
+      if (write_package) call write_stage2_v1_diagnostics_package(output_dir, slots, pair_stats, label_tracks)
+      if (write_manifest) call write_stage2_v1_manifest(manifest_file, protocol_file, write_protocol, &
+                                                        summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, &
+                                                        all_history_dir, write_cold_history, write_all_history, base_seed, flow_ladder, &
+                                                        max_flow_time, cycle_count, local_updates, init_sigma, init_mode, swap_enabled, &
+                                                        elapsed, output_dir, write_package)
+   end subroutine write_stage2_v1_sidecars
+
+   subroutine write_stage2_v1_manifest(manifest_file, protocol_file, write_protocol, &
+                                       summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
+                                       write_cold_history, write_all_history, base_seed, flow_ladder, max_flow_time, cycle_count, &
+                                       local_updates, init_sigma, init_mode, swap_enabled, elapsed, output_dir, write_package)
+      character(len=*), intent(in) :: manifest_file, protocol_file
+      logical, intent(in) :: write_protocol
+      character(len=*), intent(in) :: summary_file, label_trace_file
+      character(len=*), intent(in) :: cold_z_history_file, cold_phi_history_file, all_history_dir
+      logical, intent(in) :: write_cold_history, write_all_history
+      integer, intent(in) :: base_seed, cycle_count, local_updates
+      real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma, elapsed
+      character(len=*), intent(in) :: init_mode
+      logical, intent(in) :: swap_enabled
+      character(len=*), intent(in) :: output_dir
+      logical, intent(in) :: write_package
+
+      integer :: unit_manifest, ios
+      logical :: path_ok
+      character(len=128) :: git_commit
+      character(len=512) :: local_csv, swap_csv, label_csv, phase_csv
+
+      call ensure_parent_directory_exists(manifest_file, path_ok)
+      if (.not. path_ok) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot prepare v1 manifest path:", trim(manifest_file)
+         error stop 1
+      end if
+
+      open (newunit=unit_manifest, file=trim(manifest_file), status='replace', action='write', iostat=ios)
+      if (ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot open v1 manifest file:", trim(manifest_file)
+         error stop 1
+      end if
+
+      call resolve_git_commit(git_commit)
+
+      write (unit_manifest, '(A)') "{"
+      call write_json_string_field(unit_manifest, "schema_version", "tltm.stage2.manifest.v1alpha1", .true.)
+      call write_json_string_field(unit_manifest, "writer_version", "stage2_sidecar_2026-05-10", .true.)
+      call write_json_string_field(unit_manifest, "git_commit", trim(git_commit), .true.)
+      call write_json_string_field(unit_manifest, "algorithm_id", "TLTM-HMC", .true.)
+      call write_json_string_field(unit_manifest, "canonical_route_id", "newton_p28_btn_reverse_gate_metropolis", .true.)
+      call write_json_string_field(unit_manifest, "flow_policy_id", "odex_primary_solver_assist_residual_strict_final_flow", .true.)
+      call write_json_string_field(unit_manifest, "reverse_gate_policy_id", "required_for_canonical_p28_route", .true.)
+      call write_json_string_field(unit_manifest, "tempering_protocol_id", "stage2_v0_local_measure_swap_labeltrace", .true.)
+      call write_json_string_field(unit_manifest, "sweep_order", "local_update_measure_history_swap_label_trace", .true.)
+      call write_json_string_field(unit_manifest, "measurement_boundary", "post_local_pre_swap", .true.)
+      call write_json_string_field(unit_manifest, "history_boundary", "post_local_pre_swap", .true.)
+      call write_json_string_field(unit_manifest, "label_trace_boundary", "post_swap", .true.)
+      call write_json_real_array_field(unit_manifest, "flow_ladder", flow_ladder, .true.)
+      call write_json_string_field(unit_manifest, "seed_policy", "CHAIN_RNG_SEED base seed plus deterministic per-slot derived seeds", .true.)
+
+      write (unit_manifest, '(A)') '  "resolved_stage2_controls": {'
+      call write_json_int_field(unit_manifest, "base_seed", base_seed, .true., 4)
+      call write_json_int_field(unit_manifest, "num_replicas", size(flow_ladder), .true., 4)
+      call write_json_real_field(unit_manifest, "max_flow_time", max_flow_time, .true., 4)
+      call write_json_int_field(unit_manifest, "cycles", cycle_count, .true., 4)
+      call write_json_int_field(unit_manifest, "local_updates", local_updates, .true., 4)
+      call write_json_real_field(unit_manifest, "init_sigma", init_sigma, .true., 4)
+      call write_json_string_field(unit_manifest, "init_mode", trim(init_mode), .true., 4)
+      call write_json_logical_field(unit_manifest, "swap_enabled", swap_enabled, .false., 4)
+      write (unit_manifest, '(A)') '  },'
+
+      write (unit_manifest, '(A)') '  "resolved_config": {'
+      call write_json_int_field(unit_manifest, "x_size", config%state%x_size, .true., 4)
+      call write_json_int_field(unit_manifest, "z_size", config%state%z_size, .true., 4)
+      call write_json_real_field(unit_manifest, "trajectory_length", config%integrator%trajectory_length, .true., 4)
+      call write_json_int_field(unit_manifest, "integration_steps", config%integrator%integration_steps, .true., 4)
+      call write_json_string_field(unit_manifest, "integrator_method", trim(config%integrator%method), .true., 4)
+      call write_json_real_field(unit_manifest, "abs_tol", config%solver%abs_tol, .true., 4)
+      call write_json_real_field(unit_manifest, "rel_tol", config%solver%rel_tol, .true., 4)
+      call write_json_real_field(unit_manifest, "constraint_tol", config%solver%constraint_tol, .true., 4)
+      call write_json_logical_field(unit_manifest, "enable_quasi_fallback", config%solver%enable_quasi_fallback, .true., 4)
+      call write_json_string_field(unit_manifest, "derivative_mode", trim(config%model%derivative_mode), .false., 4)
+      write (unit_manifest, '(A)') '  },'
+
+      write (unit_manifest, '(A)') '  "env_overrides": {'
+      call write_json_env_field(unit_manifest, "CHAIN_RNG_SEED", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_FLOW_TIME_LADDER", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_NUM_REPLICAS", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_MAX_FLOW_TIME", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_CYCLES", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_LOCAL_UPDATES", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_SWAP_ENABLED", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_INIT_SIGMA", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_INIT_MODE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_SUMMARY_FILE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_LABEL_TRACE_FILE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_COLD_Z_HISTORY_FILE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_COLD_PHI_HISTORY_FILE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_ALL_REPLICA_HISTORY_DIR", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_OUTPUT_DIR", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_MANIFEST_FILE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_PROTOCOL_FILE", .false., 4)
+      write (unit_manifest, '(A)') '  },'
+
+      write (unit_manifest, '(A)') '  "outputs": {'
+      call write_json_string_field(unit_manifest, "stage2_summary_v0", trim(summary_file), .true., 4)
+      call write_json_string_field(unit_manifest, "label_trace_v0", trim(label_trace_file), .true., 4)
+      call write_json_logical_field(unit_manifest, "cold_history_written", write_cold_history, .true., 4)
+      call write_json_string_or_null_field(unit_manifest, "cold_z_history_file", cold_z_history_file, write_cold_history, .true., 4)
+      call write_json_string_or_null_field(unit_manifest, "cold_phi_history_file", cold_phi_history_file, write_cold_history, .true., 4)
+      call write_json_logical_field(unit_manifest, "all_replica_history_written", write_all_history, .true., 4)
+      call write_json_string_or_null_field(unit_manifest, "all_replica_history_dir", all_history_dir, write_all_history, .true., 4)
+      call write_json_logical_field(unit_manifest, "v1_protocol_written", write_protocol, .true., 4)
+      call write_json_string_or_null_field(unit_manifest, "v1_protocol_file", protocol_file, write_protocol, .false., 4)
+      write (unit_manifest, '(A)') '  },'
+
+      write (unit_manifest, '(A)') '  "diagnostics": {'
+      call write_json_logical_field(unit_manifest, "v1_diagnostics_written", write_package, .true., 4)
+      if (write_package) then
+         call stage2_v1_package_path(output_dir, "diagnostics/local_transition_summary.csv", local_csv)
+         call stage2_v1_package_path(output_dir, "diagnostics/swap_summary.csv", swap_csv)
+         call stage2_v1_package_path(output_dir, "diagnostics/label_summary.csv", label_csv)
+         call stage2_v1_package_path(output_dir, "observables/per_slot_phase_summary.csv", phase_csv)
+      else
+         local_csv = ""
+         swap_csv = ""
+         label_csv = ""
+         phase_csv = ""
+      end if
+      call write_json_string_or_null_field(unit_manifest, "local_transition_summary_csv", local_csv, write_package, .true., 4)
+      call write_json_string_or_null_field(unit_manifest, "swap_summary_csv", swap_csv, write_package, .true., 4)
+      call write_json_string_or_null_field(unit_manifest, "label_summary_csv", label_csv, write_package, .true., 4)
+      call write_json_string_or_null_field(unit_manifest, "per_slot_phase_summary_csv", phase_csv, write_package, .false., 4)
+      write (unit_manifest, '(A)') '  },'
+
+      write (unit_manifest, '(A)') '  "compatibility": {'
+      call write_json_string_field(unit_manifest, "v0_output_contract", "preserved", .true., 4)
+      call write_json_string_field(unit_manifest, "v1_sidecar_default", "opt_in_only", .true., 4)
+      call write_json_string_field(unit_manifest, "sample_boundary_note", "Stage2 v0 samples and histories are written before swap; label trace is written after swap.", .false., 4)
+      write (unit_manifest, '(A)') '  },'
+
+      call write_json_real_field(unit_manifest, "elapsed_sec", elapsed, .false.)
+      write (unit_manifest, '(A)') "}"
+
+      close (unit_manifest)
+   end subroutine write_stage2_v1_manifest
+
+   subroutine write_stage2_v1_diagnostics_package(output_dir, slots, pair_stats, label_tracks)
+      character(len=*), intent(in) :: output_dir
+      type(tltm_slot_t), intent(in) :: slots(:)
+      type(tltm_pair_stats_t), intent(in) :: pair_stats(:)
+      type(tltm_label_track_t), intent(in) :: label_tracks(:)
+
+      call write_stage2_v1_local_transition_csv(output_dir, slots)
+      call write_stage2_v1_swap_summary_csv(output_dir, slots, pair_stats)
+      call write_stage2_v1_label_summary_csv(output_dir, label_tracks)
+      call write_stage2_v1_phase_summary_csv(output_dir, slots)
+   end subroutine write_stage2_v1_diagnostics_package
+
+   subroutine write_stage2_v1_local_transition_csv(output_dir, slots)
+      character(len=*), intent(in) :: output_dir
+      type(tltm_slot_t), intent(in) :: slots(:)
+      character(len=512) :: csv_file
+      integer :: unit_csv, ios, i, attempts
+      logical :: path_ok
+
+      call stage2_v1_package_path(output_dir, "diagnostics/local_transition_summary.csv", csv_file)
+      call open_v1_csv(csv_file, unit_csv, path_ok, ios)
+      if (.not. path_ok .or. ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot open v1 local-transition CSV:", trim(csv_file)
+         error stop 1
+      end if
+
+      write (unit_csv, '(A)') "slot_id,flow_time,attempt_count,accepted_count,metropolis_rejected_count," // &
+         "proposal_construction_failed_count,reverse_gate_rejected_count,hamiltonian_invalid_count,delta_h_invalid_count," // &
+         "output_size_mismatch_count,legacy_projection_failure_count,sample_count,runtime_sec"
+      do i = 1, size(slots)
+         attempts = slots(i)%local_accept_count + slots(i)%local_reject_count
+         write (unit_csv, '(I0,A,ES23.15E3,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,ES23.15E3)') &
+            slots(i)%slot_id, ",", slots(i)%flow_time, ",", attempts, ",", slots(i)%local_accept_count, ",", &
+            slots(i)%metropolis_reject_count, ",", slots(i)%proposal_failure_count, ",", slots(i)%reverse_gate_reject_count, ",", &
+            slots(i)%hamiltonian_invalid_count, ",", slots(i)%delta_h_invalid_count, ",", slots(i)%output_size_mismatch_count, ",", &
+            slots(i)%projection_failure_count, ",", slots(i)%observable_samples, ",", slots(i)%local_runtime
+      end do
+      close (unit_csv)
+   end subroutine write_stage2_v1_local_transition_csv
+
+   subroutine write_stage2_v1_swap_summary_csv(output_dir, slots, pair_stats)
+      character(len=*), intent(in) :: output_dir
+      type(tltm_slot_t), intent(in) :: slots(:)
+      type(tltm_pair_stats_t), intent(in) :: pair_stats(:)
+      character(len=512) :: csv_file
+      integer :: unit_csv, ios, i, idx_a, idx_b
+      real(dp) :: accept_rate, flow_a, flow_b
+      logical :: path_ok
+
+      call stage2_v1_package_path(output_dir, "diagnostics/swap_summary.csv", csv_file)
+      call open_v1_csv(csv_file, unit_csv, path_ok, ios)
+      if (.not. path_ok .or. ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot open v1 swap-summary CSV:", trim(csv_file)
+         error stop 1
+      end if
+
+      write (unit_csv, '(A)') "pair_id,slot_a,slot_b,flow_time_a,flow_time_b,attempt_count,accepted_count,rejected_count," // &
+         "accept_rate,last_accept_probability,invalid_current_energy_count,invalid_reflow_count,invalid_proposed_energy_count," // &
+         "sweep_parity_policy"
+      do i = 1, size(pair_stats)
+         idx_a = pair_stats(i)%slot_a + 1
+         idx_b = pair_stats(i)%slot_b + 1
+         flow_a = 0.0_dp
+         flow_b = 0.0_dp
+         if (idx_a >= 1 .and. idx_a <= size(slots)) flow_a = slots(idx_a)%flow_time
+         if (idx_b >= 1 .and. idx_b <= size(slots)) flow_b = slots(idx_b)%flow_time
+         if (pair_stats(i)%proposal_count > 0) then
+            accept_rate = real(pair_stats(i)%accept_count, dp)/real(pair_stats(i)%proposal_count, dp)
+         else
+            accept_rate = 0.0_dp
+         end if
+         write (unit_csv, '(I0,A,I0,A,I0,A,ES23.15E3,A,ES23.15E3,A,I0,A,I0,A,I0,A,ES23.15E3,A,ES23.15E3,A,A)') &
+            pair_stats(i)%pair_id, ",", pair_stats(i)%slot_a, ",", pair_stats(i)%slot_b, ",", flow_a, ",", flow_b, ",", &
+            pair_stats(i)%proposal_count, ",", pair_stats(i)%accept_count, ",", pair_stats(i)%reject_count, ",", &
+            accept_rate, ",", pair_stats(i)%last_accept_probability, ",,,,v0_alternating_one_parity_per_cycle"
+      end do
+      close (unit_csv)
+   end subroutine write_stage2_v1_swap_summary_csv
+
+   subroutine write_stage2_v1_label_summary_csv(output_dir, label_tracks)
+      character(len=*), intent(in) :: output_dir
+      type(tltm_label_track_t), intent(in) :: label_tracks(:)
+      character(len=512) :: csv_file
+      integer :: unit_csv, ios, i
+      real(dp) :: avg_round_trip
+      logical :: path_ok
+
+      call stage2_v1_package_path(output_dir, "diagnostics/label_summary.csv", csv_file)
+      call open_v1_csv(csv_file, unit_csv, path_ok, ios)
+      if (.not. path_ok .or. ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot open v1 label-summary CSV:", trim(csv_file)
+         error stop 1
+      end if
+
+      write (unit_csv, '(A)') "label_id,current_slot,farthest_slot_reached,round_trip_count,avg_round_trip_cycles,last_extreme"
+      do i = 1, size(label_tracks)
+         if (label_tracks(i)%round_trip_count > 0) then
+            avg_round_trip = label_tracks(i)%round_trip_time_sum/real(label_tracks(i)%round_trip_count, dp)
+         else
+            avg_round_trip = 0.0_dp
+         end if
+         write (unit_csv, '(I0,A,I0,A,I0,A,I0,A,ES23.15E3,A,I0)') label_tracks(i)%label_id, ",", &
+            label_tracks(i)%current_slot, ",", label_tracks(i)%farthest_slot_reached, ",", &
+            label_tracks(i)%round_trip_count, ",", avg_round_trip, ",", label_tracks(i)%last_extreme_visited
+      end do
+      close (unit_csv)
+   end subroutine write_stage2_v1_label_summary_csv
+
+   subroutine write_stage2_v1_phase_summary_csv(output_dir, slots)
+      character(len=*), intent(in) :: output_dir
+      type(tltm_slot_t), intent(in) :: slots(:)
+      character(len=512) :: csv_file
+      integer :: unit_csv, ios, i
+      complex(dp) :: mean_phi
+      logical :: path_ok
+
+      call stage2_v1_package_path(output_dir, "observables/per_slot_phase_summary.csv", csv_file)
+      call open_v1_csv(csv_file, unit_csv, path_ok, ios)
+      if (.not. path_ok .or. ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot open v1 phase-summary CSV:", trim(csv_file)
+         error stop 1
+      end if
+
+      write (unit_csv, '(A)') "slot_id,flow_time,n_samples,phase_mean_re,phase_mean_im,phase_abs_mean,sample_boundary"
+      do i = 1, size(slots)
+         if (slots(i)%observable_samples > 0) then
+            mean_phi = slots(i)%phi_sum/real(slots(i)%observable_samples, dp)
+         else
+            mean_phi = cmplx(0.0_dp, 0.0_dp, dp)
+         end if
+         write (unit_csv, '(I0,A,ES23.15E3,A,I0,A,ES23.15E3,A,ES23.15E3,A,ES23.15E3,A,A)') &
+            slots(i)%slot_id, ",", slots(i)%flow_time, ",", slots(i)%observable_samples, ",", &
+            real(mean_phi, dp), ",", aimag(mean_phi), ",", abs(mean_phi), ",post_local_pre_swap"
+      end do
+      close (unit_csv)
+   end subroutine write_stage2_v1_phase_summary_csv
+
+   subroutine stage2_v1_package_path(output_dir, relative_path, file_path)
+      character(len=*), intent(in) :: output_dir, relative_path
+      character(len=*), intent(out) :: file_path
+
+      file_path = trim(output_dir)//"/"//trim(relative_path)
+   end subroutine stage2_v1_package_path
+
+   subroutine open_v1_csv(csv_file, unit_csv, path_ok, ios)
+      character(len=*), intent(in) :: csv_file
+      integer, intent(out) :: unit_csv, ios
+      logical, intent(out) :: path_ok
+
+      call ensure_parent_directory_exists(csv_file, path_ok)
+      if (.not. path_ok) then
+         ios = 1
+         unit_csv = -1
+         return
+      end if
+      open (newunit=unit_csv, file=trim(csv_file), status='replace', action='write', iostat=ios)
+   end subroutine open_v1_csv
+
+   subroutine write_stage2_v1_protocol(protocol_file)
+      character(len=*), intent(in) :: protocol_file
+      integer :: unit_protocol, ios
+      logical :: path_ok
+
+      call ensure_parent_directory_exists(protocol_file, path_ok)
+      if (.not. path_ok) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot prepare v1 protocol path:", trim(protocol_file)
+         error stop 1
+      end if
+
+      open (newunit=unit_protocol, file=trim(protocol_file), status='replace', action='write', iostat=ios)
+      if (ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot open v1 protocol file:", trim(protocol_file)
+         error stop 1
+      end if
+
+      write (unit_protocol, '(A)') "{"
+      call write_json_string_field(unit_protocol, "schema_version", "tltm.stage2.protocol.v1alpha1", .true.)
+      call write_json_string_field(unit_protocol, "protocol_id", "stage2_v0_local_measure_swap_labeltrace", .true.)
+      call write_json_string_field(unit_protocol, "tempering_parameter", "flow_time", .true.)
+      call write_json_string_field(unit_protocol, "fixed_zone_identifier", "slot_id", .true.)
+      call write_json_string_field(unit_protocol, "mobile_walker_identifier", "label_id", .true.)
+
+      write (unit_protocol, '(A)') '  "target_density": {'
+      call write_json_string_field(unit_protocol, "base_coordinate_density", "|det J_t(x)| * exp(-Re S(z_t(x)))", .true., 4)
+      call write_json_string_field(unit_protocol, "effective_energy", "Re S(z_t(x)) - log |det J_t(x)|", .false., 4)
+      write (unit_protocol, '(A)') '  },'
+
+      write (unit_protocol, '(A)') '  "local_kernel": {'
+      call write_json_string_field(unit_protocol, "kernel", "HMC/RATTLE on each fixed flowed surface", .true., 4)
+      call write_json_string_field(unit_protocol, "proposal_failure_semantics", "legal rejection; live slot state unchanged", .true., 4)
+      call write_json_string_field(unit_protocol, "reverse_gate", "required for canonical p28 proposal validity", .true., 4)
+      call write_json_string_field(unit_protocol, "final_flow_policy", "strict final flow constructs accepted proposal states", .false., 4)
+      write (unit_protocol, '(A)') '  },'
+
+      write (unit_protocol, '(A)') '  "swap_kernel": {'
+      call write_json_string_field(unit_protocol, "proposal", "exchange base configurations between adjacent fixed flow-time slots", .true., 4)
+      call write_json_string_field(unit_protocol, "acceptance_probability", "min(1, exp(-[(E_a(y)+E_b(x))-(E_a(x)+E_b(y))]))", .true., 4)
+      call write_json_string_field(unit_protocol, "invalid_reflow_semantics", "reject swap; live slot states and labels unchanged", .true., 4)
+      call write_json_string_field(unit_protocol, "rng_draw_boundary", "draw only after finite current and proposed swap energies are available", .false., 4)
+      write (unit_protocol, '(A)') '  },'
+
+      write (unit_protocol, '(A)') '  "sweep_schedule": {'
+      call write_json_string_field(unit_protocol, "cycle_order", "local_update_measure_history_swap_label_trace", .true., 4)
+      call write_json_string_field(unit_protocol, "pairing", "one alternating adjacent-pair parity sub-sweep per cycle", .true., 4)
+      call write_json_string_field(unit_protocol, "odd_cycles", "(0,1),(2,3),...", .true., 4)
+      call write_json_string_field(unit_protocol, "even_cycles", "(1,2),(3,4),...", .false., 4)
+      write (unit_protocol, '(A)') '  },'
+
+      write (unit_protocol, '(A)') '  "measurement_policy": {'
+      call write_json_string_field(unit_protocol, "sample_boundary", "post_local_pre_swap", .true., 4)
+      call write_json_string_field(unit_protocol, "label_trace_boundary", "post_swap", .true., 4)
+      call write_json_string_field(unit_protocol, "status", "v0 compatibility convention, not final wrapper recommendation", .false., 4)
+      write (unit_protocol, '(A)') '  },'
+
+      write (unit_protocol, '(A)') '  "history_policy": {'
+      call write_json_string_field(unit_protocol, "cold_history", "fixed max-flow slot sampled post-local/pre-swap when enabled", .true., 4)
+      call write_json_string_field(unit_protocol, "all_replica_history", "fixed slots sampled post-local/pre-swap when enabled", .false., 4)
+      write (unit_protocol, '(A)') '  },'
+
+      write (unit_protocol, '(A)') '  "compatibility": {'
+      call write_json_string_field(unit_protocol, "v0_summary", "unchanged", .true., 4)
+      call write_json_string_field(unit_protocol, "v0_label_trace", "unchanged", .true., 4)
+      call write_json_string_field(unit_protocol, "sidecar_default", "opt_in_only", .false., 4)
+      write (unit_protocol, '(A)') '  }'
+      write (unit_protocol, '(A)') "}"
+
+      close (unit_protocol)
+   end subroutine write_stage2_v1_protocol
+
+   subroutine resolve_git_commit(git_commit)
+      character(len=*), intent(out) :: git_commit
+      integer :: env_len, env_status
+
+      git_commit = "unknown"
+      call get_environment_variable("TLTM_GIT_COMMIT", git_commit, length=env_len, status=env_status)
+      if (env_status == 0 .and. env_len > 0) then
+         git_commit = trim(git_commit(1:env_len))
+      else
+         git_commit = "unknown"
+      end if
+   end subroutine resolve_git_commit
+
+   subroutine write_json_string_field(unit_json, key, value, trailing_comma, indent)
+      integer, intent(in) :: unit_json
+      character(len=*), intent(in) :: key, value
+      logical, intent(in) :: trailing_comma
+      integer, intent(in), optional :: indent
+
+      call write_json_indent(unit_json, indent)
+      write (unit_json, '(A)', advance='no') '"'//json_escape(trim(key))//'": "'//json_escape(trim(value))//'"'
+      call write_json_line_end(unit_json, trailing_comma)
+   end subroutine write_json_string_field
+
+   subroutine write_json_string_or_null_field(unit_json, key, value, has_value, trailing_comma, indent)
+      integer, intent(in) :: unit_json
+      character(len=*), intent(in) :: key, value
+      logical, intent(in) :: has_value, trailing_comma
+      integer, intent(in), optional :: indent
+
+      call write_json_indent(unit_json, indent)
+      if (has_value) then
+         write (unit_json, '(A)', advance='no') '"'//json_escape(trim(key))//'": "'//json_escape(trim(value))//'"'
+      else
+         write (unit_json, '(A)', advance='no') '"'//json_escape(trim(key))//'": null'
+      end if
+      call write_json_line_end(unit_json, trailing_comma)
+   end subroutine write_json_string_or_null_field
+
+   subroutine write_json_env_field(unit_json, env_name, trailing_comma, indent)
+      integer, intent(in) :: unit_json
+      character(len=*), intent(in) :: env_name
+      logical, intent(in) :: trailing_comma
+      integer, intent(in), optional :: indent
+
+      character(len=1024) :: env_value
+      integer :: env_len, env_status
+
+      env_value = ""
+      call get_environment_variable(trim(env_name), env_value, length=env_len, status=env_status)
+      call write_json_indent(unit_json, indent)
+      if (env_status == 0 .and. env_len > 0) then
+         write (unit_json, '(A)', advance='no') '"'//json_escape(trim(env_name))//'": "'// &
+            json_escape(trim(env_value(1:env_len)))//'"'
+      else
+         write (unit_json, '(A)', advance='no') '"'//json_escape(trim(env_name))//'": null'
+      end if
+      call write_json_line_end(unit_json, trailing_comma)
+   end subroutine write_json_env_field
+
+   subroutine write_json_int_field(unit_json, key, value, trailing_comma, indent)
+      integer, intent(in) :: unit_json
+      character(len=*), intent(in) :: key
+      integer, intent(in) :: value
+      logical, intent(in) :: trailing_comma
+      integer, intent(in), optional :: indent
+
+      call write_json_indent(unit_json, indent)
+      write (unit_json, '(A,I0)', advance='no') '"'//json_escape(trim(key))//'": ', value
+      call write_json_line_end(unit_json, trailing_comma)
+   end subroutine write_json_int_field
+
+   subroutine write_json_real_field(unit_json, key, value, trailing_comma, indent)
+      integer, intent(in) :: unit_json
+      character(len=*), intent(in) :: key
+      real(dp), intent(in) :: value
+      logical, intent(in) :: trailing_comma
+      integer, intent(in), optional :: indent
+
+      character(len=64) :: number_text
+
+      write (number_text, '(ES23.15E3)') value
+      call write_json_indent(unit_json, indent)
+      write (unit_json, '(A)', advance='no') '"'//json_escape(trim(key))//'": '//trim(adjustl(number_text))
+      call write_json_line_end(unit_json, trailing_comma)
+   end subroutine write_json_real_field
+
+   subroutine write_json_logical_field(unit_json, key, value, trailing_comma, indent)
+      integer, intent(in) :: unit_json
+      character(len=*), intent(in) :: key
+      logical, intent(in) :: value, trailing_comma
+      integer, intent(in), optional :: indent
+
+      call write_json_indent(unit_json, indent)
+      if (value) then
+         write (unit_json, '(A)', advance='no') '"'//json_escape(trim(key))//'": true'
+      else
+         write (unit_json, '(A)', advance='no') '"'//json_escape(trim(key))//'": false'
+      end if
+      call write_json_line_end(unit_json, trailing_comma)
+   end subroutine write_json_logical_field
+
+   subroutine write_json_real_array_field(unit_json, key, values, trailing_comma, indent)
+      integer, intent(in) :: unit_json
+      character(len=*), intent(in) :: key
+      real(dp), intent(in) :: values(:)
+      logical, intent(in) :: trailing_comma
+      integer, intent(in), optional :: indent
+
+      character(len=64) :: number_text
+      integer :: i
+
+      call write_json_indent(unit_json, indent)
+      write (unit_json, '(A)', advance='no') '"'//json_escape(trim(key))//'": ['
+      do i = 1, size(values)
+         if (i > 1) write (unit_json, '(A)', advance='no') ', '
+         write (number_text, '(ES23.15E3)') values(i)
+         write (unit_json, '(A)', advance='no') trim(adjustl(number_text))
+      end do
+      write (unit_json, '(A)', advance='no') ']'
+      call write_json_line_end(unit_json, trailing_comma)
+   end subroutine write_json_real_array_field
+
+   subroutine write_json_indent(unit_json, indent)
+      integer, intent(in) :: unit_json
+      integer, intent(in), optional :: indent
+      integer :: indent_value
+
+      indent_value = 2
+      if (present(indent)) indent_value = indent
+      if (indent_value > 0) write (unit_json, '(A)', advance='no') repeat(" ", indent_value)
+   end subroutine write_json_indent
+
+   subroutine write_json_line_end(unit_json, trailing_comma)
+      integer, intent(in) :: unit_json
+      logical, intent(in) :: trailing_comma
+
+      if (trailing_comma) then
+         write (unit_json, '(A)') ","
+      else
+         write (unit_json, '(A)') ""
+      end if
+   end subroutine write_json_line_end
+
+   function json_escape(value) result(escaped)
+      character(len=*), intent(in) :: value
+      character(len=:), allocatable :: escaped
+      character(len=1), parameter :: backslash = achar(92)
+      integer :: i, out_len, pos
+
+      out_len = 0
+      do i = 1, len_trim(value)
+         select case (value(i:i))
+         case ('"', backslash)
+            out_len = out_len + 2
+         case default
+            out_len = out_len + 1
+         end select
+      end do
+
+      allocate (character(len=out_len) :: escaped)
+      pos = 1
+      do i = 1, len_trim(value)
+         select case (value(i:i))
+         case ('"')
+            escaped(pos:pos) = backslash
+            escaped(pos + 1:pos + 1) = '"'
+            pos = pos + 2
+         case (backslash)
+            escaped(pos:pos) = backslash
+            escaped(pos + 1:pos + 1) = backslash
+            pos = pos + 2
+         case default
+            escaped(pos:pos) = value(i:i)
+            pos = pos + 1
+         end select
+      end do
+   end function json_escape
 
    subroutine open_all_replica_history_files(slots, all_history_dir, z_units, phi_units, ok)
       type(tltm_slot_t), intent(in) :: slots(:)

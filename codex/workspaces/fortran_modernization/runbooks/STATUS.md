@@ -94,10 +94,16 @@ Next expected modernization area after this slice:
 - `runbooks/M3_V0_OUTPUT_INVENTORY_AND_PROTOCOL_AUDIT_PLAN.md` now records the current v0 output inventory and the parser/replay audit sequence needed before v1 writer work.
 - `scripts/audit_tltm_tempering_protocol.py` now provides a parser-only Stage2/label-trace/optional-Stage3 protocol audit without changing production output.
 - `tests/test_tltm_swap_kernel_contract.f90` now checks the source-level TLTM adjacent-swap energy/probability contract and invalid-current-energy rejection behavior.
+- Stage2 now has opt-in v1alpha sidecars:
+  - `TLTM_STAGE2_V1_OUTPUT_DIR` writes `manifest.json`, `protocol.json`, diagnostics CSVs, and per-slot phase summary CSV.
+  - `TLTM_STAGE2_V1_MANIFEST_FILE` and `TLTM_STAGE2_V1_PROTOCOL_FILE` allow individual sidecar file output.
+  - Default output behavior is unchanged when these env vars are absent.
+- The protocol audit script now accepts optional `--manifest` and `--protocol` sidecars and cross-checks schema, v0 timing, flow ladder, controls, and v1 diagnostics row counts.
 
-Current stop gate:
+Current true design-decision node:
 
-- The next planned M3b step is a v1 manifest/protocol writer beside v0 outputs. This begins output-writer/schema work and should wait for explicit user approval.
+- The next M3b item is wrapper-level sweep-order / measurement-boundary policy: keep v0 `local -> measure/history -> swap -> label_trace`, or migrate the future unified wrapper to a paper-aligned `swap -> local -> measure` convention.
+- This is not a simple approval gate; it is a real design choice because both can be valid kernels but they produce different finite-run histories and reproducibility contracts.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.

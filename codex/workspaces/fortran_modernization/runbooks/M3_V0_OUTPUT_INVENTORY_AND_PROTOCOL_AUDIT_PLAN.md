@@ -618,17 +618,30 @@ M3b.4: v1 manifest/protocol writer beside v0.
 
 - Add machine-readable protocol metadata without removing or renaming v0 fields.
 - Preserve Stage3 parser compatibility.
-- Stop gate: requires explicit approval because this begins output-writer/schema work, even if v0 compatibility files remain unchanged.
+- Implemented on 2026-05-10 JST as opt-in `v1alpha1` sidecars.
+- Env controls:
+  - `TLTM_STAGE2_V1_OUTPUT_DIR`: writes `manifest.json`, `protocol.json`, and the minimal v1alpha diagnostics/observables package under that directory.
+  - `TLTM_STAGE2_V1_MANIFEST_FILE`: writes only a manifest sidecar unless paired with other v1 envs.
+  - `TLTM_STAGE2_V1_PROTOCOL_FILE`: writes only a protocol sidecar unless paired with other v1 envs.
+- Default behavior: no v1 sidecar files are written unless one of these env vars is set.
+- Compatibility: v0 summary, label trace, histories, Stage3 parser expectations, cycle order, sample boundary, and RNG behavior are unchanged.
 
 M3b.5: v1 observables/diagnostics package.
 
 - Separate physical observables, protocol diagnostics, solver diagnostics, runtime metadata, and compatibility outputs.
 - Add readers before deprecating old columns.
+- Minimal implemented package under `TLTM_STAGE2_V1_OUTPUT_DIR`:
+  - `diagnostics/local_transition_summary.csv`
+  - `diagnostics/swap_summary.csv`
+  - `diagnostics/label_summary.csv`
+  - `observables/per_slot_phase_summary.csv`
+- `scripts/audit_tltm_tempering_protocol.py` now reads optional `--manifest` and `--protocol` sidecars and checks schema/timing/flow-ladder/control consistency plus diagnostics file row counts.
 
 M3b.6: wrapper sweep-order decision.
 
 - Decide whether to retain v0 timing for compatibility or migrate the unified wrapper to a paper-aligned `swap -> local -> measure` convention.
 - Treat migration as a baseline-gated behavior change.
+- This remains the next true design-decision node because both conventions can be legitimate Markov kernels, but they differ in finite-run outputs, histories, labels, and reproducibility.
 
 ## Stop Gates
 
