@@ -1,12 +1,13 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-10T23:59:16+09:00
+Generated: 2026-05-11T00:18:07+09:00
 Remote refreshed: 2026-05-10T23:59:14+09:00
 
 ## Hard Rules
 
 - Heavy TLTM execution must use PBS compute nodes, not the login/frontend node.
 - Before remote SSH/PBS/git cleanup work, run `bash codex/tasks/refresh_remote_state.sh` and `bash codex/tasks/render_l0_boot.sh`.
+- Before local TLTM `git pull`, branch switch, cleanup, or overwrite, run `bash codex/tasks/refresh_local_state.sh` and `bash codex/tasks/render_l0_boot.sh`.
 - If a remote worktree has active pinned jobs, do not fast-forward or clean it.
 - For cluster02 queue choice, work splitting, submission, or job repair, use the cluster02 scheduling agent.
 - Do not use `qmove` as the official repair path; cancel/resubmit/rebuild dependencies.
@@ -15,6 +16,10 @@ Remote refreshed: 2026-05-10T23:59:14+09:00
 ## Active Remote Risk
 
 - No unsafe worktree recorded in the latest registry. If cache is stale, refresh before acting.
+
+## Active Local Risk
+
+- `active_control_plane`: branch `codex/fortran-modernization`, commit `392879a7e9416e9af4bdf224b2d08c50c5637d3f`, dirty `2`, ahead `1`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
 
 ## Active/Pending Jobs
 
@@ -28,17 +33,18 @@ Remote refreshed: 2026-05-10T23:59:14+09:00
 
 ## Recent Decisions
 
-- 2026-05-10 `remote`: Rename control-plane target id to fortran_modernization
 - 2026-05-10 `tltm_production_comparison`: Rename Stage3_4 workstream to tltm_production_comparison
 - 2026-05-10 `global`: Soft-decouple modernization and production comparison
 - 2026-05-10 `tltm_production_comparison`: Clear legacy Stage3_4 raw output/log folders before rerun
 - 2026-05-10 `global`: Clear legacy Stage1-Stage3_3 and obsolete ODEX validation raw datasets
 - 2026-05-10 `tltm_production_comparison`: Reuse accepted M6 reference datasets as first production-calibration tier
+- 2026-05-11 `repo_cleanup`: Track local TLTM worktrees as first-class state
 
 ## Pointers
 
 - L1 index: `codex/indexes/L1_INDEX.tsv`
 - Remote live cache: `codex/state/REMOTE_LIVE_CACHE.json`
+- Local worktrees: `codex/state/LOCAL_WORKTREES.tsv`
 - Jobs: `codex/state/JOBS.tsv`
 - Worktrees: `codex/state/WORKTREES.tsv`
 - Control-plane plan: `codex/runbooks/CONTROL_PLANE_MEMORY_COMPACTION_PLAN.md`
