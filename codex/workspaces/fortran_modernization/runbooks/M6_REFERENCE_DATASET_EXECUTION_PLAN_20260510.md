@@ -83,6 +83,8 @@ Remote repository guard for PBS/queue work:
 
 Current target worktree for this branch:
 
+Note: this path/branch name is a legacy carryover from the earlier QN error-handling validation slice. The control-plane target id is now `fortran_modernization_m6_active`, but the physical worktree/branch must not be renamed while pinned PBS jobs still depend on it.
+
 ```bash
 /lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation
 ```

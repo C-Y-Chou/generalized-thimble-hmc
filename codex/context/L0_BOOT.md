@@ -1,7 +1,7 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-10T19:14:23+09:00
-Remote refreshed: 2026-05-10T19:14:10+09:00
+Generated: 2026-05-10T19:17:34+09:00
+Remote refreshed: 2026-05-10T19:17:22+09:00
 
 ## Hard Rules
 
@@ -14,12 +14,11 @@ Remote refreshed: 2026-05-10T19:14:10+09:00
 
 ## Active Remote Risk
 
-- `qn_error_handling_validation`: branch `codex/qn-error-handling-validation`, commit `a1028ad6d68eabfd6c400ec135b3df9cab1e4af2`, 39 active jobs, examples: 14571.anode01,14576.anode01,14577.anode01,14579.anode01,14580.anode01,14581.anode01,14582.anode01,14583.anode01, pinned `a1028ad6d68eabfd6c400ec135b3df9cab1e4af2`. Do not fast-forward.
+- `fortran_modernization_m6_active`: branch `codex/qn-error-handling-validation`, commit `a1028ad6d68eabfd6c400ec135b3df9cab1e4af2`, 38 active jobs, examples: 14571.anode01,14577.anode01,14579.anode01,14580.anode01,14581.anode01,14582.anode01,14583.anode01,14584.anode01, pinned `a1028ad6d68eabfd6c400ec135b3df9cab1e4af2`. Do not fast-forward.
 
 ## Active/Pending Jobs
 
 - `14571.anode01` `m6R3fbnorefine00` queue `C8` state `R` dataset `m6_r3_32seed_50k`.
-- `14576.anode01` `m6R3nofb03` queue `G` state `R` dataset `m6_r3_32seed_50k`.
 - `14577.anode01` `m6R3fbnorefine03` queue `G` state `R` dataset `m6_r3_32seed_50k`.
 - `14579.anode01` `m6R4nofb00` queue `C8` state `R` dataset `m6_r4_128seed_100k`.
 - `14580.anode01` `m6R4fbnorefine00` queue `C8` state `R` dataset `m6_r4_128seed_100k`.
@@ -30,7 +29,8 @@ Remote refreshed: 2026-05-10T19:14:10+09:00
 - `14595.anode01` `m6R4nofb08` queue `F` state `R` dataset `m6_r4_128seed_100k`.
 - `14596.anode01` `m6R4fbnorefine08` queue `F` state `R` dataset `m6_r4_128seed_100k`.
 - `14597.anode01` `m6R4nofb09` queue `G` state `R` dataset `m6_r4_128seed_100k`.
-- ... 27 more jobs in `codex/state/JOBS.tsv`.
+- `14598.anode01` `m6R4fbnorefine09` queue `G` state `R` dataset `m6_r4_128seed_100k`.
+- ... 26 more jobs in `codex/state/JOBS.tsv`.
 
 ## High-Priority Open Items
 
@@ -39,12 +39,12 @@ Remote refreshed: 2026-05-10T19:14:10+09:00
 
 ## Recent Decisions
 
-- 2026-05-10 `global`: Remote SSH/PBS state is first-class state
 - 2026-05-10 `cluster02`: Use cluster02 scheduling agent for PBS queue/work splitting
 - 2026-05-10 `cluster02`: Do not use qmove as official repair
 - 2026-05-10 `cluster02`: Exclude GPU queues for CPU-only TLTM chunks
 - 2026-05-10 `cluster02`: Blacklist C17/C17-LONG for M6 8-core chunk shape
 - 2026-05-10 `stage3_4`: Stage3_4 queue optimization playbook is superseded for current scheduling
+- 2026-05-10 `remote`: Rename control-plane target id to fortran_modernization_m6_active
 
 ## Pointers
 

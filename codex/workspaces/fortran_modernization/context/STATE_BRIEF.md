@@ -7,6 +7,7 @@ Updated: 2026-05-10 JST
 - Modernization reached M6 reference dataset generation/readback work.
 - M3/M4/M5 modernization infrastructure work is treated as completed or explicitly deferred in the long status runbook.
 - M6 R1-R4 reference generation is active on the cluster and must be read through remote/job registries before further repair or cleanup.
+- The active remote target is semantically `fortran_modernization_m6_active`, but the physical path/branch still carry the legacy `qn_error_handling_validation` name until pinned jobs finish.
 
 ## Hard Rules
 

@@ -17,30 +17,6 @@
             "worktree": "/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va"
           },
           {
-            "Job_Name": "m6R3fbnorefine01",
-            "Resource_List.select": "1:ncpus=8:mpiprocs=8:mem=16gb",
-            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va,TLTM_WORKTREE=/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va,TLTM_EXPECTED_GIT_COMMIT=a1028ad6d68eabfd6c400ec135b3df9cab1e4af2,,TLTM_REF_LEVEL=R3,TLTM_REF_LABEL=r3_32seed_50k,,TLTM_CONFIG_JSON=docs/modernization_reference_t035_r3_32seed_50k.json,,TLTM_ROOT_SUBDIR=output/reference/fortran_modernization/m6/r3_32seed_5,TLTM_ROOT_LOG_SUBDIR=output/logs/fortran_modernization/reference_datas,TLTM_SEED_OFFSET=8,TLTM_MAX_SEEDS=8,TLTM_JOBS=8,TLTM_ALLOW_OVERWRITE=0,,PBS_O_QUEUE=C12,PBS_O_HOST=ithems_fe02.intra.riken.jp,Exit_status=0,TLTM_EXPECTED_GIT_BRANCH=codex/qn-error-handling-validation,,TLTM_EXPECTED_GIT_COMMIT=a1028ad6d68eabfd6c400ec135b3df9cab1e4af2,,TLTM_REF_LEVEL=R3,TLTM_REF_LABEL=r3_32seed_50k,,TLTM_CONFIG_JSON=docs/modernization_reference_t035_r3_32seed_50k.json,,TLTM_ROOT_SUBDIR=output/reference/fortran_modernization/m6/r3_32seed_5,TLTM_ROOT_LOG_SUBDIR=output/logs/fortran_modernization/reference_datas,TLTM_SEED_OFFSET=8,TLTM_MAX_SEEDS=8,TLTM_JOBS=8,,TLTM_ALLOW_OVERWRITE=0 codex/workspaces/fortran_modernization/tasks/pb",
-            "exec_host": "cnode35/3*8",
-            "expected_commit": "a1028ad6d68eabfd6c400ec135b3df9cab1e4af2",
-            "host": "ithems_fe02.intra.riken.jp",
-            "job_id": "14573.anode01",
-            "job_state": "E",
-            "queue": "C12",
-            "worktree": "/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va"
-          },
-          {
-            "Job_Name": "m6R3nofb03",
-            "Resource_List.select": "1:ncpus=8:mpiprocs=8:mem=16gb",
-            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va,TLTM_WORKTREE=/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va,TLTM_EXPECTED_GIT_COMMIT=a1028ad6d68eabfd6c400ec135b3df9cab1e4af2,,TLTM_REF_LEVEL=R3,TLTM_REF_LABEL=r3_32seed_50k,,TLTM_CONFIG_JSON=docs/modernization_reference_t035_r3_32seed_50k.json,,TLTM_ROOT_SUBDIR=output/reference/fortran_modernization/m6/r3_32seed_5,TLTM_ROOT_LOG_SUBDIR=output/logs/fortran_modernization/reference_datas,TLTM_MAX_SEEDS=8,TLTM_JOBS=8,TLTM_ALLOW_OVERWRITE=0,PBS_O_QUEUE=G,,PBS_O_HOST=ithems_fe02.intra.riken.jp,TLTM_EXPECTED_GIT_BRANCH=codex/qn-error-handling-validation,,TLTM_EXPECTED_GIT_COMMIT=a1028ad6d68eabfd6c400ec135b3df9cab1e4af2,,TLTM_REF_LEVEL=R3,TLTM_REF_LABEL=r3_32seed_50k,,TLTM_CONFIG_JSON=docs/modernization_reference_t035_r3_32seed_50k.json,,TLTM_ROOT_SUBDIR=output/reference/fortran_modernization/m6/r3_32seed_5,TLTM_ROOT_LOG_SUBDIR=output/logs/fortran_modernization/reference_datas,TLTM_MAX_SEEDS=8,TLTM_JOBS=8,,TLTM_ALLOW_OVERWRITE=0 codex/workspaces/fortran_modernization/tasks/pb",
-            "exec_host": "gnode01/0*8",
-            "expected_commit": "a1028ad6d68eabfd6c400ec135b3df9cab1e4af2",
-            "host": "ithems_fe02.intra.riken.jp",
-            "job_id": "14576.anode01",
-            "job_state": "R",
-            "queue": "G",
-            "worktree": "/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va"
-          },
-          {
             "Job_Name": "m6R3fbnorefine03",
             "Resource_List.select": "1:ncpus=8:mpiprocs=8:mem=16gb",
             "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va,TLTM_WORKTREE=/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va,TLTM_EXPECTED_GIT_COMMIT=a1028ad6d68eabfd6c400ec135b3df9cab1e4af2,,TLTM_REF_LEVEL=R3,TLTM_REF_LABEL=r3_32seed_50k,,TLTM_CONFIG_JSON=docs/modernization_reference_t035_r3_32seed_50k.json,,TLTM_ROOT_SUBDIR=output/reference/fortran_modernization/m6/r3_32seed_5,TLTM_ROOT_LOG_SUBDIR=output/logs/fortran_modernization/reference_datas,TLTM_SEED_OFFSET=24,TLTM_MAX_SEEDS=8,TLTM_JOBS=8,TLTM_ALLOW_OVERWRITE=0,,PBS_O_QUEUE=G,PBS_O_HOST=ithems_fe02.intra.riken.jp,mem=16gb -l walltime=08:00:00 -o output/logs/fortran_modernization/refe,TLTM_EXPECTED_GIT_BRANCH=codex/qn-error-handling-validation,,TLTM_EXPECTED_GIT_COMMIT=a1028ad6d68eabfd6c400ec135b3df9cab1e4af2,,TLTM_REF_LEVEL=R3,TLTM_REF_LABEL=r3_32seed_50k,,TLTM_CONFIG_JSON=docs/modernization_reference_t035_r3_32seed_50k.json,,TLTM_ROOT_SUBDIR=output/reference/fortran_modernization/m6/r3_32seed_5,TLTM_ROOT_LOG_SUBDIR=output/logs/fortran_modernization/reference_datas,TLTM_SEED_OFFSET=24,TLTM_MAX_SEEDS=8,TLTM_JOBS=8,,TLTM_ALLOW_OVERWRITE=0 codex/workspaces/fortran_modernization/tasks/pb",
@@ -499,7 +475,7 @@
       "stderr": ""
     }
   },
-  "refreshed_at_jst": "2026-05-10T19:14:10+09:00",
+  "refreshed_at_jst": "2026-05-10T19:17:22+09:00",
   "targets": [
     {
       "branch": "unknown",
@@ -516,10 +492,10 @@
       "branch": "codex/qn-error-handling-validation",
       "fast_forward_policy": "do_not_fast_forward_if_active_pinned_jobs",
       "host": "ithems_fe02.intra.riken.jp",
-      "notes": "Current M6 reference jobs were pinned to an older commit while running.",
-      "purpose": "active_fortran_modernization_pbs",
+      "notes": "Legacy path/branch name is qn_error_handling_validation; keep unchanged until all pinned M6 jobs finish.",
+      "purpose": "active_fortran_modernization_m6_reference_pbs",
       "repo_path": "/home/cychou/TLTM",
-      "target_id": "qn_error_handling_validation",
+      "target_id": "fortran_modernization_m6_active",
       "user": "cychou",
       "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation"
     }
