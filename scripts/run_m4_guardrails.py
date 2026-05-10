@@ -115,6 +115,23 @@ def assert_condition(label, condition, details, failures, keep_going):
         raise SystemExit(1)
 
 
+def find_uncentralized_env_reads(repo_root):
+    allowed = {Path("src/config/runtime_env_mod.f90")}
+    hits = []
+    for source_root in ("src", "tests"):
+        root = repo_root / source_root
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*.f90")):
+            rel = path.relative_to(repo_root)
+            if rel in allowed:
+                continue
+            for line_no, line in enumerate(path.read_text(errors="replace").splitlines(), start=1):
+                if "get_environment_variable" in line.lower():
+                    hits.append("{0}:{1}: {2}".format(rel, line_no, line.strip()))
+    return hits
+
+
 def make_cmd(repo_root, args, targets):
     cmd = ["make", "-C", str(repo_root / "build")]
     if args.fc:
@@ -183,6 +200,15 @@ def run_guardrails(args):
         args.keep_going,
     )
     run_step("git diff --check", ["git", "diff", "--check"], repo_root, failures, args.keep_going)
+    env_read_hits = find_uncentralized_env_reads(repo_root)
+    assert_condition(
+        "direct env reads centralized",
+        not env_read_hits,
+        "Direct get_environment_variable calls outside src/config/runtime_env_mod.f90:\n"
+        + "\n".join(env_read_hits[:50]),
+        failures,
+        args.keep_going,
+    )
 
     if not args.skip_build:
         run_step(
@@ -357,4 +383,3 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -61,6 +61,7 @@
 - 2026-05-10 JST: Completed second Lane A env consolidation slice for `evaluate_expectations`; direct env reads dropped from 36 to 24 and M4 guardrails passed.
 - 2026-05-10 JST: Completed third Lane A env consolidation slice for HMC/QN policy loaders, Markov-chain controls, perf profiling, reversibility probe config, and app seed selection; production/source direct env reads are now centralized in `runtime_env_mod`.
 - 2026-05-10 JST: Completed final direct-env cleanup by moving the test-local `HMC_SKIP_PLOT` read behind `read_string_env`; all direct `get_environment_variable` calls now live in `runtime_env_mod`.
+- 2026-05-10 JST: Added an M4 source guardrail that fails on future direct env reads outside `runtime_env_mod`.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit

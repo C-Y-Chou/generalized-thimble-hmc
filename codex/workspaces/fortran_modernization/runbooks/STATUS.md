@@ -128,6 +128,7 @@ Current protocol state:
 - Third Lane A source slice complete: HMC/QN policy loaders, Markov-chain random-start controls, perf profiling, reversibility probe config, and `generate_markov_chain` seed selection now use `runtime_env_mod:read_string_env`; env-read inventory dropped from 24 to 5 rows; M4 guardrails passed.
 - Final direct-env consolidation slice complete: the test-local `HMC_SKIP_PLOT` read now uses `runtime_env_mod:read_string_env`; env-read inventory dropped from 5 to 4 rows; M4 guardrails passed.
 - All direct `get_environment_variable` calls are now centralized in `runtime_env_mod`.
+- M4 guardrails now include a source-level check that blocks direct env reads outside `runtime_env_mod`.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.

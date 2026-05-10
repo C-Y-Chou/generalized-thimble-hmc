@@ -401,3 +401,7 @@
 - Verification passed through `make -C build modernization_guardrails`.
 - Regenerated M5 ownership inventory: total rows dropped from 337 to 336 and env-read rows dropped from 5 to 4.
 - Direct `get_environment_variable` calls are now centralized in `runtime_env_mod`.
+
+## 2026-05-10 JST - Lane A direct-env guardrail
+- Added an M4 source guardrail that scans `src/` and `tests/` and fails if any file outside `src/config/runtime_env_mod.f90` directly calls `get_environment_variable`.
+- Verification passed through `make -C build modernization_guardrails`; the run now reports `direct env reads centralized`.

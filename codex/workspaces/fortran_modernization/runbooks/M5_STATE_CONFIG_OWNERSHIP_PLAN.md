@@ -150,3 +150,4 @@ Recommendation: choose Lane A first, then Lane B, then targeted Lane C slices. D
 - Replaced the test-local `HMC_SKIP_PLOT` direct env read with `read_string_env`.
 - M4 guardrails passed after the test-local slice.
 - Inventory env-read rows dropped from 5 to 4; direct `get_environment_variable` calls are now centralized in `runtime_env_mod`.
+- Added an M4 source guardrail that fails if any `src/` or `tests/` file outside `src/config/runtime_env_mod.f90` reintroduces a direct `get_environment_variable` call.
