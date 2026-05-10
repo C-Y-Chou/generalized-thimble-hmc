@@ -23,7 +23,7 @@ def parse_args():
     parser.add_argument(
         "--ldflags",
         default=os.environ.get("M4_GUARDRAIL_LDFLAGS", os.environ.get("LDFLAGS", "")),
-        help="LDFLAGS passed to make. Defaults to empty on local macOS-friendly runs.",
+        help="LDFLAGS passed to make. Defaults to M4_GUARDRAIL_LDFLAGS, then LDFLAGS, then empty.",
     )
     parser.add_argument("--skip-build", action="store_true", help="Skip Fortran build/test guardrails.")
     parser.add_argument("--keep-going", action="store_true", help="Continue after failures and report all failures.")

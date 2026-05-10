@@ -359,7 +359,7 @@ test_tltm_stage2: tltm_stage2
 	@echo "[DONE] TLTM stage-2 smoke complete"
 
 M4_GUARDRAIL_FC ?= $(FC)
-M4_GUARDRAIL_LDFLAGS ?=
+M4_GUARDRAIL_LDFLAGS ?= $(LDFLAGS)
 modernization_guardrails: prepare_outputs
 	@set -o pipefail; \
 	$(PYTHON) ../scripts/run_m4_guardrails.py --repo-root .. --fc "$(M4_GUARDRAIL_FC)" --ldflags "$(M4_GUARDRAIL_LDFLAGS)" \
