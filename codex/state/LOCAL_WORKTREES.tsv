@@ -1,2 +1,2 @@
 refreshed_at_jst	target_id	path	branch	commit	upstream	ahead	behind	dirty	stash_count	safe_to_pull	notes
-2026-05-11T00:26:50+09:00	local_control_plane_checkout	/Users/ccy/Documents/New project/TLTM_repo	codex/control-plane	5d4821bada2d8a8f713fb38666e2c642a39536b8	origin/codex/control-plane	0	0	0	1	yes	Branch renamed from codex/preprod-hardening to codex/control-plane on 2026-05-11; QN residue remains preserved in stash.
+2026-05-11T00:28:15+09:00	local_control_plane_checkout	/Users/ccy/Documents/New project/TLTM_repo	codex/control-plane	42ac8f8de7d537513bcfed3b14c2d29811cacf09	origin/codex/control-plane	0	0	0	1	yes	Branch renamed from codex/preprod-hardening to codex/control-plane on 2026-05-11; QN residue remains preserved in stash.
