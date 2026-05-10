@@ -11,7 +11,7 @@ Updated: 2026-05-10 JST
 - User-confirmed alias: "code refine" means this `fortran_modernization` task, not a separate workspace.
 - Current position is now tracked by workstream matrix, not by treating M0-M6 as a linear completion ladder:
   - `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`
-  - Position: completed foundation -> active M6 reference baseline gate -> remaining modernization blocks.
+  - Position: completed foundation -> accepted M6 reference baseline -> remaining modernization blocks.
 - Algorithm reference bundle is collected under `references/`, including TLTM HMC, simplified Newton/RATTLE/HMC, DFO-GN/DFO-LS, Hairer ODEX, and the user original quasi-Newton projection formulation.
 - Low-level algorithm review set is complete and has already driven the first source canonicalization wave:
   - `runbooks/ODEX_FLOW_REVIEW_NOTES.md`
@@ -162,6 +162,12 @@ Current protocol state:
   - R3 queued replacement `14657` and merge `14658` were superseded by running chunk `14669` and held merge `14670`.
   - R4 queued replacements `14645`/`14649`/`14660`/`14662` and merge `14663` were superseded by running chunks `14671`/`14672`/`14673`/`14674` and held merge `14675`.
   - The probe-first decision and replacement map are recorded in `runbooks/M6_QUEUE_PROBE_AND_RESUBMISSION_20260510.md`.
+- M6 reference dataset readback is complete and accepted:
+  - R1-R4 have package manifests, aggregate comparisons, registry rows, expected per-method row counts, and protocol audit bad=0.
+  - R4 final replacement `14674` and merge `14675` completed with `Exit_status=0`.
+  - Accepted package rows are recorded in `state/M6_REFERENCE_PACKAGES.tsv`.
+  - Readback report: `runbooks/M6_REFERENCE_DATASET_READBACK_20260510.md`.
+  - No active PBS jobs remain after the latest refresh.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md` plus the M6 code-entry gate.

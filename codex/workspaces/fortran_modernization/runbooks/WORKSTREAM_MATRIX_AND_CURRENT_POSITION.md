@@ -9,14 +9,14 @@ Scope: replace the misleading impression that M0-M6 is a linear "modernization c
 Current position:
 
 ```text
-Completed foundation -> Active M6 reference baseline gate -> Remaining modernization blocks
+Completed foundation -> Accepted M6 reference baseline -> Remaining modernization blocks
 ```
 
 Interpretation:
 
 - M0-M6 did not complete all Fortran modernization.
-- M0-M6 established the canonical numerical route, deleted major legacy paths, added guardrails/provenance infrastructure, and started reference dataset generation.
-- The active work is M6 reference baseline generation/readback. This is the safety gate before larger architecture/API/RNG/state/schema refactors resume.
+- M0-M6 established the canonical numerical route, deleted major legacy paths, added guardrails/provenance infrastructure, and accepted the first R1-R4 modernization reference baseline.
+- The active baseline gate is now accepted. Larger architecture/API/RNG/state/schema refactors should use the accepted M6 packages as comparison anchors.
 - The next roadmap should be organized by workstream status, not by pretending the M-number ladder is a complete modernization sequence.
 
 ## Status Legend
@@ -34,7 +34,7 @@ Interpretation:
 | W0 | Governance, memory, and remote safety | partial | L0/L1 control-plane memory, remote/job/worktree registries, cluster02 scheduler agent, no-`qmove` repair policy | keep registries fresh; remote branch/worktree semantic rename after pinned jobs finish | ongoing maintenance |
 | W1 | Reference-backed algorithm audit | done | TLTM/HMC, GT-HMC Newton/RATTLE/HMC, DFO-LS/DFO-GN, ODEX, and user QN formulation references collected; five core audit notes written | revisit only when a new algorithm mode or paper formulation is introduced | reference changes |
 | W2 | Canonical numerical route and legacy deletion | done for current route | canonical p28 route selected; non-p28 QN, Broyden/line-search, global continuation/restart, post-refine, Radau/JFNK removed; strict final-flow policy recorded | rename legacy compatibility labels such as `fb_norefine` and `final_resort` only under versioned schema | schema/wrapper gate |
-| W3 | Behavior baselines and reference packages | active | M6 R1/R2 merged and triaged; R3/R4 probe-optimized jobs submitted; readback and package registry docs exist | complete R3/R4, full readback, register accepted package rows, define comparison harness entry points | active PBS/readback gate |
+| W3 | Behavior baselines and reference packages | done for M6 gate | M6 R1-R4 accepted; package registry rows recorded; readback report exists | formal read-only comparison tooling and future baseline expansion as needed | comparison tooling gate |
 | W4 | Guardrails, tests, and benchmarks | partial | `make -C build modernization_guardrails`, ODEX/swap tests, protocol audit, Stage3 sidecar smoke, module dependency build support | official reference comparison harness, benchmark baselines, CI-like fast/slow suite split | after accepted reference package |
 | W5 | Config and provenance governance | partial | key-value config only; direct env reads centralized in `runtime_env_mod`; sidecar manifest/protocol started | replace `param_mod` legacy global mirror, define product config schema, strengthen manifest/provenance contract | reference package or explicit narrow baseline |
 | W6 | State/status/information propagation | partial | `H==0` sentinel replaced in first slice; proposal status surface added; state-propagation audit/refactor docs exist | typed result/status objects across flow, solver, RATTLE, HMC, reverse gate, Metropolis; eliminate ambiguous logical/error plumbing | reference package |
@@ -65,15 +65,16 @@ These should not be reopened unless new evidence appears:
 
 Active focus:
 
-- Finish M6 R1-R4 reference generation/readback and registry acceptance.
-- Do not fast-forward or clean the active remote worktree while pinned jobs remain.
-- Do not start high-risk source refactors until the reference package is accepted or a narrower baseline is explicitly approved.
+- Select the next remaining modernization block using this matrix.
+- Do not start high-risk source refactors without an explicit reference-comparison plan against the accepted M6 packages or a narrower affected baseline.
+- Remote cleanup, fast-forward, or rename is now possible only after a fresh refresh and explicit scope check.
 
 Current active remote target:
 
 - semantic id: `fortran_modernization_m6_active`
 - physical path: `/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation`
-- pinned commit for active jobs: `a1028ad6d68eabfd6c400ec135b3df9cab1e4af2`
+- generation commit: `a1028ad6d68eabfd6c400ec135b3df9cab1e4af2`
+- latest refresh: no active pinned M6 jobs remain
 
 ## What Remains After M6 Baseline Acceptance
 
@@ -94,5 +95,5 @@ Do not describe modernization progress as "M6 means done."
 Use this phrasing instead:
 
 ```text
-M6 is the active reference-baseline gate. The modernization foundation is complete enough to generate baselines, but the main architecture/API/state/RNG/schema/productization blocks remain as separate workstreams.
+M6 is the accepted reference-baseline gate. The modernization foundation is complete enough to protect behavior with accepted packages, but the main architecture/API/state/RNG/schema/productization blocks remain as separate workstreams.
 ```

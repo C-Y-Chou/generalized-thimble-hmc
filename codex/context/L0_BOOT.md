@@ -1,7 +1,7 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-10T21:37:44+09:00
-Remote refreshed: 2026-05-10T21:34:56+09:00
+Generated: 2026-05-10T22:49:47+09:00
+Remote refreshed: 2026-05-10T22:47:07+09:00
 
 ## Hard Rules
 
@@ -14,13 +14,11 @@ Remote refreshed: 2026-05-10T21:34:56+09:00
 
 ## Active Remote Risk
 
-- `fortran_modernization_m6_active`: branch `codex/qn-error-handling-validation`, commit `a1028ad6d68eabfd6c400ec135b3df9cab1e4af2`, 3 active jobs, examples: 14671.anode01,14674.anode01,14675.anode01, pinned `a1028ad6d68eabfd6c400ec135b3df9cab1e4af2`. Do not fast-forward.
+- No unsafe worktree recorded in the latest registry. If cache is stale, refresh before acting.
 
 ## Active/Pending Jobs
 
-- `14671.anode01` `m6R4pnofb04` queue `C8` state `R` dataset `m6_r4_128seed_100k`.
-- `14674.anode01` `m6R4pfbnorefine15` queue `C8` state `R` dataset `m6_r4_128seed_100k`.
-- `14675.anode01` `m6R4mergeP` queue `C8` state `H` dataset `m6_r4_128seed_100k`.
+- No active jobs in `codex/state/JOBS.tsv`.
 
 ## High-Priority Open Items
 

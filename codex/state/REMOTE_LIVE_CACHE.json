@@ -3,55 +3,7 @@
   "hosts": {
     "cychou@ithems_fe02.intra.riken.jp": {
       "parsed": {
-        "jobs": [
-          {
-            "Job_Name": "m6R4pnofb04",
-            "Resource_List.select": "1:ncpus=8:mpiprocs=8:mem=16gb",
-            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va,TLTM_WORKTREE=/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va,TLTM_EXPECTED_GIT_COMMIT=a1028ad6d68eabfd6c400ec135b3df9cab1e4af2,,TLTM_REF_LEVEL=R4,TLTM_REF_LABEL=r4_128seed_100k,,TLTM_CONFIG_JSON=docs/modernization_reference_t035_r4_128seed_100k.jso,TLTM_ROOT_SUBDIR=output/reference/fortran_modernization/m6/r4_128seed_,TLTM_ROOT_LOG_SUBDIR=output/logs/fortran_modernization/reference_datas,TLTM_SEED_OFFSET=32,TLTM_MAX_SEEDS=8,TLTM_JOBS=8,TLTM_ALLOW_OVERWRITE=0,,PBS_O_QUEUE=C8,PBS_O_HOST=ithems_fe02.intra.riken.jp,KTREE=/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation,,TLTM_EXPECTED_GIT_BRANCH=codex/qn-error-handling-validation,,TLTM_EXPECTED_GIT_COMMIT=a1028ad6d68eabfd6c400ec135b3df9cab1e4af2,,TLTM_REF_LEVEL=R4,TLTM_REF_LABEL=r4_128seed_100k,,TLTM_CONFIG_JSON=docs/modernization_reference_t035_r4_128seed_100k.jso,TLTM_ROOT_SUBDIR=output/reference/fortran_modernization/m6/r4_128seed_,TLTM_ROOT_LOG_SUBDIR=output/logs/fortran_modernization/reference_datas,TLTM_SEED_OFFSET=32,TLTM_MAX_SEEDS=8,TLTM_JOBS=8,,TLTM_ALLOW_OVERWRITE=0 codex/workspaces/fortran_modernization/tasks/pb",
-            "exec_host": "cnode17/2*8",
-            "expected_commit": "a1028ad6d68eabfd6c400ec135b3df9cab1e4af2",
-            "host": "ithems_fe02.intra.riken.jp",
-            "job_id": "14671.anode01",
-            "job_state": "R",
-            "queue": "C8",
-            "worktree": "/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va"
-          },
-          {
-            "Job_Name": "m6R4pfbnorefine06",
-            "Resource_List.select": "1:ncpus=8:mpiprocs=8:mem=16gb",
-            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va,TLTM_WORKTREE=/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va,TLTM_EXPECTED_GIT_COMMIT=a1028ad6d68eabfd6c400ec135b3df9cab1e4af2,,TLTM_REF_LEVEL=R4,TLTM_REF_LABEL=r4_128seed_100k,,TLTM_CONFIG_JSON=docs/modernization_reference_t035_r4_128seed_100k.jso,TLTM_ROOT_SUBDIR=output/reference/fortran_modernization/m6/r4_128seed_,TLTM_ROOT_LOG_SUBDIR=output/logs/fortran_modernization/reference_datas,TLTM_SEED_OFFSET=48,TLTM_MAX_SEEDS=8,TLTM_JOBS=8,TLTM_ALLOW_OVERWRITE=0,,PBS_O_QUEUE=C12-LONG,PBS_O_HOST=ithems_fe02.intra.riken.jp,Exit_status=0,procs=8:mem=16gb -l walltime=10:00:00 -o output/logs/fortran_modernizat,TLTM_EXPECTED_GIT_BRANCH=codex/qn-error-handling-validation,,TLTM_EXPECTED_GIT_COMMIT=a1028ad6d68eabfd6c400ec135b3df9cab1e4af2,,TLTM_REF_LEVEL=R4,TLTM_REF_LABEL=r4_128seed_100k,,TLTM_CONFIG_JSON=docs/modernization_reference_t035_r4_128seed_100k.jso,TLTM_ROOT_SUBDIR=output/reference/fortran_modernization/m6/r4_128seed_,TLTM_ROOT_LOG_SUBDIR=output/logs/fortran_modernization/reference_datas,TLTM_SEED_OFFSET=48,TLTM_MAX_SEEDS=8,TLTM_JOBS=8,,TLTM_ALLOW_OVERWRITE=0 codex/workspaces/fortran_modernization/tasks/pb",
-            "exec_host": "cnode35/2*8",
-            "expected_commit": "a1028ad6d68eabfd6c400ec135b3df9cab1e4af2",
-            "host": "ithems_fe02.intra.riken.jp",
-            "job_id": "14672.anode01",
-            "job_state": "E",
-            "queue": "C12-LONG",
-            "worktree": "/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va"
-          },
-          {
-            "Job_Name": "m6R4pfbnorefine15",
-            "Resource_List.select": "1:ncpus=8:mpiprocs=8:mem=16gb",
-            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va,TLTM_WORKTREE=/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va,TLTM_EXPECTED_GIT_COMMIT=a1028ad6d68eabfd6c400ec135b3df9cab1e4af2,,TLTM_REF_LEVEL=R4,TLTM_REF_LABEL=r4_128seed_100k,,TLTM_CONFIG_JSON=docs/modernization_reference_t035_r4_128seed_100k.jso,TLTM_ROOT_SUBDIR=output/reference/fortran_modernization/m6/r4_128seed_,TLTM_ROOT_LOG_SUBDIR=output/logs/fortran_modernization/reference_datas,TLTM_SEED_OFFSET=120,TLTM_MAX_SEEDS=8,TLTM_JOBS=8,,TLTM_ALLOW_OVERWRITE=0,PBS_O_QUEUE=C8,,PBS_O_HOST=ithems_fe02.intra.riken.jp,TLTM_EXPECTED_GIT_BRANCH=codex/qn-error-handling-validation,,TLTM_EXPECTED_GIT_COMMIT=a1028ad6d68eabfd6c400ec135b3df9cab1e4af2,,TLTM_REF_LEVEL=R4,TLTM_REF_LABEL=r4_128seed_100k,,TLTM_CONFIG_JSON=docs/modernization_reference_t035_r4_128seed_100k.jso,TLTM_ROOT_SUBDIR=output/reference/fortran_modernization/m6/r4_128seed_,TLTM_ROOT_LOG_SUBDIR=output/logs/fortran_modernization/reference_datas,TLTM_SEED_OFFSET=120,TLTM_MAX_SEEDS=8,TLTM_JOBS=8,,TLTM_ALLOW_OVERWRITE=0 codex/workspaces/fortran_modernization/tasks/pb",
-            "exec_host": "cnode17/4*8",
-            "expected_commit": "a1028ad6d68eabfd6c400ec135b3df9cab1e4af2",
-            "host": "ithems_fe02.intra.riken.jp",
-            "job_id": "14674.anode01",
-            "job_state": "R",
-            "queue": "C8",
-            "worktree": "/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va"
-          },
-          {
-            "Job_Name": "m6R4mergeP",
-            "Resource_List.select": "1:ncpus=1:mpiprocs=1:mem=4gb",
-            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va,TLTM_WORKTREE=/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va,TLTM_EXPECTED_GIT_COMMIT=a1028ad6d68eabfd6c400ec135b3df9cab1e4af2,,TLTM_REF_LEVEL=R4,TLTM_REF_LABEL=r4_128seed_100k,,TLTM_CONFIG_JSON=docs/modernization_reference_t035_r4_128seed_100k.jso,TLTM_ROOT_SUBDIR=output/reference/fortran_modernization/m6/r4_128seed_,TLTM_ROOT_LOG_SUBDIR=output/logs/fortran_modernization/reference_datas,TLTM_REQUESTED_CPUS=256,TLTM_CHUNKS_LABEL=R4_probe_optimized_chunks,,PBS_O_QUEUE=C8,PBS_O_HOST=ithems_fe02.intra.riken.jp,TLTM_EXPECTED_GIT_BRANCH=codex/qn-error-handling-validation,,TLTM_EXPECTED_GIT_COMMIT=a1028ad6d68eabfd6c400ec135b3df9cab1e4af2,,TLTM_REF_LEVEL=R4,TLTM_REF_LABEL=r4_128seed_100k,,TLTM_CONFIG_JSON=docs/modernization_reference_t035_r4_128seed_100k.jso,TLTM_ROOT_SUBDIR=output/reference/fortran_modernization/m6/r4_128seed_,TLTM_ROOT_LOG_SUBDIR=output/logs/fortran_modernization/reference_datas,TLTM_REQUESTED_CPUS=256,,TLTM_CHUNKS_LABEL=R4_probe_optimized_chunks codex/workspaces/fortran_m",
-            "expected_commit": "a1028ad6d68eabfd6c400ec135b3df9cab1e4af2",
-            "host": "ithems_fe02.intra.riken.jp",
-            "job_id": "14675.anode01",
-            "job_state": "H",
-            "queue": "C8",
-            "worktree": "/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_va"
-          }
-        ],
+        "jobs": [],
         "worktrees": {
           "/home/cychou/TLTM": {
             "branch": "codex/preprod-hardening",
@@ -73,7 +25,7 @@
       "stderr": ""
     }
   },
-  "refreshed_at_jst": "2026-05-10T21:34:56+09:00",
+  "refreshed_at_jst": "2026-05-10T22:47:07+09:00",
   "targets": [
     {
       "branch": "unknown",

@@ -4,6 +4,8 @@ Updated: 2026-05-10 21:35 JST
 
 Scope: read-only triage of M6 R1-R4 reference dataset generation on `fortran_modernization_m6_active`.
 
+Final superseding note, 2026-05-10 22:50 JST: R4 chunk `14674` and merge `14675` completed with `Exit_status=0`; R1-R4 are accepted. Use `M6_REFERENCE_DATASET_READBACK_20260510.md` as the current readback record. This file is retained as the historical mid-run triage snapshot.
+
 Remote worktree safety:
 
 - Semantic target id: `fortran_modernization_m6_active`
