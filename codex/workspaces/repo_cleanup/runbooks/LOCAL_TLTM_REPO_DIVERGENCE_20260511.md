@@ -26,6 +26,7 @@ Resolved on 2026-05-11 JST:
 - Stash label: `stash@{0}: On codex/preprod-hardening: preserve local QN residue before 2026-05-11 sync`
 - The local checkout was fast-forwarded to `70b9dea`.
 - Post-resolution status: clean worktree, branch `codex/preprod-hardening`, upstream `origin/codex/preprod-hardening`.
+- Follow-up rename: the branch was renamed to `codex/control-plane` on 2026-05-11, and the checkout was later fast-forwarded with the control-plane registries.
 
 The stash should be treated as historical safety evidence, not an unmerged required change, unless a future audit finds a discrepancy.
 

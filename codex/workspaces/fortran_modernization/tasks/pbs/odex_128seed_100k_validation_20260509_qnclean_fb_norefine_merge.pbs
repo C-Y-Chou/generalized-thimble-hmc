@@ -9,7 +9,7 @@
 set -euo pipefail
 
 WORKTREE="/lustre1/home/cychou/TLTM"
-: "${TLTM_EXPECTED_GIT_BRANCH:=codex/preprod-hardening}"
+: "${TLTM_EXPECTED_GIT_BRANCH:=codex/fortran-modernization}"
 : "${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
 
 cd "${WORKTREE}"

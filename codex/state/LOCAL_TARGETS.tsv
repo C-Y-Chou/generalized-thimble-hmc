@@ -1,2 +1,2 @@
 target_id	path	purpose	fast_forward_policy	notes
-legacy_new_project_tltm_repo	/Users/ccy/Documents/New project/TLTM_repo	Legacy local TLTM repo checkout used by older workflows	check_dirty_and_ahead	Do not pull or overwrite if dirty; QN residue was stashed before 2026-05-11 sync.
+local_control_plane_checkout	/Users/ccy/Documents/New project/TLTM_repo	Local control-plane checkout used by older New project workflows	check_dirty_and_ahead	Branch renamed from codex/preprod-hardening to codex/control-plane on 2026-05-11; QN residue remains preserved in stash.

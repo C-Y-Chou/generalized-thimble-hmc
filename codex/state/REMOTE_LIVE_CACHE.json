@@ -6,22 +6,22 @@
         "jobs": [],
         "worktrees": {
           "/home/cychou/TLTM": {
-            "branch": "codex/preprod-hardening",
-            "commit": "b0d7b716b03520318552ceaf4d86f12f61668339",
+            "branch": "codex/control-plane",
+            "commit": "5d4821bada2d8a8f713fb38666e2c642a39536b8",
             "dirty_count": "0",
             "exists": "1",
             "worktree_path": "/home/cychou/TLTM"
           },
           "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization": {
             "branch": "codex/fortran-modernization",
-            "commit": "b0d7b716b03520318552ceaf4d86f12f61668339",
+            "commit": "5d4821bada2d8a8f713fb38666e2c642a39536b8",
             "dirty_count": "0",
             "exists": "1",
             "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization"
           },
           "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison": {
             "branch": "codex/tltm-production-comparison",
-            "commit": "b0d7b716b03520318552ceaf4d86f12f61668339",
+            "commit": "5d4821bada2d8a8f713fb38666e2c642a39536b8",
             "dirty_count": "0",
             "exists": "1",
             "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison"
@@ -32,13 +32,13 @@
       "stderr": ""
     }
   },
-  "refreshed_at_jst": "2026-05-11T00:20:45+09:00",
+  "refreshed_at_jst": "2026-05-11T00:26:48+09:00",
   "targets": [
     {
-      "branch": "unknown",
+      "branch": "codex/control-plane",
       "fast_forward_policy": "refresh_only_until_checked",
       "host": "ithems_fe02.intra.riken.jp",
-      "notes": "Primary remote control plane path used by handoff docs.",
+      "notes": "Primary remote control plane path used by handoff docs; branch renamed from codex/preprod-hardening on 2026-05-11.",
       "purpose": "shared_codex_control_plane",
       "repo_path": "/home/cychou/TLTM",
       "target_id": "remote_control_plane",

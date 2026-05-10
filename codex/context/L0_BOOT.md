@@ -1,7 +1,7 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-11T00:20:46+09:00
-Remote refreshed: 2026-05-11T00:20:45+09:00
+Generated: 2026-05-11T00:26:50+09:00
+Remote refreshed: 2026-05-11T00:26:48+09:00
 
 ## Hard Rules
 
@@ -33,12 +33,12 @@ Remote refreshed: 2026-05-11T00:20:45+09:00
 
 ## Recent Decisions
 
-- 2026-05-10 `tltm_production_comparison`: Rename Stage3_4 workstream to tltm_production_comparison
 - 2026-05-10 `global`: Soft-decouple modernization and production comparison
 - 2026-05-10 `tltm_production_comparison`: Clear legacy Stage3_4 raw output/log folders before rerun
 - 2026-05-10 `global`: Clear legacy Stage1-Stage3_3 and obsolete ODEX validation raw datasets
 - 2026-05-10 `tltm_production_comparison`: Reuse accepted M6 reference datasets as first production-calibration tier
 - 2026-05-11 `repo_cleanup`: Track local TLTM worktrees as first-class state
+- 2026-05-11 `remote_control_plane`: Rename codex/preprod-hardening to codex/control-plane
 
 ## Pointers
 
