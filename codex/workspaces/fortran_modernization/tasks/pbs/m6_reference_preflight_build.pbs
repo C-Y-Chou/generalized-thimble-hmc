@@ -51,6 +51,7 @@ echo "commit=${CURRENT_COMMIT}"
 echo "build_jobs=${TLTM_BUILD_JOBS}"
 echo "run_guardrails=${TLTM_RUN_GUARDRAILS}"
 
+make -C build clean
 make -C build -j "${TLTM_BUILD_JOBS}" ../bin/run_tltm_stage2 ../bin/evaluate_expectations
 
 if [ "${TLTM_RUN_GUARDRAILS}" = "1" ]; then
