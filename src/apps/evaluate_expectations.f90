@@ -1,5 +1,6 @@
 program evaluate_expectations_app
    use param_mod, only: alpha, beta, n_size, phi_history_file, read_parameters, tra2, z_history_file
+   use runtime_env_mod, only: read_string_env
    use utils, only: dp
    implicit none
 
@@ -37,7 +38,7 @@ program evaluate_expectations_app
    complex(dp) :: normalized_value
    integer :: sample_idx, n_samples, io_status, n_half, n_half2
    integer :: jk_min_blocks_reliable, jk_min_bin_size_reliable
-   integer :: env_status, env_len, required_half_samples
+   integer :: required_half_samples
    integer :: direct_n_use, direct_start_idx, direct_lag_cap
    integer :: direct_lag_used_ips_re, direct_lag_used_ips_im
    integer :: direct_lag_used_ics_re, direct_lag_used_ics_im
@@ -55,14 +56,12 @@ program evaluate_expectations_app
    character(len=1024) :: virial_file
    character(len=1024) :: jackknife_file, jackknife_plot_script_file, jackknife_plot_image_file, jackknife_plot_cmd
    character(len=1024) :: jackknife_meta_file
-   logical :: multichain_mode
+   logical :: multichain_mode, env_present_main
 
    call read_parameters()
    multichain_run_dir = ""
-   call get_environment_variable("EVAL_MULTICHAIN_RUN_DIR", multichain_run_dir, length=env_len, status=env_status)
-   multichain_mode = (env_status == 0 .and. env_len > 0)
+   call read_string_env("EVAL_MULTICHAIN_RUN_DIR", multichain_run_dir, multichain_mode)
    if (multichain_mode) then
-      multichain_run_dir = trim(multichain_run_dir(1:env_len))
       write (*, '(A,1X,A)') "[INIT] Evaluating multichain run:", trim(multichain_run_dir)
       call evaluate_multichain_run(trim(multichain_run_dir))
       stop
@@ -98,9 +97,9 @@ program evaluate_expectations_app
    phase_min_effective = 50.0_dp
 
    env_value = ""
-   call get_environment_variable("EVAL_JK_MIN_BLOCKS", env_value, length=env_len, status=env_status)
-   if (env_status == 0 .and. env_len > 0) then
-      read (env_value(1:env_len), *, iostat=io_status) jk_min_blocks_reliable
+   call read_string_env("EVAL_JK_MIN_BLOCKS", env_value, env_present_main)
+   if (env_present_main) then
+      read (env_value, *, iostat=io_status) jk_min_blocks_reliable
       if (io_status /= 0 .or. jk_min_blocks_reliable < 2) then
          write (*, '(A)') "[WARN] Invalid EVAL_JK_MIN_BLOCKS value. Using default 512."
          jk_min_blocks_reliable = 512
@@ -108,9 +107,9 @@ program evaluate_expectations_app
    end if
 
    env_value = ""
-   call get_environment_variable("EVAL_JK_MIN_BIN", env_value, length=env_len, status=env_status)
-   if (env_status == 0 .and. env_len > 0) then
-      read (env_value(1:env_len), *, iostat=io_status) jk_min_bin_size_reliable
+   call read_string_env("EVAL_JK_MIN_BIN", env_value, env_present_main)
+   if (env_present_main) then
+      read (env_value, *, iostat=io_status) jk_min_bin_size_reliable
       if (io_status /= 0 .or. jk_min_bin_size_reliable < 1) then
          write (*, '(A)') "[WARN] Invalid EVAL_JK_MIN_BIN value. Using default 2."
          jk_min_bin_size_reliable = 2
@@ -119,9 +118,9 @@ program evaluate_expectations_app
    write (*, '(A,I0,A,I0)') "[CONFIG] Jackknife reliability filter: n_blocks>=", jk_min_blocks_reliable, &
       " bin>=", jk_min_bin_size_reliable
    env_value = ""
-   call get_environment_variable("EVAL_PHASE_MIN_EFFECTIVE", env_value, length=env_len, status=env_status)
-   if (env_status == 0 .and. env_len > 0) then
-      read (env_value(1:env_len), *, iostat=io_status) phase_min_effective
+   call read_string_env("EVAL_PHASE_MIN_EFFECTIVE", env_value, env_present_main)
+   if (env_present_main) then
+      read (env_value, *, iostat=io_status) phase_min_effective
       if (io_status /= 0 .or. phase_min_effective < 1.0_dp) then
          write (*, '(A)') "[WARN] Invalid EVAL_PHASE_MIN_EFFECTIVE value. Using default 50."
          phase_min_effective = 50.0_dp
@@ -162,9 +161,9 @@ program evaluate_expectations_app
    direct_n_use = min(n_samples, 200000)
    direct_lag_cap = 512
    env_value = ""
-   call get_environment_variable("EVAL_DIRECT_TAU_SAMPLES_CAP", env_value, length=env_len, status=env_status)
-   if (env_status == 0 .and. env_len > 0) then
-      read (env_value(1:env_len), *, iostat=io_status) direct_n_use
+   call read_string_env("EVAL_DIRECT_TAU_SAMPLES_CAP", env_value, env_present_main)
+   if (env_present_main) then
+      read (env_value, *, iostat=io_status) direct_n_use
       if (io_status /= 0 .or. direct_n_use < 4) then
          write (*, '(A)') "[WARN] Invalid EVAL_DIRECT_TAU_SAMPLES_CAP value. Using default 200000."
          direct_n_use = min(n_samples, 200000)
@@ -173,9 +172,9 @@ program evaluate_expectations_app
       end if
    end if
    env_value = ""
-   call get_environment_variable("EVAL_DIRECT_TAU_MAX_LAG", env_value, length=env_len, status=env_status)
-   if (env_status == 0 .and. env_len > 0) then
-      read (env_value(1:env_len), *, iostat=io_status) direct_lag_cap
+   call read_string_env("EVAL_DIRECT_TAU_MAX_LAG", env_value, env_present_main)
+   if (env_present_main) then
+      read (env_value, *, iostat=io_status) direct_lag_cap
       if (io_status /= 0 .or. direct_lag_cap < 1) then
          write (*, '(A)') "[WARN] Invalid EVAL_DIRECT_TAU_MAX_LAG value. Using default 512."
          direct_lag_cap = 512
@@ -444,7 +443,7 @@ contains
       integer :: io_status, n_chains, chain_idx
       integer :: n_samples_z, n_samples_phi, n_samples_chain, n_samples_min, n_total_samples
       integer :: n_use, tail_start, tail_idx, sample_idx, sample_offset
-      integer :: env_status_local, env_len_local, diag_window_cap, diag_max_lag
+      integer :: diag_window_cap, diag_max_lag
       character(len=64) :: env_value_local
       complex(dp) :: sum_num_o_total, sum_num_tra2_total, sum_phi_total
       complex(dp) :: mean_o, mean_tra2, obs_o, obs_tra2
@@ -472,6 +471,7 @@ contains
       character(len=path_len) :: jackknife_file_local, jackknife_plot_script_local, jackknife_plot_image_local
       character(len=1200) :: jackknife_plot_cmd_local
       integer :: mkdir_cmd_status_local, mkdir_exit_status_local, jk_plot_cmd_status_local, jk_plot_exit_status_local
+      logical :: env_present_local
 
       call discover_multichain_paths(run_dir, z_paths, phi_paths, n_chains, io_status)
       if (io_status /= 0 .or. n_chains < 1) then
@@ -501,9 +501,9 @@ contains
 
       diag_window_cap = 20000
       env_value_local = ""
-      call get_environment_variable("EVAL_MULTICHAIN_DIAG_WINDOW", env_value_local, length=env_len_local, status=env_status_local)
-      if (env_status_local == 0 .and. env_len_local > 0) then
-         read (env_value_local(1:env_len_local), *, iostat=io_status) diag_window_cap
+      call read_string_env("EVAL_MULTICHAIN_DIAG_WINDOW", env_value_local, env_present_local)
+      if (env_present_local) then
+         read (env_value_local, *, iostat=io_status) diag_window_cap
          if (io_status /= 0) then
             write (*, '(A)') "[WARN] Invalid EVAL_MULTICHAIN_DIAG_WINDOW value. Using default 20000."
             diag_window_cap = 20000
@@ -521,9 +521,9 @@ contains
 
       diag_max_lag = 512
       env_value_local = ""
-      call get_environment_variable("EVAL_DIRECT_TAU_MAX_LAG", env_value_local, length=env_len_local, status=env_status_local)
-      if (env_status_local == 0 .and. env_len_local > 0) then
-         read (env_value_local(1:env_len_local), *, iostat=io_status) diag_max_lag
+      call read_string_env("EVAL_DIRECT_TAU_MAX_LAG", env_value_local, env_present_local)
+      if (env_present_local) then
+         read (env_value_local, *, iostat=io_status) diag_max_lag
          if (io_status /= 0 .or. diag_max_lag < 1) then
             write (*, '(A)') "[WARN] Invalid EVAL_DIRECT_TAU_MAX_LAG value. Using default 512."
             diag_max_lag = 512
@@ -652,18 +652,18 @@ contains
       jk_min_blocks_local = 512
       jk_min_bin_local = 2
       env_value_local = ""
-      call get_environment_variable("EVAL_JK_MIN_BLOCKS", env_value_local, length=env_len_local, status=env_status_local)
-      if (env_status_local == 0 .and. env_len_local > 0) then
-         read (env_value_local(1:env_len_local), *, iostat=io_status) jk_min_blocks_local
+      call read_string_env("EVAL_JK_MIN_BLOCKS", env_value_local, env_present_local)
+      if (env_present_local) then
+         read (env_value_local, *, iostat=io_status) jk_min_blocks_local
          if (io_status /= 0 .or. jk_min_blocks_local < 2) then
             write (*, '(A)') "[WARN] Invalid EVAL_JK_MIN_BLOCKS value. Using default 512."
             jk_min_blocks_local = 512
          end if
       end if
       env_value_local = ""
-      call get_environment_variable("EVAL_JK_MIN_BIN", env_value_local, length=env_len_local, status=env_status_local)
-      if (env_status_local == 0 .and. env_len_local > 0) then
-         read (env_value_local(1:env_len_local), *, iostat=io_status) jk_min_bin_local
+      call read_string_env("EVAL_JK_MIN_BIN", env_value_local, env_present_local)
+      if (env_present_local) then
+         read (env_value_local, *, iostat=io_status) jk_min_bin_local
          if (io_status /= 0 .or. jk_min_bin_local < 1) then
             write (*, '(A)') "[WARN] Invalid EVAL_JK_MIN_BIN value. Using default 2."
             jk_min_bin_local = 2
@@ -2341,13 +2341,14 @@ contains
 
       integer, parameter :: iat_samples_cap_default = 50000
       integer :: n_samples_local, n_iat_samples, iat_start_idx
-      integer :: iat_samples_cap, env_status, env_len, io_status
+      integer :: iat_samples_cap, io_status
       real(dp), allocatable :: observable_real(:), observable_imag(:), projected_samples(:)
       real(dp) :: tau_re_acf, tau_re_batch, tau_re_split, tau_re_median
       real(dp) :: tau_im_acf, tau_im_batch, tau_im_split, tau_im_median
       real(dp) :: tau_mode_acf, tau_mode_batch, tau_mode_split, tau_mode_median
       real(dp) :: tau_acf_max, tau_guard_max, t_component_start, t_component_end
       character(len=64) :: env_value
+      logical :: env_present_iat
 
       n_samples_local = size(observable_samples)
       tau_int_real = 1.0_dp
@@ -2359,9 +2360,9 @@ contains
 
       iat_samples_cap = iat_samples_cap_default
       env_value = ""
-      call get_environment_variable("EVAL_IAT_SAMPLES_CAP", env_value, length=env_len, status=env_status)
-      if (env_status == 0 .and. env_len > 0) then
-         read (env_value(1:env_len), *, iostat=io_status) iat_samples_cap
+      call read_string_env("EVAL_IAT_SAMPLES_CAP", env_value, env_present_iat)
+      if (env_present_iat) then
+         read (env_value, *, iostat=io_status) iat_samples_cap
          if (io_status /= 0 .or. iat_samples_cap < 2) then
             write (*, '(A)') "[WARN] Invalid EVAL_IAT_SAMPLES_CAP value. Using default 50000."
             iat_samples_cap = iat_samples_cap_default
@@ -3070,8 +3071,9 @@ contains
 
       integer, parameter :: max_lag_cap_default = 96
       integer :: max_lag_cap, max_lag_use, n_samples_local
-      integer :: env_status, env_len, io_status
+      integer :: io_status
       character(len=64) :: env_value
+      logical :: env_present_lag
 
       n_samples_local = size(observable_samples)
       tau_int = 1.0_dp
@@ -3079,9 +3081,9 @@ contains
 
       max_lag_cap = max_lag_cap_default
       env_value = ""
-      call get_environment_variable("EVAL_IAT_MAX_LAG", env_value, length=env_len, status=env_status)
-      if (env_status == 0 .and. env_len > 0) then
-         read (env_value(1:env_len), *, iostat=io_status) max_lag_cap
+      call read_string_env("EVAL_IAT_MAX_LAG", env_value, env_present_lag)
+      if (env_present_lag) then
+         read (env_value, *, iostat=io_status) max_lag_cap
          if (io_status /= 0 .or. max_lag_cap < 1) then
             write (*, '(A)') "[WARN] Invalid EVAL_IAT_MAX_LAG value. Using default 96."
             max_lag_cap = max_lag_cap_default

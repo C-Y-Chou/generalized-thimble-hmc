@@ -58,6 +58,7 @@
 - 2026-05-10 JST: Added the first M4 repeatable local guardrail entry point: `scripts/run_m4_guardrails.py` plus `make -C build modernization_guardrails`.
 - 2026-05-10 JST: Added M5 state/config ownership inventory and reached the first M5 lane-selection decision point; recommendation is config/env/provenance first.
 - 2026-05-10 JST: User selected Lane A; completed first string-env consolidation slice for Stage1/Stage2 via `runtime_env_mod:read_string_env`.
+- 2026-05-10 JST: Completed second Lane A env consolidation slice for `evaluate_expectations`; direct env reads dropped from 36 to 24 and M4 guardrails passed.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit

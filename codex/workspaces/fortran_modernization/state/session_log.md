@@ -383,3 +383,9 @@
 - Preserved env names/defaults, empty-env behavior, too-long env rejection behavior, v0 output schema, RNG order, and numerical code paths.
 - M4 guardrails passed.
 - Regenerated M5 ownership inventory: total rows dropped from 384 to 368 and env-read rows dropped from 52 to 36.
+
+## 2026-05-10 JST - Lane A evaluation env consolidation
+- Replaced `evaluate_expectations` direct env reads for multichain mode and diagnostic/evaluation thresholds with `runtime_env_mod:read_string_env`.
+- Preserved existing env names, empty-env behavior, too-long env rejection behavior, invalid-value warnings, defaults, min-bound checks, sample-count clamps, and statistical formulas.
+- Verification passed through `make -C build modernization_guardrails`.
+- Regenerated M5 ownership inventory: total rows dropped from 368 to 356 and env-read rows dropped from 36 to 24.

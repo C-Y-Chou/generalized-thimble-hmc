@@ -20,9 +20,9 @@ The inventory includes source and tests and records conservative hits for:
 
 Inventory count:
 
-- 368 total ownership-surface rows after the first Lane A string-env consolidation slice.
+- 356 total ownership-surface rows after the second Lane A env consolidation slice.
 - 275 `save` declarations.
-- 36 runtime env reads.
+- 24 runtime env reads.
 - 43 RNG calls.
 - 14 `param_mod` import sites.
 
@@ -36,10 +36,10 @@ Main `save` hotspots:
 
 Main env-read hotspots:
 
-- `src/apps/evaluate_expectations.f90`: 12
 - `src/sampler/hmc_integrator_core.f90`: 8
 - `src/sampler/quasi_newton_solver.f90`: 6
 - `src/config/runtime_env_mod.f90`: 4
+- `src/sampler/markovchain_mod.f90`: 2
 
 Main RNG surface:
 
@@ -143,3 +143,6 @@ Recommendation: choose Lane A first, then Lane B, then targeted Lane C slices. D
 - Preserved env names, defaults, empty-env behavior, too-long env rejection, v0 output fields, RNG order, and numerical code paths.
 - M4 guardrails passed after the change.
 - Inventory env-read rows dropped from 52 to 36; Stage1/Stage2 no longer directly call `get_environment_variable` outside `runtime_env_mod`.
+- Replaced `evaluate_expectations` direct env reads for multichain input selection and evaluation/diagnostic thresholds with `read_string_env`, preserving invalid-value warnings, defaults, min-bound checks, sample-count clamps, and statistical formulas.
+- M4 guardrails passed after the evaluation slice.
+- Inventory env-read rows dropped from 36 to 24; `evaluate_expectations` no longer directly calls `get_environment_variable`.
