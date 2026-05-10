@@ -8,7 +8,7 @@
           "/home/cychou/TLTM": {
             "branch": "codex/preprod-hardening",
             "commit": "704e2aafa650dc7ea5a404f60c9e37d7c841f49d",
-            "dirty_count": "0",
+            "dirty_count": "12",
             "exists": "1",
             "worktree_path": "/home/cychou/TLTM"
           },
@@ -32,7 +32,7 @@
       "stderr": ""
     }
   },
-  "refreshed_at_jst": "2026-05-10T23:32:15+09:00",
+  "refreshed_at_jst": "2026-05-10T23:50:07+09:00",
   "targets": [
     {
       "branch": "unknown",

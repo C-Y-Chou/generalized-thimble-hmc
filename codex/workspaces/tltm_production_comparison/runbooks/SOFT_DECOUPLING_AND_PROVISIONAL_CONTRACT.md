@@ -46,6 +46,8 @@ output/logs/production_comparison/provisional/<campaign_id>
 
 Legacy outputs under `output/tests/stage3_4/...` remain readable historical evidence and must not be deleted before dataset registry/archive readback.
 
+Superseding cleanup note, 2026-05-10 JST: legacy Stage1 to Stage3_4 raw outputs/logs were cleared after key readback summary preservation; obsolete ODEX validation raw data was also cleared because M6 modernization reference datasets are accepted. See `LEGACY_STAGE_OUTPUT_CLEANUP_20260510.md`.
+
 ## Modernization Contract
 
 Modernization is not blocked on final production-comparison completion.

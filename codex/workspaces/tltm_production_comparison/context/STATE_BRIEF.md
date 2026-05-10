@@ -10,6 +10,8 @@ Updated: 2026-05-10 JST
 - Current production-comparison status is provisional-discussion, not final publication data. It may be used for collaborator discussion, workflow rehearsal, queue scaling, and physical trend checks; final datasets should be regenerated after modernization converges.
 - Existing long `runbooks/STATUS.md` contains historical production and validation details. Read `runbooks/SOFT_DECOUPLING_AND_PROVISIONAL_CONTRACT.md` for the current boundary.
 - Cleanup of legacy production-comparison outputs/logs is allowed only after dataset/job/worktree registry refresh and summary/archive decisions.
+- Legacy Stage1 to Stage3_4 raw outputs/logs were cleared on 2026-05-10 after preserving key summaries. See `runbooks/LEGACY_STAGE_OUTPUT_CLEANUP_20260510.md`.
+- Obsolete ODEX validation raw data was also cleared because accepted M6 modernization reference datasets now own the modernization baseline.
 
 ## Important Correction
 
@@ -27,10 +29,10 @@ Updated: 2026-05-10 JST
 
 ## Next Action
 
-Before cleanup or production continuation:
+Before production continuation:
 
 1. Run `bash codex/tasks/refresh_remote_state.sh`.
-2. Register relevant production-comparison outputs in `codex/state/DATASETS.tsv`.
+2. Register any new production-comparison outputs in `codex/state/DATASETS.tsv`.
 3. Confirm no active pinned jobs depend on the target worktree.
-4. Archive or summarize evidence before deleting generated outputs/logs.
+4. Archive or summarize evidence before deleting any newly generated outputs/logs.
 5. For any new provisional run, write outputs under a production-comparison namespace, preferably `output/production_comparison/provisional/...`, not a new `output/tests/stage3_4/...` namespace.

@@ -1,7 +1,7 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-10T23:32:16+09:00
-Remote refreshed: 2026-05-10T23:32:15+09:00
+Generated: 2026-05-10T23:50:08+09:00
+Remote refreshed: 2026-05-10T23:50:07+09:00
 
 ## Hard Rules
 
@@ -27,12 +27,12 @@ Remote refreshed: 2026-05-10T23:32:15+09:00
 
 ## Recent Decisions
 
-- 2026-05-10 `cluster02`: Treat cluster02 as a shared dynamic resource rather than a fixed machine
-- 2026-05-10 `fortran_modernization`: Track modernization by workstream matrix, not linear M0-M6 completion
 - 2026-05-10 `tltm_production_comparison`: Legacy Stage3_4 queue optimization playbook is superseded for current scheduling
 - 2026-05-10 `remote`: Rename control-plane target id to fortran_modernization
 - 2026-05-10 `tltm_production_comparison`: Rename Stage3_4 workstream to tltm_production_comparison
 - 2026-05-10 `global`: Soft-decouple modernization and production comparison
+- 2026-05-10 `tltm_production_comparison`: Clear legacy Stage3_4 raw output/log folders before rerun
+- 2026-05-10 `global`: Clear legacy Stage1-Stage3_3 and obsolete ODEX validation raw datasets
 
 ## Pointers
 
