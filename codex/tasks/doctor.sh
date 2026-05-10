@@ -32,4 +32,11 @@ done
 echo "[doctor] queue snapshot"
 qstat -Q | sed -n 1,12p || true
 
+echo "[doctor] control plane"
+if [ -x "$ROOT/codex/tasks/validate_control_plane.sh" ]; then
+  bash "$ROOT/codex/tasks/validate_control_plane.sh" || true
+else
+  echo "  validate_control_plane: missing"
+fi
+
 echo "[doctor] done"

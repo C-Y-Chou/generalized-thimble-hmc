@@ -1,0 +1,8 @@
+date_jst	scope	decision	rationale	impact	reversible	source
+2026-05-10	global	Use L0/L1/L2 memory layering	Long runbooks waste tokens and hide current state	New conversations read short boot/index first	yes	codex/runbooks/CONTROL_PLANE_MEMORY_COMPACTION_PLAN.md
+2026-05-10	global	Remote SSH/PBS state is first-class state	Local-only memory caused active job/worktree pin risk	Refresh remote cache before ssh/qsub/qdel/pull/cleanup	yes	codex/runbooks/READ_POLICY.md
+2026-05-10	cluster02	Use cluster02 scheduling agent for PBS queue/work splitting	Queue choice is repeated, stateful, and easy to forget	No ad hoc queue choice for cluster02 PBS work	yes	codex/workspaces/fortran_modernization/runbooks/CLUSTER02_SCHEDULING_AGENT.md
+2026-05-10	cluster02	Do not use qmove as official repair	Observed qmove-created jobs can finish without useful execution/logs	Repair is cancel/resubmit/rebuild-merge	yes	codex/workspaces/fortran_modernization/runbooks/M6_DYNAMIC_QUEUE_POLICY_20260510.md
+2026-05-10	cluster02	Exclude GPU queues for CPU-only TLTM chunks	GPU queues reserve GPU resources by default	G/G-LONG/G-A100 excluded unless explicitly approved	yes	codex/workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_KNOWLEDGE.json
+2026-05-10	cluster02	Blacklist C17/C17-LONG for M6 8-core chunk shape	Observed Exit_status=127 for production-shape chunks	Scheduler excludes these queues for M6-style chunks	yes	codex/workspaces/fortran_modernization/state/CLUSTER02_QUEUE_OBSERVATIONS.tsv
+2026-05-10	stage3_4	Stage3_4 queue optimization playbook is superseded for current scheduling	It conflicts with current scheduler policy	Use scheduler knowledge instead of old queue playbook	yes	codex/workspaces/stage3_4/runbooks/QUEUE_OPTIMIZATION.md

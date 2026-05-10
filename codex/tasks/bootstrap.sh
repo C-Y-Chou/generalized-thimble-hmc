@@ -22,9 +22,9 @@ if [ -f "$CODEX_DIR/runbooks/task_registry.tsv" ]; then
   sed -n '1,40p' "$CODEX_DIR/runbooks/task_registry.tsv"
 fi
 
-echo "[bootstrap] global status"
-if [ -f "$CODEX_DIR/runbooks/GLOBAL_STATUS.md" ]; then
-  sed -n '1,120p' "$CODEX_DIR/runbooks/GLOBAL_STATUS.md"
+echo "[bootstrap] compact L0 status"
+if [ -f "$CODEX_DIR/context/L0_BOOT.md" ]; then
+  sed -n '1,160p' "$CODEX_DIR/context/L0_BOOT.md"
 fi
 
 if [ -x "$ROOT/bin/run_tltm_stage2" ]; then
@@ -33,10 +33,12 @@ else
   echo "[bootstrap][warn] bin/run_tltm_stage2 missing"
 fi
 
-echo "[bootstrap] refresh live board"
-bash "$CODEX_DIR/tasks/refresh_live_board.sh" || true
-if [ -f "$CODEX_DIR/runbooks/LIVE_BOARD.md" ]; then
-  sed -n '1,120p' "$CODEX_DIR/runbooks/LIVE_BOARD.md"
+echo "[bootstrap] refresh remote state and render L0"
+bash "$CODEX_DIR/tasks/refresh_remote_state.sh" || true
+bash "$CODEX_DIR/tasks/render_l0_boot.sh" || true
+if [ -f "$CODEX_DIR/context/L0_BOOT.md" ]; then
+  sed -n '1,160p' "$CODEX_DIR/context/L0_BOOT.md"
 fi
 
+bash "$CODEX_DIR/tasks/validate_control_plane.sh" || true
 bash "$CODEX_DIR/tasks/doctor.sh"

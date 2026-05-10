@@ -1,5 +1,7 @@
 # Repo Cleanup Status
 
+NOTE: Repo cleanup is now part of the shared control-plane memory/cleanup workflow. Read `context/STATE_BRIEF.md` and refresh `codex/state/REMOTE_LIVE_CACHE.json` before deleting, moving, or archiving files.
+
 Updated: 2026-05-08 JST
 
 ## State

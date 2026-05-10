@@ -1,0 +1,4 @@
+date_jst	scope	observation	impact	source
+2026-05-10	control_plane	Long runbooks accumulated enough to waste tokens and hide current state	L0/L1/L2 compaction introduced	user discussion
+2026-05-10	remote	Remote worktree pinning must be tracked separately from local git state	REMOTE_TARGETS/WORKTREES/JOBS registries introduced	user discussion
+2026-05-10	stage3_4	Old Stage3_4 queue playbook conflicts with current scheduler knowledge	It must be marked superseded	codex/workspaces/stage3_4/runbooks/QUEUE_OPTIMIZATION.md

@@ -1,0 +1,56 @@
+# TLTM Codex L0 Boot
+
+Generated: 2026-05-10T19:03:54+09:00
+Remote refreshed: 2026-05-10T19:01:48+09:00
+
+## Hard Rules
+
+- Heavy TLTM execution must use PBS compute nodes, not the login/frontend node.
+- Before remote SSH/PBS/git cleanup work, run `bash codex/tasks/refresh_remote_state.sh` and `bash codex/tasks/render_l0_boot.sh`.
+- If a remote worktree has active pinned jobs, do not fast-forward or clean it.
+- For cluster02 queue choice, work splitting, submission, or job repair, use the cluster02 scheduling agent.
+- Do not use `qmove` as the official repair path; cancel/resubmit/rebuild dependencies.
+- Default read set is `HANDOFF_MIN -> L0_BOOT -> L1_INDEX -> chosen workspace STATE_BRIEF`.
+
+## Active Remote Risk
+
+- `qn_error_handling_validation`: branch `codex/qn-error-handling-validation`, commit `a1028ad6d68eabfd6c400ec135b3df9cab1e4af2`, 42 active jobs, examples: 14570.anode01,14571.anode01,14572.anode01,14573.anode01,14576.anode01,14577.anode01,14579.anode01,14580.anode01, pinned `a1028ad6d68eabfd6c400ec135b3df9cab1e4af2`. Do not fast-forward.
+
+## Active/Pending Jobs
+
+- `14570.anode01` `m6R3nofb00` queue `C8` state `R` dataset `m6_r3_32seed_50k`.
+- `14571.anode01` `m6R3fbnorefine00` queue `C8` state `R` dataset `m6_r3_32seed_50k`.
+- `14572.anode01` `m6R3nofb01` queue `C12` state `R` dataset `m6_r3_32seed_50k`.
+- `14573.anode01` `m6R3fbnorefine01` queue `C12` state `R` dataset `m6_r3_32seed_50k`.
+- `14576.anode01` `m6R3nofb03` queue `G` state `R` dataset `m6_r3_32seed_50k`.
+- `14577.anode01` `m6R3fbnorefine03` queue `G` state `R` dataset `m6_r3_32seed_50k`.
+- `14579.anode01` `m6R4nofb00` queue `C8` state `R` dataset `m6_r4_128seed_100k`.
+- `14580.anode01` `m6R4fbnorefine00` queue `C8` state `R` dataset `m6_r4_128seed_100k`.
+- `14581.anode01` `m6R4nofb01` queue `C8` state `R` dataset `m6_r4_128seed_100k`.
+- `14582.anode01` `m6R4fbnorefine01` queue `C8` state `R` dataset `m6_r4_128seed_100k`.
+- `14583.anode01` `m6R4nofb02` queue `C12` state `R` dataset `m6_r4_128seed_100k`.
+- `14584.anode01` `m6R4fbnorefine02` queue `C12` state `R` dataset `m6_r4_128seed_100k`.
+- ... 30 more jobs in `codex/state/JOBS.tsv`.
+
+## High-Priority Open Items
+
+- `CP-001` control_plane: Keep L0/L1 current after remote/job changes Next: Run refresh_remote_state and render_l0_boot before remote/PBS work
+- `CP-003` cluster02: Record new queue failures/successes into scheduler observations Next: Use cluster02_scheduler_agent.py record-observation after notable job outcomes
+
+## Recent Decisions
+
+- 2026-05-10 `global`: Remote SSH/PBS state is first-class state
+- 2026-05-10 `cluster02`: Use cluster02 scheduling agent for PBS queue/work splitting
+- 2026-05-10 `cluster02`: Do not use qmove as official repair
+- 2026-05-10 `cluster02`: Exclude GPU queues for CPU-only TLTM chunks
+- 2026-05-10 `cluster02`: Blacklist C17/C17-LONG for M6 8-core chunk shape
+- 2026-05-10 `stage3_4`: Stage3_4 queue optimization playbook is superseded for current scheduling
+
+## Pointers
+
+- L1 index: `codex/indexes/L1_INDEX.tsv`
+- Remote live cache: `codex/state/REMOTE_LIVE_CACHE.json`
+- Jobs: `codex/state/JOBS.tsv`
+- Worktrees: `codex/state/WORKTREES.tsv`
+- Control-plane plan: `codex/runbooks/CONTROL_PLANE_MEMORY_COMPACTION_PLAN.md`
+- Read policy: `codex/runbooks/READ_POLICY.md`

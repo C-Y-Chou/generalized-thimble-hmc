@@ -1,0 +1,14 @@
+topic	status	source_of_truth	when_to_read	archive_or_detail
+boot	current	codex/context/L0_BOOT.md	Always after HANDOFF_MIN	codex/runbooks/READ_POLICY.md
+remote_ssh	current	codex/state/REMOTE_LIVE_CACHE.json	Before ssh/qsub/qdel/remote git/remote cleanup	codex/state/REMOTE_TARGETS.tsv
+cluster02_scheduling	current	codex/workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_KNOWLEDGE.json	Before queue choice/work splitting/job repair	codex/workspaces/fortran_modernization/runbooks/CLUSTER02_SCHEDULING_AGENT.md
+jobs	current	codex/state/JOBS.tsv	Before interpreting or repairing PBS jobs	codex/logs/REMOTE_EVENTS.tsv
+worktrees	current	codex/state/WORKTREES.tsv	Before remote fast-forward or cleanup	codex/state/REMOTE_TARGETS.tsv
+decisions	current	codex/state/DECISIONS.tsv	When checking whether a choice was already made	codex/knowledge/DECISIONS_AND_RISKS.md
+open_items	current	codex/state/OPEN_ITEMS.tsv	When choosing next action	codex/runbooks/GLOBAL_STATUS.md
+datasets	current	codex/state/DATASETS.tsv	Before dataset cleanup/readback/reference registration	codex/workspaces/fortran_modernization/state/M6_REFERENCE_PACKAGES.tsv
+references	current	codex/state/REFERENCES.tsv	Before algorithm/reference-backed review	codex/workspaces/fortran_modernization/references/REFERENCES_INDEX.md
+fortran_modernization	active	codex/workspaces/fortran_modernization/context/STATE_BRIEF.md	When entering fortran_modernization	codex/workspaces/fortran_modernization/runbooks/STATUS.md
+stage3_4	historical_or_parallel	codex/workspaces/stage3_4/context/STATE_BRIEF.md	When entering Stage3_4 production-comparison workstream	codex/workspaces/stage3_4/runbooks/STATUS.md
+repo_cleanup	planned	codex/workspaces/repo_cleanup/context/STATE_BRIEF.md	Before local/remote/docs/output cleanup	codex/workspaces/repo_cleanup/runbooks/STATUS.md
+control_plane_cleanup	active	codex/runbooks/CONTROL_PLANE_MEMORY_COMPACTION_PLAN.md	When changing codex memory layout	codex/runbooks/READ_POLICY.md

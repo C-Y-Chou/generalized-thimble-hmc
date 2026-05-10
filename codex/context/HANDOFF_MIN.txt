@@ -2,15 +2,15 @@ Use /home/cychou/TLTM/codex as the shared control-plane entrypoint.
 
 Read in this order:
 1) /home/cychou/TLTM/codex/context/CORE.md
-2) /home/cychou/TLTM/codex/runbooks/GLOBAL_STATUS.md
-3) /home/cychou/TLTM/codex/runbooks/task_registry.tsv
-4) /home/cychou/TLTM/codex/context/CONTEXT_STACK.md
-5) /home/cychou/TLTM/codex/runbooks/SOURCE_AUDIT_BOOTSTRAP.md
-6) /home/cychou/TLTM/codex/knowledge/CODEBASE_SCAN_MANIFEST.md
-7) /home/cychou/TLTM/codex/knowledge/FULL_PROGRAM_MAP_CHECK.md
-8) /home/cychou/TLTM/codex/workspaces/kernel_correctness_audit/runbooks/STATUS.md
-9) Refresh live board if queue/output state matters: bash /home/cychou/TLTM/codex/tasks/refresh_live_board.sh
-10) Read /home/cychou/TLTM/codex/runbooks/LIVE_BOARD.md if refreshed
+2) /home/cychou/TLTM/codex/context/L0_BOOT.md
+3) /home/cychou/TLTM/codex/indexes/L1_INDEX.tsv
+4) /home/cychou/TLTM/codex/runbooks/task_registry.tsv
+
+Do not read long runbooks by default. Use L1 trigger rules.
+
+Refresh remote state before SSH/PBS/git cleanup work:
+- bash /home/cychou/TLTM/codex/tasks/refresh_remote_state.sh
+- bash /home/cychou/TLTM/codex/tasks/render_l0_boot.sh
 
 Cluster/PBS rule:
 - If the work involves iTHEMS cluster02 queues, PBS submission, dataset generation, or job repair, the responsible scheduling authority is the task-local cluster02 scheduling agent.
@@ -20,6 +20,7 @@ Cluster/PBS rule:
   /home/cychou/TLTM/codex/workspaces/fortran_modernization/state/CLUSTER02_QUEUE_OBSERVATIONS.tsv
 
 Then choose exactly one task workspace and continue there.
+Read that workspace's context/TASK.md and context/STATE_BRIEF.md if present.
 If the task is one of these, use:
 - /home/cychou/TLTM/codex/workspaces/stage3_4
 - /home/cychou/TLTM/codex/workspaces/stage3_3_rg_redo

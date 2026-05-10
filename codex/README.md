@@ -16,21 +16,21 @@ This folder is a shared Codex control plane for TLTM work.
 ```bash
 cd /home/cychou/TLTM/codex
 bash tasks/bootstrap.sh
-bash tasks/refresh_live_board.sh
+bash tasks/refresh_remote_state.sh
+bash tasks/render_l0_boot.sh
 ```
 
-## Always-read live status
-- `/home/cychou/TLTM/codex/runbooks/LIVE_BOARD.md`
+## Always-read compact status
+- `/home/cychou/TLTM/codex/context/L0_BOOT.md`
+- `/home/cychou/TLTM/codex/indexes/L1_INDEX.tsv`
 
-## Always-read source audit context
-- `/home/cychou/TLTM/codex/runbooks/SOURCE_AUDIT_BOOTSTRAP.md`
-- `/home/cychou/TLTM/codex/knowledge/CODEBASE_SCAN_MANIFEST.md`
-- `/home/cychou/TLTM/codex/knowledge/FULL_PROGRAM_MAP_CHECK.md`
+Do not read long runbooks by default. Use `runbooks/READ_POLICY.md` and `indexes/L1_INDEX.tsv`.
 
 ## Task entry
 1. Read `/home/cychou/TLTM/codex/context/HANDOFF_MIN.txt`
-2. Pick the target task from `/home/cychou/TLTM/codex/runbooks/task_registry.tsv`
-3. Enter that workspace and read its `context/TASK.md`, `runbooks/STATUS.md`, and `state/` files
+2. Read `/home/cychou/TLTM/codex/context/L0_BOOT.md`
+3. Pick the target task from `/home/cychou/TLTM/codex/runbooks/task_registry.tsv`
+4. Enter that workspace and read its `context/TASK.md` plus `context/STATE_BRIEF.md` when present
 
 ## Current Fortran Modernization Entry
 - Workspace: `/home/cychou/TLTM/codex/workspaces/fortran_modernization`
@@ -50,6 +50,8 @@ bash tasks/refresh_live_board.sh
   - `runbooks/M6_PROVENANCE_READBACK_CHECKLIST.md`
 - Local guardrail before source changes or dataset planning: `make -C build modernization_guardrails`
 - Cluster/PBS/dataset scheduling authority: use the cluster02 scheduling agent before splitting work, choosing queues, submitting jobs, or repairing failed chunks.
+- Shared scheduler pointer:
+  - `agents/cluster02_scheduler/README.md`
 - Persistent scheduler memory:
   - `workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_KNOWLEDGE.json`
   - `workspaces/fortran_modernization/state/CLUSTER02_QUEUE_OBSERVATIONS.tsv`
@@ -65,5 +67,6 @@ bash tasks/refresh_live_board.sh
 - Run heavy jobs only via PBS on compute nodes.
 - Commit and push production-relevant changes before validation or production submission.
 - For cluster02 PBS work, never choose queues ad hoc; consult the persistent scheduling agent first, then live `qstat -Qf`.
+- Before remote SSH/PBS/git cleanup work, refresh `codex/state/REMOTE_LIVE_CACHE.json`, `codex/state/WORKTREES.tsv`, and `codex/state/JOBS.tsv`.
 - Do not treat top-level `state/` as a single live run state.
 - Record task-specific execution in `workspaces/<task_slug>/state/`.

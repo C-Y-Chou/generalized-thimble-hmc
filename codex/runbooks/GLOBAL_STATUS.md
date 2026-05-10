@@ -1,26 +1,39 @@
 # TLTM Codex Global Status
 
-Updated: 2026-05-01 10:22 JST
+Updated: 2026-05-10 JST
 
 ## Workspace mode
 - `codex` is the shared control plane; execution state is tracked per workspace.
-- New conversations must read L0 context and then enter exactly one task workspace.
+- New conversations must read compact L0/L1 context and then enter exactly one task workspace.
+- Long runbooks are triggered reads, not always-read files.
 
-## Active operations tasks
-- `stage3_4`: `reverse_gate_p28_unifiedrg_redo` 1024-seed queue and merge tracking.
-- `stage3_3_rg_redo`: 50-seed, 200k, RG-enabled redo (`nofb/withfb` both pass RG).
-- `ngport_rg_single_replica_t03_nstep_grid`: protocol prep for single-replica matched-control grid (`tau=0.3`, `L=2`, `nstep` scan).
+## Compact state sources
 
-## Governance task
-- `fortran_modernization`: behavior-preserving modernization planning.
-- `repo_cleanup`: planned cleanup/restructure of local and remote roots, `docs/`, logs, PBS scripts, reports, and archives after the current Stage3_4 test finishes.
+- L0 boot: `codex/context/L0_BOOT.md`
+- L1 index: `codex/indexes/L1_INDEX.tsv`
+- Open items: `codex/state/OPEN_ITEMS.tsv`
+- Decisions: `codex/state/DECISIONS.tsv`
+- Jobs: `codex/state/JOBS.tsv`
+- Worktrees: `codex/state/WORKTREES.tsv`
+- Remote live cache: `codex/state/REMOTE_LIVE_CACHE.json`
 
-## Required live status source
-- Always refresh and read `/home/cychou/TLTM/codex/runbooks/LIVE_BOARD.md` via:
-  - `bash /home/cychou/TLTM/codex/tasks/refresh_live_board.sh`
+## Refresh commands
+
+- Remote/PBS state: `bash codex/tasks/refresh_remote_state.sh`
+- L0 render: `bash codex/tasks/render_l0_boot.sh`
+- Validator: `bash codex/tasks/validate_control_plane.sh`
+
+## Active or important workstreams
+
+- `fortran_modernization`: active M6 reference dataset/readback work; use `context/STATE_BRIEF.md`.
+- `stage3_4`: parallel production-comparison workstream; old queue playbook is superseded.
+- `repo_cleanup`: planned control-plane/local/remote cleanup; no deletion without registry/readback.
+- `kernel_correctness_audit`, `stage3_3_rg_redo`, and `ngport_rg_single_replica_t03_nstep_grid`: existing workspaces; read their task briefs/status only when entering those tasks.
 
 ## Shared rules
 - Use PBS-only execution for heavy runs.
-- Do not treat top-level `state/` as a single live run source.
+- For cluster02 queue decisions, use the cluster02 scheduling agent before live queue choice.
+- Refresh remote state before SSH/PBS/git cleanup work.
+- Do not fast-forward or clean active pinned remote worktrees.
 - Record manifests, job trackers, and session logs in the matching workspace.
-- Do not modify `/home/cychou/TLTM` root cleanup while active jobs/merge gates expect a pinned commit; use `repo_cleanup` workspace after the current test completes.
+- Do not delete generated outputs/logs until summarized, registered, or archived.

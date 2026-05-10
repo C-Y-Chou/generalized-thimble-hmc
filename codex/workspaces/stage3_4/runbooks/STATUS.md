@@ -1,5 +1,7 @@
 # Stage3_4 Task Status
 
+NOTE: This is a long historical status file. For new conversations, read `context/STATE_BRIEF.md` first and use `codex/state/JOBS.tsv`, `codex/state/DATASETS.tsv`, and `codex/state/WORKTREES.tsv` for current cleanup/scheduling decisions.
+
 Updated: 2026-05-08 16:30 JST
 
 ## Active objective

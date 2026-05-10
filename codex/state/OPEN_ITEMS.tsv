@@ -1,0 +1,6 @@
+id	scope	status	priority	item	next_action	source
+CP-001	control_plane	active	high	Keep L0/L1 current after remote/job changes	Run refresh_remote_state and render_l0_boot before remote/PBS work	codex/runbooks/READ_POLICY.md
+CP-002	stage3_4	pending	high	Register Stage3_4 production outputs before cleanup	Refresh remote and dataset registries; do not delete production evidence blindly	codex/workspaces/repo_cleanup/runbooks/STATUS.md
+CP-003	cluster02	active	high	Record new queue failures/successes into scheduler observations	Use cluster02_scheduler_agent.py record-observation after notable job outcomes	codex/workspaces/fortran_modernization/runbooks/CLUSTER02_SCHEDULING_AGENT.md
+CP-004	fortran_modernization	active	medium	Complete M6 reference dataset readback after jobs finish	Refresh remote jobs; verify R1-R4 outputs and registry rows	codex/workspaces/fortran_modernization/runbooks/M6_REFERENCE_DATASET_READBACK_PLAN.md
+CP-005	repo_cleanup	pending	medium	Clean local New project scattered files safely	Compare against repo/git history; archive unique files before deletion	codex/workspaces/repo_cleanup/state/local_new_project_inventory.md

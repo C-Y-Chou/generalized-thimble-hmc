@@ -1,5 +1,15 @@
 # Stage3_4 Queue Optimization Playbook
 
+SUPERSEDED: This file is historical and must not be used for current cluster02 queue decisions.
+
+Current queue decisions must use the shared cluster02 scheduling agent and persistent scheduler knowledge:
+
+- `codex/agents/cluster02_scheduler/README.md`
+- `codex/workspaces/fortran_modernization/runbooks/CLUSTER02_SCHEDULING_AGENT.md`
+- `codex/workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_KNOWLEDGE.json`
+
+Reason: this playbook predates the 2026-05-10 manual-backed scheduler update and conflicts with current policy for GPU queues, `C17/C17-LONG`, and job repair.
+
 Last updated: 2026-04-30 22:12 JST
 
 ## Objective
