@@ -1,2 +1,2 @@
 refreshed_at_jst	target_id	path	branch	commit	upstream	ahead	behind	dirty	stash_count	safe_to_pull	notes
-2026-05-11T00:19:35+09:00	legacy_new_project_tltm_repo	/Users/ccy/Documents/New project/TLTM_repo	codex/preprod-hardening	769df175d1e171b4bdc3a6049f1af7f21a9877df	origin/codex/preprod-hardening	0	0	0	1	yes	Do not pull or overwrite if dirty; QN residue was stashed before 2026-05-11 sync.
+2026-05-11T00:20:46+09:00	legacy_new_project_tltm_repo	/Users/ccy/Documents/New project/TLTM_repo	codex/preprod-hardening	b0d7b716b03520318552ceaf4d86f12f61668339	origin/codex/preprod-hardening	0	0	0	1	yes	Do not pull or overwrite if dirty; QN residue was stashed before 2026-05-11 sync.
