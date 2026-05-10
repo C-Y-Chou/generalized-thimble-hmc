@@ -1,0 +1,7 @@
+timestamp_jst	queue	resource_shape	outcome	exit_status	node	job_id	action	note
+2026-05-10T18:00:00+09:00	G	select=1:ncpus=8:mpiprocs=8:mem=16gb	policy_excluded	NA	NA	14576,14577,14597,14598	avoid_future_cpu_jobs	GPU queue reserves GPU resources by default; not suitable for CPU-only TLTM chunks unless explicitly approved.
+2026-05-10T18:00:00+09:00	C17	select=1:ncpus=8:mpiprocs=8:mem=16gb	failed	127	cnode39-cnode41	14625-14640	blacklist_for_m6_shape	One-core probe is insufficient; 8-core TLTM production-shape chunks failed.
+2026-05-10T18:00:00+09:00	C17-LONG	select=1:ncpus=8:mpiprocs=8:mem=16gb	failed	127	cnode39-cnode41	14625-14640	blacklist_for_m6_shape	Observed same production-shape failure class as C17.
+2026-05-10T18:00:00+09:00	C24	select=1:ncpus=8:mpiprocs=8:mem=16gb	policy_excluded	NA	NA	NA	avoid_one_node_jobs	Manual queue range starts at 17 nodes; M6 chunks are one-node jobs.
+2026-05-10T18:00:00+09:00	C36	select=1:ncpus=8:mpiprocs=8:mem=16gb	policy_excluded	NA	NA	NA	avoid_one_node_jobs	Manual queue range starts at 25 nodes; M6 chunks are one-node jobs.
+2026-05-10T18:00:00+09:00	qmove	NA	unsafe_repair	NA	NA	NA	do_not_use	Observed qmove-created jobs can finish without usable execution/logs; official repair is cancel/resubmit/rebuild merge dependency.

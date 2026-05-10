@@ -45,44 +45,30 @@ Scope: concrete R1-R4 generation plan for modernization reference datasets. This
 - Preflight/build: `codex/workspaces/fortran_modernization/tasks/pbs/m6_reference_preflight_build.pbs`
 - Chunk runner: `codex/workspaces/fortran_modernization/tasks/pbs/m6_reference_chunk.pbs`
 - Level merge: `codex/workspaces/fortran_modernization/tasks/pbs/m6_reference_merge_level.pbs`
-- Submit launcher: `codex/workspaces/fortran_modernization/tasks/scripts/submit_m6_reference_datasets.sh`
+- Submit launcher wrapper: `codex/workspaces/fortran_modernization/tasks/scripts/submit_m6_reference_datasets.sh`
+- Dynamic queue planner: `codex/workspaces/fortran_modernization/tasks/scripts/submit_m6_reference_dynamic.py`
+- Queue policy: `codex/workspaces/fortran_modernization/runbooks/M6_DYNAMIC_QUEUE_POLICY_20260510.md`
 
 ## Queue/Chunk Strategy
 
-R1:
+The current launcher uses manual-aware dynamic PBS queue selection rather than a fixed queue table.
 
-- chunks per method: 1
-- seeds per chunk: 4
-- workers per chunk: 4
-- queues: `no_fb -> C8`, `fb_norefine -> C12`
+Static dataset geometry:
 
-R2:
+- R1: 1 chunk per method, 4 seeds per chunk, 4 workers per chunk.
+- R2: 1 chunk per method, 10 seeds per chunk, 10 workers per chunk.
+- R3: 4 chunks per method, 8 seeds per chunk, 8 workers per chunk.
+- R4: 16 chunks per method, 8 seeds per chunk, 8 workers per chunk.
 
-- chunks per method: 1
-- seeds per chunk: 10
-- workers per chunk: 10
-- queues: `no_fb -> C8`, `fb_norefine -> C12`
-
-R3:
-
-- chunks per method: 4
-- seeds per chunk: 8
-- workers per chunk: 8
-- queues per method: `C8`, `C12`, `C16`, `G`
-
-R4:
-
-- chunks per method: 16
-- seeds per chunk: 8
-- workers per chunk: 8
-- queues per method: `C8`, `C8`, `C12`, `C12`, `C16`, `C16`, `C17`, `C17`, `F`, `G`, `C8-LONG`, `C8`, `C12`, `C16`, `C17`, `G`
-
-Rationale:
+Queue policy:
 
 - submit R1-R4 chunks concurrently after a shared build/preflight dependency;
 - use more, smaller R4 chunks to reduce long-tail risk and spread across available queues;
 - keep one seed per worker to avoid oversubscription and preserve simple timing interpretation;
 - submit `no_fb` and `fb_norefine` independently but with matched seed offsets.
+- use only CPU queues that are valid for one-node jobs by default: `C8`, `C8-LONG`, `C12`, `C12-LONG`, `C16`, and `F`;
+- exclude `G`, `G-LONG`, `G-A100`, `C24`, `C36`, `C12-LONG2`, `C17`, and `C17-LONG` by default;
+- score live `qstat -Qf` queue state at submission time and record the final queue assignment in the submit manifest and JSON queue plan.
 
 ## Cluster Submit Command
 
@@ -120,6 +106,7 @@ Expected behavior:
 - all R1-R4 chunk jobs depend on the build job;
 - each level merge job depends on all chunks for that level;
 - a submit manifest is written under `output/logs/fortran_modernization/reference_datasets/submit/`.
+- a JSON queue plan is written under `output/logs/fortran_modernization/reference_datasets/submit/`.
 
 ## Post-Generation Outputs
 
@@ -138,6 +125,7 @@ Each level should contain:
 ## Current Status
 
 - Configs and PBS scripts are prepared.
-- Desktop environment cannot submit PBS because `qsub` is unavailable.
-- No reference outputs have been generated from this environment.
-- Next executable action is to run the submit launcher from the PBS cluster worktree.
+- The original static submission wave exposed queue-policy errors: GPU queues were used for CPU chunks, `C17/C17-LONG` showed production-shape `Exit_status=127`, and `qmove` was not a reliable repair path.
+- The launcher has been replaced with a dynamic manual-aware queue planner.
+- The currently active cluster jobs remain pinned to commit `a1028ad`; do not fast-forward that active worktree until those jobs finish or are canceled.
+- Future submissions should use the dynamic launcher from a verified cluster worktree after local commit and push.

@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "cluster": "iTHEMS cluster02",
+  "updated_at_jst": "2026-05-10T18:45:00+09:00",
+  "manual": {
+    "source": "/Users/ccy/Downloads/ithems_cluster02_users_guide_rev10.0_en.pdf",
+    "title": "iTHEMS cluster02 Users Guide rev10.0",
+    "pbs_system": "PBS Professional",
+    "required_submission_fields": [
+      "-q",
+      "-l select=..."
+    ],
+    "main_commands": [
+      "qsub",
+      "qstat",
+      "qdel"
+    ]
+  },
+  "submission_invariants": [
+    "Commit local changes before remote PBS submission.",
+    "Push the target branch before cluster submission.",
+    "Fast-forward the target cluster worktree only before submission, never while pinned jobs are running.",
+    "Verify branch, commit, clean status, and qsub before submitting.",
+    "Pin PBS jobs with TLTM_EXPECTED_GIT_COMMIT.",
+    "Repair failed chunks by cancel/resubmit/rebuild-merge, not qmove."
+  ],
+  "queue_policy": {
+    "default_cpu_candidates": [
+      "C8",
+      "C12",
+      "C16",
+      "C8-LONG",
+      "C12-LONG",
+      "F"
+    ],
+    "excluded_by_default": {
+      "C24": "Manual node range starts at 17 nodes; M6 chunks are one-node jobs.",
+      "C36": "Manual node range starts at 25 nodes; M6 chunks are one-node jobs.",
+      "C12-LONG2": "Observed stopped in live queue state; keep out of automatic scheduling.",
+      "C17": "8-core TLTM production-shape chunks observed Exit_status=127.",
+      "C17-LONG": "8-core TLTM production-shape chunks observed Exit_status=127.",
+      "G": "GPU queue reserves GPU resources by default; not for CPU-only TLTM chunks.",
+      "G-LONG": "GPU queue reserves GPU resources by default; not for CPU-only TLTM chunks.",
+      "G-A100": "GPU queue reserves GPU resources by default; not for CPU-only TLTM chunks."
+    },
+    "queue_penalty_overrides": {
+      "C8": 0,
+      "C12": 2,
+      "C16": 4,
+      "F": 8,
+      "C8-LONG": 10,
+      "C12-LONG": 12
+    },
+    "default_chunk_shape": "select=1:ncpus=8:mpiprocs=8:mem=16gb",
+    "scoring_rules": [
+      "Reject queues outside manual node/core/walltime limits.",
+      "Reject disabled or stopped queues from live qstat -Qf.",
+      "Reject excluded_by_default unless explicitly overridden.",
+      "Penalize queued, waiting, and held backlog.",
+      "Penalize queues already assigned many chunks in the current launch.",
+      "Prefer short CPU queues before long queues when comparable.",
+      "Record queue plan and observations for future reuse."
+    ]
+  },
+  "observed_failure_classes": [
+    {
+      "queue": "C17",
+      "resource_shape": "select=1:ncpus=8:mpiprocs=8:mem=16gb",
+      "exit_status": 127,
+      "nodes": [
+        "cnode39",
+        "cnode40",
+        "cnode41"
+      ],
+      "decision": "blacklist for M6 production-shape chunks"
+    },
+    {
+      "queue": "C17-LONG",
+      "resource_shape": "select=1:ncpus=8:mpiprocs=8:mem=16gb",
+      "exit_status": 127,
+      "nodes": [
+        "cnode39",
+        "cnode40",
+        "cnode41"
+      ],
+      "decision": "blacklist for M6 production-shape chunks"
+    }
+  ],
+  "repair_policy": {
+    "official": "cancel/resubmit/rebuild_merge_dependency",
+    "forbidden_default": "qmove",
+    "partial_chunk_cleanup": "remove only the failed chunk output/log directories before replacement"
+  }
+}
