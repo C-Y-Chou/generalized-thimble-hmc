@@ -22,7 +22,7 @@ Cluster/PBS rule:
 Then choose exactly one task workspace and continue there.
 Read that workspace's context/TASK.md and context/STATE_BRIEF.md if present.
 If the task is one of these, use:
-- /home/cychou/TLTM/codex/workspaces/stage3_4
+- /home/cychou/TLTM/codex/workspaces/tltm_production_comparison
 - /home/cychou/TLTM/codex/workspaces/stage3_3_rg_redo
 - /home/cychou/TLTM/codex/workspaces/ngport_rg_single_replica_t03_nstep_grid
 - /home/cychou/TLTM/codex/workspaces/repo_cleanup

@@ -43,7 +43,7 @@ write_tracker() {
   echo "updated: $NOW" > "$w/context/LAST_REFRESH.txt"
 }
 
-write_tracker "stage3_4" "^(s34_|merge_s34)"
+write_tracker "tltm_production_comparison" "^(s34_|merge_s34)"
 write_tracker "stage3_3_rg_redo" "^(s33_|merge_s33)"
 write_tracker "ngport_rg_single_replica_t03_nstep_grid" "^(ngport_|sngport_|merge_ngport)"
 
@@ -122,7 +122,7 @@ Refreshed by: \`/home/cychou/TLTM/codex/tasks/refresh_live_board.sh\`
 EOM
 
 {
-  emit_task_section "stage3_4" "Stage3_4"
+  emit_task_section "tltm_production_comparison" "TLTM Production Comparison"
   emit_task_section "stage3_3_rg_redo" "Stage3_3 RG Redo"
   emit_task_section "ngport_rg_single_replica_t03_nstep_grid" "ngport RG Single-Replica Grid"
 } >> "$CODEX/runbooks/LIVE_BOARD.md"

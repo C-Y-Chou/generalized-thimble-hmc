@@ -6,7 +6,7 @@ Updated: 2026-05-01 10:22 JST
 - Keep multi-task queue and state management continuously synchronized in `codex`.
 
 ## Managed active tasks
-- `stage3_4`: p28 unified-RG 1024-seed redo queue/merge.
+- `tltm_production_comparison`: provisional `nofb` vs `withfb` production comparison; legacy alias `stage3_4`.
 - `stage3_3_rg_redo`: 50-seed 200k RG redo queue/merge.
 - `ngport_rg_single_replica_t03_nstep_grid`: protocol-prepared, pending queue submission.
 

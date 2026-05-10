@@ -58,9 +58,19 @@ Do not read long runbooks by default. Use `runbooks/READ_POLICY.md` and `indexes
 - Agent utility:
   - `python3 workspaces/fortran_modernization/tasks/scripts/cluster02_scheduler_agent.py show-policy`
   - `python3 workspaces/fortran_modernization/tasks/scripts/cluster02_scheduler_agent.py snapshot`
-- Stage3_4 owns the `nofb` vs `withfb` production-comparison workflow.
-- Modernization is stopped at the reference-dataset generation gate; R1 generation starts only after explicit user instruction.
-- Future source-code modernization resumes only after the M6 code-entry gate or explicit user approval of a narrower baseline.
+- `tltm_production_comparison` owns the `nofb` vs `withfb` production-comparison workflow. Legacy alias: `stage3_4`.
+- Modernization has accepted M6 R1-R4 reference baselines and may continue behavior-preserving refactors through `fortran_modernization`.
+- Production-comparison outputs before final modernization convergence are provisional-discussion datasets; final publication datasets should be regenerated after wrapper/schema/naming/counter conventions settle.
+
+## Current Production Comparison Entry
+- Workspace: `/home/cychou/TLTM/codex/workspaces/tltm_production_comparison`
+- Current mode: provisional TLTM `nofb` vs `withfb` production comparison for collaborator discussion and workflow rehearsal.
+- Read next:
+  - `context/STATE_BRIEF.md`
+  - `runbooks/SOFT_DECOUPLING_AND_PROVISIONAL_CONTRACT.md`
+  - `runbooks/STATUS.md`
+- Preferred new output namespace:
+  - `output/production_comparison/provisional/...`
 
 ## Policy
 - Read `/home/cychou/TLTM/docs/AGENT_GUIDE.md` first.

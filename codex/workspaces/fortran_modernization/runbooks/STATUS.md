@@ -140,7 +140,7 @@ Current protocol state:
   - `runbooks/M6_REFERENCE_DATASET_CHECKLIST.md`
   - `runbooks/M6_PROVENANCE_READBACK_CHECKLIST.md`
 - User clarified on 2026-05-10 JST that this modernization workstream is separate from the Stage3_4 `nofb` vs `withfb` production-comparison workstream.
-- `runbooks/PARALLEL_WORKSTREAM_BOUNDARY_AND_REFERENCE_DATASET_POLICY.md` now records that Stage3_4 owns production completion, scheduling, output cleanup, and possible workspace rename/reorganization.
+- `runbooks/PARALLEL_WORKSTREAM_BOUNDARY_AND_REFERENCE_DATASET_POLICY.md` now records that `tltm_production_comparison` owns production completion, scheduling, output cleanup, and possible workspace reorganization. Legacy alias: `stage3_4`.
 - Modernization owns the future behavior-preservation reference dataset/package contract, using Stage3_4 as workflow-design context rather than a required result source.
 - `runbooks/M6_REFERENCE_DATASET_DESIGN_SPEC.md` now defines the reference dataset/package shape, Stage3_4-context alignment, manifest fields, artifact pointers, and acceptance criteria.
 - `runbooks/M6_REFERENCE_DATASET_READBACK_PLAN.md` now defines manual/future-automated readback checks and acceptance states.
@@ -625,3 +625,10 @@ Current protocol state:
 - Current semantic remote target id is `fortran_modernization_m6_active`; the physical path/branch still use the legacy `qn_error_handling_validation` name while pinned PBS jobs run.
 - No repair is currently indicated: R3/R4 missing or partial chunks correspond to queued/running jobs; R3 merge `14658` and R4 merge `14663` are held pending dependencies.
 - Updated `codex/state/DATASETS.tsv` and `codex/state/OPEN_ITEMS.tsv` to reflect triage status.
+
+Superseding decoupling note, 2026-05-10 JST:
+
+- M6 R1-R4 are now accepted reference baselines.
+- New semantic modernization target: `fortran_modernization`, branch `codex/fortran-modernization`, worktree `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`.
+- The old `qn_error_handling_validation` branch/worktree remains historical and should not be the active target for new modernization work.
+- The production-comparison workstream is now `tltm_production_comparison`, with legacy alias `stage3_4`.

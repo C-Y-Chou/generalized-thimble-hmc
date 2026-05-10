@@ -25,8 +25,8 @@ Updated: 2026-05-10 JST
 
 ## Active or important workstreams
 
-- `fortran_modernization`: active M6 reference dataset/readback work; use `context/STATE_BRIEF.md`.
-- `stage3_4`: parallel production-comparison workstream; old queue playbook is superseded.
+- `fortran_modernization`: active code-refine/modernization workstream with accepted M6 reference baselines; use `context/STATE_BRIEF.md`.
+- `tltm_production_comparison`: parallel provisional `nofb` vs `withfb` production-comparison workstream; legacy alias `stage3_4`; old queue playbook is superseded.
 - `repo_cleanup`: planned control-plane/local/remote cleanup; no deletion without registry/readback.
 - `kernel_correctness_audit`, `stage3_3_rg_redo`, and `ngport_rg_single_replica_t03_nstep_grid`: existing workspaces; read their task briefs/status only when entering those tasks.
 

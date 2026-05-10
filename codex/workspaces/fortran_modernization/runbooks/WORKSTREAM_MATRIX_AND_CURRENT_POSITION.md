@@ -43,7 +43,7 @@ Interpretation:
 | W9 | RNG, workspace ownership, and reentrancy | deferred | thread-safety target recorded; module-level state risks inventoried at high level | per-run/per-replica RNG streams, explicit workspaces, module `save` migration, deterministic parallel tests | accepted baselines plus explicit RNG decision |
 | W10 | I/O, output schema, and wrapper/product interface | partial | Stage2 v1alpha sidecars, Stage3 propagation, protocol audit, M6 package design docs | unified TLTM runner, versioned public schema, `withfb`/algorithm-id naming, Stage script compatibility layer/deprecation | wrapper/schema decision |
 | W11 | Repo-wide code hygiene and Fortran cleanup | partial | explicit `only:` imports for `param_mod`/`utils`, duplicated env helpers removed, stale root Fortran artifacts deleted, build deps improved | long subroutine decomposition, naming cleanup, duplicate helper cleanup, allocation/workspace style cleanup, comments/equation notes | affected baseline row |
-| W12 | Scripts, PBS orchestration, and cluster operations | partial | cluster02 scheduler agent, dynamic M6 launcher, probe-first queue optimization, shared-cluster model | mature production/reference launch interface, Stage3_4 workspace cleanup/registration, remote path/branch rename after jobs | after active jobs finish |
+| W12 | Scripts, PBS orchestration, and cluster operations | partial | cluster02 scheduler agent, dynamic M6 launcher, probe-first queue optimization, shared-cluster model, soft-decoupled production-comparison workspace | mature production/reference launch interface and future archive cleanup | after explicit run/readback scope |
 | W13 | Documentation, onboarding, and publishable release | planned | many runbooks and reference docs exist; README pointers improved | coherent user/dev docs, examples, release checklist, citation/reproducibility package, reviewer-facing workflow | after wrapper/schema stabilization |
 
 ## What Is Already Done
@@ -71,8 +71,9 @@ Active focus:
 
 Current active remote target:
 
-- semantic id: `fortran_modernization_m6_active`
-- physical path: `/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation`
+- semantic id: `fortran_modernization`
+- physical path: `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`
+- branch: `codex/fortran-modernization`
 - generation commit: `a1028ad6d68eabfd6c400ec135b3df9cab1e4af2`
 - latest refresh: no active pinned M6 jobs remain
 

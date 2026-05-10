@@ -1,8 +1,16 @@
-# Stage3_4 Task Status
+# TLTM Production Comparison Task Status
 
-NOTE: This is a long historical status file. For new conversations, read `context/STATE_BRIEF.md` first and use `codex/state/JOBS.tsv`, `codex/state/DATASETS.tsv`, and `codex/state/WORKTREES.tsv` for current cleanup/scheduling decisions.
+NOTE: This is a long historical status file from the legacy `stage3_4` workspace. For new conversations, read `context/STATE_BRIEF.md` and `runbooks/SOFT_DECOUPLING_AND_PROVISIONAL_CONTRACT.md` first, then use `codex/state/JOBS.tsv`, `codex/state/DATASETS.tsv`, and `codex/state/WORKTREES.tsv` for current cleanup/scheduling decisions.
 
-Updated: 2026-05-08 16:30 JST
+Updated: 2026-05-10 JST
+
+## Superseding Current Position
+
+- Canonical workspace name: `tltm_production_comparison`.
+- Legacy alias: `stage3_4`.
+- This workstream is provisional-discussion production comparison, separate from `fortran_modernization`.
+- Current canonical production-comparison roles are `nofb` and `withfb`; the current legacy raw mapping is `nofb == no_fb` and `withfb == fb_norefine`.
+- Historical rows below are retained for traceability. They are not a final publication dataset contract.
 
 ## Active objective
 - Run next intermediate scale-up: `no_fb` vs `fb_norefine`, 128 matched seeds x 100k cycles.
@@ -88,7 +96,7 @@ Updated: 2026-05-08 16:30 JST
 - Config: `docs/stage_3_4_t035_paired_10k_10seed.json`
 - Methods: `both` (`no_fb` + `fb`)
 - Key settings: RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`, post-refine enabled by `fb` method spec.
-- PBS: `codex/workspaces/stage3_4/tasks/pbs/preprod_validation_20260507_10seed_10k_p28_rg.pbs`
+- PBS: `codex/workspaces/tltm_production_comparison/tasks/pbs/preprod_validation_20260507_10seed_10k_p28_rg.pbs`
 - Output root: `output/tests/stage3_4/preprod_validation_20260507_10seed_10k_p28_rg`
 - Logs root: `output/logs/stage3_4_preprod_validation/preprod_validation_20260507_10seed_10k_p28_rg`
 
@@ -132,6 +140,6 @@ Updated: 2026-05-08 16:30 JST
 - Config: `docs/stage_3_4_t035_paired_10k_10seed.json`
 - Method: `fb_norefine`
 - Key settings: RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`, `QN_POST_NEWTON_REFINE_ENABLED=0`.
-- PBS: `codex/workspaces/stage3_4/tasks/pbs/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine.pbs`
+- PBS: `codex/workspaces/tltm_production_comparison/tasks/pbs/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine.pbs`
 - Output root: `output/tests/stage3_4/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine`
 - Logs root: `output/logs/stage3_4_preprod_validation/preprod_validation_20260508_10seed_10k_p28_rg_fb_norefine`

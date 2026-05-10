@@ -110,9 +110,9 @@ def main() -> int:
     handoff = (root / "codex/context/HANDOFF_MIN.txt").read_text(encoding="utf-8")
     if "L0_BOOT.md" not in handoff:
         fail("HANDOFF_MIN.txt does not reference L0_BOOT.md", errors)
-    stage_queue = root / "codex/workspaces/stage3_4/runbooks/QUEUE_OPTIMIZATION.md"
+    stage_queue = root / "codex/workspaces/tltm_production_comparison/runbooks/QUEUE_OPTIMIZATION.md"
     if stage_queue.exists() and "SUPERSEDED" not in stage_queue.read_text(encoding="utf-8")[:500]:
-        fail("Stage3_4 queue optimization playbook lacks SUPERSEDED marker", errors)
+        fail("Production-comparison queue optimization playbook lacks SUPERSEDED marker", errors)
 
     if errors:
         for error in errors:

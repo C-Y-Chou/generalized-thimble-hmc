@@ -1,4 +1,4 @@
 # Compatibility Notice
 
 This file moved to:
-- `/home/cychou/TLTM/codex/workspaces/stage3_4/runbooks/QUEUE_OPTIMIZATION.md`
+- `/home/cychou/TLTM/codex/workspaces/tltm_production_comparison/runbooks/QUEUE_OPTIMIZATION.md`

@@ -14,7 +14,7 @@
 - Cluster02 scheduling agent: `/home/cychou/TLTM/codex/agents/cluster02_scheduler/README.md`
 - Latest pre-production hardening: RG replay stats suppression, RG `jac` check, explicit `proposal_ok`, Stage3 warmup fail-fast, per-seed `run_manifest.json`.
 - Active ops workspaces:
-  - `/home/cychou/TLTM/codex/workspaces/stage3_4`
+  - `/home/cychou/TLTM/codex/workspaces/tltm_production_comparison`
   - `/home/cychou/TLTM/codex/workspaces/stage3_3_rg_redo`
   - `/home/cychou/TLTM/codex/workspaces/ngport_rg_single_replica_t03_nstep_grid`
 - Registry: `/home/cychou/TLTM/codex/runbooks/task_registry.tsv`

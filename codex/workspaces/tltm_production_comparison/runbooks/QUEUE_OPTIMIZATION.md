@@ -1,4 +1,4 @@
-# Stage3_4 Queue Optimization Playbook
+# TLTM Production Comparison Queue Optimization Playbook
 
 SUPERSEDED: This file is historical and must not be used for current cluster02 queue decisions.
 
@@ -12,8 +12,11 @@ Reason: this playbook predates the 2026-05-10 manual-backed scheduler update and
 
 Last updated: 2026-04-30 22:12 JST
 
+Current workspace name: `tltm_production_comparison`.
+Legacy alias: `stage3_4`.
+
 ## Objective
-Minimize wall-clock completion for Stage3_4 1024-seed campaigns while preserving:
+Minimize wall-clock completion for legacy Stage3_4 / current production-comparison 1024-seed campaigns while preserving:
 - unified flow policy (`nofb/withfb -> RG -> Metropolis`)
 - no duplicate chunk runs
 - deterministic merge dependency chains

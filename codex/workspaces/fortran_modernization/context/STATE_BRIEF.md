@@ -9,7 +9,8 @@ Updated: 2026-05-10 JST
 - The compact source of truth for this positioning is `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`.
 - M3/M4/M5 modernization infrastructure work is treated as completed, partial, or explicitly deferred by workstream in that matrix.
 - M6 R1-R4 reference packages are accepted after readback: expected per-method rows are present and protocol audit status is `pass` for R1-R4.
-- The remote target is semantically `fortran_modernization_m6_active`, but the physical path/branch still carry the legacy `qn_error_handling_validation` name until a future rename/cleanup pass.
+- The remote target is now semantically `fortran_modernization`, with branch `codex/fortran-modernization` and worktree `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`.
+- The old `qn_error_handling_validation` remote path/branch is historical and should not be the active target for new modernization work.
 - Latest refresh shows no active pinned M6 jobs.
 
 ## Hard Rules

@@ -8,7 +8,7 @@ Implementation status: completed for the first control-plane compaction slice.
 
 Turn `codex/` from a growing set of long documents into a compact, remote-aware control plane.
 
-This plan includes the already-built `cluster02 scheduling agent` and pulls Stage3_4 cleanup concerns into a shared memory/cleanup workflow without merging Stage3_4 production work into Fortran modernization.
+This plan includes the already-built `cluster02 scheduling agent` and pulls legacy Stage3_4 / current `tltm_production_comparison` cleanup concerns into a shared memory/cleanup workflow without merging production-comparison work into Fortran modernization.
 
 ## Design
 
@@ -51,9 +51,9 @@ Policy:
 - Do not agentize Fortran modernization itself.
 - Treat behavior preservation, algorithm reference maps, and reference datasets as registries/checklists unless they become repeated cross-workspace operations.
 
-## Stage3_4 Cleanup Boundary
+## Production-Comparison Cleanup Boundary
 
-Stage3_4 output cleanup is included in the shared control-plane cleanup plan, but deletion remains gated:
+Production-comparison output cleanup is included in the shared control-plane cleanup plan, but deletion remains gated:
 
 - First refresh remote state and job state.
 - Register outputs/datasets/jobs before moving or deleting anything.
@@ -67,5 +67,5 @@ This control-plane cleanup slice is complete when:
 - L0/L1 entrypoints exist and are referenced by handoff/README.
 - Remote SSH/PBS/worktree state can be refreshed into `REMOTE_LIVE_CACHE.json`, `WORKTREES.tsv`, and `JOBS.tsv`.
 - The cluster02 scheduling agent is part of the standard workflow.
-- Superseded Stage3_4 queue guidance is clearly marked.
+- Superseded legacy Stage3_4 queue guidance is clearly marked.
 - A validator checks the control-plane files before future work.

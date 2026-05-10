@@ -23,10 +23,12 @@ Generated for codex workspace initialization.
 - `/home/cychou/TLTM/codex/runbooks/WORKFLOW.md`
 
 ## Task workspaces
-### Stage3_4 live ops
-- `/home/cychou/TLTM/codex/workspaces/stage3_4/context/TASK.md`
-- `/home/cychou/TLTM/codex/workspaces/stage3_4/runbooks/STATUS.md`
-- `/home/cychou/TLTM/codex/workspaces/stage3_4/state/run_manifest.env`
+### TLTM production comparison
+- `/home/cychou/TLTM/codex/workspaces/tltm_production_comparison/context/TASK.md`
+- `/home/cychou/TLTM/codex/workspaces/tltm_production_comparison/context/STATE_BRIEF.md`
+- `/home/cychou/TLTM/codex/workspaces/tltm_production_comparison/runbooks/SOFT_DECOUPLING_AND_PROVISIONAL_CONTRACT.md`
+- `/home/cychou/TLTM/codex/workspaces/tltm_production_comparison/runbooks/STATUS.md`
+- `/home/cychou/TLTM/codex/workspaces/tltm_production_comparison/state/run_manifest.env`
 
 ### Stage3_3 RG redo
 - `/home/cychou/TLTM/codex/workspaces/stage3_3_rg_redo/context/TASK.md`

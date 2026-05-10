@@ -1,5 +1,0 @@
-kind	path	mode
-workspace	/home/cychou/TLTM/codex/workspaces/stage3_4	write
-shared	/home/cychou/TLTM/codex/runbooks/GLOBAL_STATUS.md	read
-shared	/home/cychou/TLTM/codex/runbooks/task_registry.tsv	read
-repo	/home/cychou/TLTM/output/tests/stage3_4/no_fb_ref_reverse_gate_1024seed_200k_t035/no_fb_ref_reverse_gate	write
