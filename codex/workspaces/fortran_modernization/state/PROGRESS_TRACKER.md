@@ -1,16 +1,16 @@
 # Progress Tracker: fortran_modernization
 
 ## Current milestone
-- M0: planning and governance establishment
+- M3 active: protocol/schema execution and Stage workflow propagation; M4-M6 remain before official dataset regeneration.
 
 ## Milestones
 - M0: planning and governance established
-- M1: architecture audit completed
-- M2: verification baseline matrix established
-- M3: target architecture and solver redesign spec approved
-- M4: guardrail tests and benchmarks in place
-- M5: first core refactor wave completed with preserved outputs
-- M6: publication/product readiness package assembled
+- M1: temporary characterization baseline and architecture/algorithm audit completed
+- M2: canonical numerical route and core legacy cleanup completed
+- M3: architecture/protocol/schema contract executable across Stage workflows
+- M4: guardrail tests, parser/readback checks, and benchmarks in place
+- M5: repo-wide refactor waves completed or explicitly deferred with preserved behavior
+- M6: pre-dataset publication/product readiness package assembled
 
 ## Status log
 - 2026-04-30 16:05 JST: created master modernization workspace, principles, preservation protocol, master plan, redesign guide, test roadmap, risk register, and progress tracker.
@@ -53,6 +53,7 @@
 - 2026-05-10 JST: Implemented parser-only TLTM protocol audit script and a source-level adjacent-swap kernel contract test.
 - 2026-05-10 JST: Implemented opt-in Stage2 v1alpha sidecar manifest/protocol plus minimal diagnostics/observables package; next true design-decision node is unified-wrapper sweep order and measurement boundary.
 - 2026-05-10 JST: User selected the common replica-exchange-style `local update -> swap -> measure/history/label trace` boundary and explicitly dropped old dataset timing compatibility; future datasets should be regenerated.
+- 2026-05-10 JST: Recorded the new sequencing decision in `runbooks/M3_TO_M6_BEFORE_DATASET_PLAN.md`: complete M3, M4, M5, and M6 before official dataset regeneration.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit

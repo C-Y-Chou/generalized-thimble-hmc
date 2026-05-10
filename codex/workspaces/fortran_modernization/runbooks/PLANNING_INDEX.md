@@ -7,6 +7,7 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 - `CONFIRMED_DECISIONS_AND_NEXT_PLAN.md`
 - `PRE_STAGE3_4_COMPLETION_PLAN.md`
+- `M3_TO_M6_BEFORE_DATASET_PLAN.md`
 - `STATUS.md`
 
 ## Governance
@@ -41,6 +42,7 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 - `M3_ARCHITECTURE_CONTRACT.md`
 - `M3_TEMPERING_PROTOCOL_AND_OUTPUT_SCHEMA_DESIGN.md`
 - `M3_V0_OUTPUT_INVENTORY_AND_PROTOCOL_AUDIT_PLAN.md`
+- `M3_TO_M6_BEFORE_DATASET_PLAN.md`
 - `CROSS_CUTTING_INFRASTRUCTURE_AUDIT.md`
 - `CODE_HYGIENE_AUDIT.md`
 - `STATE_INFORMATION_PROPAGATION_REFACTOR.md`
@@ -53,10 +55,10 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 ## Current Position
 
-- Current phase: source-level modernization after M2 canonicalization decisions.
+- Current phase: M3 active, with M4-M6 now scheduled before official dataset regeneration.
 - Completed source wave: ODEX sequence canonicalization, QN BTN sign cleanup, QN invalid-evaluation handling, post-refine/non-p28 QN source deletion, Radau/JFNK source deletion, solver-assist naming cleanup, RATTLE progress guard diagnostic downgrade, and state/status surface patches.
-- Latest completed compatibility slice: runtime-env parser centralization, explicit `param_mod`/`utils` imports, and generated model import/header cleanup.
-- Current next area: M3 architecture contract execution, especially parser-only TLTM protocol audit, wrapper/schema design, typed config propagation, explicit context/workspace ownership, and compatibility gates.
+- Latest completed M3 slice: parser-only TLTM protocol audit, adjacent-swap kernel contract test, opt-in Stage2 v1alpha sidecars, and Stage2 post-swap measurement/history/label-trace boundary.
+- Current next area: M3 completion through Stage3 sidecar propagation and sidecar-aware protocol audit/readback, followed by M4 guardrails, M5 repo-wide refactors, and M6 product-readiness before dataset regeneration.
 
 - `M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`: completed static audit findings and discussion blockers for retained ODEX/Newton/RATTLE/QN/HMC code.
 - `M2_REFERENCE_BACKED_CORE_AUDIT.md`: reference-first retained-core audit superseding the earlier source-level risk scan where conclusions differ.

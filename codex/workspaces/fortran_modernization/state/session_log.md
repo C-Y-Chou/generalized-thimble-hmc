@@ -346,3 +346,9 @@
 - Selected protocol convention: local updates, then adjacent swap sweep, then measurement/history/label trace at the post-swap boundary.
 - Existing datasets should be regenerated after this change.
 - `swap -> local -> measure` remains a valid paper-aligned alternative, but it is not the selected convention for this codebase.
+
+## 2026-05-10 JST - M3 to M6 before dataset regeneration
+- User decided to continue modernization through M6 before regenerating official datasets.
+- Added `runbooks/M3_TO_M6_BEFORE_DATASET_PLAN.md`.
+- Updated status/planning/progress docs so dataset regeneration is gated by M3 protocol/schema completion, M4 guardrails, M5 repo-wide refactor decisions, and M6 product-readiness/provenance docs.
+- Next executable modernization slice is M3 completion: Stage3 sidecar propagation and sidecar-aware protocol audit/readback, not production dataset generation.

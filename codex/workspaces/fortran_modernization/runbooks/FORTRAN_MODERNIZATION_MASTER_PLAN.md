@@ -76,6 +76,24 @@ Turn the TLTM Fortran codebase into a mature, maintainable, verifiable, and publ
 ### Phase 4. Productization
 - finalize documentation, review checklists, release discipline, and publication-facing artifacts
 
+## Current Milestone Map - 2026-05-10
+
+The active milestone map is M0-M6:
+
+- M0: planning and governance established.
+- M1: temporary characterization baseline collected from the completed Stage3_4/TLTM judgment context.
+- M2: canonical numerical route and core legacy deletion/canonicalization completed for the current p28 policy.
+- M3: architecture, tempering protocol, output schema, Stage2 sidecars, and Stage3 protocol propagation.
+- M4: guardrail tests, parser/readback checks, protocol audits, and benchmark harnesses.
+- M5: repo-wide refactor waves for typed config, explicit state/status propagation, diagnostics, output ownership, RNG/state inventory, and module boundaries.
+- M6: pre-dataset product-readiness package, unified wrapper direction, provenance contract, docs, examples, and release/checklist notes.
+
+Current sequencing decision:
+
+- Official dataset regeneration waits until after M6.
+- Small smoke/regression runs may still be used during development, but they are not official regenerated datasets.
+- See `M3_TO_M6_BEFORE_DATASET_PLAN.md` for the executable gate sequence.
+
 ## Success criteria
 - major modules have stable, limited responsibilities
 - solver behavior is explainable and test-protected

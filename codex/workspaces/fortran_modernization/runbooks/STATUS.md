@@ -67,6 +67,12 @@ Updated: 2026-05-10 JST
 ## Next action
 Current source state has passed the Radau/JFNK deletion, non-p28 QN deletion, post-refine deletion, ODE/QN solver-assist naming, RATTLE progress-diagnostic, and state/status surface slices.
 
+Current sequencing decision:
+
+- User decision, 2026-05-10 JST: continue modernization through M6 before regenerating official datasets.
+- Dataset regeneration is now gated by M3 protocol/schema completion, M4 guardrails, M5 repo-wide refactor decisions, and M6 product-readiness/provenance docs.
+- Temporary smoke runs remain allowed for development; they are not official regenerated datasets.
+
 Latest source-level compatibility decision:
 
 - User confirmed deletion of legacy positional `parameters.dat` parsing and the unused `initial_x.dat` compatibility path.
@@ -88,10 +94,11 @@ Latest behavior-neutral infrastructure cleanup:
 
 Next expected modernization area after this slice:
 
-- M3 architecture contract execution: wrapper/schema design, typed config propagation, explicit context/workspace ownership, and compatibility gates.
+- M3 completion: propagate Stage2 v1alpha sidecar awareness into Stage3 orchestration and sidecar-aware protocol audit/readback before moving to M4-M6.
 - `runbooks/M3_ARCHITECTURE_CONTRACT.md` now records the next-phase rules before public schema, wrapper, config, or module-state refactors begin.
 - `runbooks/M3_TEMPERING_PROTOCOL_AND_OUTPUT_SCHEMA_DESIGN.md` now records that schema design must first verify the TLTM tempering protocol against both TLTM-specific rules and standard replica-exchange practice.
 - `runbooks/M3_V0_OUTPUT_INVENTORY_AND_PROTOCOL_AUDIT_PLAN.md` now records the current v0 output inventory and the parser/replay audit sequence needed before v1 writer work.
+- `runbooks/M3_TO_M6_BEFORE_DATASET_PLAN.md` now records that official dataset regeneration waits until after the M6 pre-dataset gate.
 - `scripts/audit_tltm_tempering_protocol.py` now provides a parser-only Stage2/label-trace/optional-Stage3 protocol audit without changing production output.
 - `tests/test_tltm_swap_kernel_contract.f90` now checks the source-level TLTM adjacent-swap energy/probability contract and invalid-current-energy rejection behavior.
 - Stage2 now has opt-in v1alpha sidecars:
@@ -103,8 +110,9 @@ Next expected modernization area after this slice:
 
 Current protocol state:
 
-- Stage2 cycle order is being migrated to post-swap measurement/history/label trace.
+- Stage2 cycle order has been migrated to post-swap measurement/history/label trace.
 - `swap -> local -> measure` remains a valid paper-aligned alternative but is not the selected convention for regenerated datasets.
+- Dataset regeneration should not start now; it starts only after the M6 pre-dataset gate.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.
