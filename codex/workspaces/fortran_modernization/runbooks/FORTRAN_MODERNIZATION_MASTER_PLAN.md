@@ -94,6 +94,14 @@ Current sequencing decision:
 - Small smoke/regression runs may still be used during development, but they are not official regenerated datasets.
 - See `M3_TO_M6_BEFORE_DATASET_PLAN.md` for the executable gate sequence.
 
+Current implementation status:
+
+- M3 protocol/schema propagation is complete for the current Stage workflow.
+- M4 local guardrails are available through `make -C build modernization_guardrails`.
+- M5 direct-env/config ownership is complete; high-risk RNG/workspace/model-cache/schema-removal/global-config replacement work is explicitly deferred in `M5_PRE_M6_GATE_ASSESSMENT.md`.
+- M6 product-readiness docs are available in `M6_PRE_DATASET_PRODUCT_READINESS_PLAN.md`, `M6_DATASET_REGENERATION_CHECKLIST.md`, and `M6_PROVENANCE_READBACK_CHECKLIST.md`.
+- Dataset regeneration remains paused until explicit user instruction.
+
 ## Success criteria
 - major modules have stable, limited responsibilities
 - solver behavior is explainable and test-protected

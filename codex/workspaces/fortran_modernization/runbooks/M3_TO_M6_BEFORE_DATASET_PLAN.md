@@ -25,15 +25,12 @@ M2 is functionally complete for the current canonical numerical route:
 - Removed active legacy code: Radau/JFNK rescue, non-p28 QN families, global continuation/restart, post-refine route, positional config parsing, and unused initial-state file compatibility.
 - State/status surface has started moving away from sentinel values and ambiguous booleans.
 
-M3 is active:
+M3/M4/M5/M6 current status:
 
-- Architecture contract exists.
-- TLTM plus standard replica-exchange tempering protocol design exists.
-- v0 output inventory and protocol-audit plan exists.
-- Parser-only Stage2 protocol audit exists.
-- Adjacent-swap kernel contract test exists.
-- Stage2 v1alpha sidecars exist behind opt-in env variables.
-- Stage2 measurement/history/label trace now follows the selected post-swap boundary.
+- M3 protocol/schema propagation is complete for the current Stage workflow: architecture contract, TLTM/replica-exchange protocol design, v0 inventory, parser-only audit, swap-kernel test, opt-in Stage2 v1alpha sidecars, Stage3 sidecar propagation, and post-swap measurement/history/label trace are in place.
+- M4 local guardrail entry point is complete: `make -C build modernization_guardrails` covers Python compile, diff hygiene, direct-env centralization, Stage2/eval build, ODEX/swap tests, protocol audit, sidecar-on/off smokes, and chunk-merge metadata preservation.
+- M5 direct-env/config ownership and pre-M6 gate assessment are complete. High-risk RNG/workspace/model-cache/schema-removal/global-config replacement work is explicitly deferred until stronger baselines or user decisions exist.
+- M6 pre-dataset product-readiness docs are in place: product-readiness plan, dataset-regeneration checklist, and provenance/readback checklist.
 
 The remaining work is not dataset production. It is completing the product/software surface needed before datasets deserve to be regenerated.
 
@@ -83,6 +80,13 @@ Required deliverables:
 
 M5 may include multiple commits and must proceed slice-by-slice with affected regression gates.
 
+Implementation status:
+
+- Completed Lane A direct-env/config ownership consolidation on 2026-05-10 JST.
+- All direct `get_environment_variable` calls are centralized in `runtime_env_mod`.
+- Source-backed M5 inventory and pre-M6 gate assessment are available in `M5_STATE_CONFIG_OWNERSHIP_PLAN.md` and `M5_PRE_M6_GATE_ASSESSMENT.md`.
+- Deferred items are documented rather than silently skipped.
+
 ## M6 Definition Of Done
 
 M6 is the pre-dataset product-readiness gate.
@@ -96,6 +100,13 @@ Required deliverables:
 - The project has a clear "dataset regeneration starts here" checklist.
 
 M6 is the point after which official 10k -> 50k -> 100k and larger dataset regeneration can start.
+
+Implementation status:
+
+- `M6_PRE_DATASET_PRODUCT_READINESS_PLAN.md` records the wrapper/product direction and provenance contract.
+- `M6_DATASET_REGENERATION_CHECKLIST.md` records the dataset-start preflight and 10k -> 50k -> 100k validation ladder.
+- `M6_PROVENANCE_READBACK_CHECKLIST.md` records v1alpha sidecar, Stage3 metadata, audit, and merge-readback requirements.
+- Dataset regeneration is still paused until the user explicitly starts it.
 
 ## Dataset Regeneration Gate
 
@@ -134,15 +145,13 @@ Do not stop for:
 
 ## Immediate Next Slice
 
-The next executable modernization slice is M3 completion, not dataset production:
+The next executable action is user review of the M6 gate, not dataset production.
 
-- Integrate Stage2 v1alpha sidecar paths into Stage3 multiseed orchestration.
-- Add a Stage3-level protocol audit/readback path for sidecar-aware runs.
-- Keep v0 compatibility outputs readable.
-- Run only small local smoke/audit checks unless explicitly starting a production job later.
+If the user starts dataset regeneration later:
 
-Implementation status:
+- Run `make -C build modernization_guardrails`.
+- Freeze branch/commit/config/seed list/output roots.
+- Enable Stage2 v1alpha sidecars and protocol audit.
+- Start the validation ladder at 10k before 50k and 100k.
 
-- Completed on 2026-05-10 JST: `scripts/run_stage3_3_multiseed.py` gained opt-in Stage2 v1alpha sidecar propagation and protocol audit/readback.
-- Chunk merge preserves the new sidecar/audit metadata columns when present.
-- Verification included sidecar-on and sidecar-off tiny Stage3 smokes plus a one-chunk merge smoke.
+Until then, only small local smoke/audit checks should run.

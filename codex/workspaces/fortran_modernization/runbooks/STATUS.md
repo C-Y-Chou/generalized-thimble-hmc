@@ -136,6 +136,7 @@ Current protocol state:
   - `runbooks/M6_PROVENANCE_READBACK_CHECKLIST.md`
 - Official dataset regeneration remains paused until user explicitly starts it after M6 review.
 - Repo entry docs now point to M6 guardrails/checklists and no longer describe single-chain output as the current official dataset path.
+- Master/M3-to-M6 planning docs now mark M3/M4/M5 as completed or explicitly deferred where appropriate, with M6 review as the next gate before dataset regeneration.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md`.

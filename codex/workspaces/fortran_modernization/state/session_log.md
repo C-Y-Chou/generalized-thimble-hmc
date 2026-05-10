@@ -418,3 +418,4 @@
 - M6 now has a wrapper/provenance/output/readiness contract and an explicit preflight ladder for future 10k -> 50k -> 100k dataset regeneration.
 - No production jobs were submitted; dataset regeneration remains paused until explicit user instruction.
 - Updated repo entry docs (`docs/readme.md`, `codex/README.md`) and the outer `/Users/ccy/Documents/New project/README.md` to point new sessions at the M6 gate and paused-regeneration status.
+- Updated `FORTRAN_MODERNIZATION_MASTER_PLAN.md` and `M3_TO_M6_BEFORE_DATASET_PLAN.md` so the current position is M6 review before dataset regeneration.
