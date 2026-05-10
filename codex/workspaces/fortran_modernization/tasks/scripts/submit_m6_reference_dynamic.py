@@ -56,10 +56,10 @@ class LevelSpec:
 MANUAL_QUEUE_SPECS: Dict[str, QueueSpec] = {
     "C8": QueueSpec("C8", 1, 8, 40, 12, True, 0, "CPU, short"),
     "C8-LONG": QueueSpec("C8-LONG", 1, 8, 40, 48, True, 10, "CPU, long"),
-    "C16": QueueSpec("C16", 1, 16, 32, 12, True, 4, "CPU, short"),
+    "C16": QueueSpec("C16", 1, 16, 32, 12, True, 9, "CPU, short; no immediate-start evidence from M6 probe"),
     "C24": QueueSpec("C24", 17, 24, 32, 12, True, 10_000, "CPU, multi-node only"),
     "C12": QueueSpec("C12", 1, 12, 48, 12, True, 2, "CPU, short"),
-    "C12-LONG": QueueSpec("C12-LONG", 1, 12, 48, 72, True, 12, "CPU, long"),
+    "C12-LONG": QueueSpec("C12-LONG", 1, 12, 48, 72, True, 6, "CPU, long; M6 production-shape probe passed"),
     "C12-LONG2": QueueSpec("C12-LONG2", 1, 2, 48, 168, True, 10_000, "CPU, usually stopped"),
     "C36": QueueSpec("C36", 25, 36, 32, 12, True, 10_000, "CPU, multi-node only"),
     "C17": QueueSpec("C17", 1, 17, 48, 12, True, 10_000, "CPU, observed bad for 8-core TLTM chunks"),

@@ -63,6 +63,15 @@ codex/workspaces/fortran_modernization/runbooks/CLUSTER02_SCHEDULING_AGENT.md
 
 Future queue/work splitting decisions must consult this scheduler memory first, then live `qstat -Qf`.
 
+## Probe Update - 2026-05-10 19:45 JST
+
+- Production-shape probes passed on `C8` (`14664`), `C12` (`14665`), and `C12-LONG` (`14668`) with `Exit_status=0`.
+- `C16` (`14666`) and `F` (`14667`) were canceled while queued after successful probes elsewhere; they are not blacklisted, but they did not provide immediate-start evidence for this run.
+- Stuck `C8-LONG` replacement chunks were superseded through cancel/resubmit/rebuild-merge:
+  - R3 replacement: `14669` on `C12`, merge `14670`.
+  - R4 replacements: `14671` on `C8`, `14672` on `C12-LONG`, `14673` on `C12`, `14674` on `C8`, merge `14675`.
+- Scheduler memory now treats `C8` and `C12` as preferred M6 production-shape queues, with `C12-LONG` as a validated long-queue pressure release.
+
 Dry-run:
 
 ```bash

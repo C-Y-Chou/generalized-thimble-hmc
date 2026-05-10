@@ -152,6 +152,11 @@ Current protocol state:
 - Current active cluster jobs are pinned to commit `a1028ad`; do not fast-forward that active worktree while they run.
 - Repo entry docs now point to M6 guardrails/checklists and no longer describe single-chain output as the Stage3_4 production or modernization reference-package path.
 - Master/M3-to-M6 planning docs now mark M3/M4/M5 as completed or explicitly deferred where appropriate, with M6 review as the next gate before modernization reference-dataset construction/registration.
+- M6 queue probe/optimization is complete:
+  - Production-shape probes passed on `C8`, `C12`, and `C12-LONG`.
+  - R3 queued replacement `14657` and merge `14658` were superseded by running chunk `14669` and held merge `14670`.
+  - R4 queued replacements `14645`/`14649`/`14660`/`14662` and merge `14663` were superseded by running chunks `14671`/`14672`/`14673`/`14674` and held merge `14675`.
+  - The probe-first decision and replacement map are recorded in `runbooks/M6_QUEUE_PROBE_AND_RESUBMISSION_20260510.md`.
 
 ## After confirmation
 - Behavior-changing source modernization remains gated by the affected rows in `BASELINE_VERIFICATION_MATRIX.md` plus the M6 code-entry gate.

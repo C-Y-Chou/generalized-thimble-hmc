@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "cluster": "iTHEMS cluster02",
-  "updated_at_jst": "2026-05-10T18:45:00+09:00",
+  "updated_at_jst": "2026-05-10T19:45:00+09:00",
   "manual": {
     "source": "/Users/ccy/Downloads/ithems_cluster02_users_guide_rev10.0_en.pdf",
     "title": "iTHEMS cluster02 Users Guide rev10.0",
@@ -46,10 +46,10 @@
     "queue_penalty_overrides": {
       "C8": 0,
       "C12": 2,
-      "C16": 4,
+      "C12-LONG": 6,
       "F": 8,
-      "C8-LONG": 10,
-      "C12-LONG": 12
+      "C16": 9,
+      "C8-LONG": 10
     },
     "default_chunk_shape": "select=1:ncpus=8:mpiprocs=8:mem=16gb",
     "scoring_rules": [
@@ -84,6 +84,35 @@
         "cnode41"
       ],
       "decision": "blacklist for M6 production-shape chunks"
+    }
+  ],
+  "observed_success_classes": [
+    {
+      "queue": "C8",
+      "resource_shape": "select=1:ncpus=8:mpiprocs=8:mem=16gb",
+      "exit_status": 0,
+      "nodes": [
+        "cnode17"
+      ],
+      "decision": "preferred M6 production-shape candidate"
+    },
+    {
+      "queue": "C12",
+      "resource_shape": "select=1:ncpus=8:mpiprocs=8:mem=16gb",
+      "exit_status": 0,
+      "nodes": [
+        "cnode35"
+      ],
+      "decision": "preferred M6 production-shape candidate"
+    },
+    {
+      "queue": "C12-LONG",
+      "resource_shape": "select=1:ncpus=8:mpiprocs=8:mem=16gb",
+      "exit_status": 0,
+      "nodes": [
+        "cnode35"
+      ],
+      "decision": "valid long-queue candidate when short queues are pressured"
     }
   ],
   "repair_policy": {
