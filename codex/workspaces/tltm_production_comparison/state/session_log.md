@@ -399,3 +399,13 @@ Use this file to append per-session notes.
   - `no_fb` method job: `14761.anode01`.
   - `fb_norefine` / canonical `withfb` method job: `14762.anode01`.
   - Merge/report job: `14763.anode01`.
+
+## 2026-05-11 JST - Official DFO-LS small redo readback
+- Result report:
+  - `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison/output/production_comparison/provisional/official_dfols_small_20260511_10seed_10k_p28_rg_nofb_withfb/REPORT.md`
+- Official DFO-LS aggregate:
+  - `nofb/no_fb`: mean Re `0.0265222881`, mean Im `0.0247701103`, std Re `0.1886771381`, std Im `0.0926561653`, Zmean Re `0.4445204125`, Zmean Im `0.8453832101`, failures `7502`, RG rejects `1252`, runtime `715.5420136s`.
+  - `withfb/fb_norefine`: mean Re `-0.0290740001`, mean Im `0.0347713206`, std Re `0.1039176303`, std Im `0.0969095801`, Zmean Re `-0.8847397764`, Zmean Im `1.1346305510`, failures `1179`, RG rejects `996`, runtime `1105.0365717s`.
+- In-house comparison:
+  - Readback written to `codex/workspaces/tltm_production_comparison/runbooks/OFFICIAL_DFOLS_SMALL_READBACK_20260511.md`.
+  - Main preserved-baseline comparison uses `no_fb` and `fb_norefine -> withfb`; old raw reports were cleaned, so `no_fb` std is inferred from preserved mean and Zmean.
