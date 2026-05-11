@@ -31,7 +31,7 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 | Step | Workstream | Status | Allowed now | Output | Gate to advance |
 | --- | --- | --- | --- | --- | --- |
 | F0 | foundation completeness reset | active | yes | `FOUNDATION_COMPLETENESS_RESET_20260511.md`, expanded `CAVEATS.tsv`/`OPEN_ITEMS.tsv` | no compact doc says foundation is complete |
-| F1 | ODEX backend completeness | active | docs/tests first | ODEX solver contract, stability/dense-output decision, mechanism-policy split plan, deterministic test plan | ODEX source work has accepted affected baselines |
+| F1 | ODEX backend completeness | active | docs/tests first | ODEX solver contract and first deterministic foundation test are in place; source split/stability decision still next | ODEX source work has accepted affected baselines |
 | F2 | official DFO-LS backend completion | active | docs/tests first | official-alone preset tuning policy, provenance/readback, captured comparison, residual-gate checklist | official backend claims have package provenance and TLTM residual readback |
 | F3 | retained-core deterministic evidence pack | active | tests/tooling | Newton/RATTLE/QN/HMC/RG replay fixtures and comparison rules | affected core rows pass or are explicitly scoped |
 | F4 | diagnostics/status/accounting foundation | active | design/tests | typed diagnostics context and schema compatibility plan | counters/status/capture meaning is versioned and testable |
@@ -59,7 +59,7 @@ Do not fast-forward or clean `/lustre1/home/cychou/TLTM_worktrees/tltm_productio
 
 Read `FOUNDATION_COMPLETENESS_RESET_20260511.md` before any modernization task. The immediate implementation planning order is:
 
-1. ODEX completion contract and deterministic tests.
+1. ODEX completion source-slice design: backend result/workspace/status mapping, stability-control decision, and flow-wrapper/Jacobian tests.
 2. Official DFO-LS preset/provenance/readback policy.
 3. Retained-core deterministic evidence pack.
 4. Diagnostics/status/accounting foundation.

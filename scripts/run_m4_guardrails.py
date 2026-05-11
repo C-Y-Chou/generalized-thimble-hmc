@@ -220,6 +220,7 @@ def run_guardrails(args):
                     "../bin/run_tltm_stage2",
                     "../bin/evaluate_expectations",
                     "test_odex_solver",
+                    "test_odex_foundation_contract",
                     "test_tltm_swap_kernel_contract",
                 ],
             ),

@@ -34,4 +34,4 @@ Updated: 2026-05-11 JST
 
 ## Next Action
 
-Use `runbooks/MODERNIZATION_FORWARD_WORKSTEPS_20260511.md` as the active forward queue. The immediate modernization step is foundation completeness reset: ODEX completion, official DFO-LS backend completion, retained-core deterministic evidence, and diagnostics/status accounting must be treated as active work, not wording cleanup. Do not start behavior-relevant source refactors until the affected foundation and baseline gates are satisfied.
+Use `runbooks/MODERNIZATION_FORWARD_WORKSTEPS_20260511.md` as the active forward queue. The first ODEX non-invasive evidence slice is complete via `test_odex_foundation_contract` and `runbooks/ODEX_FOUNDATION_TEST_READBACK_20260511.md`; `CV-007` remains open for source-level backend result/workspace/status separation, stability-control decision, flow-wrapper/Jacobian deterministic tests, and ODEX-only vs assist revalidation. Do not start behavior-relevant source refactors until the affected foundation and baseline gates are satisfied.

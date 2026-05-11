@@ -1,6 +1,6 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-11T16:36:31+09:00
+Generated: 2026-05-11T16:46:06+09:00
 Remote refreshed: 2026-05-11T16:36:18+09:00
 
 ## Canonical Entry
@@ -59,7 +59,7 @@ Remote refreshed: 2026-05-11T16:36:18+09:00
 - `CP-012` tltm_production_comparison: Maintain provisional-vs-final production boundary Next: Treat official DFO-LS production-comparison gates as provisional until final wrapper/schema/naming/counter conventions are frozen or final regeneration is scheduled
 - `FM-001` fortran_modernization: Reset modernization around foundation completeness Next: Treat M6 as a behavior baseline, not completed foundation; use FOUNDATION_COMPLETENESS_RESET_20260511 before any source modernization step
 - `FM-002` fortran_modernization: Fix DFO-LS evidence and implementation boundary Next: Separate historical in-house/DFO-LS-style evidence from official-package evidence, then finish official solver integration/preset work before final claims
-- `FM-003` fortran_modernization: Implement the ODEX completeness workstream Next: Define and implement or explicitly scope the real ODEX backend contract: stability control, endpoint/dense-output policy, mechanism-policy split, workspace/result/status API, and revalidation
+- `FM-003` fortran_modernization: Implement the ODEX completeness workstream Next: First deterministic test slice is complete; next implement or explicitly scope backend result/workspace/status API, stability control, flow-wrapper/Jacobian tests, and ODEX-only vs assist revalidation
 - `FM-004` fortran_modernization: Finish official DFO-LS backend replacement policy Next: Design official-alone preset tuning, in-package robustness choices, provenance/readback, captured comparison, and TLTM residual gate acceptance without external rescue wrappers
 - `FM-005` fortran_modernization: Build retained-core deterministic evidence pack Next: Cover Newton, RATTLE, QN/BTN, HMC/Metropolis, reverse-gate pass/reject, and official-DFO-LS-line route behavior before treating the numerical foundation as complete
 - `FM-006` fortran_modernization: Repair diagnostics/status/accounting foundation Next: Move patchwork counters/status/capture/replay accounting toward a typed diagnostics context before final schema or production regeneration

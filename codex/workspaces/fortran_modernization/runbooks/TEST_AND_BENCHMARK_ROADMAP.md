@@ -40,7 +40,7 @@ Current checks:
 
 - Python compile for Stage3/audit/merge/guardrail scripts.
 - `git diff --check`.
-- Optional Fortran build plus `test_odex_solver` and `test_tltm_swap_kernel_contract`.
+- Optional Fortran build plus `test_odex_solver`, `test_odex_foundation_contract`, and `test_tltm_swap_kernel_contract`.
 - Stage3 sidecar dry-run.
 - Existing Stage2 protocol-audit smoke when a local fixture is present.
 - Tiny sidecar-on Stage3 smoke with protocol audit/readback.
