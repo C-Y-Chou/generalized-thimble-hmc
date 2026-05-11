@@ -27,6 +27,15 @@ Use this file to append per-session notes.
   - `withfb - nofb`: mean shift Re `-0.0221826`, Im `+0.00998582`; unresolved failures `-101279`; RG rejects `-3210`; runtime `+1878.08s`.
 - Next action: choose next scale for `nofb` vs `withfb/fb_norefine` official DFO-LS before production-scale run.
 
+## 2026-05-11 17:20 JST
+- Correction: the proper same-scale in-house/reference comparison for the official DFO-LS `32 seeds x 50k` gate is M6 R3 `m6_r3_32seed_50k`, not the older `judgment_20260508_32seed_50k_p28_rg` dataset.
+- M6 R3 source: `codex/workspaces/fortran_modernization/state/M6_REFERENCE_COMPARISON_SUMMARY.tsv`.
+- Corrected readback:
+  - `nofb` is unchanged at the observable/counter level: mean Re differs by `+3.44e-11`, mean Im by `-4.31e-11`, unresolved failures by `0`, RG rejects by `0`.
+  - Therefore official DFO-LS does not materially affect `nofb`; `no_fb` has `enable_quasi_fallback=false` and should not enter the QN solver path.
+  - `withfb/fb_norefine` is the affected method: official DFO-LS shifts mean Re by `-0.00216217`, mean Im by `+0.00349921`, reduces unresolved failures by `8627`, and reduces RG rejects by `8940` relative to M6 R3.
+- Next action: use M6 R3/R4 as the baseline family for future official DFO-LS production-comparison scaling decisions.
+
 ## 2026-04-30 14:31 JST
 - Goal: run no_fb_ref_reverse_gate 1024-seed with unified nofb/withfb->RG->Metropolis flow; accelerate queue throughput.
 - Code change: /home/cychou/TLTM/src/sampler/hmc_integrator_core.f90

@@ -47,6 +47,35 @@ Report:
 - Reverse-gate rejects: `-3210`.
 - Mean runtime: `+1878.08` seconds.
 
+## Comparison To M6 R3 Modernization Reference
+
+Use `m6_r3_32seed_50k` as the correct same-scale in-house/reference anchor, not the older
+`judgment_20260508_32seed_50k_p28_rg` dataset.
+
+M6 R3 source:
+`codex/workspaces/fortran_modernization/state/M6_REFERENCE_COMPARISON_SUMMARY.tsv`
+
+| canonical | metric | M6 R3 reference | official DFO-LS gate | official - reference |
+|---|---|---:|---:|---:|
+| nofb | mean Re<O> | 0.0201887921 | 0.020188792134396484 | +3.44e-11 |
+| nofb | mean Im<O> | -0.0049858728 | -0.004985872843091379 | -4.31e-11 |
+| nofb | unresolved failures | 120858 | 120858 | 0 |
+| nofb | RG rejects | 19197 | 19197 | 0 |
+| nofb | pair0 accept | 0.438043 | 0.4380425 | -5.0e-7 |
+| withfb | mean Re<O> | 0.000168402 | -0.0019937714302690254 | -0.00216217 |
+| withfb | mean Im<O> | 0.0015007415 | 0.004999952129493637 | +0.00349921 |
+| withfb | unresolved failures | 28206 | 19579 | -8627 |
+| withfb | RG rejects | 24927 | 15987 | -8940 |
+| withfb | pair0 accept | 0.438588 | 0.43846875 | -0.00011925 |
+
+Interpretation:
+
+- `nofb` is unchanged by the official DFO-LS gate at the observable/counter level.
+- This is expected because `no_fb` renders `enable_quasi_fallback=false`; the QN backend env is present in the PBS environment but the QN solve path is not used.
+- The official DFO-LS change affects `withfb/fb_norefine`, where the quasi fallback path is active.
+- Official DFO-LS reduces both unresolved failures and RG rejects for `withfb` at this scale, while shifting the mean observables modestly relative to M6 R3.
+- Runtime columns should be compared carefully because the M6 summary and official gate report may not be identical instrumentation slices; use raw per-seed tables before making a runtime-only claim.
+
 ## Interpretation
 
 - This gate is healthier than the earlier 10seed/10k official small gate for `withfb`: the `withfb` aggregate Re Zmean is close to zero and Im Zmean is moderate.
