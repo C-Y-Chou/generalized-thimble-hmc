@@ -1,0 +1,2 @@
+date_jst	id	status	scope	commands	result	source
+2026-05-11	ODFOLS-F1	pass	official_10seed_10k_assist_degeneracy	python3 codex/workspaces/fortran_modernization/tasks/scripts/official_dfols_small_assist_degeneracy.py	Imported production-comparison official DFO-LS 10seed/10k nofb-vs-withfb evidence; withfb reduces unresolved failures 7502 -> 1179 while M6 remains non-official evidence	codex/workspaces/fortran_modernization/runbooks/OFFICIAL_DFOLS_SMALL_ASSIST_DEGENERACY_READBACK_20260511.md

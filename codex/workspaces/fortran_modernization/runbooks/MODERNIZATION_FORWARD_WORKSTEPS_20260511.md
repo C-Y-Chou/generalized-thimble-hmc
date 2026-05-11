@@ -2,7 +2,7 @@
 
 Updated: 2026-05-11 JST
 
-Scope: foundation-gap-gated forward queue for continuing TLTM Fortran modernization after official DFO-LS became the default backend and after the M6 R1-R4 reference baseline was accepted.
+Scope: foundation-gap-gated forward queue for continuing TLTM Fortran modernization after official DFO-LS became the default backend and after the M6 R1-R4 reference baseline was accepted as historical/internal behavior evidence.
 
 ## Current Position
 
@@ -10,7 +10,7 @@ Scope: foundation-gap-gated forward queue for continuing TLTM Fortran modernizat
 Reference-audited core + accepted M6 behavior baseline -> foundation gaps still active -> source modernization remains gated
 ```
 
-This queue supersedes any interpretation that M2/M6 means the numerical/software foundation is complete. M6 is the behavior-protection anchor; `FOUNDATION_COMPLETENESS_RESET_20260511.md` is the reset map for the unfinished foundation.
+This queue supersedes any interpretation that M2/M6 means the numerical/software foundation is complete. M6 is a behavior-protection and degeneracy-observation anchor, not official DFO-LS certification; `FOUNDATION_COMPLETENESS_RESET_20260511.md` is the reset map for the unfinished foundation.
 
 ## Active Caveat Gates
 
@@ -31,12 +31,12 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 | Step | Workstream | Status | Allowed now | Output | Gate to advance |
 | --- | --- | --- | --- | --- | --- |
 | F0 | foundation completeness reset | active | yes | `FOUNDATION_COMPLETENESS_RESET_20260511.md`, expanded `CAVEATS.tsv`/`OPEN_ITEMS.tsv` | no compact doc says foundation is complete |
-| F1 | ODEX backend completeness | active | docs/tests first | ODEX solver contract and first deterministic foundation test are in place; source split/stability decision still next | ODEX source work has accepted affected baselines |
-| F2 | official DFO-LS backend completion | active | docs/tests first | official-alone preset tuning policy, provenance/readback, captured comparison, residual-gate checklist | official backend claims have package provenance and TLTM residual readback |
+| F1 | ODEX backend completeness | active | docs/tests first | ODEX solver contract, first deterministic foundation test, and assist-on policy revalidation are in place; source split/stability decision still next | ODEX source work has accepted affected baselines |
+| F2 | official DFO-LS backend completion | active | docs/tests first | official 10seed/10k nofb-vs-withfb evidence is imported as calibration; official-alone preset tuning policy, provenance/readback, captured comparison, residual-gate checklist still need representative scale readback | official backend claims have package provenance and TLTM residual readback |
 | F3 | retained-core deterministic evidence pack | active | tests/tooling | Newton/RATTLE/QN/HMC/RG replay fixtures and comparison rules | affected core rows pass or are explicitly scoped |
 | F4 | diagnostics/status/accounting foundation | active | design/tests | typed diagnostics context and schema compatibility plan | counters/status/capture meaning is versioned and testable |
 | F5 | M6 read-only comparison tooling | done | yes | `m6_reference_compare.py`, comparison summary/report | tool can regenerate report from accepted M6 readback or raw package CSV |
-| F6 | M6/product calibration reconciliation | next | yes, read-only | compare M6 R1-R4 against official DFO-LS provisional gates | no source changes; label all production outputs provisional |
+| F6 | M6 and official-small degeneracy observation | active | yes, read-only | use M6 R1-R4 only as historical/internal anchors; use imported official 10seed/10k production-comparison evidence for real official-line nofb-vs-withfb degeneracy observation | M6 is not official DFO-LS evidence; official 10seed/10k is calibration only; no source changes; label all production outputs provisional |
 | F7 | public method naming and schema-role design | gated | docs/schema design only | raw aliases remain readable; canonical roles/algorithm IDs specified | no field removal until versioned schema exists |
 | F8 | reference comparison harness for source patches | gated | tests/tooling only | patch header template plus baseline comparison command set | required before behavior-relevant source refactors |
 | F9 | low-risk non-physics utility/API cleanup | gated | only after F8 and affected foundation rows | exact-output or tolerance-bound comparison against accepted rows | no RNG/proposal/schema/counter meaning drift |
@@ -64,10 +64,10 @@ Read `FOUNDATION_COMPLETENESS_RESET_20260511.md` before any modernization task. 
 3. Retained-core deterministic evidence pack.
 4. Diagnostics/status/accounting foundation.
 
-M6 comparison tooling remains available with:
+M6 comparison tooling remains available as historical/internal behavior readback, especially for assist-off degeneracy observation, with:
 
 ```bash
 python3 codex/workspaces/fortran_modernization/tasks/scripts/m6_reference_compare.py
 ```
 
-Use the generated report as a behavior anchor, not as evidence that the foundation is complete.
+Use the generated report as a behavior anchor, not as official DFO-LS evidence and not as evidence that the foundation is complete.

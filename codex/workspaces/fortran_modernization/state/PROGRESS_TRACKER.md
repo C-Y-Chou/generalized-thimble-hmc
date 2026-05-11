@@ -67,6 +67,7 @@
 - 2026-05-10 JST: Added `M6_PROVENANCE_READBACK_CHECKLIST.md` for v1alpha sidecar, Stage3 metadata, protocol-audit, and merge-readback requirements.
 - 2026-05-10 JST: Updated repo and outer New Project README entry points to direct future sessions to the M6 gate/checklist and paused dataset-regeneration status.
 - 2026-05-10 JST: Updated master and M3-to-M6 planning docs so the current position is M6 review before dataset regeneration, not M3 completion.
+- 2026-05-11 JST: Imported production-comparison official DFO-LS 10seed/10k nofb-vs-withfb evidence into modernization state; `withfb` reduces unresolved failures from `7502` to `1179`, while M6 remains historical/internal evidence and not official DFO-LS certification.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit

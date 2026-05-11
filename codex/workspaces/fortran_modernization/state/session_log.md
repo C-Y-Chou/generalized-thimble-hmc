@@ -1,5 +1,10 @@
 # Session Log: fortran_modernization
 
+## 2026-05-11 JST - Official DFO-LS small assist-degeneracy evidence imported
+- Imported the official DFO-LS 10seed/10k production-comparison nofb-vs-withfb evidence from `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison` into `state/official_dfols_small_20260511_10seed_10k_p28_rg_nofb_withfb/`.
+- Added `runbooks/OFFICIAL_DFOLS_SMALL_ASSIST_DEGENERACY_READBACK_20260511.md`, `state/OFFICIAL_DFOLS_SMALL_ASSIST_DEGENERACY_SUMMARY.tsv`, and `state/OFFICIAL_DFOLS_EVIDENCE.tsv`.
+- Readback: official `nofb` unresolved failures `7502`, official `withfb` unresolved failures `1179`, RG rejects `1252 -> 996`; this is official-line production-method degeneracy evidence, not M6 evidence and not ODE solver-internal assist-off.
+
 ## 2026-04-30 16:05 JST
 - Goal: establish the modernization governance and planning set before code refactors.
 - Scope: architecture, solver-chain redesign planning, behavior-preservation rules, testing roadmap, risk tracking.

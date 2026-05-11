@@ -194,6 +194,8 @@ def run_guardrails(args):
             "scripts/merge_stage3_multiseed_chunks.py",
             "scripts/audit_tltm_tempering_protocol.py",
             "scripts/run_m4_guardrails.py",
+            "codex/workspaces/fortran_modernization/tasks/scripts/odex_assist_revalidation.py",
+            "codex/workspaces/fortran_modernization/tasks/scripts/official_dfols_small_assist_degeneracy.py",
         ],
         repo_root,
         failures,

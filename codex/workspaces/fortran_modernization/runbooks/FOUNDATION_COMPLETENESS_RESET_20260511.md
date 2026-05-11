@@ -20,7 +20,7 @@ Use this instead:
 Reference-audited core + accepted M6 behavior baseline -> foundation gaps still active -> source modernization remains gated
 ```
 
-M6 is a behavior-protection baseline. It is not proof that ODEX, official DFO-LS, retained-core deterministic evidence, diagnostics/accounting, RNG/workspace ownership, or wrapper/schema foundations are complete.
+M6 is a behavior-protection baseline and can be used as an observational detector for degeneracy such as assist-off robustness collapse. It is not proof that ODEX, official DFO-LS, retained-core deterministic evidence, diagnostics/accounting, RNG/workspace ownership, or wrapper/schema foundations are complete, and it must not be used as official DFO-LS certification.
 
 ## What Went Wrong
 
@@ -48,8 +48,8 @@ Do not use `done`, `complete`, or `foundation complete` unless the relevant row 
 
 | ID | Area | Current evidence | Missing foundation work | Blocking consequence |
 | --- | --- | --- | --- | --- |
-| FG-001 | ODEX backend | Hairer `IWORK(3)=3` step sequence and basic extrapolation structure are implemented; analytic ODE tests exist; `test_odex_foundation_contract` now covers sequence, strict status, zero-time, forward/backward composition, unknown-context h-min failure, and assist-policy visibility. | Stability-control decision or implementation, endpoint-only/dense-output policy, mechanism/policy split, explicit workspace/result/status API, flow-wrapper/Jacobian deterministic tests, and ODEX-only vs assist revalidation. | Do not claim complete ODEX solver or start ODEX-affecting source refactors beyond the accepted source-slice plan. |
-| FG-002 | Official DFO-LS backend | Official package is embedded and tuned enough for provisional gates; TLTM residual gate remains required. | Official-alone preset tuning policy, in-package stall/robustness decisions without external rescue wrappers, package provenance, captured-attempt comparison, and official readback on TLTM residual acceptance. | Do not treat final official solver replacement as complete. |
+| FG-001 | ODEX backend | Hairer `IWORK(3)=3` step sequence and basic extrapolation structure are implemented; analytic ODE tests exist; `test_odex_foundation_contract` now covers sequence, strict status, zero-time, forward/backward composition, unknown-context h-min failure, and assist-policy visibility. ODEX-only vs solver-assist policy revalidation now concludes that assist-on is the canonical policy and assist-off is only a comparison/degeneracy-observation artifact. | Stability-control decision or implementation, endpoint-only/dense-output policy, mechanism/policy split, explicit workspace/result/status API, and flow-wrapper/Jacobian deterministic tests. | Do not claim complete ODEX solver or start ODEX-affecting source refactors beyond the accepted source-slice plan. |
+| FG-002 | Official DFO-LS backend | Official package is embedded and tuned enough for provisional gates; TLTM residual gate remains required. Official 10seed/10k production-comparison evidence was imported as calibration and shows `withfb` reduces unresolved failures from `7502` to `1179` versus `nofb`. | Official-alone preset tuning policy, in-package stall/robustness decisions without external rescue wrappers, package provenance, captured-attempt comparison, representative-scale readback, and official readback on TLTM residual acceptance. | Do not treat final official solver replacement as complete. |
 | FG-003 | Simplified Newton | Reference signs and update decomposition match GT-HMC/TLTM in the audit. | Deterministic replay of accepted solutions against Eq. 3.37/3.40, residual <= `cttol`, and `lambda = O(step_size**2)` scaling. | Do not treat Newton foundation as fully evidenced. |
 | FG-004 | RATTLE/failure boundary | Main complex RATTLE update order is reference-matched; failure-as-rejection policy is chosen. | Forward/reverse deterministic replay, live-state identity on failure/reject, and replacement of fragile `x(2)` progress guard by typed state boundary. | Do not treat proposal boundary as fully evidenced. |
 | FG-005 | QN p28 / BTN rescue | Paper-variable cleanup exists; local BTN contract replay succeeded for a small captured set. | Appendix-B route-budget line-by-line comparison, fixed-seed route census for `Nprobe=28` and follow-up budgets, official-DFO-LS-line equivalence/coverage. | Do not treat QN/BTN route as fully evidenced under official backend. |
@@ -71,6 +71,6 @@ Do not use `done`, `complete`, or `foundation complete` unless the relevant row 
 ## Relationship To Existing Evidence
 
 - M2 is a reference-backed audit, not final implementation signoff.
-- M6 is an accepted behavior baseline, not a proof that each method foundation is complete.
+- M6 is an accepted historical/internal behavior baseline, not official DFO-LS evidence and not a proof that each method foundation is complete.
 - The first ODEX non-invasive evidence slice is recorded in `ODEX_BACKEND_COMPLETION_PLAN_20260511.md` and `ODEX_FOUNDATION_TEST_READBACK_20260511.md`; `CV-007` remains open until source-level backend completion or explicit reduced-scope acceptance.
 - Current 32seed/50k official DFO-LS production-comparison jobs may continue as provisional data, but they cannot be promoted to final publication production while FG-001, FG-002, FG-006, FG-007, and schema/wrapper gaps remain unresolved or explicitly accepted.

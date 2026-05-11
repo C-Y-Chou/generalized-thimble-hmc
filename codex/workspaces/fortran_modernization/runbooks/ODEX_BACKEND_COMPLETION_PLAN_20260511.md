@@ -114,6 +114,26 @@ Existing target retained:
 make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_solver
 ```
 
+## Assist Policy Revalidation
+
+Added readback script:
+
+```bash
+python3 codex/workspaces/fortran_modernization/tasks/scripts/odex_assist_revalidation.py
+```
+
+This script recomputes the ODEX-only vs solver-assist conclusion from the
+recorded 50k/100k QN-clean validation artifacts and writes:
+
+- `state/ODEX_ASSIST_REVALIDATION_SUMMARY.tsv`
+- `runbooks/ODEX_ASSIST_REVALIDATION_CONCLUSION_20260511.md`
+
+Conclusion: pure ODEX-only remains a comparison artifact and degeneracy
+observer. The active policy is ODEX-primary with solver-internal residual
+assist and strict final proposal flow. M6 reference datasets are not official
+DFO-LS evidence; they can only serve as historical/internal behavior anchors
+for observing assist-off degeneracy.
+
 ## Next Source Slice
 
 The next ODEX source slice is allowed only after accepting this contract:
@@ -123,4 +143,3 @@ The next ODEX source slice is allowed only after accepting this contract:
 3. Add backend result mapping inside `intode` without changing existing status values.
 4. Preserve current tests and M6 affected baseline comparisons.
 5. Do not enable new stability-control behavior until a separate behavior-changing decision and reference comparison exist.
-
