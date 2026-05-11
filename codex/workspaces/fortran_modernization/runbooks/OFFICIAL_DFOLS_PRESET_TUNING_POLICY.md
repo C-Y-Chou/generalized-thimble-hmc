@@ -95,8 +95,8 @@ On remote Rocky 8 nodes where `python3.11-devel` is not installed system-wide,
 run the production preflight PBS first. It extracts rebuildable Python headers
 under `.deps/python-devel-3.11` when needed, reuses the matching system
 `pyconfig` fragment from the active interpreter include path, and passes
-`PYTHON_EMBED_CFLAGS` to `make`. If the cluster changes, override with
-`TLTM_PYTHON_INCLUDE_DIR`.
+`PYTHON_EMBED_CFLAGS` / `PYTHON_EMBED_LDFLAGS` to `make`. If the cluster
+changes, override with `TLTM_PYTHON_INCLUDE_DIR` or `PYTHON_EMBED_LDFLAGS`.
 
 Production jobs must expose the official package to the embedded interpreter:
 

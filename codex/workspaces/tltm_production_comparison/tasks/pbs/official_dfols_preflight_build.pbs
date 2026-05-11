@@ -67,6 +67,21 @@ import sysconfig
 print(sysconfig.get_paths()["include"])
 PY
 )"
+PY_LIBDIR="$("${PYTHON_FOR_DFOLS}" - <<'PY'
+import sysconfig
+print(sysconfig.get_config_var("LIBDIR") or "")
+PY
+)"
+PY_LDLIBRARY="$("${PYTHON_FOR_DFOLS}" - <<'PY'
+import sysconfig
+print(sysconfig.get_config_var("LDLIBRARY") or "")
+PY
+)"
+PY_EMBED_EXTRA_LDFLAGS="$("${PYTHON_FOR_DFOLS}" - <<'PY'
+import sysconfig
+print(" ".join(str(sysconfig.get_config_var(k) or "") for k in ("LIBS", "SYSLIBS", "LINKFORSHARED")))
+PY
+)"
 
 if [ -n "${TLTM_PYTHON_INCLUDE_DIR:-}" ]; then
   if [ ! -f "${TLTM_PYTHON_INCLUDE_DIR}/Python.h" ]; then
@@ -112,6 +127,16 @@ else
   exit 4
 fi
 
+if [ -z "${PYTHON_EMBED_LDFLAGS:-}" ] && [ -n "${PY_LIBDIR}" ] && [ -n "${PY_LDLIBRARY}" ] && [ ! -f "${PY_LIBDIR}/${PY_LDLIBRARY}" ]; then
+  PY_VERSIONED_RUNTIME="${PY_LIBDIR}/${PY_LDLIBRARY}.1.0"
+  if [ -f "${PY_VERSIONED_RUNTIME}" ]; then
+    export PYTHON_EMBED_LDFLAGS="${PY_VERSIONED_RUNTIME} ${PY_EMBED_EXTRA_LDFLAGS}"
+  else
+    echo "[ERROR] cannot find ${PY_LIBDIR}/${PY_LDLIBRARY}; set PYTHON_EMBED_LDFLAGS" >&2
+    exit 4
+  fi
+fi
+
 if [ ! -x .venv-dfols/bin/python ]; then
   "${PYTHON_FOR_DFOLS}" -m venv .venv-dfols
 fi
@@ -133,6 +158,9 @@ MAKE_ARGS=(
 )
 if [ -n "${PYTHON_EMBED_CFLAGS:-}" ]; then
   MAKE_ARGS+=(PYTHON_EMBED_CFLAGS="${PYTHON_EMBED_CFLAGS}")
+fi
+if [ -n "${PYTHON_EMBED_LDFLAGS:-}" ]; then
+  MAKE_ARGS+=(PYTHON_EMBED_LDFLAGS="${PYTHON_EMBED_LDFLAGS}")
 fi
 make "${MAKE_ARGS[@]}" ../bin/run_tltm_stage2 ../bin/evaluate_expectations
 

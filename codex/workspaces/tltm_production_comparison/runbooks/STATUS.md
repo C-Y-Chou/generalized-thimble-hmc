@@ -23,7 +23,8 @@ Updated: 2026-05-11 JST
   on the target tree. It creates/updates `.venv-dfols`, verifies official
   `DFO-LS==1.6.5`, prepares local Python headers under `.deps/` if the Rocky
   node lacks `python3.11-devel`, adds the matching system `pyconfig` fragment
-  include path when required, and builds `run_tltm_stage2` plus
+  include path and versioned runtime-library linker path when required, and
+  builds `run_tltm_stage2` plus
   `evaluate_expectations` with `ENABLE_OFFICIAL_DFOLS=1`.
 - Chunk jobs now set `QN_SOLVER_BACKEND=official_dfols`,
   `QN_OFFICIAL_DFOLS_PRESET=stable_gate77`, and
