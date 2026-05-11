@@ -13,6 +13,7 @@ Every material caveat must be classified in `codex/state/CAVEATS.tsv` before the
 - `blocking`: must also appear as an active high-priority row in `codex/state/OPEN_ITEMS.tsv`.
 - `provisional`: work may continue, but outputs must be labeled provisional and rerun triggers must be explicit.
 - `guardrail`: the caveat changes workflow safety, not science; fix the workflow and rerun only invalid artifacts.
+- `implementation_truth`: the project label or claim is stronger than the implementation or evidence; fix the claim, fix the implementation, or rerun the right evidence before using it.
 - `historical`: no active work unless that historical artifact or script is reused.
 
 ## Audit Steps

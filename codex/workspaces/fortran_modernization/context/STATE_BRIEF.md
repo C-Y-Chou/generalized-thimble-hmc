@@ -34,4 +34,4 @@ Updated: 2026-05-11 JST
 
 ## Next Action
 
-Continue official DFO-LS production redo or choose the next remaining modernization block from the workstream matrix. If the user says "production redo" without further qualification, use the official DFO-LS line and the `fortran_modernization` remote worktree.
+Use `runbooks/MODERNIZATION_FORWARD_WORKSTEPS_20260511.md` as the active forward queue. The immediate modernization step is implementation-truth caveat cleanup: DFO-LS wording must distinguish historical in-house/DFO-LS-style evidence from official package evidence, and ODEX wording must say ODEX-primary with solver-internal residual assist and strict final flow rather than pure/complete ODEX. Do not start behavior-relevant source refactors until the relevant caveat and baseline gates are satisfied.

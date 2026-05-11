@@ -1,6 +1,6 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-11T16:07:51+09:00
+Generated: 2026-05-11T16:17:15+09:00
 Remote refreshed: 2026-05-11T16:07:04+09:00
 
 ## Canonical Entry
@@ -47,6 +47,8 @@ Remote refreshed: 2026-05-11T16:07:04+09:00
 - `CV-002` tltm_production_comparison blocks `final_publication_dataset`: Production-comparison outputs before modernization convergence are provisional-discussion datasets, not final publication datasets. Rerun trigger: Any change to method mapping, public schema, counter/status semantics, wrapper behavior, RNG ownership, proposal construction, solver policy, tolerances, or final-flow policy.
 - `CV-003` tltm_production_comparison blocks `production_job_submission`: Production-comparison jobs must execute from the synchronized production-comparison worktree, not from the modernization source worktree. Rerun trigger: Only misrouted jobs/artifacts rerun; docs, route guards, and state-register fixes do not invalidate correctly routed scientific outputs.
 - `CV-004` fortran_modernization blocks `source_code_modernization`: Post-M6 source refactors need an accepted reference package or an explicit narrower baseline before touching behavior-relevant code. Rerun trigger: Any source change that can affect RNG order, proposal construction, solver route, failure classification, counters, schema meaning, or public wrapper behavior.
+- `CV-006` fortran_modernization blocks `dfols_claims_and_outputs`: Historical TLTM "DFO-LS" or "DFO-LS-style" QN paths were in-house implementations, not the official DFO-LS package. Official DFO-LS claims require the embedded official backend and package provenance. Rerun trigger: Any dataset or claim labeled official DFO-LS without ENABLE_OFFICIAL_DFOLS, QN_SOLVER_BACKEND=official_dfols, stable preset provenance, and TLTM residual-gate readback must be rerun or relabeled.
+- `CV-007` fortran_modernization blocks `odex_claims_and_flow_policy`: TLTM flow is ODEX-primary with solver-internal residual assist and strict final flow, not pure ODEX-only and not a complete Hairer ODEX package claim. Rerun trigger: Changing ODEX sequence, stability control, tolerance floors, solver-internal assist, or final-flow strictness requires rerun of affected flow/proposal/reference gates.
 
 ## High-Priority Open Items
 

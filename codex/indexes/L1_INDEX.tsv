@@ -11,6 +11,8 @@ caveats	current	codex/state/CAVEATS.tsv	Before deciding whether a caveat blocks,
 datasets	current	codex/state/DATASETS.tsv	Before dataset cleanup/readback/reference registration	codex/workspaces/fortran_modernization/state/M6_REFERENCE_PACKAGES.tsv
 references	current	codex/state/REFERENCES.tsv	Before algorithm/reference-backed review	codex/workspaces/fortran_modernization/references/REFERENCES_INDEX.md
 fortran_modernization	active	codex/workspaces/fortran_modernization/context/STATE_BRIEF.md	When entering fortran_modernization	codex/workspaces/fortran_modernization/runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md
+modernization_forward	active	codex/workspaces/fortran_modernization/runbooks/MODERNIZATION_FORWARD_WORKSTEPS_20260511.md	When continuing modernization after the caveat audit	codex/workspaces/fortran_modernization/runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md
+implementation_truth_caveats	active	codex/workspaces/fortran_modernization/runbooks/IMPLEMENTATION_TRUTH_CAVEATS_20260511.md	Before making DFO-LS, ODEX, or historical-evidence claims	codex/state/CAVEATS.tsv
 tltm_production_comparison	active_parallel	codex/workspaces/tltm_production_comparison/context/STATE_BRIEF.md	When entering TLTM nofb vs withfb production-comparison workstream	codex/workspaces/tltm_production_comparison/runbooks/SOFT_DECOUPLING_AND_PROVISIONAL_CONTRACT.md
 repo_cleanup	planned	codex/workspaces/repo_cleanup/context/STATE_BRIEF.md	Before local/remote/docs/output cleanup	codex/workspaces/repo_cleanup/runbooks/STATUS.md
 control_plane_cleanup	active	codex/runbooks/CONTROL_PLANE_MEMORY_COMPACTION_PLAN.md	When changing codex memory layout	codex/runbooks/READ_POLICY.md

@@ -1,6 +1,6 @@
 # Workstream Matrix And Current Position
 
-Updated: 2026-05-10 JST
+Updated: 2026-05-11 JST
 
 Scope: replace the misleading impression that M0-M6 is a linear "modernization completion" ladder. This file is the compact status matrix for what has actually been completed, what is active, what is deferred, and where the modernization workstream is now.
 
@@ -60,6 +60,7 @@ These should not be reopened unless new evidence appears:
 - M4 local guardrail runner exists.
 - External official-DFO-LS comparison bridge exists for captured BTN residual cases, with double-precision callback checks.
 - GPL-compatible product direction is selected for official DFO-LS production replacement; Tapenade AD is recorded as an external MIT-licensed code-generation tool.
+- Implementation-truth caveats are now explicit: historical DFO-LS-style evidence is not official-package evidence, and the flow policy is ODEX-primary with solver-internal assist rather than pure/complete ODEX.
 - M5 Lane A direct-env/config ownership slice is complete.
 - Cluster02 scheduling is no longer ad hoc; it uses persistent priors plus fresh live state/probes.
 
@@ -67,7 +68,7 @@ These should not be reopened unless new evidence appears:
 
 Active focus:
 
-- Select the next remaining modernization block using this matrix.
+- Follow `MODERNIZATION_FORWARD_WORKSTEPS_20260511.md` for the caveat-gated forward queue.
 - Do not start high-risk source refactors without an explicit reference-comparison plan against the accepted M6 packages or a narrower affected baseline.
 - Remote cleanup, fast-forward, or rename is now possible only after a fresh refresh and explicit scope check.
 
@@ -81,15 +82,20 @@ Current active remote target:
 
 ## What Remains After M6 Baseline Acceptance
 
-Recommended order after accepted M6 reference package:
+Recommended order after accepted M6 reference package, now refined by the caveat-gated forward queue:
 
-1. Build read-only reference comparison tooling around the accepted package.
-2. Normalize public method names and schema roles: keep raw legacy aliases readable, but expose canonical roles such as `nofb` and `withfb` or explicit algorithm IDs.
-3. Start architecture/API design slices in non-physics utility/config/output layers first.
-4. Move state/status/result propagation toward typed objects.
-5. Refactor diagnostics/counters into a structured accounting context.
-6. Only then approach RNG/reentrancy/module-workspace migration.
-7. Build unified TLTM wrapper and gradually demote Stage scripts to compatibility layers.
+1. Resolve implementation-truth caveats for DFO-LS and ODEX claims.
+2. Build read-only reference comparison tooling around the accepted package.
+3. Normalize public method names and schema roles: keep raw legacy aliases readable, but expose canonical roles such as `nofb` and `withfb` or explicit algorithm IDs.
+4. Start architecture/API design slices in non-physics utility/config/output layers first.
+5. Move state/status/result propagation toward typed objects.
+6. Refactor diagnostics/counters into a structured accounting context.
+7. Only then approach RNG/reentrancy/module-workspace migration.
+8. Build unified TLTM wrapper and gradually demote Stage scripts to compatibility layers.
+
+The operational runbook for this sequence is:
+
+- `runbooks/MODERNIZATION_FORWARD_WORKSTEPS_20260511.md`
 
 ## Rule For Future Planning
 
