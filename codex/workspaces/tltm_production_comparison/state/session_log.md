@@ -488,3 +488,18 @@ Use this file to append per-session notes.
   - merge/report: `14774.anode01`
 - Note:
   - Initial shell helper hit a dependency-string quoting error after submitting all chunks; merge was submitted immediately afterward with explicit dependency on `14766..14773`.
+
+## 2026-05-11 JST - Archived non-official legacy production output
+
+- User correction:
+  - The confusing extra production output was not an `official_dfols` output.
+- Action:
+  - Restored `official_dfols_gate_20260511_128seed_100k_p28_rg_withfb_r4` to active `provisional/` after an overly quick initial archive attempt.
+  - Archived the non-official legacy gate `gate_20260511_128seed_200k_p28_rg_nofb_fbnorefine`.
+- Remote archive:
+  - Output: `output/production_comparison/archive/non_official_legacy_20260511/gate_20260511_128seed_200k_p28_rg_nofb_fbnorefine`
+  - Logs: `output/logs/production_comparison/archive/non_official_legacy_20260511/gate_20260511_128seed_200k_p28_rg_nofb_fbnorefine`
+- Active provisional outputs after cleanup:
+  - `official_dfols_small_20260511_10seed_10k_p28_rg_nofb_withfb`
+  - `official_dfols_gate_20260511_32seed_50k_p28_rg_nofb_withfb`
+  - `official_dfols_gate_20260511_128seed_100k_p28_rg_withfb_r4`
