@@ -5,6 +5,11 @@
 - Added `runbooks/OFFICIAL_DFOLS_SMALL_ASSIST_DEGENERACY_READBACK_20260511.md`, `state/OFFICIAL_DFOLS_SMALL_ASSIST_DEGENERACY_SUMMARY.tsv`, and `state/OFFICIAL_DFOLS_EVIDENCE.tsv`.
 - Readback: official `nofb` unresolved failures `7502`, official `withfb` unresolved failures `1179`, RG rejects `1252 -> 996`; this is official-line production-method degeneracy evidence, not M6 evidence and not ODE solver-internal assist-off.
 
+## 2026-05-11 JST - ODEX assist conclusion wording corrected
+- Corrected `ODEX_ASSIST_REVALIDATION_CONCLUSION_20260511.md` and related state wording: the artifact is a historical readback from recorded 2026-05-09 ODEX-only/solver-assist runs, not a fresh current-code ODEX revalidation test.
+- `ODX-F4` is now informational rather than pass/fail evidence for closing `CV-007`.
+- A real current-code ODEX assist-on/off or equivalent policy test remains required before drawing a current policy conclusion.
+
 ## 2026-04-30 16:05 JST
 - Goal: establish the modernization governance and planning set before code refactors.
 - Scope: architecture, solver-chain redesign planning, behavior-preservation rules, testing roadmap, risk tracking.

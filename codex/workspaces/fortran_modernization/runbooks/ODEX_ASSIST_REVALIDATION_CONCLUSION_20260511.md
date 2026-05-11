@@ -1,11 +1,11 @@
-# ODEX Assist Revalidation Conclusion
+# ODEX Assist Historical Readback
 
 Updated: 2026-05-11 JST
 
-Status: concluded for the current ODEX flow-policy decision. The accepted
-policy is ODEX primary integration plus solver-internal residual assist,
-with strict final proposal flow. This is not a claim that the standalone
-ODEX backend split or stability-control surface is complete.
+Status: historical evidence readback only. This report recomputes numbers
+from recorded 2026-05-09 ODEX-only and solver-assist validation artifacts.
+It is not a fresh current-code ODEX revalidation test and must not be used
+by itself as a final current policy conclusion.
 
 Important evidence boundary: M6 reference datasets are historical/internal
 behavior anchors, not official DFO-LS evidence. They may be used as an
@@ -14,14 +14,14 @@ behavior, but not to certify the official DFO-LS backend.
 
 ## Current Source Readback
 
-- Current local HEAD when this report was generated: `ada5f7658d89`.
+- Current local HEAD when this report was generated: `bd26636cf7cc`.
 - Large-scale evidence source: `codex/workspaces/fortran_modernization/runbooks/ODEX_SOLVER_ASSIST_VALIDATION_RESULT_20260509_QNCLEAN.md`.
 - ODEX-only comparison source: `codex/workspaces/fortran_modernization/runbooks/ODEX_50K_100K_VALIDATION_RESULT_20260509_QNCLEAN.md`.
 - Deterministic current-code boundary evidence:
 - ODX-F1: pass via `make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_foundation_contract`
 - ODX-F2: pass via `make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_solver`
 - ODX-F3: pass via `ENABLE_OFFICIAL_DFOLS=0 python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags "" --keep-going`
-- ODX-F4: pass via `python3 codex/workspaces/fortran_modernization/tasks/scripts/odex_assist_revalidation.py`
+- ODX-F4: info via `python3 codex/workspaces/fortran_modernization/tasks/scripts/odex_assist_revalidation.py`
 
 ## Recomputed Robustness Comparison
 
@@ -42,28 +42,29 @@ Key computed readbacks:
 - Assist 100k physical Zmean Re/Im were `-0.315388` / `0.214810`; ODEX-only 100k physical Zmean Re/Im were `0.385239` / `-0.200998`.
 - Pair0 acceptance remained stable: ODEX-only 100k `0.438907`, assist 100k `0.438762`.
 
-## Conclusion
+## Readback
 
-Pure ODEX-only is physically acceptable as a comparison artifact, but it is
-not the production policy to promote: it adds a large avoidable robustness
-loss. Solver-internal assist recovers the pre-ODEX unresolved-failure level
-while keeping aggregate physical observables, reverse-gate rejects, and
-pair0 acceptance stable.
+The recorded 2026-05-09 historical campaign shows that pure ODEX-only was
+physically acceptable as a comparison artifact but had a large robustness
+loss. In that historical campaign, solver-internal assist recovered the
+pre-ODEX unresolved-failure level while keeping aggregate physical
+observables, reverse-gate rejects, and pair0 acceptance stable.
 
-The modernization policy from here is therefore:
+What this supports as evidence:
 
-1. ODEX is the primary endpoint integrator.
-2. Solver assist is allowed only for Newton/QN residual evaluation progress.
-3. Final proposal/live-state flow remains strict and cannot be completed by assist.
-4. The remaining ODEX work is backend completion: result/workspace/status split, endpoint-only/stability-control decision, and flow/Jacobian deterministic tests.
+1. Pure ODEX-only remains a known comparison point.
+2. Solver-internal assist is a strong candidate for preserving robustness.
+3. A fresh current-code ODEX assist-on/off revalidation is still required before using this as a current conclusion.
+4. The remaining ODEX work is backend completion: result/workspace/status split, endpoint-only/stability-control decision, flow/Jacobian deterministic tests, and an actual current ODEX policy test.
 
 ## Boundary
 
-This revalidation closes the ODEX-only-vs-assist policy question for
+This readback does not close the ODEX-only-vs-assist policy question for
 the current ODEX flow policy. It does not close `CV-007`/`FG-001`: the
-standalone backend contract and stability decision remain open. It also
-does not by itself close the official DFO-LS-line gate under `CV-008`;
-M6 can only help observe whether disabling assist degenerates robustness.
+standalone backend contract, stability decision, and current ODEX policy
+test remain open. It also does not by itself close the official DFO-LS-line
+gate under `CV-008`; M6 can only help observe whether disabling assist
+degenerates robustness.
 
 Separate official DFO-LS production-comparison evidence may be read via
 `OFFICIAL_DFOLS_SMALL_ASSIST_DEGENERACY_READBACK_20260511.md`. That

@@ -114,7 +114,7 @@ Existing target retained:
 make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_solver
 ```
 
-## Assist Policy Revalidation
+## Assist Policy Historical Readback
 
 Added readback script:
 
@@ -122,17 +122,20 @@ Added readback script:
 python3 codex/workspaces/fortran_modernization/tasks/scripts/odex_assist_revalidation.py
 ```
 
-This script recomputes the ODEX-only vs solver-assist conclusion from the
-recorded 50k/100k QN-clean validation artifacts and writes:
+This script recomputes the ODEX-only vs solver-assist historical readback from
+the recorded 50k/100k QN-clean validation artifacts and writes:
 
 - `state/ODEX_ASSIST_REVALIDATION_SUMMARY.tsv`
 - `runbooks/ODEX_ASSIST_REVALIDATION_CONCLUSION_20260511.md`
 
-Conclusion: pure ODEX-only remains a comparison artifact and degeneracy
-observer. The active policy is ODEX-primary with solver-internal residual
-assist and strict final proposal flow. M6 reference datasets are not official
-DFO-LS evidence; they can only serve as historical/internal behavior anchors
-for observing assist-off degeneracy.
+Correction: this is not a fresh current-code ODEX policy test and must not be
+treated as a current revalidation conclusion. It shows that historical pure
+ODEX-only was a comparison artifact with a robustness loss, and that the
+historical solver-assist run recovered robustness. A real current-code ODEX
+assist-on/off or equivalent policy test remains required before closing the
+policy question. M6 reference datasets are not official DFO-LS evidence; they
+can only serve as historical/internal behavior anchors for observing assist-off
+degeneracy.
 
 ## Next Source Slice
 

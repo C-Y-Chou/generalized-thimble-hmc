@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Recompute the ODEX solver-assist policy conclusion from recorded evidence."""
+"""Recompute the historical ODEX solver-assist readback from recorded evidence."""
 
 import csv
 import math
@@ -175,14 +175,14 @@ def write_report(root, values, summary_rows, evidence_rows):
         evidence_summary.append("- No deterministic foundation evidence TSV was found.")
 
     lines = [
-        "# ODEX Assist Revalidation Conclusion",
+        "# ODEX Assist Historical Readback",
         "",
         "Updated: 2026-05-11 JST",
         "",
-        "Status: concluded for the current ODEX flow-policy decision. The accepted",
-        "policy is ODEX primary integration plus solver-internal residual assist,",
-        "with strict final proposal flow. This is not a claim that the standalone",
-        "ODEX backend split or stability-control surface is complete.",
+        "Status: historical evidence readback only. This report recomputes numbers",
+        "from recorded 2026-05-09 ODEX-only and solver-assist validation artifacts.",
+        "It is not a fresh current-code ODEX revalidation test and must not be used",
+        "by itself as a final current policy conclusion.",
         "",
         "Important evidence boundary: M6 reference datasets are historical/internal",
         "behavior anchors, not official DFO-LS evidence. They may be used as an",
@@ -235,28 +235,29 @@ def write_report(root, values, summary_rows, evidence_rows):
                 **values
             ),
             "",
-            "## Conclusion",
+            "## Readback",
             "",
-            "Pure ODEX-only is physically acceptable as a comparison artifact, but it is",
-            "not the production policy to promote: it adds a large avoidable robustness",
-            "loss. Solver-internal assist recovers the pre-ODEX unresolved-failure level",
-            "while keeping aggregate physical observables, reverse-gate rejects, and",
-            "pair0 acceptance stable.",
+            "The recorded 2026-05-09 historical campaign shows that pure ODEX-only was",
+            "physically acceptable as a comparison artifact but had a large robustness",
+            "loss. In that historical campaign, solver-internal assist recovered the",
+            "pre-ODEX unresolved-failure level while keeping aggregate physical",
+            "observables, reverse-gate rejects, and pair0 acceptance stable.",
             "",
-            "The modernization policy from here is therefore:",
+            "What this supports as evidence:",
             "",
-            "1. ODEX is the primary endpoint integrator.",
-            "2. Solver assist is allowed only for Newton/QN residual evaluation progress.",
-            "3. Final proposal/live-state flow remains strict and cannot be completed by assist.",
-            "4. The remaining ODEX work is backend completion: result/workspace/status split, endpoint-only/stability-control decision, and flow/Jacobian deterministic tests.",
+            "1. Pure ODEX-only remains a known comparison point.",
+            "2. Solver-internal assist is a strong candidate for preserving robustness.",
+            "3. A fresh current-code ODEX assist-on/off revalidation is still required before using this as a current conclusion.",
+            "4. The remaining ODEX work is backend completion: result/workspace/status split, endpoint-only/stability-control decision, flow/Jacobian deterministic tests, and an actual current ODEX policy test.",
             "",
             "## Boundary",
             "",
-            "This revalidation closes the ODEX-only-vs-assist policy question for",
+            "This readback does not close the ODEX-only-vs-assist policy question for",
             "the current ODEX flow policy. It does not close `CV-007`/`FG-001`: the",
-            "standalone backend contract and stability decision remain open. It also",
-            "does not by itself close the official DFO-LS-line gate under `CV-008`;",
-            "M6 can only help observe whether disabling assist degenerates robustness.",
+            "standalone backend contract, stability decision, and current ODEX policy",
+            "test remain open. It also does not by itself close the official DFO-LS-line",
+            "gate under `CV-008`; M6 can only help observe whether disabling assist",
+            "degenerates robustness.",
             "",
             "Separate official DFO-LS production-comparison evidence may be read via",
             "`OFFICIAL_DFOLS_SMALL_ASSIST_DEGENERACY_READBACK_20260511.md`. That",
@@ -371,7 +372,7 @@ def main():
     print("[ODEX][ASSIST] wrote {0}".format(SUMMARY_OUT))
     print("[ODEX][ASSIST] wrote {0}".format(REPORT_OUT))
     print(
-        "[ODEX][ASSIST] conclusion=promote_odex_primary_solver_assist_strict_final_flow"
+        "[ODEX][ASSIST] readback=historical_only_current_odex_policy_test_still_open"
     )
 
 
