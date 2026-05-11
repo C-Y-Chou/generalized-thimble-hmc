@@ -14,6 +14,7 @@ Updated: 2026-05-11 JST
 - Latest refresh shows no active pinned M6 jobs.
 - Embedded official DFO-LS is now the default QN backend. `QN_SOLVER_BACKEND=internal` is only for controlled legacy comparison.
 - Official DFO-LS backend replacement F2 is accepted for the current representative scope: representative embedded 10seed x 10k gate passed with 1000 captured attempts, 923 embedded-converged attempts, 0 float64 failures, 0 missing replay rows, and 0 embedded-converged regressions.
+- F3 retained-core deterministic evidence has first passing guardrails: Newton replay and successful one-step RATTLE/RG pass replay. F3 remains active for QN p28 route census, official-line coverage, RG reject/live-state identity, and local-volume/branch-measure coverage.
 - The default local source of truth is `/Users/ccy/Documents/TLTM_qn_error_handling`, not `/Users/ccy/Documents/New project/TLTM_repo`.
 
 ## Hard Rules
@@ -30,9 +31,11 @@ Updated: 2026-05-11 JST
 - `runbooks/CLUSTER02_SCHEDULING_AGENT.md`: scheduler agent.
 - `runbooks/M6_REFERENCE_DATASET_READBACK_PLAN.md`: readback gate.
 - `runbooks/M6_REFERENCE_DATASET_READBACK_20260510.md`: accepted M6 R1-R4 readback.
+- `runbooks/RETAINED_CORE_DETERMINISTIC_EVIDENCE_20260511.md`: first Newton and successful RATTLE/RG pass replay evidence.
+- `state/RETAINED_CORE_EVIDENCE.tsv`: retained-core evidence registry.
 - `state/M6_REFERENCE_PACKAGES.tsv`: package registry template.
 - `state/CLUSTER02_SCHEDULER_KNOWLEDGE.json`: scheduler memory.
 
 ## Next Action
 
-Use `runbooks/MODERNIZATION_FORWARD_WORKSTEPS_20260511.md` as the active forward queue. F1 ODEX is accepted reduced scope and F2 official DFO-LS backend replacement is accepted for the current representative scope. The immediate next technical work is F3 retained-core deterministic evidence for Newton/RATTLE/QN/HMC/RG. Do not start behavior-relevant source refactors until the affected foundation and baseline gates are satisfied.
+Use `runbooks/MODERNIZATION_FORWARD_WORKSTEPS_20260511.md` as the active forward queue. F1 ODEX is accepted reduced scope and F2 official DFO-LS backend replacement is accepted for the current representative scope. The immediate next technical work is to continue F3 retained-core deterministic evidence with QN p28 route census, official-DFO-LS-line route behavior, RG reject/live-state identity, and local-volume/branch-measure checks. Do not start behavior-relevant source refactors until the affected foundation and baseline gates are satisfied.

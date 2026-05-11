@@ -569,3 +569,11 @@
 - Fixed future replay discovery from depth 2 to depth 3 after the representative Stage2 run exposed the new `attempts/<method>/seed_<id>/qn_attempt_meta.csv` layout.
 - Submitted replay recovery PBS job `14805.anode01` against existing captures. Replay summary: 10 seed cases, 1000 captured attempts, 1000 official replay rows, 923 embedded-converged attempts, 923 official residual successes, 0 float64 failures, 0 missing rows, and 0 embedded-converged regressions.
 - Recorded `CV-008` as accepted representative scope and `F2`/`FM-004` as completed. Final production redo remains gated by `CV-001`, `CV-002`, `CV-009`, `CV-010`, and schema/wrapper decisions.
+
+## 2026-05-11 JST - Retained-core deterministic evidence slice 1
+- Added `tests/test_retained_core_newton_contract.f90` and `make test_retained_core_newton_contract`.
+- Newton readback passed for step sizes `0.002`, `0.003`, and `0.004`: replay residuals `2.9197E-15`, `1.4743E-14`, and `4.6635E-14`; `lambda_scale=9.9817E-01` under the `20.0` limit.
+- Added `tests/test_retained_core_rattle_rg_contract.f90` and `make test_retained_core_rattle_rg_contract`.
+- RATTLE/RG readback passed: endpoint `z_err=0`, `jac_err=0`; final momentum normal component `0`; reverse-gate replay `success=1`, `failure_total=0`.
+- Full local M4 guardrail passed: `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags ''`.
+- Recorded `RETAINED_CORE_EVIDENCE.tsv` and `RETAINED_CORE_DETERMINISTIC_EVIDENCE_20260511.md`. `CV-009` remains active for QN p28 route census, official-DFO-LS-line coverage, RG reject/live-state identity, and local-volume/branch-measure coverage.

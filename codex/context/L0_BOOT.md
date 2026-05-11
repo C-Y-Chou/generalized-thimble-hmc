@@ -1,7 +1,7 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-11T20:42:05+09:00
-Remote refreshed: 2026-05-11T20:42:02+09:00
+Generated: 2026-05-11T22:24:08+09:00
+Remote refreshed: 2026-05-11T22:24:07+09:00
 
 ## Canonical Entry
 
@@ -23,7 +23,7 @@ Remote refreshed: 2026-05-11T20:42:02+09:00
 
 ## Active Remote Risk
 
-- `tltm_production_comparison_provisional`: branch `codex/tltm-production-comparison-official-dfols`, commit `1edbbd465663640e711d1935f8d2fa5b47bf8510`, 6 active jobs, examples: 14776.anode01,14777.anode01,14778.anode01,14779.anode01,14780.anode01,14792.anode01, pinned `1edbbd465663640e711d1935f8d2fa5b47bf8510`. Do not fast-forward.
+- No unsafe worktree recorded in the latest registry. If cache is stale, refresh before acting.
 
 ## Active Local Risk
 
@@ -31,12 +31,7 @@ Remote refreshed: 2026-05-11T20:42:02+09:00
 
 ## Active/Pending Jobs
 
-- `14776.anode01` `pc128_wfb_00` queue `C8` state `R` dataset `unknown`.
-- `14777.anode01` `pc128_wfb_01` queue `C8` state `R` dataset `unknown`.
-- `14778.anode01` `pc128_wfb_02` queue `C8` state `R` dataset `unknown`.
-- `14779.anode01` `pc128_wfb_03` queue `C8` state `R` dataset `unknown`.
-- `14780.anode01` `pc128_wfb_04` queue `C8` state `R` dataset `unknown`.
-- `14792.anode01` `pc128_merge` queue `C8` state `H` dataset `unknown`.
+- No active jobs in `codex/state/JOBS.tsv`.
 
 ## Active Caveats
 
@@ -45,7 +40,7 @@ Remote refreshed: 2026-05-11T20:42:02+09:00
 - `CV-003` tltm_production_comparison blocks `production_job_submission`: Production-comparison jobs must execute from the synchronized production-comparison worktree, not from the modernization source worktree. Rerun trigger: Only misrouted jobs/artifacts rerun; docs, route guards, and state-register fixes do not invalidate correctly routed scientific outputs.
 - `CV-004` fortran_modernization blocks `source_code_modernization`: Post-M6 source refactors need an accepted reference package or an explicit narrower baseline before touching behavior-relevant code. Rerun trigger: Any source change that can affect RNG order, proposal construction, solver route, failure classification, counters, schema meaning, or public wrapper behavior.
 - `CV-006` fortran_modernization blocks `dfols_claims_and_outputs`: Historical TLTM "DFO-LS" or "DFO-LS-style" QN paths were in-house implementations, not the official DFO-LS package. Official DFO-LS claims require the embedded official backend and package provenance. Rerun trigger: Any dataset or claim labeled official DFO-LS without ENABLE_OFFICIAL_DFOLS, QN_SOLVER_BACKEND=official_dfols, stable preset provenance, and TLTM residual-gate readback must be rerun or relabeled.
-- `CV-009` fortran_modernization blocks `retained_core_deterministic_evidence`: The retained Newton, RATTLE, QN/BTN, HMC/Metropolis, and reverse-gate cores were reference-audited, but several required deterministic replay/contract tests are still missing. Rerun trigger: Any source change touching residuals, projection, route budgets, reverse gate, failure-as-rejection, Metropolis acceptance, or final correctness claims requires the affected deterministic evidence to pass or be explicitly re-scoped.
+- `CV-009` fortran_modernization blocks `retained_core_deterministic_evidence`: The retained Newton, RATTLE, QN/BTN, HMC/Metropolis, and reverse-gate cores were reference-audited; first deterministic Newton replay and successful RATTLE/RG pass replay guardrails now pass, but several required route/reject/volume contracts are still missing. Rerun trigger: Any source change touching residuals, projection, route budgets, reverse gate, failure-as-rejection, Metropolis acceptance, or final correctness claims requires the affected deterministic evidence to pass or be explicitly re-scoped.
 - `CV-010` fortran_modernization blocks `diagnostics_state_accounting`: Diagnostic counters, failure capture, status propagation, reverse replay accounting, and solver-assist labels remain patchwork and can change interpretation even when physics is unchanged. Rerun trigger: Changing counter/status semantics, capture controls, replay suppression, output schema, wrapper behavior, or using diagnostics for final claims requires schema/versioned readback and affected reference comparisons.
 
 ## High-Priority Open Items
@@ -58,17 +53,17 @@ Remote refreshed: 2026-05-11T20:42:02+09:00
 - `CP-012` tltm_production_comparison: Maintain provisional-vs-final production boundary Next: Treat official DFO-LS production-comparison gates as provisional until final wrapper/schema/naming/counter conventions are frozen or final regeneration is scheduled
 - `FM-001` fortran_modernization: Reset modernization around foundation completeness Next: Treat M6 as a behavior baseline, not completed foundation; use FOUNDATION_COMPLETENESS_RESET_20260511 before any source modernization step
 - `FM-002` fortran_modernization: Fix DFO-LS evidence and implementation boundary Next: Separate historical in-house/DFO-LS-style evidence from official-package evidence, then finish official solver integration/preset work before final claims
-- `FM-005` fortran_modernization: Build retained-core deterministic evidence pack Next: Cover Newton, RATTLE, QN/BTN, HMC/Metropolis, reverse-gate pass/reject, and official-DFO-LS-line route behavior before treating the numerical foundation as complete
+- `FM-005` fortran_modernization: Build retained-core deterministic evidence pack Next: Newton replay and successful RATTLE/RG pass replay now pass; next cover QN p28 route census, official-DFO-LS-line route behavior, RG reject/live-state identity, and local-volume/branch-measure checks before treating the numerical foundation as complete
 - `FM-006` fortran_modernization: Repair diagnostics/status/accounting foundation Next: Move patchwork counters/status/capture/replay accounting toward a typed diagnostics context before final schema or production regeneration
 
 ## Recent Decisions
 
-- 2026-05-10 `global`: Clear legacy Stage1-Stage3_3 and obsolete ODEX validation raw datasets
 - 2026-05-10 `tltm_production_comparison`: Reuse accepted M6 reference datasets as first production-calibration tier
 - 2026-05-11 `repo_cleanup`: Track local TLTM worktrees as first-class state
 - 2026-05-11 `remote_control_plane`: Rename codex/preprod-hardening to codex/control-plane
 - 2026-05-11 `control_plane`: Canonical handoff now defaults to official DFO-LS line
 - 2026-05-11 `fortran_modernization`: Accept official DFO-LS backend replacement for the representative scope
+- 2026-05-11 `fortran_modernization`: Keep CV-009 open after first retained-core evidence slice
 
 ## Pointers
 

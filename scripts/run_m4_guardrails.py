@@ -230,6 +230,8 @@ def run_guardrails(args):
                     "test_odex_flow_jacobian_contract",
                     "test_official_dfols_preset_contract",
                     "test_tltm_swap_kernel_contract",
+                    "test_retained_core_newton_contract",
+                    "test_retained_core_rattle_rg_contract",
                 ],
             ),
             repo_root,
