@@ -1,13 +1,14 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-11T13:03:02+09:00
-Remote refreshed: 2026-05-11T13:02:50+09:00
+Generated: 2026-05-11T14:37:41+09:00
+Remote refreshed: 2026-05-11T14:37:39+09:00
 
 ## Canonical Entry
 
 - Local source of truth: `/Users/ccy/Documents/TLTM_qn_error_handling`.
 - Default branch/workline: `codex/fortran-modernization` with embedded official DFO-LS as the default QN backend.
-- Default remote execution target: `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`.
+- Modernization/source execution target: `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`.
+- Production-comparison execution target: `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison` after sync to the chosen official-DFO-LS commit.
 - `/Users/ccy/Documents/New project/TLTM_repo` is legacy unless the user explicitly asks for legacy/control-plane work.
 
 ## Hard Rules
@@ -26,11 +27,12 @@ Remote refreshed: 2026-05-11T13:02:50+09:00
 
 ## Active Local Risk
 
-- `local_canonical_official_dfols`: branch `codex/fortran-modernization`, commit `0eccd1adcedaa3620ef7f8a0443f60cd119ce60f`, dirty `4`, ahead `0`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
+- `local_canonical_official_dfols`: branch `codex/fortran-modernization`, commit `fdf76ee92eccf921d5c79d5d15d708eede5afdcc`, dirty `6`, ahead `0`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
 
 ## Active/Pending Jobs
 
-- No active jobs in `codex/state/JOBS.tsv`.
+- `14758.anode01` `dfols_preflight` queue `C8` state `R` dataset `unknown`.
+- `14759.anode01` `pc_odf_10s10k` queue `C8` state `H` dataset `unknown`.
 
 ## High-Priority Open Items
 

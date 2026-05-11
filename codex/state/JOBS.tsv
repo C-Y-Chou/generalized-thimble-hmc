@@ -1,1 +1,3 @@
 refreshed_at_jst	job_id	name	queue	state	worktree	expected_commit	dataset	action_needed	notes
+2026-05-11T14:37:39+09:00	14758.anode01	dfols_preflight	C8	R	NA	fdf76ee92eccf921d5c79d5d15d708eede5afdcc	unknown	monitor	cnode17/0*8
+2026-05-11T14:37:39+09:00	14759.anode01	pc_odf_10s10k	C8	H	NA	fdf76ee92eccf921d5c79d5d15d708eede5afdcc	unknown	monitor	1:ncpus=8:mpiprocs=8:mem=16gb

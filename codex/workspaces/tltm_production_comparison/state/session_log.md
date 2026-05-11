@@ -379,3 +379,9 @@ Use this file to append per-session notes.
 - Action:
   - Cancelled misrouted small redo job `14757.anode01`; any partial output under the modernization worktree is not a valid production-comparison artifact.
   - Updated production-comparison PBS defaults and route documentation to use the production-comparison worktree and branch `codex/tltm-production-comparison-official-dfols`.
+- Correct resubmission:
+  - Synced `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison` to commit `fdf76ee92eccf921d5c79d5d15d708eede5afdcc`.
+  - Branch at submission: `codex/tltm-production-comparison-official-dfols`.
+  - Preflight build job: `14758.anode01`.
+  - Small redo job: `14759.anode01`, with `afterok:14758.anode01`.
+  - Output target remains `output/production_comparison/provisional/official_dfols_small_20260511_10seed_10k_p28_rg_nofb_withfb/REPORT.md` inside the production-comparison worktree.
