@@ -77,7 +77,9 @@
     },
     "run_policy": {
       "queue": "C8",
-      "workers": 8,
+      "workers_per_method": 10,
+      "method_jobs": ["no_fb", "fb_norefine"],
+      "run_methods_in_parallel": true,
       "stage2_threads": 1,
       "eval_threads": 1,
       "output_subdir": "output/production_comparison/provisional/official_dfols_small_20260511_10seed_10k_p28_rg_nofb_withfb",

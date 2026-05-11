@@ -385,3 +385,11 @@ Use this file to append per-session notes.
   - Preflight build job: `14758.anode01`.
   - Small redo job: `14759.anode01`, with `afterok:14758.anode01`.
   - Output target remains `output/production_comparison/provisional/official_dfols_small_20260511_10seed_10k_p28_rg_nofb_withfb/REPORT.md` inside the production-comparison worktree.
+
+## 2026-05-11 JST - Small redo resource split corrected
+- Issue:
+  - Job `14759.anode01` used only one 8-core PBS job and ran `no_fb` then `fb_norefine` sequentially, so the 10seed/10k gate underused available cluster resources.
+- Correction:
+  - Cancel `14759.anode01`.
+  - Use method-split jobs: one `no_fb` PBS and one `fb_norefine` PBS, each with 10 workers.
+  - Add a dependency merge job that writes the combined production-comparison report after both method jobs finish.
