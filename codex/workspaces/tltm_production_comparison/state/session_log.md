@@ -533,5 +533,6 @@ Use this file to append per-session notes.
   - `output/production_comparison/provisional/official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`
   - `output/logs/production_comparison/provisional/official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`
 - Submission status:
-  - At submission check, preflight was running and all chunk/merge jobs were in dependency hold.
-  - Expected report window: roughly `2026-05-12 05:30-12:00 JST`, depending on how many chunks enter the first post-preflight wave.
+  - Initial submission check: preflight was running and all chunk/merge jobs were in dependency hold.
+  - First release check after preflight `Exit_status=0`: `58` chunks running, `6` chunks queued, merge held.
+  - Expected report window tightened to roughly `2026-05-12 05:30-08:30 JST`, assuming no walltime overruns or queue interruptions.

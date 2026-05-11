@@ -38,5 +38,6 @@ Current live campaign:
 1. Monitor `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`.
 2. PBS IDs: preflight `14814.anode01`, chunks `14815..14878`, merge `14879.anode01`.
 3. Report target: `output/production_comparison/provisional/official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb/REPORT.md`.
-4. Expected report window: roughly `2026-05-12 05:30-12:00 JST`, depending on first-wave scheduler admission after preflight.
-5. Before any new production submission, confirm no active pinned jobs depend on `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.
+4. First release check after preflight: `58` chunks running, `6` chunks queued, merge held.
+5. Expected report window: roughly `2026-05-12 05:30-08:30 JST`, assuming no walltime overruns or queue interruptions.
+6. Before any new production submission, confirm no active pinned jobs depend on `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.
