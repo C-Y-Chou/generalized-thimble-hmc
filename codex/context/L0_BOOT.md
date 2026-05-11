@@ -1,7 +1,7 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-11T14:37:41+09:00
-Remote refreshed: 2026-05-11T14:37:39+09:00
+Generated: 2026-05-11T14:48:58+09:00
+Remote refreshed: 2026-05-11T14:48:56+09:00
 
 ## Canonical Entry
 
@@ -27,12 +27,13 @@ Remote refreshed: 2026-05-11T14:37:39+09:00
 
 ## Active Local Risk
 
-- `local_canonical_official_dfols`: branch `codex/fortran-modernization`, commit `fdf76ee92eccf921d5c79d5d15d708eede5afdcc`, dirty `6`, ahead `0`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
+- `local_canonical_official_dfols`: branch `codex/fortran-modernization`, commit `81b0784473073a6bc3ec1604f3f2e5930e70e252`, dirty `4`, ahead `0`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
 
 ## Active/Pending Jobs
 
-- `14758.anode01` `dfols_preflight` queue `C8` state `R` dataset `unknown`.
-- `14759.anode01` `pc_odf_10s10k` queue `C8` state `H` dataset `unknown`.
+- `14761.anode01` `pc_odf10_m` queue `C8` state `H` dataset `unknown`.
+- `14762.anode01` `pc_odf10_m` queue `C8` state `H` dataset `unknown`.
+- `14763.anode01` `pc_odf10_mg` queue `C8` state `H` dataset `unknown`.
 
 ## High-Priority Open Items
 

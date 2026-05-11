@@ -393,3 +393,9 @@ Use this file to append per-session notes.
   - Cancel `14759.anode01`.
   - Use method-split jobs: one `no_fb` PBS and one `fb_norefine` PBS, each with 10 workers.
   - Add a dependency merge job that writes the combined production-comparison report after both method jobs finish.
+- Corrected submission:
+  - Synced production-comparison worktree to commit `81b0784473073a6bc3ec1604f3f2e5930e70e252`.
+  - Preflight build: `14760.anode01`.
+  - `no_fb` method job: `14761.anode01`.
+  - `fb_norefine` / canonical `withfb` method job: `14762.anode01`.
+  - Merge/report job: `14763.anode01`.

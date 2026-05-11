@@ -1,3 +1,5 @@
 refreshed_at_jst	job_id	name	queue	state	worktree	expected_commit	dataset	action_needed	notes
-2026-05-11T14:37:39+09:00	14758.anode01	dfols_preflight	C8	R	NA	fdf76ee92eccf921d5c79d5d15d708eede5afdcc	unknown	monitor	cnode17/0*8
-2026-05-11T14:37:39+09:00	14759.anode01	pc_odf_10s10k	C8	H	NA	fdf76ee92eccf921d5c79d5d15d708eede5afdcc	unknown	monitor	1:ncpus=8:mpiprocs=8:mem=16gb
+2026-05-11T14:48:56+09:00	14760.anode01	dfols_preflight	C8	E	NA	81b0784473073a6bc3ec1604f3f2e5930e70e252	unknown	none	cnode17/0*8
+2026-05-11T14:48:56+09:00	14761.anode01	pc_odf10_m	C8	H	NA	81b0784473073a6bc3ec1604f3f2e5930e70e252	unknown	monitor	1:ncpus=10:mpiprocs=10:mem=16gb
+2026-05-11T14:48:56+09:00	14762.anode01	pc_odf10_m	C8	H	NA	81b0784473073a6bc3ec1604f3f2e5930e70e252	unknown	monitor	1:ncpus=10:mpiprocs=10:mem=16gb
+2026-05-11T14:48:56+09:00	14763.anode01	pc_odf10_mg	C8	H	NA	81b0784473073a6bc3ec1604f3f2e5930e70e252	unknown	monitor	1:ncpus=1:mpiprocs=1:mem=4gb
