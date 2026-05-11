@@ -1,7 +1,7 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-11T20:39:27+09:00
-Remote refreshed: 2026-05-11T16:46:56+09:00
+Generated: 2026-05-11T20:42:05+09:00
+Remote refreshed: 2026-05-11T20:42:02+09:00
 
 ## Canonical Entry
 
@@ -23,7 +23,7 @@ Remote refreshed: 2026-05-11T16:46:56+09:00
 
 ## Active Remote Risk
 
-- `tltm_production_comparison_provisional`: branch `codex/tltm-production-comparison-official-dfols`, commit `d3f133d1fd7de2ec6a5b7ac27840c01287be5be7`, 5 active jobs, examples: 14770.anode01,14771.anode01,14772.anode01,14773.anode01,14774.anode01, pinned `d3f133d1fd7de2ec6a5b7ac27840c01287be5be7`. Do not fast-forward.
+- `tltm_production_comparison_provisional`: branch `codex/tltm-production-comparison-official-dfols`, commit `1edbbd465663640e711d1935f8d2fa5b47bf8510`, 6 active jobs, examples: 14776.anode01,14777.anode01,14778.anode01,14779.anode01,14780.anode01,14792.anode01, pinned `1edbbd465663640e711d1935f8d2fa5b47bf8510`. Do not fast-forward.
 
 ## Active Local Risk
 
@@ -31,11 +31,12 @@ Remote refreshed: 2026-05-11T16:46:56+09:00
 
 ## Active/Pending Jobs
 
-- `14770.anode01` `pc32_wfb_00` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
-- `14771.anode01` `pc32_wfb_01` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
-- `14772.anode01` `pc32_wfb_02` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
-- `14773.anode01` `pc32_wfb_03` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
-- `14774.anode01` `pc32_merge` queue `C8` state `H` dataset `official_dfols_gate_20260511_32seed_50k`.
+- `14776.anode01` `pc128_wfb_00` queue `C8` state `R` dataset `unknown`.
+- `14777.anode01` `pc128_wfb_01` queue `C8` state `R` dataset `unknown`.
+- `14778.anode01` `pc128_wfb_02` queue `C8` state `R` dataset `unknown`.
+- `14779.anode01` `pc128_wfb_03` queue `C8` state `R` dataset `unknown`.
+- `14780.anode01` `pc128_wfb_04` queue `C8` state `R` dataset `unknown`.
+- `14792.anode01` `pc128_merge` queue `C8` state `H` dataset `unknown`.
 
 ## Active Caveats
 
