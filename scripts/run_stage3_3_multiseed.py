@@ -1097,6 +1097,11 @@ def run_one_seed(
     )
     if method_env_overrides:
         env_stage2.update(method_env_overrides)
+    qn_capture_base = os.environ.get("QN_ATTEMPT_CAPTURE_BASE_DIR", "").strip()
+    if qn_capture_base:
+        qn_capture_dir = Path(qn_capture_base) / method_name / ("seed_{0}".format(seed_id))
+        qn_capture_dir.mkdir(parents=True, exist_ok=True)
+        env_stage2["QN_ATTEMPT_CAPTURE_DIR"] = str(qn_capture_dir)
     if "CONSTRAINT_FAIL_CAPTURE_LIMIT" in os.environ:
         env_stage2["CONSTRAINT_FAIL_CAPTURE_LIMIT"] = os.environ["CONSTRAINT_FAIL_CAPTURE_LIMIT"]
     if setup.get("stage2_init_mode"):

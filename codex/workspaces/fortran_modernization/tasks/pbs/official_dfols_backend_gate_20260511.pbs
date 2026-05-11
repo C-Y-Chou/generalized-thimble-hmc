@@ -27,6 +27,12 @@ module load mkl/2025.3
 : "${TLTM_DFOLS_GATE_ALLOW_OVERWRITE:=0}"
 : "${TLTM_DFOLS_GATE_MAX_CASES:=0}"
 : "${TLTM_BUILD_JOBS:=8}"
+: "${TLTM_DFOLS_GATE_CONFIG_JSON:=codex/workspaces/fortran_modernization/tasks/config/official_dfols_backend_gate_1seed_500cycle_t035.json}"
+: "${TLTM_DFOLS_GATE_MAX_SEEDS:=1}"
+: "${TLTM_DFOLS_GATE_CYCLES_PER_SEED:=500}"
+: "${TLTM_DFOLS_GATE_CAPTURE_LIMIT:=100}"
+: "${TLTM_DFOLS_GATE_CAPTURE_STRIDE:=1}"
+: "${TLTM_DFOLS_GATE_STAGE3_JOBS:=1}"
 
 cd "${TLTM_WORKTREE}"
 
@@ -51,8 +57,8 @@ LOG_ROOT="${TLTM_WORKTREE}/output/logs/fortran_modernization/${TLTM_DFOLS_GATE_L
 ATTEMPT_DIR="${OUT_ROOT}/attempts"
 DIAG_DIR="${OUT_ROOT}/dfols_diagnostics"
 BOOT_LOG="${LOG_ROOT}/pbs_boot.log"
-CONFIG_JSON="codex/workspaces/fortran_modernization/tasks/config/official_dfols_backend_gate_1seed_500cycle_t035.json"
-RESULT_CSV="${OUT_ROOT}/official_candidate_maxfun250.csv"
+CONFIG_JSON="${TLTM_DFOLS_GATE_CONFIG_JSON}"
+REPLAY_ROOT="${OUT_ROOT}/official_replay"
 SUMMARY_TXT="${OUT_ROOT}/gate_summary.txt"
 
 if [ -e "${OUT_ROOT}" ] || [ -e "${LOG_ROOT}" ]; then
@@ -65,7 +71,7 @@ if [ -e "${OUT_ROOT}" ] || [ -e "${LOG_ROOT}" ]; then
   rm -rf "${OUT_ROOT}" "${LOG_ROOT}"
 fi
 
-mkdir -p "${ATTEMPT_DIR}" "${DIAG_DIR}" "${LOG_ROOT}"
+mkdir -p "${ATTEMPT_DIR}" "${DIAG_DIR}" "${REPLAY_ROOT}" "${LOG_ROOT}"
 exec > "${BOOT_LOG}" 2>&1
 
 date -Is
@@ -223,9 +229,10 @@ export QN_OFFICIAL_DFOLS_RHOEND=1e-16
 export QN_OFFICIAL_DFOLS_MODEL_ABS_TOL=1e-30
 export QN_OFFICIAL_DFOLS_MODEL_REL_TOL=0
 
-export QN_ATTEMPT_CAPTURE_DIR="${ATTEMPT_DIR}"
-export QN_ATTEMPT_CAPTURE_LIMIT=100
-export QN_ATTEMPT_CAPTURE_STRIDE=1
+unset QN_ATTEMPT_CAPTURE_DIR
+export QN_ATTEMPT_CAPTURE_BASE_DIR="${ATTEMPT_DIR}"
+export QN_ATTEMPT_CAPTURE_LIMIT="${TLTM_DFOLS_GATE_CAPTURE_LIMIT}"
+export QN_ATTEMPT_CAPTURE_STRIDE="${TLTM_DFOLS_GATE_CAPTURE_STRIDE}"
 
 {
   echo "job_tag=${TLTM_DFOLS_GATE_LABEL}"
@@ -240,10 +247,11 @@ export QN_ATTEMPT_CAPTURE_STRIDE=1
   echo "method=fb_norefine"
   echo "backend=official_dfols"
   echo "embedded_capture=1"
-  echo "max_seeds=1"
-  echo "cycles_per_seed=500"
-  echo "capture_dir=${ATTEMPT_DIR}"
+  echo "max_seeds=${TLTM_DFOLS_GATE_MAX_SEEDS}"
+  echo "cycles_per_seed=${TLTM_DFOLS_GATE_CYCLES_PER_SEED}"
+  echo "capture_base_dir=${ATTEMPT_DIR}"
   echo "capture_limit=${QN_ATTEMPT_CAPTURE_LIMIT}"
+  echo "capture_stride=${QN_ATTEMPT_CAPTURE_STRIDE}"
   echo "official_dfols_preset=stable_gate77"
   echo "official_dfols_maxfun=250"
   echo "official_dfols_objfun_has_noise=true"
@@ -263,14 +271,14 @@ python3 scripts/run_stage3_3_multiseed.py \
   --repo-root . \
   --config "${CONFIG_JSON}" \
   --methods fb_norefine \
-  --max-seeds 1 \
+  --max-seeds "${TLTM_DFOLS_GATE_MAX_SEEDS}" \
   --output-subdir "${OUT_ROOT}/stage3" \
   --logs-subdir "${LOG_ROOT}/stage3" \
   --log-prefix "official_dfols_backend_gate" \
   --report-title "Official DFO-LS backend gate smoke" \
   --schedule task \
   --task-method-order fb_first \
-  --jobs 1 \
+  --jobs "${TLTM_DFOLS_GATE_STAGE3_JOBS}" \
   --stage2-threads 1 \
   --eval-threads 1 \
   --stage2-v1-sidecars on \
@@ -278,80 +286,135 @@ python3 scripts/run_stage3_3_multiseed.py \
   --stage2-protocol-audit-fail-on error \
   --skip-build
 
-test -s "${ATTEMPT_DIR}/qn_attempt_meta.csv"
+mapfile -t CASE_DIRS < <(find "${ATTEMPT_DIR}" -mindepth 2 -maxdepth 2 -type f -name qn_attempt_meta.csv -print | sort | xargs -r -n1 dirname)
+if [ "${#CASE_DIRS[@]}" -eq 0 ]; then
+  echo "[ERROR] no per-seed QN attempt capture files found under ${ATTEMPT_DIR}" >&2
+  exit 5
+fi
 
-.venv-dfols/bin/python scripts/run_external_dfols_btn_compare.py \
-  --case-dir "${ATTEMPT_DIR}" \
-  --capture-prefix qn_attempt \
-  --seed-source capture \
-  --sample-ids all \
-  --max-cases "${TLTM_DFOLS_GATE_MAX_CASES}" \
-  --maxfun 250 \
-  --objfun-has-noise \
-  --model-abs-tol 1e-30 \
-  --model-rel-tol 0 \
-  --npt 4 \
-  --rhobeg 0.018 \
-  --rhoend 1e-16 \
-  --residual-success-tol 1e-13 \
-  --out-csv "${RESULT_CSV}" \
-  --diagnostic-dir "${DIAG_DIR}" \
-  --print-progress
+REPLAY_INDEX="${REPLAY_ROOT}/replay_index.tsv"
+: > "${REPLAY_INDEX}"
+case_idx=0
+for case_dir in "${CASE_DIRS[@]}"; do
+  case_idx=$((case_idx + 1))
+  rel_case="${case_dir#${ATTEMPT_DIR}/}"
+  safe_case="${rel_case//\//__}"
+  result_csv="${REPLAY_ROOT}/${safe_case}.csv"
+  diagnostic_dir="${DIAG_DIR}/${safe_case}"
+  mkdir -p "${diagnostic_dir}"
+  echo "[REPLAY] case=${rel_case} out=${result_csv}"
+  .venv-dfols/bin/python scripts/run_external_dfols_btn_compare.py \
+    --case-dir "${case_dir}" \
+    --capture-prefix qn_attempt \
+    --seed-source capture \
+    --sample-ids all \
+    --max-cases "${TLTM_DFOLS_GATE_MAX_CASES}" \
+    --maxfun 250 \
+    --objfun-has-noise \
+    --model-abs-tol 1e-30 \
+    --model-rel-tol 0 \
+    --npt 4 \
+    --rhobeg 0.018 \
+    --rhoend 1e-16 \
+    --residual-success-tol 1e-13 \
+    --out-csv "${result_csv}" \
+    --diagnostic-dir "${diagnostic_dir}" \
+    --print-progress
+  printf '%s\t%s\t%s\n' "${rel_case}" "${case_dir}/qn_attempt_meta.csv" "${result_csv}" >> "${REPLAY_INDEX}"
+done
 
-.venv-dfols/bin/python - "${ATTEMPT_DIR}/qn_attempt_meta.csv" "${RESULT_CSV}" "${SUMMARY_TXT}" <<'PY'
+.venv-dfols/bin/python - "${REPLAY_INDEX}" "${SUMMARY_TXT}" <<'PY'
 import csv
 import sys
 from pathlib import Path
 
-meta_path = Path(sys.argv[1])
-result_path = Path(sys.argv[2])
-summary_path = Path(sys.argv[3])
+index_path = Path(sys.argv[1])
+summary_path = Path(sys.argv[2])
 
-with meta_path.open(newline="") as f:
-    meta_rows = list(csv.DictReader(f))
-with result_path.open(newline="") as f:
-    result_rows = list(csv.DictReader(f))
+case_count = 0
+attempt_count = 0
+official_result_count = 0
+embedded_captured_converged_count = 0
+official_residual_success_count = 0
+float64_fail_count = 0
+missing_result_count = 0
+embedded_captured_converged_regression_count = 0
+max_residual = float("nan")
+missing_samples = []
+float64_fail_samples = []
+residual_fail_samples = []
+regression_samples = []
 
-meta_by_sample = {int(row["sample_idx"]): row for row in meta_rows}
-result_by_sample = {int(row["sample_idx"]): row for row in result_rows}
+with index_path.open() as f:
+    index_rows = [line.rstrip("\n").split("\t") for line in f if line.strip()]
 
-missing = sorted(set(meta_by_sample) - set(result_by_sample))
-float64_fail = [idx for idx, row in result_by_sample.items() if int(row.get("float64_contract", "0")) != 1]
-residual_fail = [idx for idx, row in result_by_sample.items() if int(row.get("residual_success", "0")) != 1]
-captured_converged = [
-    idx for idx, row in meta_by_sample.items()
-    if int(row.get("converged", "0")) == 1 and idx in result_by_sample
-]
-captured_converged_regressions = [
-    idx for idx in captured_converged
-    if int(result_by_sample[idx].get("residual_success", "0")) != 1
-]
+for rel_case, meta_text, result_text in index_rows:
+    case_count += 1
+    meta_path = Path(meta_text)
+    result_path = Path(result_text)
+    with meta_path.open(newline="") as f:
+        meta_rows = list(csv.DictReader(f))
+    with result_path.open(newline="") as f:
+        result_rows = list(csv.DictReader(f))
 
-max_residual = max((float(row["final_residual_norm"]) for row in result_rows), default=float("nan"))
+    meta_by_sample = {int(row["sample_idx"]): row for row in meta_rows}
+    result_by_sample = {int(row["sample_idx"]): row for row in result_rows}
+
+    missing = sorted(set(meta_by_sample) - set(result_by_sample))
+    float64_fail = [idx for idx, row in result_by_sample.items() if int(row.get("float64_contract", "0")) != 1]
+    residual_fail = [idx for idx, row in result_by_sample.items() if int(row.get("residual_success", "0")) != 1]
+    captured_converged = [
+        idx for idx, row in meta_by_sample.items()
+        if int(row.get("converged", "0")) == 1 and idx in result_by_sample
+    ]
+    captured_converged_regressions = [
+        idx for idx in captured_converged
+        if int(result_by_sample[idx].get("residual_success", "0")) != 1
+    ]
+
+    attempt_count += len(meta_rows)
+    official_result_count += len(result_rows)
+    embedded_captured_converged_count += len(captured_converged)
+    official_residual_success_count += len(result_rows) - len(residual_fail)
+    float64_fail_count += len(float64_fail)
+    missing_result_count += len(missing)
+    embedded_captured_converged_regression_count += len(captured_converged_regressions)
+    case_max = max((float(row["final_residual_norm"]) for row in result_rows), default=float("nan"))
+    if case_max == case_max and (max_residual != max_residual or case_max > max_residual):
+        max_residual = case_max
+
+    missing_samples.extend("{}:{}".format(rel_case, idx) for idx in missing)
+    float64_fail_samples.extend("{}:{}".format(rel_case, idx) for idx in float64_fail)
+    residual_fail_samples.extend("{}:{}".format(rel_case, idx) for idx in residual_fail)
+    regression_samples.extend("{}:{}".format(rel_case, idx) for idx in captured_converged_regressions)
+
 summary_lines = [
-    "attempt_count={}".format(len(meta_rows)),
-    "official_result_count={}".format(len(result_rows)),
-    "embedded_captured_converged_count={}".format(len(captured_converged)),
-    "official_residual_success_count={}".format(len(result_rows) - len(residual_fail)),
-    "float64_fail_count={}".format(len(float64_fail)),
-    "missing_result_count={}".format(len(missing)),
-    "embedded_captured_converged_regression_count={}".format(len(captured_converged_regressions)),
+    "case_count={}".format(case_count),
+    "attempt_count={}".format(attempt_count),
+    "official_result_count={}".format(official_result_count),
+    "embedded_captured_converged_count={}".format(embedded_captured_converged_count),
+    "official_residual_success_count={}".format(official_residual_success_count),
+    "float64_fail_count={}".format(float64_fail_count),
+    "missing_result_count={}".format(missing_result_count),
+    "embedded_captured_converged_regression_count={}".format(embedded_captured_converged_regression_count),
     "max_official_final_residual_norm={:.17e}".format(max_residual),
-    "missing_samples={}".format(",".join(map(str, missing))),
-    "float64_fail_samples={}".format(",".join(map(str, float64_fail))),
-    "residual_fail_samples={}".format(",".join(map(str, residual_fail))),
-    "embedded_captured_converged_regression_samples={}".format(",".join(map(str, captured_converged_regressions))),
+    "missing_samples={}".format(",".join(missing_samples)),
+    "float64_fail_samples={}".format(",".join(float64_fail_samples)),
+    "residual_fail_samples={}".format(",".join(residual_fail_samples)),
+    "embedded_captured_converged_regression_samples={}".format(",".join(regression_samples)),
 ]
 summary_path.write_text("\n".join(summary_lines) + "\n", encoding="utf-8")
 print("\n".join(summary_lines))
 
-if not meta_rows:
+if not index_rows:
+    raise SystemExit("no QN attempt capture cases found")
+if not attempt_count:
     raise SystemExit("no QN attempts captured")
-if missing:
+if missing_result_count:
     raise SystemExit("official DFO-LS did not produce rows for all captured attempts")
-if float64_fail:
+if float64_fail_count:
     raise SystemExit("float64 contract failure")
-if captured_converged_regressions:
+if embedded_captured_converged_regression_count:
     raise SystemExit("official DFO-LS replay regressed an embedded-converged attempt")
 PY
 
