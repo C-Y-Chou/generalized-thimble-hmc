@@ -11,11 +11,14 @@ The current source has:
 - an explicit midpoint / extrapolation kernel in `odex_step`;
 - Hairer ODEX `IWORK(3)=3` step sequence through `build_nsteps`;
 - signed-step integration with positive work estimates;
+- internal `odex_options`, `odex_workspace`, and `odex_result` contracts;
+- ODEX mechanism-to-`intode` status mapping for strict success, zero-time no-op, and mechanism failures;
 - strict final `flow(...)` policy for proposal/live-state construction;
 - solver-internal residual assist that is gated to Newton/QN residual contexts;
 - compatibility counters and status labels inherited from earlier rescue-policy history.
 
-The current source does not yet have a clean standalone ODEX backend boundary. `solve_flow.f90` still mixes:
+The current source now has a first internal ODEX contract layer, but does not
+yet have a clean standalone ODEX backend boundary. `solve_flow.f90` still mixes:
 
 - ODEX mechanism;
 - TLTM `flowz`, `flowzr`, and `flow` wrappers;
@@ -97,6 +100,7 @@ Added target:
 
 ```bash
 make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_foundation_contract
+make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_result_contract
 ```
 
 The new test covers:
@@ -107,6 +111,14 @@ The new test covers:
 - forward/backward endpoint composition on an analytic exponential ODE;
 - invalid-RHS / h-min failure in unknown context cannot be converted into solver-assist success;
 - solver-assist policy visibility.
+
+The result/workspace/status contract test covers:
+
+- `odex_default_options`, including `endpoint_only = .true.` and `stability_control = none`;
+- `odex_workspace` tableau/vector allocation and no-shrink reuse;
+- `odex_result` reset, success, zero-time, and failure mapping;
+- `odex_status_from_failure_reason` for max-steps, invalid-RHS, and h-min failures;
+- separation between ODEX mechanism statuses and TLTM policy statuses such as solver assist.
 
 Existing target retained:
 
@@ -183,12 +195,34 @@ at this representative scale. Disabling it creates a robustness degradation.
 This resolves the representative assist-on/off policy readback slice, but it
 does not complete the ODEX backend source contract.
 
-## Next Source Slice
+## Source Slice Completed
 
-The next ODEX source slice is allowed only after accepting this contract:
+Completed source changes:
 
-1. Introduce an internal `odex_status`/`odex_result` type or equivalent non-public structure.
-2. Keep `intode(...)` public behavior compatible.
-3. Add backend result mapping inside `intode` without changing existing status values.
-4. Preserve current tests and M6 affected baseline comparisons.
-5. Do not enable new stability-control behavior until a separate behavior-changing decision and reference comparison exist.
+1. Introduced internal `odex_options`, `odex_workspace`, and `odex_result` types.
+2. Kept `intode(...)` public behavior compatible.
+3. Added backend result mapping inside `intode` without changing existing status values.
+4. Added `test_odex_result_contract`.
+5. Included the new target in M4 guardrails.
+
+Verification:
+
+```bash
+make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_result_contract test_odex_foundation_contract test_odex_solver test_odex_assist_policy
+python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags ''
+```
+
+Both commands passed on 2026-05-11 JST.
+
+## Next Decision Point
+
+The next source change would stop being just a contract split if it enables new
+ODEX stability behavior or claims a full standalone ODEX solver. Before that
+work starts, choose one of these:
+
+1. Implement and validate `stability_control = conservative` as a behavior-changing ODEX mode.
+2. Accept the reduced-scope backend for production wording: TLTM uses an endpoint extrapolation backend with `stability_control = none` by default, plus solver-internal assist for residual evaluation and strict final proposal flow.
+
+Dense output remains nonblocking for TLTM because current flow callers require
+endpoint values only. If publication wording needs a full Hairer-package ODEX
+claim, dense-output/stability work must be added before closing `CV-007`.

@@ -225,6 +225,7 @@ def run_guardrails(args):
                     "test_odex_solver",
                     "test_odex_foundation_contract",
                     "test_odex_assist_policy",
+                    "test_odex_result_contract",
                     "test_tltm_swap_kernel_contract",
                 ],
             ),

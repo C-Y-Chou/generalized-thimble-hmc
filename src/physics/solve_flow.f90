@@ -35,6 +35,15 @@ module solve_flow
    integer, parameter :: intode_status_failure_max_steps = 101
    integer, parameter :: intode_status_failure_invalid = 102
    integer, parameter :: intode_status_failure_h_min = 103
+   integer, parameter :: odex_status_unknown = intode_status_unknown
+   integer, parameter :: odex_status_success = intode_status_success
+   integer, parameter :: odex_status_success_zero_time = intode_status_success_zero_time
+   integer, parameter :: odex_status_failure_max_steps = intode_status_failure_max_steps
+   integer, parameter :: odex_status_failure_invalid = intode_status_failure_invalid
+   integer, parameter :: odex_status_failure_h_min = intode_status_failure_h_min
+   integer, parameter :: odex_step_sequence_iwork3 = 3
+   integer, parameter :: odex_stability_control_none = 0
+   integer, parameter :: odex_stability_control_conservative = 1
    integer, parameter :: intode_ctx_unknown = 0
    integer, parameter :: intode_ctx_flowz = 1
    integer, parameter :: intode_ctx_flowzr = 2
@@ -90,6 +99,36 @@ module solve_flow
    integer, parameter :: intode_failure_log_limit = 20
    real(dp), save :: intode_last_failure_t = 0.0_dp
    real(dp), allocatable, save :: intode_last_failure_y(:)
+
+   type odex_options
+      real(dp) :: abs_tol = 0.0_dp
+      real(dp) :: rel_tol = 0.0_dp
+      integer :: k_min = odex_k_min
+      integer :: k_max = odex_k_max
+      integer :: max_steps = intode_max_steps
+      integer :: step_sequence = odex_step_sequence_iwork3
+      integer :: stability_control = odex_stability_control_none
+      logical :: endpoint_only = .true.
+      real(dp) :: h_min_c_fp = 16.0_dp
+      real(dp) :: h_min_c_tol = 0.01_dp
+      real(dp) :: h_min_c_span = 1.0e-12_dp
+   end type odex_options
+
+   type odex_workspace
+      real(dp), allocatable :: tableau(:, :, :)
+      real(dp), allocatable :: yprev(:), ycurr(:), ynext(:), fval(:), fbase(:)
+   end type odex_workspace
+
+   type odex_result
+      integer :: status = odex_status_unknown
+      integer :: failure_reason = intode_reason_none
+      integer :: accepted_steps = 0
+      integer :: rejected_steps = 0
+      integer :: final_order = 0
+      real(dp) :: final_step_size = 0.0_dp
+      real(dp) :: t_remaining = 0.0_dp
+      logical :: endpoint_available = .false.
+   end type odex_result
 
    abstract interface
       function ode_rhs(y) result(dy)
@@ -355,6 +394,153 @@ contains
       odex_tables_ready = .true.
    end subroutine ensure_odex_tables
 
+   subroutine odex_default_options(options)
+      implicit none
+      type(odex_options), intent(out) :: options
+
+      options%abs_tol = at
+      options%rel_tol = rt
+      options%k_min = odex_k_min
+      options%k_max = odex_k_max
+      options%max_steps = intode_max_steps
+      options%step_sequence = odex_step_sequence_iwork3
+      options%stability_control = odex_stability_control_none
+      options%endpoint_only = .true.
+      options%h_min_c_fp = 16.0_dp
+      options%h_min_c_tol = 0.01_dp
+      options%h_min_c_span = 1.0e-12_dp
+   end subroutine odex_default_options
+
+   subroutine ensure_odex_workspace_object(workspace, k_need, n_need)
+      implicit none
+      type(odex_workspace), intent(inout) :: workspace
+      integer, intent(in) :: k_need, n_need
+      integer :: k_safe, n_safe
+
+      k_safe = max(1, k_need)
+      n_safe = max(1, n_need)
+      if (.not. allocated(workspace%tableau) .or. size(workspace%tableau, 1) < k_safe .or. &
+          size(workspace%tableau, 2) < k_safe .or. size(workspace%tableau, 3) < n_safe) then
+         if (allocated(workspace%tableau)) deallocate(workspace%tableau)
+         allocate (workspace%tableau(k_safe, k_safe, n_safe))
+      end if
+      call ensure_odex_workspace_vector(workspace%yprev, n_safe)
+      call ensure_odex_workspace_vector(workspace%ycurr, n_safe)
+      call ensure_odex_workspace_vector(workspace%ynext, n_safe)
+      call ensure_odex_workspace_vector(workspace%fval, n_safe)
+      call ensure_odex_workspace_vector(workspace%fbase, n_safe)
+   end subroutine ensure_odex_workspace_object
+
+   subroutine ensure_odex_workspace_vector(vec, n_need)
+      implicit none
+      real(dp), allocatable, intent(inout) :: vec(:)
+      integer, intent(in) :: n_need
+
+      if (.not. allocated(vec) .or. size(vec) < n_need) then
+         if (allocated(vec)) deallocate(vec)
+         allocate (vec(n_need))
+      end if
+   end subroutine ensure_odex_workspace_vector
+
+   subroutine odex_result_reset(result_state)
+      implicit none
+      type(odex_result), intent(out) :: result_state
+
+      result_state%status = odex_status_unknown
+      result_state%failure_reason = intode_reason_none
+      result_state%accepted_steps = 0
+      result_state%rejected_steps = 0
+      result_state%final_order = 0
+      result_state%final_step_size = 0.0_dp
+      result_state%t_remaining = 0.0_dp
+      result_state%endpoint_available = .false.
+   end subroutine odex_result_reset
+
+   subroutine odex_result_mark_success(result_state, status_code, accepted_steps, final_order, final_step_size)
+      implicit none
+      type(odex_result), intent(inout) :: result_state
+      integer, intent(in) :: status_code, accepted_steps, final_order
+      real(dp), intent(in) :: final_step_size
+
+      result_state%status = status_code
+      result_state%failure_reason = intode_reason_none
+      result_state%accepted_steps = accepted_steps
+      result_state%rejected_steps = 0
+      result_state%final_order = final_order
+      result_state%final_step_size = final_step_size
+      result_state%t_remaining = 0.0_dp
+      result_state%endpoint_available = .true.
+   end subroutine odex_result_mark_success
+
+   subroutine odex_result_mark_failure(result_state, reason_code, accepted_steps, rejected_steps, &
+                                       final_order, final_step_size, t_remaining)
+      implicit none
+      type(odex_result), intent(inout) :: result_state
+      integer, intent(in) :: reason_code, accepted_steps, rejected_steps, final_order
+      real(dp), intent(in) :: final_step_size, t_remaining
+
+      result_state%status = odex_status_from_failure_reason(reason_code)
+      result_state%failure_reason = reason_code
+      result_state%accepted_steps = accepted_steps
+      result_state%rejected_steps = rejected_steps
+      result_state%final_order = final_order
+      result_state%final_step_size = final_step_size
+      result_state%t_remaining = t_remaining
+      result_state%endpoint_available = .false.
+   end subroutine odex_result_mark_failure
+
+   pure integer function odex_status_from_failure_reason(reason_code) result(status_code)
+      implicit none
+      integer, intent(in) :: reason_code
+
+      select case (reason_code)
+      case (intode_reason_max_steps)
+         status_code = odex_status_failure_max_steps
+      case (intode_reason_invalid)
+         status_code = odex_status_failure_invalid
+      case (intode_reason_h_min)
+         status_code = odex_status_failure_h_min
+      case default
+         status_code = odex_status_unknown
+      end select
+   end function odex_status_from_failure_reason
+
+   pure integer function odex_result_to_intode_status(result_state) result(status_code)
+      implicit none
+      type(odex_result), intent(in) :: result_state
+
+      if (odex_status_is_mechanism_status(result_state%status)) then
+         status_code = result_state%status
+      else
+         status_code = intode_status_unknown
+      end if
+   end function odex_result_to_intode_status
+
+   pure logical function odex_status_is_failure(status_code) result(is_failure)
+      implicit none
+      integer, intent(in) :: status_code
+
+      select case (status_code)
+      case (odex_status_failure_max_steps, odex_status_failure_invalid, odex_status_failure_h_min)
+         is_failure = .true.
+      case default
+         is_failure = .false.
+      end select
+   end function odex_status_is_failure
+
+   pure logical function odex_status_is_mechanism_status(status_code) result(is_mechanism)
+      implicit none
+      integer, intent(in) :: status_code
+
+      select case (status_code)
+      case (odex_status_unknown, odex_status_success, odex_status_success_zero_time, &
+            odex_status_failure_max_steps, odex_status_failure_invalid, odex_status_failure_h_min)
+         is_mechanism = .true.
+      case default
+         is_mechanism = .false.
+      end select
+   end function odex_status_is_mechanism_status
+
    subroutine intode(f, y, t, res, error_flag, status)
       implicit none
       procedure(ode_rhs) :: f
@@ -363,22 +549,25 @@ contains
       logical, intent(out) :: error_flag
       integer, intent(out), optional :: status
 
-      real(dp) :: h, tc, er1, h_min, t_new
+      real(dp) :: h, tc, er1, h_min, t_new, h_step
       integer :: state_size, k, step_count
       real(dp) :: h_min_fp, h_min_tol, h_min_span
       logical :: is_last_step, rescue_failed, solver_assist_ok
+      type(odex_result) :: integration_result
       real(dp), parameter :: c_fp = 16.0_dp
       real(dp), parameter :: c_tol = 0.01_dp
       real(dp), parameter :: c_span = 1.0e-12_dp
       real(dp) :: t_prof
 
       call perf_tic(t_prof)
+      call odex_result_reset(integration_result)
       call set_intode_status(status, intode_status_unknown)
       intode_calls_total = intode_calls_total + 1
       if (t == 0.0_dp) then
          res = y
          error_flag = .false.
-         call set_intode_status(status, intode_status_success_zero_time)
+         call odex_result_mark_success(integration_result, odex_status_success_zero_time, 0, 0, 0.0_dp)
+         call set_intode_status(status, odex_result_to_intode_status(integration_result))
          call perf_toc(PERF_INTODE, t_prof)
          return
       end if
@@ -428,7 +617,9 @@ contains
                   call record_intode_fallback_failure_context(intode_current_context)
                   call record_intode_last_failure(intode_yc(1:state_size), t - tc, intode_reason_max_steps)
                   res = intode_yc(1:state_size)
-                  call set_intode_status(status, intode_status_failure_max_steps)
+                  call odex_result_mark_failure(integration_result, intode_reason_max_steps, max(0, step_count - 1), &
+                                                1, k, h, t - tc)
+                  call set_intode_status(status, odex_result_to_intode_status(integration_result))
                end if
             end if
             call perf_toc(PERF_INTODE, t_prof)
@@ -443,6 +634,7 @@ contains
          end if
 
          t_new = tc + h
+         h_step = h
          call odex_step(f, intode_yc(1:state_size), h, k, intode_yf(1:state_size), er1)
 
          if (vector_has_invalid(intode_yf(1:state_size)) .or. .not. ieee_is_finite(h)) then
@@ -468,7 +660,9 @@ contains
                   call record_intode_fallback_failure_context(intode_current_context)
                   call record_intode_last_failure(intode_yc(1:state_size), t - tc, intode_reason_invalid)
                   res = intode_yc(1:state_size)
-                  call set_intode_status(status, intode_status_failure_invalid)
+                  call odex_result_mark_failure(integration_result, intode_reason_invalid, max(0, step_count - 1), &
+                                                1, k, h, t - tc)
+                  call set_intode_status(status, odex_result_to_intode_status(integration_result))
                end if
             end if
             call perf_toc(PERF_INTODE, t_prof)
@@ -516,7 +710,9 @@ contains
                   call record_intode_fallback_failure_context(intode_current_context)
                   call record_intode_last_failure(intode_yc(1:state_size), t - tc, intode_reason_h_min)
                   res = intode_yc(1:state_size)
-                  call set_intode_status(status, intode_status_failure_h_min)
+                  call odex_result_mark_failure(integration_result, intode_reason_h_min, max(0, step_count - 1), &
+                                                1, k, h, t - tc)
+                  call set_intode_status(status, odex_result_to_intode_status(integration_result))
                end if
             end if
             call perf_toc(PERF_INTODE, t_prof)
@@ -526,7 +722,8 @@ contains
 
       res = intode_yc(1:state_size)
       error_flag = .false.
-      call set_intode_status(status, intode_status_success)
+      call odex_result_mark_success(integration_result, odex_status_success, step_count, k, h_step)
+      call set_intode_status(status, odex_result_to_intode_status(integration_result))
       call perf_toc(PERF_INTODE, t_prof)
    end subroutine intode
 

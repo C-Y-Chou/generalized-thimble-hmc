@@ -521,3 +521,12 @@
 - Added `runbooks/OFFICIAL_DFOLS_PRESET_TUNING_POLICY.md`.
 - Local verification: built `../bin/run_tltm_stage2` and `../bin/evaluate_btn_residual_case`; installed `DFO-LS==1.6.5` into `.venv-dfols`; ran a 1-seed, 500-cycle `fb_norefine` Stage3-style smoke with `QN_SOLVER_BACKEND=official_dfols`.
 - Live-smoke readback: `quasi_stage_stats probe_attempt=50 probe_success=45`, `constraint_stats quasi=45 failed=5`, `qn_eval_flow_status success=7063`, and captured 10 official-backend QN attempts with best residuals around `1e-15`. No official bridge/import/runtime error was present.
+
+## 2026-05-11 JST - ODEX result/workspace/status source contract
+- Added internal `odex_options`, `odex_workspace`, and `odex_result` types to `src/physics/solve_flow.f90`.
+- Added ODEX mechanism-status helpers and routed `intode` strict success, zero-time no-op, and mechanism-failure exits through the new result-to-status mapping without changing existing public status values.
+- Added `tests/test_odex_result_contract.f90` and the `make test_odex_result_contract` target.
+- Updated M4 guardrails so the new ODEX result contract runs with the existing ODEX/assist/swap suite.
+- Focused verification passed: `make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_result_contract test_odex_foundation_contract test_odex_solver test_odex_assist_policy`.
+- Full local guardrail passed: `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags ''`.
+- `CV-007` remains open. The next real decision point is whether to implement behavior-changing conservative stability control or accept the reduced-scope endpoint backend policy with `stability_control = none` plus explicit wording and flow/Jacobian deterministic tests.
