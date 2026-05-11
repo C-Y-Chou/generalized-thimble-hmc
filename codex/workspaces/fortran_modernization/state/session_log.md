@@ -477,3 +477,4 @@
 - Gate shape: build Stage2/eval/BTN residual bridge, run a 1-seed 500-cycle `fb_norefine` t=0.35 Stage3-style smoke with `QN_ATTEMPT_CAPTURE_DIR`, then replay captured attempts through official `DFO-LS==1.6.5` tuned preset.
 - Gate failure criteria: no captured QN attempts, missing official replay rows, float64 contract failure, or any in-house-converged captured attempt failing the official TLTM residual gate.
 - This is an offline backend replacement validation gate. It does not change the production HMC/QN path.
+- Added `.venv-dfols/` to `.gitignore` so the official DFO-LS Python environment can exist in local/remote worktrees without tripping clean-tree guards.
