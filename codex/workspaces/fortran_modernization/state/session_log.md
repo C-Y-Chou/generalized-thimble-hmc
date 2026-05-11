@@ -577,3 +577,10 @@
 - RATTLE/RG readback passed: endpoint `z_err=0`, `jac_err=0`; final momentum normal component `0`; reverse-gate replay `success=1`, `failure_total=0`.
 - Full local M4 guardrail passed: `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags ''`.
 - Recorded `RETAINED_CORE_EVIDENCE.tsv` and `RETAINED_CORE_DETERMINISTIC_EVIDENCE_20260511.md`. `CV-009` remains active for QN p28 route census, official-DFO-LS-line coverage, RG reject/live-state identity, and local-volume/branch-measure coverage.
+
+## 2026-05-11 JST - Retained-core QN route evidence slice
+- Added `tests/test_retained_core_qn_route_contract.f90` and `make test_retained_core_qn_route_contract`.
+- BTN paper-variable residual reconstruction passed with `jl_err=0` and `fq_err=0`.
+- Current official-line route surface passed: `QN_SOLVER_BACKEND=official_dfols`, `QN_OFFICIAL_DFOLS_PRESET=stable_gate77`, `npt=4`, `maxfun=250`, `noise=T`, route code `10`, and no internal fallback when the stub bridge fails.
+- Focused retained-core tests passed together: `make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract`.
+- Full local M4 guardrail passed with the QN route contract included.

@@ -7,35 +7,35 @@
         "worktrees": {
           "/home/cychou/TLTM": {
             "branch": "codex/control-plane-official-dfols",
-            "commit": "dcb83c38dbb411d55b16616add07af8da8fcfd56",
+            "commit": "891516ad7a33065e7608566405ff607739bf8718",
             "dirty_count": "0",
             "exists": "1",
             "worktree_path": "/home/cychou/TLTM"
           },
           "/lustre1/home/cychou/TLTM": {
             "branch": "codex/control-plane-official-dfols",
-            "commit": "dcb83c38dbb411d55b16616add07af8da8fcfd56",
+            "commit": "891516ad7a33065e7608566405ff607739bf8718",
             "dirty_count": "0",
             "exists": "1",
             "worktree_path": "/lustre1/home/cychou/TLTM"
           },
           "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization": {
             "branch": "codex/fortran-modernization",
-            "commit": "dcb83c38dbb411d55b16616add07af8da8fcfd56",
+            "commit": "891516ad7a33065e7608566405ff607739bf8718",
             "dirty_count": "0",
             "exists": "1",
             "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization"
           },
           "/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation": {
             "branch": "codex/qn-error-handling-validation-official-dfols",
-            "commit": "dcb83c38dbb411d55b16616add07af8da8fcfd56",
+            "commit": "891516ad7a33065e7608566405ff607739bf8718",
             "dirty_count": "0",
             "exists": "1",
             "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation"
           },
           "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison": {
             "branch": "codex/tltm-production-comparison-official-dfols",
-            "commit": "dcb83c38dbb411d55b16616add07af8da8fcfd56",
+            "commit": "891516ad7a33065e7608566405ff607739bf8718",
             "dirty_count": "0",
             "exists": "1",
             "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison"
@@ -46,7 +46,7 @@
       "stderr": ""
     }
   },
-  "refreshed_at_jst": "2026-05-11T22:27:05+09:00",
+  "refreshed_at_jst": "2026-05-11T22:28:07+09:00",
   "targets": [
     {
       "branch": "codex/control-plane-official-dfols",

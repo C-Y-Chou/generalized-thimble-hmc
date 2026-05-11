@@ -232,6 +232,7 @@ def run_guardrails(args):
                     "test_tltm_swap_kernel_contract",
                     "test_retained_core_newton_contract",
                     "test_retained_core_rattle_rg_contract",
+                    "test_retained_core_qn_route_contract",
                 ],
             ),
             repo_root,

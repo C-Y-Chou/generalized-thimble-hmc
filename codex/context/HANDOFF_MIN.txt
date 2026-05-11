@@ -1,5 +1,5 @@
 Use /Users/ccy/Documents/TLTM_qn_error_handling/codex as the local canonical TLTM control-plane entrypoint.
-The current default TLTM line is official DFO-LS on branch codex/fortran-modernization. F2 official DFO-LS backend replacement is accepted for the current representative scope. F3 retained-core deterministic evidence has first Newton and successful RATTLE/RG pass replay guardrails, but remains active; continue with QN p28 route census, official-DFO-LS-line route behavior, RG reject/live-state identity, and local-volume/branch-measure checks.
+The current default TLTM line is official DFO-LS on branch codex/fortran-modernization. F2 official DFO-LS backend replacement is accepted for the current representative scope. F3 retained-core deterministic evidence has Newton replay, successful RATTLE/RG pass replay, BTN residual reconstruction, and official-route no-fallback guardrails, but remains active; continue with fixed-seed official-line route census, package-success route coverage, RG reject/live-state identity, and local-volume/branch-measure checks.
 
 Ambiguity rule:
 - If a new conversation starts in /Users/ccy/Documents/New project, do not treat that outer folder or its TLTM_repo checkout as the source of truth.

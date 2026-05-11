@@ -1,7 +1,7 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-11T22:27:06+09:00
-Remote refreshed: 2026-05-11T22:27:05+09:00
+Generated: 2026-05-11T22:34:25+09:00
+Remote refreshed: 2026-05-11T22:28:07+09:00
 
 ## Canonical Entry
 
@@ -40,7 +40,7 @@ Remote refreshed: 2026-05-11T22:27:05+09:00
 - `CV-003` tltm_production_comparison blocks `production_job_submission`: Production-comparison jobs must execute from the synchronized production-comparison worktree, not from the modernization source worktree. Rerun trigger: Only misrouted jobs/artifacts rerun; docs, route guards, and state-register fixes do not invalidate correctly routed scientific outputs.
 - `CV-004` fortran_modernization blocks `source_code_modernization`: Post-M6 source refactors need an accepted reference package or an explicit narrower baseline before touching behavior-relevant code. Rerun trigger: Any source change that can affect RNG order, proposal construction, solver route, failure classification, counters, schema meaning, or public wrapper behavior.
 - `CV-006` fortran_modernization blocks `dfols_claims_and_outputs`: Historical TLTM "DFO-LS" or "DFO-LS-style" QN paths were in-house implementations, not the official DFO-LS package. Official DFO-LS claims require the embedded official backend and package provenance. Rerun trigger: Any dataset or claim labeled official DFO-LS without ENABLE_OFFICIAL_DFOLS, QN_SOLVER_BACKEND=official_dfols, stable preset provenance, and TLTM residual-gate readback must be rerun or relabeled.
-- `CV-009` fortran_modernization blocks `retained_core_deterministic_evidence`: The retained Newton, RATTLE, QN/BTN, HMC/Metropolis, and reverse-gate cores were reference-audited; first deterministic Newton replay and successful RATTLE/RG pass replay guardrails now pass, but several required route/reject/volume contracts are still missing. Rerun trigger: Any source change touching residuals, projection, route budgets, reverse gate, failure-as-rejection, Metropolis acceptance, or final correctness claims requires the affected deterministic evidence to pass or be explicitly re-scoped.
+- `CV-009` fortran_modernization blocks `retained_core_deterministic_evidence`: The retained Newton, RATTLE, QN/BTN, HMC/Metropolis, and reverse-gate cores were reference-audited; deterministic Newton replay, successful RATTLE/RG pass replay, BTN residual reconstruction, and official-route no-fallback guardrails now pass, but several required route/reject/volume contracts are still missing. Rerun trigger: Any source change touching residuals, projection, route budgets, reverse gate, failure-as-rejection, Metropolis acceptance, or final correctness claims requires the affected deterministic evidence to pass or be explicitly re-scoped.
 - `CV-010` fortran_modernization blocks `diagnostics_state_accounting`: Diagnostic counters, failure capture, status propagation, reverse replay accounting, and solver-assist labels remain patchwork and can change interpretation even when physics is unchanged. Rerun trigger: Changing counter/status semantics, capture controls, replay suppression, output schema, wrapper behavior, or using diagnostics for final claims requires schema/versioned readback and affected reference comparisons.
 
 ## High-Priority Open Items
@@ -53,17 +53,17 @@ Remote refreshed: 2026-05-11T22:27:05+09:00
 - `CP-012` tltm_production_comparison: Maintain provisional-vs-final production boundary Next: Treat official DFO-LS production-comparison gates as provisional until final wrapper/schema/naming/counter conventions are frozen or final regeneration is scheduled
 - `FM-001` fortran_modernization: Reset modernization around foundation completeness Next: Treat M6 as a behavior baseline, not completed foundation; use FOUNDATION_COMPLETENESS_RESET_20260511 before any source modernization step
 - `FM-002` fortran_modernization: Fix DFO-LS evidence and implementation boundary Next: Separate historical in-house/DFO-LS-style evidence from official-package evidence, then finish official solver integration/preset work before final claims
-- `FM-005` fortran_modernization: Build retained-core deterministic evidence pack Next: Newton replay and successful RATTLE/RG pass replay now pass; next cover QN p28 route census, official-DFO-LS-line route behavior, RG reject/live-state identity, and local-volume/branch-measure checks before treating the numerical foundation as complete
+- `FM-005` fortran_modernization: Build retained-core deterministic evidence pack Next: Newton replay, successful RATTLE/RG pass replay, BTN residual reconstruction, and official-route no-fallback guardrails now pass; next cover fixed-seed official-line route census, package-success route coverage, RG reject/live-state identity, and local-volume/branch-measure checks before treating the numerical foundation as complete
 - `FM-006` fortran_modernization: Repair diagnostics/status/accounting foundation Next: Move patchwork counters/status/capture/replay accounting toward a typed diagnostics context before final schema or production regeneration
 
 ## Recent Decisions
 
-- 2026-05-10 `tltm_production_comparison`: Reuse accepted M6 reference datasets as first production-calibration tier
 - 2026-05-11 `repo_cleanup`: Track local TLTM worktrees as first-class state
 - 2026-05-11 `remote_control_plane`: Rename codex/preprod-hardening to codex/control-plane
 - 2026-05-11 `control_plane`: Canonical handoff now defaults to official DFO-LS line
 - 2026-05-11 `fortran_modernization`: Accept official DFO-LS backend replacement for the representative scope
 - 2026-05-11 `fortran_modernization`: Keep CV-009 open after first retained-core evidence slice
+- 2026-05-11 `fortran_modernization`: Define current official QN route surface separately from legacy internal p28 machinery
 
 ## Pointers
 
