@@ -53,6 +53,10 @@ Use this file to append per-session notes.
 - Expected runtime: if preflight and all chunks start promptly, chunk compute is about `3.1h` from 32seed/50k scaling; report expected roughly `21:00-21:40 JST`.
 - Initial status: preflight running; chunks and merge held by dependencies.
 - 2026-05-11 17:29 JST status refresh: preflight `14775` finished with `Exit_status=0`; all chunks `14776..14791` are running; merge `14792` remains held until all chunks finish.
+- 2026-05-11 20:46 JST readback: report generated at `output/production_comparison/provisional/official_dfols_gate_20260511_128seed_100k_p28_rg_withfb_r4/REPORT.md`.
+- Result: `withfb/fb_norefine`, 128 seeds, mean Re `0.003434163621430383`, mean Im `-0.0012225229577123272`, Zmean Re `0.8633923978986243`, Zmean Im `-0.422893731201389`, failures `155321`, RG rejects `128255`, runtime `10879.63379652343s`.
+- Compared to M6 R4 withfb: unresolved failures `-69259` (`-30.84%`), RG rejects `-72275` (`-36.04%`), runtime `+2393.05s` (`+28.20%`).
+- Interpretation: statistically acceptable Zmean/coverage and better failure/RG behavior than M6 R4 withfb, with a significant runtime cost and a positive Re mean shift relative to M6 R4 withfb.
 
 ## 2026-04-30 14:31 JST
 - Goal: run no_fb_ref_reverse_gate 1024-seed with unified nofb/withfb->RG->Metropolis flow; accelerate queue throughput.
