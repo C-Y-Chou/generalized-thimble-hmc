@@ -1,0 +1,183 @@
+#!/bin/bash
+#PBS -N odex_onoff
+#PBS -q C12
+#PBS -l select=1:ncpus=12:mpiprocs=12:mem=8gb
+#PBS -l walltime=06:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  # shellcheck source=/dev/null
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization}"
+: "${TLTM_EXPECTED_GIT_BRANCH:=codex/fortran-modernization}"
+: "${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
+: "${TLTM_ODEX_ASSIST_GATE_LABEL:=odex_official_dfols_assist_onoff_20260511}"
+: "${TLTM_ODEX_ASSIST_GATE_ALLOW_OVERWRITE:=0}"
+
+cd "${TLTM_WORKTREE}"
+
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+CURRENT_COMMIT="$(git rev-parse HEAD)"
+if [ "${CURRENT_BRANCH}" != "${TLTM_EXPECTED_GIT_BRANCH}" ]; then
+  echo "[ERROR] expected branch ${TLTM_EXPECTED_GIT_BRANCH}, got ${CURRENT_BRANCH}" >&2
+  exit 2
+fi
+if [ "${CURRENT_COMMIT}" != "${TLTM_EXPECTED_GIT_COMMIT}" ]; then
+  echo "[ERROR] expected commit ${TLTM_EXPECTED_GIT_COMMIT}, got ${CURRENT_COMMIT}" >&2
+  exit 2
+fi
+if [ -n "$(git status --porcelain)" ]; then
+  echo "[ERROR] working tree is dirty; refusing ODEX assist on/off gate" >&2
+  git status --short >&2
+  exit 2
+fi
+
+OUT_ROOT="${TLTM_WORKTREE}/output/tests/fortran_modernization/${TLTM_ODEX_ASSIST_GATE_LABEL}"
+LOG_ROOT="${TLTM_WORKTREE}/output/logs/fortran_modernization/${TLTM_ODEX_ASSIST_GATE_LABEL}"
+BOOT_LOG="${LOG_ROOT}/pbs_boot.log"
+CONFIG_JSON="docs/stage_3_4_t035_paired_10k_10seed.json"
+
+if [ -e "${OUT_ROOT}" ] || [ -e "${LOG_ROOT}" ]; then
+  if [ "${TLTM_ODEX_ASSIST_GATE_ALLOW_OVERWRITE}" != "1" ]; then
+    echo "[ERROR] output/log path exists; set TLTM_ODEX_ASSIST_GATE_ALLOW_OVERWRITE=1 to rerun" >&2
+    echo "OUT_ROOT=${OUT_ROOT}" >&2
+    echo "LOG_ROOT=${LOG_ROOT}" >&2
+    exit 3
+  fi
+  rm -rf "${OUT_ROOT}" "${LOG_ROOT}"
+fi
+
+mkdir -p "${OUT_ROOT}" "${LOG_ROOT}"
+exec > "${BOOT_LOG}" 2>&1
+
+date -Is
+hostname
+pwd
+echo "branch=${CURRENT_BRANCH}"
+echo "commit=${CURRENT_COMMIT}"
+echo "config=${CONFIG_JSON}"
+echo "out_root=${OUT_ROOT}"
+
+PYTHON_FOR_DFOLS="${TLTM_DFOLS_PYTHON:-}"
+if [ -z "${PYTHON_FOR_DFOLS}" ]; then
+  if command -v python3.11 >/dev/null 2>&1; then
+    PYTHON_FOR_DFOLS="$(command -v python3.11)"
+  elif command -v python3.9 >/dev/null 2>&1; then
+    PYTHON_FOR_DFOLS="$(command -v python3.9)"
+  else
+    echo "[ERROR] Need python3.9+ for official DFO-LS package." >&2
+    exit 4
+  fi
+fi
+
+if [ ! -x .venv-dfols/bin/python ]; then
+  "${PYTHON_FOR_DFOLS}" -m venv .venv-dfols
+fi
+.venv-dfols/bin/python -m pip install -q -r requirements/external-dfols.txt
+export TLTM_OFFICIAL_DFOLS_PYTHONPATH="$(
+  .venv-dfols/bin/python - <<'PY'
+import site
+print(":".join(site.getsitepackages()))
+PY
+)"
+.venv-dfols/bin/python - <<'PY'
+import dfols, numpy
+print("dfols_version={}".format(getattr(dfols, "__version__", "unknown")))
+print("numpy_version={}".format(numpy.__version__))
+PY
+
+make -C build -j 12 ENABLE_OFFICIAL_DFOLS=1 ../bin/run_tltm_stage2 ../bin/evaluate_expectations
+
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
+
+export TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-13
+export QN_REVERSE_GATE_ENABLED=1
+export QN_REVERSE_GATE_TOL=1e-8
+export QN_S1_PROBE_MAX_ITER=28
+export QN_S1_NEAR_RESCUE_ENABLED=0
+export QN_S1_NONNEAR_RESCUE_ENABLED=0
+export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
+export QN_QUASI_TOL_OVERRIDE=1e-13
+
+export QN_SOLVER_BACKEND=official_dfols
+export QN_OFFICIAL_DFOLS_PRESET=stable_gate77
+export QN_OFFICIAL_DFOLS_NPT=4
+export QN_OFFICIAL_DFOLS_MAXFUN=250
+export QN_OFFICIAL_DFOLS_OBJFUN_HAS_NOISE=1
+export QN_OFFICIAL_DFOLS_RHOBEG=0.018
+export QN_OFFICIAL_DFOLS_RHOEND=1e-16
+export QN_OFFICIAL_DFOLS_MODEL_ABS_TOL=1e-30
+export QN_OFFICIAL_DFOLS_MODEL_REL_TOL=0
+
+{
+  echo "job_tag=${TLTM_ODEX_ASSIST_GATE_LABEL}"
+  echo "submitted_for=fortran_modernization_odex_solver_internal_assist_onoff_gate"
+  echo "date_start=$(date -Is)"
+  echo "hostname=$(hostname)"
+  echo "pwd=$(pwd)"
+  echo "git_branch=${CURRENT_BRANCH}"
+  echo "git_commit=${CURRENT_COMMIT}"
+  echo "pbs_script=codex/workspaces/fortran_modernization/tasks/pbs/odex_official_dfols_assist_onoff_10seed_10k_20260511.pbs"
+  echo "config=${CONFIG_JSON}"
+  echo "method=fb_norefine"
+  echo "backend=official_dfols"
+  echo "official_dfols_preset=stable_gate77"
+  echo "scale=10seed_x_10000cycles"
+  echo "variants=assist_on,assist_off"
+  echo "constraint_tol_override=${TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE}"
+  echo "qn_quasi_tol_override=${QN_QUASI_TOL_OVERRIDE}"
+  echo "reverse_gate_enabled=${QN_REVERSE_GATE_ENABLED}"
+  echo "reverse_gate_tol=${QN_REVERSE_GATE_TOL}"
+  echo "qn_s1_probe_max_iter=${QN_S1_PROBE_MAX_ITER}"
+  echo "tltm_official_dfols_pythonpath=${TLTM_OFFICIAL_DFOLS_PYTHONPATH}"
+} > "${OUT_ROOT}/run_manifest.txt"
+
+run_variant() {
+  local variant="$1"
+  local assist_enabled="$2"
+  local out_subdir="${OUT_ROOT}/${variant}"
+  local log_subdir="${LOG_ROOT}/${variant}"
+  mkdir -p "${out_subdir}" "${log_subdir}"
+  echo "[RUN] variant=${variant} INTODE_SOLVER_ASSIST_ENABLED=${assist_enabled} $(date -Is)"
+  INTODE_SOLVER_ASSIST_ENABLED="${assist_enabled}" python3 scripts/run_stage3_3_multiseed.py \
+    --repo-root . \
+    --config "${CONFIG_JSON}" \
+    --methods fb_norefine \
+    --max-seeds 10 \
+    --output-subdir "${out_subdir}" \
+    --logs-subdir "${log_subdir}" \
+    --log-prefix "${TLTM_ODEX_ASSIST_GATE_LABEL}_${variant}" \
+    --report-title "ODEX solver-internal assist ${variant} official DFO-LS 10seed 10k fb_norefine" \
+    --schedule task \
+    --task-method-order fb_first \
+    --jobs 10 \
+    --stage2-threads 1 \
+    --eval-threads 1 \
+    --stage2-v1-sidecars on \
+    --stage2-protocol-audit auto \
+    --stage2-protocol-audit-fail-on error \
+    --skip-build
+  echo "[DONE] variant=${variant} $(date -Is)"
+}
+
+run_variant assist_on 1
+run_variant assist_off 0
+
+echo "date_end=$(date -Is)" >> "${OUT_ROOT}/run_manifest.txt"
+date -Is

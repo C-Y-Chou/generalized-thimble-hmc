@@ -525,6 +525,7 @@ def selected_manifest_env(env):
         "TLTM_OFFICIAL_DFOLS_PYTHONPATH",
     }
     prefixes = (
+        "INTODE_",
         "TLTM_STAGE2_",
         "QN_",
         "S1_",
