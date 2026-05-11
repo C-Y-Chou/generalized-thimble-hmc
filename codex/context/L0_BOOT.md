@@ -1,7 +1,7 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-11T12:53:43+09:00
-Remote refreshed: 2026-05-11T12:53:03+09:00
+Generated: 2026-05-11T12:56:01+09:00
+Remote refreshed: 2026-05-11T12:55:52+09:00
 
 ## Canonical Entry
 
@@ -26,7 +26,7 @@ Remote refreshed: 2026-05-11T12:53:03+09:00
 
 ## Active Local Risk
 
-- `local_canonical_official_dfols`: branch `codex/fortran-modernization`, commit `00a71540189196dc8dafdd41607768bc0ef5a169`, dirty `11`, ahead `0`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
+- No local worktree risk recorded in `codex/state/LOCAL_WORKTREES.tsv`.
 
 ## Active/Pending Jobs
 
