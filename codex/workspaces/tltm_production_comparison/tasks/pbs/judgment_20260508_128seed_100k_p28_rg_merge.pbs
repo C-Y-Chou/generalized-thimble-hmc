@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-: "${TLTM_WORKTREE:=/home/cychou/TLTM}"
+: "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization}"
 : "${TLTM_EXPECTED_GIT_BRANCH:=codex/fortran-modernization}"
 cd "${TLTM_WORKTREE}"
 

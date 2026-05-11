@@ -15,12 +15,14 @@ Updated: 2026-05-11 JST
 ## Official DFO-LS Redo Position
 
 - Production redo should be launched from the synchronized
-  `codex/fortran-modernization` commit that contains the embedded official
-  DFO-LS backend.
+  `codex/fortran-modernization` worktree
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`, at the commit
+  that contains the embedded official DFO-LS backend.
 - Before chunk submission, run
   `codex/workspaces/tltm_production_comparison/tasks/pbs/official_dfols_preflight_build.pbs`
   on the target tree. It creates/updates `.venv-dfols`, verifies official
-  `DFO-LS==1.6.5`, and builds `run_tltm_stage2` plus
+  `DFO-LS==1.6.5`, prepares local Python headers under `.deps/` if the Rocky
+  node lacks `python3.11-devel`, and builds `run_tltm_stage2` plus
   `evaluate_expectations` with `ENABLE_OFFICIAL_DFOLS=1`.
 - Chunk jobs now set `QN_SOLVER_BACKEND=official_dfols`,
   `QN_OFFICIAL_DFOLS_PRESET=stable_gate77`, and

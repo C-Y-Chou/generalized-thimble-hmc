@@ -33,8 +33,8 @@ Updated: 2026-05-10 JST
 Before production continuation:
 
 1. Run `bash codex/tasks/refresh_remote_state.sh`.
-2. Sync the production target tree to the official-DFO-LS modernization commit on `codex/fortran-modernization`.
-3. Submit `codex/workspaces/tltm_production_comparison/tasks/pbs/official_dfols_preflight_build.pbs` and wait for it to build with `ENABLE_OFFICIAL_DFOLS=1`.
+2. Sync the production target tree to the official-DFO-LS modernization commit on `codex/fortran-modernization`; the default production target is `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`.
+3. Submit `codex/workspaces/tltm_production_comparison/tasks/pbs/official_dfols_preflight_build.pbs` and wait for it to build with `ENABLE_OFFICIAL_DFOLS=1`; on Rocky 8 it also prepares local Python 3.11 headers under `.deps/` if the system devel package is missing.
 4. Submit production chunks pinned to the same commit; chunks now use `QN_SOLVER_BACKEND=official_dfols` and `QN_OFFICIAL_DFOLS_PRESET=stable_gate77`.
 5. Register any new production-comparison outputs in `codex/state/DATASETS.tsv`.
 6. Confirm no active pinned jobs depend on the target worktree before any fast-forward or cleanup.

@@ -12,7 +12,10 @@ bin/
 # Python cache
 __pycache__/
 *.pyc
-.venv-dfols/
+.venv-dfols*/
+
+# Rebuildable local dependency caches
+.deps/
 
 # Runtime outputs / large artifacts
 output/

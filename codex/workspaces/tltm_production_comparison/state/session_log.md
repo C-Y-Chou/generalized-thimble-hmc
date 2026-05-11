@@ -345,7 +345,7 @@ Use this file to append per-session notes.
   - update this status to git/remote, then submit merge/report job with dependency on the 16 valid compute jobs.
 ## 2026-05-11 JST - Production redo switched to official DFO-LS backend
 - Production redo should use the synchronized `codex/fortran-modernization` branch/commit, not the older `codex/tltm-production-comparison` solver state.
-- Updated the 128seed/100k chunk and merge PBS guards to default to `TLTM_EXPECTED_GIT_BRANCH=codex/fortran-modernization` and `TLTM_WORKTREE=/home/cychou/TLTM`.
+- Updated the 128seed/100k chunk and merge PBS guards to default to `TLTM_EXPECTED_GIT_BRANCH=codex/fortran-modernization` and `TLTM_WORKTREE=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`.
 - Chunk jobs now require the preflight-created `.venv-dfols`, set `QN_SOLVER_BACKEND=official_dfols`, set `QN_OFFICIAL_DFOLS_PRESET=stable_gate77`, and export `TLTM_OFFICIAL_DFOLS_PYTHONPATH` from the venv site-packages.
-- Added `tasks/pbs/official_dfols_preflight_build.pbs` to create/update `.venv-dfols`, verify `DFO-LS==1.6.5`, and build `run_tltm_stage2` plus `evaluate_expectations` with `ENABLE_OFFICIAL_DFOLS=1`.
+- Added `tasks/pbs/official_dfols_preflight_build.pbs` to create/update `.venv-dfols`, verify `DFO-LS==1.6.5`, prepare local Python 3.11 headers under `.deps/` when the system devel package is missing, and build `run_tltm_stage2` plus `evaluate_expectations` with `ENABLE_OFFICIAL_DFOLS=1`.
 - New production order: sync the remote production tree to the official-DFO-LS commit, submit the preflight build, then submit chunks pinned to the same commit after preflight succeeds.
