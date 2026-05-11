@@ -19,6 +19,11 @@ If a conversation starts in `/Users/ccy/Documents/New project`, first route to
 `/Users/ccy/Documents/New project/TLTM_repo` checkout is legacy unless the user
 explicitly asks for legacy/control-plane work.
 
+Workflow scripts must not hardcode `/home/cychou/TLTM` as the working root.
+They should derive the repo root from their own script location and run
+`codex/tasks/assert_canonical_route.sh` when they can change state, refresh
+state, or guide a new conversation.
+
 ## Triggered Deep Reads
 
 Read long runbooks only when triggered by L1:

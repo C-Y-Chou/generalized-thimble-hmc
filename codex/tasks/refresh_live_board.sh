@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT=/home/cychou/TLTM
-CODEX=$ROOT/codex
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CODEX="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT="$(git -C "$CODEX" rev-parse --show-toplevel)"
 REGISTRY=$CODEX/runbooks/task_registry.tsv
 NOW=$(date "+%Y-%m-%d %H:%M:%S %Z")
 USER_NAME=${1:-cychou}
@@ -61,8 +62,8 @@ RUNNING_JOBS=$RUNNING
 QUEUED_JOBS=$QUEUED
 HELD_JOBS=$HELD
 BLOCKED_ARRAY_PARENTS=$BLOCKED
-LIVE_BOARD_PATH=/home/cychou/TLTM/codex/runbooks/LIVE_BOARD.md
-TASK_REGISTRY_PATH=/home/cychou/TLTM/codex/runbooks/task_registry.tsv
+LIVE_BOARD_PATH=$CODEX/runbooks/LIVE_BOARD.md
+TASK_REGISTRY_PATH=$CODEX/runbooks/task_registry.tsv
 EOM
 
 status_of() {
@@ -109,7 +110,7 @@ cat > "$CODEX/runbooks/LIVE_BOARD.md" <<EOM
 # TLTM Codex Live Board
 
 Updated: $NOW
-Refreshed by: \`/home/cychou/TLTM/codex/tasks/refresh_live_board.sh\`
+Refreshed by: \`$CODEX/tasks/refresh_live_board.sh\`
 
 ## Queue Summary (user: $USER_NAME)
 - total jobs: \`$TOTAL\`

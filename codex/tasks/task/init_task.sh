@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT=/home/cychou/TLTM/codex
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TASK_SLUG=${1:?usage: init_task.sh <task_slug> [task_type]}
 TASK_TYPE=${2:-general}
 W=$ROOT/workspaces/$TASK_SLUG

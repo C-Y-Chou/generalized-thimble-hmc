@@ -7,7 +7,7 @@ import csv
 import subprocess
 import sys
 from pathlib import Path
-from typing import Iterable, List
+from typing import Dict, Iterable, List
 
 
 REQUIRED = [
@@ -108,6 +108,13 @@ def read_header(path: Path) -> List[str]:
         return next(reader)
 
 
+def read_tsv(path: Path) -> List[Dict[str, str]]:
+    if not path.exists():
+        return []
+    with path.open(newline="", encoding="utf-8") as handle:
+        return list(csv.DictReader(handle, delimiter="\t"))
+
+
 def fail(message: str, errors: List[str]) -> None:
     errors.append(message)
 
@@ -119,6 +126,11 @@ def main() -> int:
         path = root / rel
         if not path.exists():
             fail(f"missing required file: {rel}", errors)
+    route_guard = root / "codex/tasks/assert_canonical_route.sh"
+    if not route_guard.exists():
+        fail("missing route guard: codex/tasks/assert_canonical_route.sh", errors)
+    elif not route_guard.stat().st_mode & 0o111:
+        fail("route guard is not executable: codex/tasks/assert_canonical_route.sh", errors)
     for rel, expected in TSV_HEADERS.items():
         path = root / rel
         if path.exists():
@@ -139,6 +151,44 @@ def main() -> int:
         fail("HANDOFF_MIN.txt does not name the current official DFO-LS branch", errors)
     if "New project/TLTM_repo is a legacy" not in handoff:
         fail("HANDOFF_MIN.txt does not mark New project/TLTM_repo as legacy", errors)
+    local_targets = read_tsv(root / "codex/state/LOCAL_TARGETS.tsv")
+    if not any(
+        row.get("target_id") == "local_canonical_official_dfols"
+        and row.get("path") == "/Users/ccy/Documents/TLTM_qn_error_handling"
+        for row in local_targets
+    ):
+        fail("LOCAL_TARGETS.tsv does not contain canonical official-DFO-LS local target", errors)
+    if not any(
+        row.get("target_id") == "local_legacy_control_plane_checkout"
+        and "Legacy" in row.get("purpose", "")
+        for row in local_targets
+    ):
+        fail("LOCAL_TARGETS.tsv does not mark New project/TLTM_repo as legacy", errors)
+    remote_targets = read_tsv(root / "codex/state/REMOTE_TARGETS.tsv")
+    if not any(
+        row.get("target_id") == "fortran_modernization"
+        and row.get("worktree_path") == "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization"
+        and row.get("branch") == "codex/fortran-modernization"
+        for row in remote_targets
+    ):
+        fail("REMOTE_TARGETS.tsv does not contain canonical fortran_modernization execution target", errors)
+    task_registry = read_tsv(root / "codex/runbooks/task_registry.tsv")
+    for row in task_registry:
+        if row.get("status") == "active" and row.get("root_path", "").startswith("/home/cychou/TLTM/codex"):
+            fail(f"active task registry row uses old remote codex root: {row.get('task_slug')}", errors)
+    guarded_scripts = [
+        "codex/tasks/bootstrap.sh",
+        "codex/tasks/doctor.sh",
+        "codex/tasks/refresh_context.sh",
+        "codex/tasks/refresh_global_context.sh",
+        "codex/tasks/refresh_live_board.sh",
+        "codex/tasks/task/init_task.sh",
+        "codex/tasks/task/refresh_task_context.sh",
+    ]
+    for rel in guarded_scripts:
+        text = (root / rel).read_text(encoding="utf-8")
+        if "/home/cychou/TLTM" in text:
+            fail(f"{rel} hardcodes /home/cychou/TLTM; derive repo root from script location", errors)
     stage_queue = root / "codex/workspaces/tltm_production_comparison/runbooks/QUEUE_OPTIMIZATION.md"
     if stage_queue.exists() and "SUPERSEDED" not in stage_queue.read_text(encoding="utf-8")[:500]:
         fail("Production-comparison queue optimization playbook lacks SUPERSEDED marker", errors)

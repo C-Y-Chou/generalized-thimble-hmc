@@ -40,6 +40,7 @@ Do not read long runbooks by default. Use `runbooks/READ_POLICY.md` and `indexes
 - Default remote execution target: `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`
 - Legacy local checkout: `/Users/ccy/Documents/New project/TLTM_repo`; do not use as the source of truth unless explicitly requested.
 - Current solver line: embedded official DFO-LS is the default QN backend; TLTM residual gate remains authoritative.
+- Route guard: `codex/tasks/assert_canonical_route.sh`; bootstrap and doctor must call it before workflow actions.
 
 ## Current Fortran Modernization Entry
 - Workspace: `/Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/fortran_modernization`
@@ -92,3 +93,4 @@ Do not read long runbooks by default. Use `runbooks/READ_POLICY.md` and `indexes
 - Before remote SSH/PBS/git cleanup work, refresh `codex/state/REMOTE_LIVE_CACHE.json`, `codex/state/WORKTREES.tsv`, and `codex/state/JOBS.tsv`.
 - Do not treat top-level `state/` as a single live run state.
 - Record task-specific execution in `workspaces/<task_slug>/state/`.
+- Do not hardcode `/home/cychou/TLTM` in new workflow scripts; derive the repo root from the script location or use the registries.

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT=/home/cychou/TLTM/codex
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TASK_SLUG=${1:?usage: refresh_task_context.sh <task_slug>}
 W=$ROOT/workspaces/$TASK_SLUG
 NOW=$(date "+%Y-%m-%d %H:%M:%S %Z")
