@@ -1,7 +1,7 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-11T15:25:18+09:00
-Remote refreshed: 2026-05-11T15:25:14+09:00
+Generated: 2026-05-11T15:26:39+09:00
+Remote refreshed: 2026-05-11T15:26:35+09:00
 
 ## Canonical Entry
 
@@ -27,18 +27,18 @@ Remote refreshed: 2026-05-11T15:25:14+09:00
 
 ## Active Local Risk
 
-- `local_canonical_official_dfols`: branch `codex/fortran-modernization`, commit `d3f133d1fd7de2ec6a5b7ac27840c01287be5be7`, dirty `4`, ahead `0`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
+- `local_canonical_official_dfols`: branch `codex/fortran-modernization`, commit `d640f4287851032779a4a499d005165922db8aab`, dirty `3`, ahead `0`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
 
 ## Active/Pending Jobs
 
-- `14766.anode01` `pc32_nofb_00` queue `C8` state `H` dataset `unknown`.
-- `14767.anode01` `pc32_nofb_01` queue `C8` state `H` dataset `unknown`.
-- `14768.anode01` `pc32_nofb_02` queue `C8` state `H` dataset `unknown`.
-- `14769.anode01` `pc32_nofb_03` queue `C8` state `H` dataset `unknown`.
-- `14770.anode01` `pc32_wfb_00` queue `C8` state `H` dataset `unknown`.
-- `14771.anode01` `pc32_wfb_01` queue `C8` state `H` dataset `unknown`.
-- `14772.anode01` `pc32_wfb_02` queue `C8` state `H` dataset `unknown`.
-- `14773.anode01` `pc32_wfb_03` queue `C8` state `H` dataset `unknown`.
+- `14766.anode01` `pc32_nofb_00` queue `C8` state `R` dataset `unknown`.
+- `14767.anode01` `pc32_nofb_01` queue `C8` state `R` dataset `unknown`.
+- `14768.anode01` `pc32_nofb_02` queue `C8` state `R` dataset `unknown`.
+- `14769.anode01` `pc32_nofb_03` queue `C8` state `R` dataset `unknown`.
+- `14770.anode01` `pc32_wfb_00` queue `C8` state `R` dataset `unknown`.
+- `14771.anode01` `pc32_wfb_01` queue `C8` state `R` dataset `unknown`.
+- `14772.anode01` `pc32_wfb_02` queue `C8` state `R` dataset `unknown`.
+- `14773.anode01` `pc32_wfb_03` queue `C8` state `R` dataset `unknown`.
 - `14774.anode01` `pc32_merge` queue `C8` state `H` dataset `unknown`.
 
 ## High-Priority Open Items
