@@ -98,12 +98,11 @@ elif [ "${PY_VERSION}" = "3.11" ]; then
   fi
   PY_DEVEL_INCLUDE="${TLTM_PYTHON_DEVEL_ROOT}/usr/include/python3.11"
   PY_HEADER_CFLAGS="-I${PY_DEVEL_INCLUDE}"
-  PYCONFIG_FRAGMENT="$(sed -n 's/^#include "\(pyconfig-[^"]*\.h\)"/\1/p' "${PY_DEVEL_INCLUDE}/pyconfig.h" | head -n 1)"
-  if [ -n "${PYCONFIG_FRAGMENT}" ] && [ ! -f "${PY_DEVEL_INCLUDE}/${PYCONFIG_FRAGMENT}" ]; then
-    if [ -f "${PY_INCLUDE}/${PYCONFIG_FRAGMENT}" ]; then
+  if grep -q 'pyconfig-' "${PY_DEVEL_INCLUDE}/pyconfig.h" && ! ls "${PY_DEVEL_INCLUDE}"/pyconfig-*.h >/dev/null 2>&1; then
+    if ls "${PY_INCLUDE}"/pyconfig-*.h >/dev/null 2>&1; then
       PY_HEADER_CFLAGS="${PY_HEADER_CFLAGS} -I${PY_INCLUDE}"
     else
-      echo "[ERROR] extracted Python headers require ${PYCONFIG_FRAGMENT}; set TLTM_PYTHON_INCLUDE_DIR" >&2
+      echo "[ERROR] extracted Python headers require a pyconfig platform fragment; set TLTM_PYTHON_INCLUDE_DIR" >&2
       exit 4
     fi
   fi
