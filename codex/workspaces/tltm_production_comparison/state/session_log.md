@@ -13,6 +13,20 @@ Use this file to append per-session notes.
 - Key findings:
 - Next action:
 
+## 2026-05-11 17:04 JST
+- Goal: read back official DFO-LS `32 seeds x 50k cycles` production-comparison gate.
+- Campaign: `official_dfols_gate_20260511_32seed_50k_p28_rg_nofb_withfb`.
+- Remote worktree: `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.
+- Config: `docs/production_comparison_official_dfols_20260511_32seed_50k_nofb_withfb.json`.
+- Methods: `no_fb` canonical `nofb`; `fb_norefine` canonical `withfb`.
+- Env vars: official DFO-LS backend, `stable_gate77`, RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`.
+- Completion: `64/64` run manifests, `32/32` per method, final `REPORT.md` and `combined_summary_table.csv` generated.
+- Key findings:
+  - `nofb`: mean Re `0.020188792134396484`, mean Im `-0.004985872843091379`, Zmean Re `1.333466646990749`, Zmean Im `-0.5536498965991518`, failures `120858`, RG rejects `19197`, runtime `3708.3135403125007s`.
+  - `withfb`: mean Re `-0.0019937714302690254`, mean Im `0.004999952129493637`, Zmean Re `-0.20153214684082096`, Zmean Im `0.6400123564653849`, failures `19579`, RG rejects `15987`, runtime `5586.39629015625s`.
+  - `withfb - nofb`: mean shift Re `-0.0221826`, Im `+0.00998582`; unresolved failures `-101279`; RG rejects `-3210`; runtime `+1878.08s`.
+- Next action: choose next scale for `nofb` vs `withfb/fb_norefine` official DFO-LS before production-scale run.
+
 ## 2026-04-30 14:31 JST
 - Goal: run no_fb_ref_reverse_gate 1024-seed with unified nofb/withfb->RG->Metropolis flow; accelerate queue throughput.
 - Code change: /home/cychou/TLTM/src/sampler/hmc_integrator_core.f90
