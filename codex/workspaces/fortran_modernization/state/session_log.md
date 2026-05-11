@@ -538,3 +538,19 @@
 - The deterministic flow/Jacobian test covers zero-flow identity, `flow`/`flowz` endpoint consistency, `flowzr` inverse replay, Jacobian finite-difference consistency, and no fallback use.
 - Focused verification passed: `make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_result_contract test_odex_flow_jacobian_contract test_odex_foundation_contract test_odex_solver test_odex_assist_policy`.
 - Full local guardrail passed: `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags ''`.
+
+## 2026-05-11 JST - Official DFO-LS preset/provenance guardrails
+- Added `get_qn_official_dfols_policy(...)` so the official backend and preset surface can be tested without running the Python package.
+- Added `tests/test_official_dfols_preset_contract.f90` and `make test_official_dfols_preset_contract`.
+- The test verifies default backend `official_dfols`, production preset `stable_gate77`, stable aliases, legacy comparison alias, and unknown-preset fallback to stable.
+- Extended Stage2 v1 sidecar manifest `env_overrides` with official DFO-LS runtime provenance keys: `QN_SOLVER_BACKEND`, `QN_OFFICIAL_DFOLS_PRESET`, all official preset controls, and `TLTM_OFFICIAL_DFOLS_PYTHONPATH`.
+- Extended M4 guardrails to parse the Stage2 sidecar manifest and fail if those official DFO-LS provenance env keys disappear.
+- Focused verification passed: `make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_official_dfols_preset_contract`.
+- Full local guardrail passed: `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags ''`.
+
+## 2026-05-11 JST - Official DFO-LS package provenance readback
+- Added `codex/workspaces/fortran_modernization/tasks/scripts/official_dfols_provenance_readback.py`.
+- The script inspects the Python executable used for the embedded official bridge, imports `dfols`, checks installed distribution metadata, and writes both a TSV state row and a runbook readback note.
+- Local readback passed for `DFO-LS==1.6.5`, `GPL-3.0-or-later`, Python `3.11.14`, and module path under `.venv-dfols/lib/python3.11/site-packages/dfols`.
+- Added the script to M4 Python compile guardrails.
+- CV-008 remains open because package identity is not the same as embedded-backend captured-attempt comparison, TLTM residual acceptance evidence, or representative-scale readback.

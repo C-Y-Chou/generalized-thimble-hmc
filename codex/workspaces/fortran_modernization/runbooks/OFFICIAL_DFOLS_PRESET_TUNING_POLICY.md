@@ -122,3 +122,53 @@ Required before production redo:
    traceback, or module-not-found error.
 5. Keep reverse gate and Metropolis settings unchanged from the selected
    production protocol.
+
+## Deterministic Policy Guardrail
+
+Added source-level guardrail:
+
+```bash
+make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_official_dfols_preset_contract
+python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags ''
+```
+
+This test does not call the Python package. It verifies the Fortran policy
+surface:
+
+- default QN backend is `official_dfols`;
+- `stable_gate77` resolves to `npt=4`, `maxfun=250`, `objfun_has_noise=true`,
+  `rhobeg=0.018`, `rhoend=1e-16`, `model.abs_tol=1e-30`, and
+  `model.rel_tol=0`;
+- aliases `stable`, `gate77`, `production`, and `official_alone` map to the
+  same production preset;
+- legacy comparison alias maps to the old `rhobeg=0.05`, default-`npt` family;
+- unknown preset names fall back to `stable_gate77`.
+
+M4 guardrails also verify that Stage2 v1 sidecar manifests include official
+DFO-LS provenance env keys, including `QN_SOLVER_BACKEND`,
+`QN_OFFICIAL_DFOLS_PRESET`, all exposed official preset controls, and
+`TLTM_OFFICIAL_DFOLS_PYTHONPATH`.
+
+## Package Provenance Readback
+
+Added package-identity readback:
+
+```bash
+.venv-dfols/bin/python codex/workspaces/fortran_modernization/tasks/scripts/official_dfols_provenance_readback.py --repo-root .
+```
+
+The 2026-05-11 local readback passed for:
+
+- `DFO-LS==1.6.5`
+- `GPL-3.0-or-later`
+- Python `3.11.14`
+- module path under `.venv-dfols/lib/python3.11/site-packages/dfols`
+
+The state TSV is
+`codex/workspaces/fortran_modernization/state/OFFICIAL_DFOLS_PROVENANCE.tsv`,
+and the readback note is
+`codex/workspaces/fortran_modernization/runbooks/OFFICIAL_DFOLS_PROVENANCE_READBACK_20260511.md`.
+
+This closes only the package-version provenance subtask. It does not replace
+the remaining embedded-backend captured-attempt comparison, TLTM residual gate
+readback, or representative-scale production-readiness evidence.

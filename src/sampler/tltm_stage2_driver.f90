@@ -1517,7 +1517,17 @@ contains
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_ALL_REPLICA_HISTORY_DIR", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_OUTPUT_DIR", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_MANIFEST_FILE", .true., 4)
-      call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_PROTOCOL_FILE", .false., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_PROTOCOL_FILE", .true., 4)
+      call write_json_env_field(unit_manifest, "QN_SOLVER_BACKEND", .true., 4)
+      call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_PRESET", .true., 4)
+      call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_NPT", .true., 4)
+      call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_MAXFUN", .true., 4)
+      call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_OBJFUN_HAS_NOISE", .true., 4)
+      call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_RHOBEG", .true., 4)
+      call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_RHOEND", .true., 4)
+      call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_MODEL_ABS_TOL", .true., 4)
+      call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_MODEL_REL_TOL", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_OFFICIAL_DFOLS_PYTHONPATH", .false., 4)
       write (unit_manifest, '(A)') '  },'
 
       write (unit_manifest, '(A)') '  "outputs": {'

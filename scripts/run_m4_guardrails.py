@@ -197,6 +197,7 @@ def run_guardrails(args):
             "codex/workspaces/fortran_modernization/tasks/scripts/odex_assist_revalidation.py",
             "codex/workspaces/fortran_modernization/tasks/scripts/odex_official_assist_onoff_readback.py",
             "codex/workspaces/fortran_modernization/tasks/scripts/official_dfols_small_assist_degeneracy.py",
+            "codex/workspaces/fortran_modernization/tasks/scripts/official_dfols_provenance_readback.py",
         ],
         repo_root,
         failures,
@@ -227,6 +228,7 @@ def run_guardrails(args):
                     "test_odex_assist_policy",
                     "test_odex_result_contract",
                     "test_odex_flow_jacobian_contract",
+                    "test_official_dfols_preset_contract",
                     "test_tltm_swap_kernel_contract",
                 ],
             ),
@@ -301,6 +303,37 @@ def run_guardrails(args):
         "sidecar-on cross-check audit summary exists",
         (sidecar_out / "protocol_audit_summary.csv").exists(),
         "Missing {0}".format(sidecar_out / "protocol_audit_summary.csv"),
+        failures,
+        args.keep_going,
+    )
+    sidecar_manifest = resolve_repo_path(repo_root, sidecar_row.get("stage2_v1_manifest_file", ""))
+    if sidecar_manifest.exists():
+        manifest_data = json.loads(sidecar_manifest.read_text())
+        env_overrides = manifest_data.get("env_overrides", {})
+        required_official_env = [
+            "QN_SOLVER_BACKEND",
+            "QN_OFFICIAL_DFOLS_PRESET",
+            "QN_OFFICIAL_DFOLS_NPT",
+            "QN_OFFICIAL_DFOLS_MAXFUN",
+            "QN_OFFICIAL_DFOLS_OBJFUN_HAS_NOISE",
+            "QN_OFFICIAL_DFOLS_RHOBEG",
+            "QN_OFFICIAL_DFOLS_RHOEND",
+            "QN_OFFICIAL_DFOLS_MODEL_ABS_TOL",
+            "QN_OFFICIAL_DFOLS_MODEL_REL_TOL",
+            "TLTM_OFFICIAL_DFOLS_PYTHONPATH",
+        ]
+        missing_official_env = [key for key in required_official_env if key not in env_overrides]
+    else:
+        env_overrides = {}
+        missing_official_env = ["manifest_missing"]
+    assert_condition(
+        "stage2 sidecar records official DFO-LS provenance env",
+        not missing_official_env,
+        "Manifest {0} missing official DFO-LS env keys: {1}\n{2}".format(
+            sidecar_manifest,
+            ", ".join(missing_official_env),
+            json.dumps(env_overrides, indent=2, sort_keys=True),
+        ),
         failures,
         args.keep_going,
     )

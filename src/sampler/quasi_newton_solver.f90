@@ -1595,6 +1595,24 @@ contains
       end select
    end subroutine apply_qn_official_dfols_preset
 
+   subroutine get_qn_official_dfols_policy(backend_code, npt, maxfun, objfun_has_noise, rhobeg, rhoend, &
+                                           model_abs_tol, model_rel_tol)
+      implicit none
+      integer, intent(out) :: backend_code, npt, maxfun
+      logical, intent(out) :: objfun_has_noise
+      real(dp), intent(out) :: rhobeg, rhoend, model_abs_tol, model_rel_tol
+
+      call load_qn_backend_policy()
+      backend_code = qn_solver_backend
+      npt = qn_official_dfols_npt
+      maxfun = qn_official_dfols_maxfun
+      objfun_has_noise = qn_official_dfols_objfun_has_noise
+      rhobeg = qn_official_dfols_rhobeg
+      rhoend = qn_official_dfols_rhoend
+      model_abs_tol = qn_official_dfols_model_abs_tol
+      model_rel_tol = qn_official_dfols_model_rel_tol
+   end subroutine get_qn_official_dfols_policy
+
    subroutine print_qn_backend_policy_once()
       implicit none
       character(len=32) :: backend_name

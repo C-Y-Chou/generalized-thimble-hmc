@@ -182,6 +182,7 @@ SOURCES_TEST_ODEX_FOUNDATION := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_foundati
 SOURCES_TEST_ODEX_ASSIST_POLICY := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_assist_policy.f90
 SOURCES_TEST_ODEX_RESULT := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_result_contract.f90
 SOURCES_TEST_ODEX_FLOW_JAC := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_flow_jacobian_contract.f90
+SOURCES_TEST_OFFICIAL_DFOLS_PRESET := $(SOURCES_COMMON) $(TEST_DIR)/test_official_dfols_preset_contract.f90
 SOURCES_TEST_TLTM_SWAP := $(SOURCES_COMMON) $(TEST_DIR)/test_tltm_swap_kernel_contract.f90
 OFFICIAL_DFOLS_C_OBJECT := $(OBJ_DIR)/src/external/official_dfols_c_bridge_$(OFFICIAL_DFOLS_C_MODE).o
 
@@ -213,13 +214,16 @@ OBJECTS_TEST_ODEX_RESULT := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCE
                             $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_ODEX_RESULT))) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_TEST_ODEX_FLOW_JAC := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_ODEX_FLOW_JAC))) \
                               $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_ODEX_FLOW_JAC))) $(OFFICIAL_DFOLS_C_OBJECT)
+OBJECTS_TEST_OFFICIAL_DFOLS_PRESET := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_OFFICIAL_DFOLS_PRESET))) \
+                                      $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_OFFICIAL_DFOLS_PRESET))) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_TEST_TLTM_SWAP := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_TLTM_SWAP))) \
                           $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_TLTM_SWAP))) $(OFFICIAL_DFOLS_C_OBJECT)
 
 SOURCES_DEP := $(sort $(SOURCES_STEP2) $(SOURCES_STEP3) $(SOURCES_STEP9) $(SOURCES_BTN_RESIDUAL) \
                 $(SOURCES_STEP10) $(SOURCES_TEST1) $(SOURCES_TEST2) $(SOURCES_TEST_ODEX) \
                 $(SOURCES_TEST_ODEX_FOUNDATION) $(SOURCES_TEST_ODEX_ASSIST_POLICY) \
-                $(SOURCES_TEST_ODEX_RESULT) $(SOURCES_TEST_ODEX_FLOW_JAC) $(SOURCES_TEST_TLTM_SWAP))
+                $(SOURCES_TEST_ODEX_RESULT) $(SOURCES_TEST_ODEX_FLOW_JAC) \
+                $(SOURCES_TEST_OFFICIAL_DFOLS_PRESET) $(SOURCES_TEST_TLTM_SWAP))
 
 $(DEP_OUT): $(SOURCES_DEP) $(DEP_SCRIPT) | $(MOD_DIR)
 	$(PYTHON) $(DEP_SCRIPT) --root .. --obj-dir $(OBJ_DIR) > $@
@@ -237,7 +241,7 @@ BINARIES     = generate_markov_chain evaluate_expectations \
                evaluate_btn_residual_case \
                test_program test_program2 test_odex_solver test_odex_foundation_contract \
                test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract \
-               test_tltm_swap_kernel_contract
+               test_official_dfols_preset_contract test_tltm_swap_kernel_contract
 EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 
 ###############################################################################
@@ -246,7 +250,7 @@ EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 .DEFAULT_GOAL := all
 override FFLAGS := $(FFLAGS_OPT) $(FFLAGS_INC)
 
-.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract evaluate_btn_residual_case test_tltm_swap_kernel_contract modernization_guardrails \
+.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_official_dfols_preset_contract evaluate_btn_residual_case test_tltm_swap_kernel_contract modernization_guardrails \
         test1_fb_on test1_fb_off test2_fb_on test2_fb_off test_fb_matrix \
         prepare_outputs clean_outputs clean veryclean
 all: regen_model_derivatives $(EXECUTABLES)
@@ -309,6 +313,9 @@ $(BIN_DIR)/test_odex_result_contract: $(OBJECTS_TEST_ODEX_RESULT) | $(BIN_DIR)
 $(BIN_DIR)/test_odex_flow_jacobian_contract: $(OBJECTS_TEST_ODEX_FLOW_JAC) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
+$(BIN_DIR)/test_official_dfols_preset_contract: $(OBJECTS_TEST_OFFICIAL_DFOLS_PRESET) | $(BIN_DIR)
+	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+
 $(BIN_DIR)/test_tltm_swap_kernel_contract: $(OBJECTS_TEST_TLTM_SWAP) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
@@ -348,6 +355,7 @@ help:
 	@echo "  make test_odex_assist_policy - run ODEX assist on/off policy gate (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_odex_result_contract - run ODEX result/workspace/status contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_odex_flow_jacobian_contract - run ODEX flow/Jacobian deterministic contract test (log -> $(OUT_LOG_DIR))"
+	@echo "  make test_official_dfols_preset_contract - run official DFO-LS backend/preset policy contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make evaluate_btn_residual_case - build offline BTN residual bridge for external DFO-LS comparison"
 	@echo "  make test_tltm_swap_kernel_contract - run TLTM swap-kernel contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make modernization_guardrails - run M4 local compile/build/audit/smoke guardrails"
@@ -476,6 +484,9 @@ test_odex_result_contract: $(BIN_DIR)/test_odex_result_contract prepare_outputs
 
 test_odex_flow_jacobian_contract: $(BIN_DIR)/test_odex_flow_jacobian_contract prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_odex_flow_jacobian_contract 2>&1 | tee $(OUT_LOG_DIR)/test_odex_flow_jacobian_contract.log
+
+test_official_dfols_preset_contract: $(BIN_DIR)/test_official_dfols_preset_contract prepare_outputs
+	@set -o pipefail; $(BIN_DIR)/test_official_dfols_preset_contract 2>&1 | tee $(OUT_LOG_DIR)/test_official_dfols_preset_contract.log
 
 test_tltm_swap_kernel_contract: $(BIN_DIR)/test_tltm_swap_kernel_contract prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_tltm_swap_kernel_contract 2>&1 | tee $(OUT_LOG_DIR)/test_tltm_swap_kernel_contract.log
