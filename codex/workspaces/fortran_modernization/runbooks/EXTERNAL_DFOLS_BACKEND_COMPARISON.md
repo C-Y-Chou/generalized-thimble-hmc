@@ -210,6 +210,27 @@ Interpretation:
 - Official DFO-LS has a heavier successful-attempt tail: several in-house-converged attempts reach `nf=250` while still returning residual `O(1e-15)`.
 - The cost proxy is residual-call based. It does not include Python/subprocess overhead, which is intentionally excluded from production feasibility because the subprocess bridge is an offline comparison tool.
 
+## PBS Backend Gate Smoke
+
+Tracked scaffold:
+
+- Config: `codex/workspaces/fortran_modernization/tasks/config/official_dfols_backend_gate_1seed_500cycle_t035.json`
+- PBS: `codex/workspaces/fortran_modernization/tasks/pbs/official_dfols_backend_gate_20260511.pbs`
+
+Purpose:
+
+- Generate representative QN-entry attempts from a 1-seed, 500-cycle
+  `fb_norefine` Stage3-style smoke at `t=0.35`, `L=2`, `nstep=20`.
+- Replay captured attempts through official `DFO-LS==1.6.5` using the tuned
+  preset.
+- Fail the test if no QN attempts are captured, if official replay misses any
+  captured attempt, if the float64 contract fails, or if an attempt that
+  converged in the in-house solver fails the official TLTM residual gate.
+
+This PBS gate remains an offline replacement test. It does not make official
+DFO-LS the production default and it does not introduce per-residual subprocess
+calls into the live HMC loop.
+
 ## Replacement Decision Gate
 
 Algorithmic readiness:

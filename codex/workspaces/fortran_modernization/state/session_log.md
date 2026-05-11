@@ -470,3 +470,10 @@
 - Recorded official DFO-LS `DFO-LS==1.6.5` as GPL-3.0-or-later and the planned production solver backend after behavior gates pass.
 - Checked Tapenade AD as part of the toolchain: local usage is external CLI/source-transformation codegen through `GEN_BACKEND=st_tapenade`; official Tapenade distribution license checked on 2026-05-11 is MIT License, Copyright INRIA.
 - Tapenade does not drive the GPL decision, but releases must record Tapenade version/generation command and inspect generated Fortran for retained notices, helper routines, or runtime dependencies.
+
+## 2026-05-11 JST - Official DFO-LS backend gate PBS scaffold
+- Added `codex/workspaces/fortran_modernization/tasks/config/official_dfols_backend_gate_1seed_500cycle_t035.json`.
+- Added `codex/workspaces/fortran_modernization/tasks/pbs/official_dfols_backend_gate_20260511.pbs`.
+- Gate shape: build Stage2/eval/BTN residual bridge, run a 1-seed 500-cycle `fb_norefine` t=0.35 Stage3-style smoke with `QN_ATTEMPT_CAPTURE_DIR`, then replay captured attempts through official `DFO-LS==1.6.5` tuned preset.
+- Gate failure criteria: no captured QN attempts, missing official replay rows, float64 contract failure, or any in-house-converged captured attempt failing the official TLTM residual gate.
+- This is an offline backend replacement validation gate. It does not change the production HMC/QN path.

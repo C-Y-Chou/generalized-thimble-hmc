@@ -115,6 +115,10 @@ Latest behavior-neutral infrastructure cleanup:
   - Replacement-gate cost proxy: in-house-converged attempts have in-house residual-call median/mean/p90/max `46/50.6/72/92`; official candidate `nf` is `40/65.4/127/250`.
   - Final gate status: algorithmically viable as a backend candidate, but direct Python subprocess production replacement is rejected. The GPL-compatible distribution decision is resolved in favor of GPL-3.0-or-later; full replacement remains held pending runtime architecture and behavior-preservation gates.
   - License/toolchain policy added: root `LICENSE` carries GPL v3 text; root `LICENSE_POLICY.md` states GPL-3.0-or-later; root `THIRD_PARTY_NOTICES.md` tracks DFO-LS and Tapenade; Tapenade is an external MIT-licensed code-generation tool whose generated-source provenance must be recorded.
+  - PBS validation scaffold added:
+    - `tasks/config/official_dfols_backend_gate_1seed_500cycle_t035.json`
+    - `tasks/pbs/official_dfols_backend_gate_20260511.pbs`
+    - The gate generates representative QN-entry attempts from a 1-seed, 500-cycle `fb_norefine` t=0.35 Stage3-style smoke, replays them through official `DFO-LS==1.6.5` with the tuned preset, and fails if float64 plumbing breaks or any in-house-converged attempt regresses under the official residual gate.
   - This remains offline backend-comparison tooling and does not alter the production HMC/QN path. Failure-only replay is not considered sufficient evidence for solver replacement.
 
 Next expected modernization area after this slice:
