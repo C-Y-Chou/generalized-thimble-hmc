@@ -67,13 +67,21 @@ Top-level solver route:
 
 Residual definitions:
 
-- `evaluate_constraint_residual`: standard inverse-flow residual. It forms a proposed complex point from `z + del_z + Jl`, then calls `flowzr(xt, residual_z_trial, ierr)`. The residual vector is `[aimag(flowzr_result); xi_lambda_part]` in current code form.
+- `evaluate_constraint_residual`: canonical p28 BTN/backflow rescue residual after standard Newton failure, superseding earlier wording that treated p28 as a standard `(u, lambda)` residual. It forms `ztrial = z + del_z - J*(a+i*b)` using paper variables `xi(1:n)=b`, `xi(n+1:2n)=a`, calls `flowzr(xt, ztrial, ierr)`, and solves the project-specific residual `[aimag(flowzr(ztrial)); a]`.
 - The post-refine Newton-loss residual was removed with the post-refine route.
 
 DFO/solver machinery:
 
 - `run_dfo_ls_attempt`: trust-region least-squares path with finite-difference/model Jacobian construction, Levenberg-style regularization, trust radius update, escape/stagnation logic, and trace recording.
+- This is an in-house DFO-LS-style solver layer around the BTN residual, not an exact implementation of the external DFO-LS package. The DFO-GN/DFO-LS papers justify the least-squares/trust-region solver-mechanism layer, while `new_algorithm__Copy_.pdf` defines the projection residual.
 - Legacy DFO-GN/paper and Broyden/line-search machinery has been deleted from active source.
+- External DFO-LS comparison bridge added on 2026-05-11:
+  - `src/apps/evaluate_btn_residual_case.f90`
+  - `scripts/run_external_dfols_btn_compare.py`
+  - `runbooks/EXTERNAL_DFOLS_BACKEND_COMPARISON.md`
+- The external bridge is offline comparison only. It does not replace the production HMC/QN path.
+- Critical Jacobian boundary: the code's base flow Jacobian is not the BTN residual/loss Jacobian. It may be used for current seed construction and residual geometry, but must not be supplied to DFO-LS as a loss Jacobian. Official DFO-LS must receive only a double-precision residual callback.
+- Local package probe confirms `DFO-LS==1.6.5` accepts/passes `np.float64` objective inputs and returns `np.float64` solution, residual, and package-estimated Jacobian arrays.
 
 Policy and diagnostics mixed in:
 
@@ -123,6 +131,8 @@ Blocked until Stage3_4 completion or explicit approval:
 - Production route census: probe/full/near/far/reverse-gate counters before and after any refactor.
 - Solver coverage: at least one DFO-LS normal case, one priority/near/far case if still present, and one watchdog/assist budget case if available.
 - Accepted proposal correctness: QN-used proposal must pass reversibility and local volume checks already noted in `codex/knowledge/FULL_PROGRAM_MAP_CHECK.md`.
+- DFO-LS-style mechanism audit: either document current in-house finite-difference/trust-region/LM implementation as an intentional DFO-LS-style solver layer, or explicitly decide to replace it with closer DFO-LS package behavior. Do not change this layer without fixed-seed route-census and BTN contract replay.
+- External DFO-LS comparison baseline: failure-capture replay is only a residual-oracle/hard-tail smoke test. Solver-replacement evidence requires representative QN-attempt capture before outcome is known, including successful and failed attempts, then comparison of success rate within budget, final residual norms, `flowzr` imaginary norms, solver flags, evaluation budgets, and route/counter impact.
 
 ## Open Questions For Confirmation
 

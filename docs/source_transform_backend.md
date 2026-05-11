@@ -24,6 +24,17 @@ Adapter script:
 
 - `scripts/st_backends/tapenade_codegen.py`
 
+License/provenance status:
+
+- Tapenade is an external source-transformation/code-generation tool.
+- The official Tapenade distribution license checked on 2026-05-11 is MIT
+  License, Copyright INRIA.
+- TLTM does not vendor Tapenade. If a release includes Tapenade-generated
+  Fortran, record the Tapenade version and generation command, then inspect the
+  generated file for retained Tapenade notices, helper routines, or runtime
+  dependencies.
+- Keep Tapenade listed in repository-root `THIRD_PARTY_NOTICES.md`.
+
 ### Prerequisites
 
 1. Install Tapenade command-line tool.

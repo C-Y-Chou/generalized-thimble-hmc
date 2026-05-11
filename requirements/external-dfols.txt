@@ -1,0 +1,4 @@
+# Official DFO-LS Python package used by scripts/run_external_dfols_btn_compare.py.
+# Verified locally to pass np.float64 objective inputs and return np.float64 x/resid/jacobian.
+# License: GPL-3.0-or-later. See ../THIRD_PARTY_NOTICES.md.
+DFO-LS==1.6.5

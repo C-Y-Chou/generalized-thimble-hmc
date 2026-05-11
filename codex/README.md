@@ -37,6 +37,8 @@ Do not read long runbooks by default. Use `runbooks/READ_POLICY.md` and `indexes
 - Current phase: M6 modernization reference-dataset product-readiness planning after M5 direct-env/config ownership consolidation.
 - Read next:
   - `runbooks/STATUS.md`
+  - `runbooks/OFFICIAL_DFOLS_LICENSE_REPLACEMENT_PLAN.md`
+  - `runbooks/EXTERNAL_DFOLS_BACKEND_COMPARISON.md`
   - `runbooks/CLUSTER02_SCHEDULING_AGENT.md`
   - `runbooks/PARALLEL_WORKSTREAM_BOUNDARY_AND_REFERENCE_DATASET_POLICY.md`
   - `runbooks/M6_REFERENCE_DATASET_DESIGN_SPEC.md`
@@ -60,6 +62,7 @@ Do not read long runbooks by default. Use `runbooks/READ_POLICY.md` and `indexes
   - `python3 workspaces/fortran_modernization/tasks/scripts/cluster02_scheduler_agent.py snapshot`
 - `tltm_production_comparison` owns the `nofb` vs `withfb` production-comparison workflow. Legacy alias: `stage3_4`.
 - Modernization has accepted M6 R1-R4 reference baselines and may continue behavior-preserving refactors through `fortran_modernization`.
+- Official DFO-LS replacement uses GPL-3.0-or-later product direction; Tapenade AD is tracked as an external MIT-licensed code-generation tool.
 - Production-comparison outputs before final modernization convergence are provisional-discussion datasets; final publication datasets should be regenerated after wrapper/schema/naming/counter conventions settle.
 
 ## Current Production Comparison Entry

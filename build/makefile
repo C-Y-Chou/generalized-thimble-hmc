@@ -47,6 +47,12 @@ endif
 OMP         ?= 0
 ARCH_FLAG_INTEL ?= -xCORE-AVX2
 ARCH_FLAG_GNU   ?= -march=native
+UNAME_S     := $(shell uname -s 2>/dev/null || echo unknown)
+ifeq ($(UNAME_S),Darwin)
+NOEXECSTACK_LDFLAG :=
+else
+NOEXECSTACK_LDFLAG := -Wl,-z,noexecstack
+endif
 
 ifeq ($(FC_FAMILY),intel)
 ARCH_FLAG   = $(ARCH_FLAG_INTEL)
@@ -67,8 +73,8 @@ FFLAGS_OPT  = -O3 -ipo $(ARCH_FLAG) $(THREAD_FLAG) $(OPT_COMMON) \
 FFLAGS_FAST = -O2 -g -traceback -debug minimal $(ARCH_FLAG) $(THREAD_FLAG) $(OPT_COMMON) \
               -fp-model source -heap-arrays 128
 MOD_FLAG    = -module $(MOD_DIR)
-LDFLAGS_OPT = $(MKL_FLAG) $(THREAD_FLAG) $(ARCH_FLAG) -ipo -Wl,-z,noexecstack
-LDFLAGS_FAST = $(MKL_FLAG) $(THREAD_FLAG) $(ARCH_FLAG) -Wl,-z,noexecstack
+LDFLAGS_OPT = $(MKL_FLAG) $(THREAD_FLAG) $(ARCH_FLAG) -ipo $(NOEXECSTACK_LDFLAG)
+LDFLAGS_FAST = $(MKL_FLAG) $(THREAD_FLAG) $(ARCH_FLAG) $(NOEXECSTACK_LDFLAG)
 LDFLAGS     ?= $(LDFLAGS_OPT)
 else
 ARCH_FLAG   = $(ARCH_FLAG_GNU)
@@ -84,7 +90,7 @@ FFLAGS_OPT  = -O3 $(ARCH_FLAG) $(THREAD_FLAG) $(OPT_COMMON)
 FFLAGS_FAST = -O2 -g $(ARCH_FLAG) $(THREAD_FLAG) $(OPT_COMMON)
 MOD_FLAG    = -J$(MOD_DIR)
 GNU_LINALG_LIBS ?=
-LDFLAGS_OPT = $(THREAD_FLAG) $(GNU_LINALG_LIBS) -Wl,-z,noexecstack
+LDFLAGS_OPT = $(THREAD_FLAG) $(GNU_LINALG_LIBS) $(NOEXECSTACK_LDFLAG)
 LDFLAGS_FAST = $(LDFLAGS_OPT)
 LDFLAGS     ?= $(LDFLAGS_OPT)
 endif
@@ -128,6 +134,7 @@ APP_CHAIN    = apps/generate_markov_chain
 APP_EXPECT   = apps/evaluate_expectations
 APP_TLTM_STAGE1 = apps/run_tltm_stage1
 APP_TLTM_STAGE2 = apps/run_tltm_stage2
+APP_BTN_RESIDUAL = apps/evaluate_btn_residual_case
 
 COMMON_SRC   = $(CORE_SRC) $(CONFIG_SRC) $(PHYSICS_SRC) $(SAMPLER_SRC)
 
@@ -141,6 +148,7 @@ SOURCES_STEP2  := $(SOURCES_COMMON) $(call mk_src,$(APP_CHAIN))
 SOURCES_STEP3  := $(SOURCES_COMMON) $(call mk_src,$(APP_EXPECT))
 SOURCES_STEP9  := $(SOURCES_COMMON) $(call mk_src,$(APP_TLTM_STAGE1))
 SOURCES_STEP10 := $(SOURCES_COMMON) $(call mk_src,$(APP_TLTM_STAGE2))
+SOURCES_BTN_RESIDUAL := $(SOURCES_COMMON) $(call mk_src,$(APP_BTN_RESIDUAL))
 SOURCES_TEST1  := $(SOURCES_COMMON) $(TEST_DIR)/test_hamiltonian_conservation.f90
 SOURCES_TEST2  := $(SOURCES_COMMON) $(TEST_DIR)/test_action_derivatives.f90
 SOURCES_TEST_ODEX := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_solver.f90
@@ -159,6 +167,7 @@ OBJECTS_STEP2 := $(call src_to_obj,$(SOURCES_STEP2))
 OBJECTS_STEP3 := $(call src_to_obj,$(SOURCES_STEP3))
 OBJECTS_STEP9 := $(call src_to_obj,$(SOURCES_STEP9))
 OBJECTS_STEP10 := $(call src_to_obj,$(SOURCES_STEP10))
+OBJECTS_BTN_RESIDUAL := $(call src_to_obj,$(SOURCES_BTN_RESIDUAL))
 OBJECTS_TEST1 := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST1))) \
                  $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST1)))
 OBJECTS_TEST2 := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST2))) \
@@ -168,7 +177,7 @@ OBJECTS_TEST_ODEX := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_
 OBJECTS_TEST_TLTM_SWAP := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_TLTM_SWAP))) \
                           $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_TLTM_SWAP)))
 
-SOURCES_DEP := $(sort $(SOURCES_STEP2) $(SOURCES_STEP3) $(SOURCES_STEP9) \
+SOURCES_DEP := $(sort $(SOURCES_STEP2) $(SOURCES_STEP3) $(SOURCES_STEP9) $(SOURCES_BTN_RESIDUAL) \
                 $(SOURCES_STEP10) $(SOURCES_TEST1) $(SOURCES_TEST2) $(SOURCES_TEST_ODEX) $(SOURCES_TEST_TLTM_SWAP))
 
 $(DEP_OUT): $(SOURCES_DEP) $(DEP_SCRIPT) | $(MOD_DIR)
@@ -184,6 +193,7 @@ endif
 # executables
 BINARIES     = generate_markov_chain evaluate_expectations \
                run_tltm_stage1 run_tltm_stage2 \
+               evaluate_btn_residual_case \
                test_program test_program2 test_odex_solver test_tltm_swap_kernel_contract
 EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 
@@ -193,7 +203,7 @@ EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 .DEFAULT_GOAL := all
 override FFLAGS := $(FFLAGS_OPT) $(FFLAGS_INC)
 
-.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_tltm_swap_kernel_contract modernization_guardrails \
+.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver evaluate_btn_residual_case test_tltm_swap_kernel_contract modernization_guardrails \
         test1_fb_on test1_fb_off test2_fb_on test2_fb_off test_fb_matrix \
         prepare_outputs clean_outputs clean veryclean
 all: regen_model_derivatives $(EXECUTABLES)
@@ -222,6 +232,9 @@ $(BIN_DIR)/run_tltm_stage1: $(OBJECTS_STEP9) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $^
 
 $(BIN_DIR)/run_tltm_stage2: $(OBJECTS_STEP10) | $(BIN_DIR)
+	$(FC) $(LDFLAGS) -o $@ $^
+
+$(BIN_DIR)/evaluate_btn_residual_case: $(OBJECTS_BTN_RESIDUAL) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $^
 
 $(BIN_DIR)/test_program: $(OBJECTS_TEST1) | $(BIN_DIR)
@@ -266,6 +279,7 @@ help:
 	@echo "  make test1    - run Hamiltonian conservation test (artifacts -> $(OUT_TEST1_DIR))"
 	@echo "  make test2    - run action derivative test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_odex_solver - run analytic ODEX/status smoke test (log -> $(OUT_LOG_DIR))"
+	@echo "  make evaluate_btn_residual_case - build offline BTN residual bridge for external DFO-LS comparison"
 	@echo "  make test_tltm_swap_kernel_contract - run TLTM swap-kernel contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make modernization_guardrails - run M4 local compile/build/audit/smoke guardrails"
 	@echo "  make test1_fb_on / test1_fb_off - run test1 with fallback forced on/off"
@@ -283,6 +297,9 @@ chain: $(BIN_DIR)/generate_markov_chain prepare_outputs
 
 expect: $(BIN_DIR)/evaluate_expectations prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/evaluate_expectations 2>&1 | tee $(OUT_LOG_DIR)/evaluate_expectations.log
+
+evaluate_btn_residual_case: $(BIN_DIR)/evaluate_btn_residual_case
+	@echo "[DONE] Built $(BIN_DIR)/evaluate_btn_residual_case"
 
 TLTM_STAGE1_NUM_REPLICAS ?= 2
 TLTM_STAGE1_CYCLES ?= 20

@@ -35,7 +35,7 @@ Interpretation:
 | W1 | Reference-backed algorithm audit | done | TLTM/HMC, GT-HMC Newton/RATTLE/HMC, DFO-LS/DFO-GN, ODEX, and user QN formulation references collected; five core audit notes written | revisit only when a new algorithm mode or paper formulation is introduced | reference changes |
 | W2 | Canonical numerical route and legacy deletion | done for current route | canonical p28 route selected; non-p28 QN, Broyden/line-search, global continuation/restart, post-refine, Radau/JFNK removed; strict final-flow policy recorded | rename legacy compatibility labels such as `fb_norefine` and `final_resort` only under versioned schema | schema/wrapper gate |
 | W3 | Behavior baselines and reference packages | done for M6 gate | M6 R1-R4 accepted; package registry rows recorded; readback report exists | formal read-only comparison tooling and future baseline expansion as needed | comparison tooling gate |
-| W4 | Guardrails, tests, and benchmarks | partial | `make -C build modernization_guardrails`, ODEX/swap tests, protocol audit, Stage3 sidecar smoke, module dependency build support | official reference comparison harness, benchmark baselines, CI-like fast/slow suite split | after accepted reference package |
+| W4 | Guardrails, tests, and benchmarks | partial | `make -C build modernization_guardrails`, ODEX/swap tests, protocol audit, Stage3 sidecar smoke, module dependency build support, offline external DFO-LS BTN residual comparison bridge | official reference comparison harness, benchmark baselines, CI-like fast/slow suite split, ODEX stability-control/completeness tests or documented reduced-ODEX scope, captured-case DFO-LS comparison readback | after accepted reference package |
 | W5 | Config and provenance governance | partial | key-value config only; direct env reads centralized in `runtime_env_mod`; sidecar manifest/protocol started | replace `param_mod` legacy global mirror, define product config schema, strengthen manifest/provenance contract | reference package or explicit narrow baseline |
 | W6 | State/status/information propagation | partial | `H==0` sentinel replaced in first slice; proposal status surface added; state-propagation audit/refactor docs exist | typed result/status objects across flow, solver, RATTLE, HMC, reverse gate, Metropolis; eliminate ambiguous logical/error plumbing | reference package |
 | W7 | Diagnostics/counter/accounting taxonomy | partial | known issue recorded; reverse-gate replay/counter suppression preserved; current output compatibility protected | typed diagnostics context separating forward proposal, reverse replay, solver assist, debug probe, rejected stay-put, accepted event | schema/versioning gate |
@@ -44,7 +44,7 @@ Interpretation:
 | W10 | I/O, output schema, and wrapper/product interface | partial | Stage2 v1alpha sidecars, Stage3 propagation, protocol audit, M6 package design docs | unified TLTM runner, versioned public schema, `withfb`/algorithm-id naming, Stage script compatibility layer/deprecation | wrapper/schema decision |
 | W11 | Repo-wide code hygiene and Fortran cleanup | partial | explicit `only:` imports for `param_mod`/`utils`, duplicated env helpers removed, stale root Fortran artifacts deleted, build deps improved | long subroutine decomposition, naming cleanup, duplicate helper cleanup, allocation/workspace style cleanup, comments/equation notes | affected baseline row |
 | W12 | Scripts, PBS orchestration, and cluster operations | partial | cluster02 scheduler agent, dynamic M6 launcher, probe-first queue optimization, shared-cluster model, soft-decoupled production-comparison workspace | mature production/reference launch interface and future archive cleanup | after explicit run/readback scope |
-| W13 | Documentation, onboarding, and publishable release | planned | many runbooks and reference docs exist; README pointers improved | coherent user/dev docs, examples, release checklist, citation/reproducibility package, reviewer-facing workflow | after wrapper/schema stabilization |
+| W13 | Documentation, onboarding, and publishable release | partial | many runbooks and reference docs exist; README pointers improved; GPL-3.0-or-later root license and third-party notices started for official DFO-LS/Tapenade toolchain | coherent user/dev docs, examples, release checklist, citation/reproducibility package, reviewer-facing workflow, complete third-party dependency lock/notices | after wrapper/schema stabilization |
 
 ## What Is Already Done
 
@@ -58,6 +58,8 @@ These should not be reopened unless new evidence appears:
 - Current flow policy is ODEX primary with solver-internal residual assist only; final proposals use strict final `flow(...)`.
 - M3 Stage protocol/schema propagation is complete for the current Stage workflow.
 - M4 local guardrail runner exists.
+- External official-DFO-LS comparison bridge exists for captured BTN residual cases, with double-precision callback checks.
+- GPL-compatible product direction is selected for official DFO-LS production replacement; Tapenade AD is recorded as an external MIT-licensed code-generation tool.
 - M5 Lane A direct-env/config ownership slice is complete.
 - Cluster02 scheduling is no longer ad hoc; it uses persistent priors plus fresh live state/probes.
 

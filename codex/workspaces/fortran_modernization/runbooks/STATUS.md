@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-10 JST
+Updated: 2026-05-11 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -22,11 +22,13 @@ Updated: 2026-05-10 JST
   - `runbooks/PLANNING_DISCUSSION_BRIEF.md`
 - Current flow policy is ODEX primary integration with solver-internal ODE assist for NT/QN residual evaluation and strict final proposal/live-state flow.
 - Current p28 route is Newton -> p28 QN BTN/backflow rescue residual -> reverse gate -> Metropolis, without post-refine or non-p28 QN families.
+- ODEX completeness follow-up is explicitly tracked: full-Hairer-style explicit stability checks are not currently a separate implemented control surface, so a future ODEX pass must either implement an equivalent stability guard or document the endpoint solver as a reduced ODEX-like integrator with validation evidence.
 
 ## Current architecture understanding
 - `solve_flow.f90` is flow mapping plus ODEX-like integration plus solver-internal residual-assist policy plus diagnostics.
 - `hmc_integrator_core.f90` is the central proposal hub: Newton, canonical p28 quasi fallback, reverse gate, flow/Jacobian update, momentum projection, and solver statistics.
 - `quasi_newton_solver.f90` now carries the retained p28 DFO-LS-style residual/solver machinery plus traces, solver-internal assist/watchdog accounting, and route counters; legacy DFO-GN/Broyden/global-continuation/post-refine source paths have been removed.
+- DFO-LS completeness follow-up is explicit: current source is an in-house DFO-LS-style finite-difference/trust-region/LM solver layer around the project-specific BTN residual, not an exact external DFO-LS package implementation. An offline official-DFO-LS bridge now exists for residual-oracle and representative QN-attempt replay; user selected a GPL-compatible product direction, so production replacement now remains gated by residual-gated backend design, broader representative comparison, fixed-seed route-census gates, and a runtime-boundary design.
 - `tltm_stage2_driver.f90` owns production orchestration and output/counter contracts used by Stage3_4 interpretation.
 - `runtime_env_mod.f90` centralizes Stage1/Stage2 runtime environment parser helpers while preserving caller defaults and existing env names.
 
@@ -101,6 +103,19 @@ Latest behavior-neutral infrastructure cleanup:
 - `utils` consumers now use explicit `only:` imports; no active source/test file has a bare `use utils`.
 - Active source/test imports are explicit; `model_generated.f90` now receives its `model_tape_ad` `only:` list from `scripts/generate_model_generated.py`.
 - Generated model headers now use repo-relative source paths instead of machine-local absolute paths.
+- External DFO-LS comparison bridge added:
+  - `src/apps/evaluate_btn_residual_case.f90` evaluates retained BTN residuals from the legacy failure-capture file shape.
+  - `scripts/run_external_dfols_btn_compare.py` calls official `DFO-LS==1.6.5` through a residual-only callback.
+  - `requirements/external-dfols.txt` pins the tested package.
+  - Local dtype probe confirmed objective inputs and result arrays are `np.float64`; the bridge refuses non-double residual plumbing.
+  - Opt-in `QN_ATTEMPT_CAPTURE_DIR` now records representative QN-entry attempts with prefix `qn_attempt`; when unset, production solver behavior remains unchanged.
+  - A local 20-attempt probe found official DFO-LS preserves double precision but package success flags are not enough: TLTM must apply its own residual gate. Best tested external setting so far was `maxfun=112`, `model.abs_tol=1e-26`, `rhobeg=0.25`, giving 17/20 residuals `<=1e-6` and 13/20 `<=1e-12`.
+  - Follow-up tuning found an official-package-only candidate: `objfun_has_noise=True`, `rhobeg=0.05`, `rhoend=1e-16`, `model.abs_tol=1e-30`, `model.rel_tol=0`, `maxfun=250`, with TLTM residual gate `<=1e-13`.
+  - On a 69-attempt representative probe, the candidate solved 61/61 in-house-converged attempts to residual `<=1e-13` and solved 5/8 in-house-nonconverged attempts; the remaining 3 failures were already nonconverged in the in-house solver.
+  - Replacement-gate cost proxy: in-house-converged attempts have in-house residual-call median/mean/p90/max `46/50.6/72/92`; official candidate `nf` is `40/65.4/127/250`.
+  - Final gate status: algorithmically viable as a backend candidate, but direct Python subprocess production replacement is rejected. The GPL-compatible distribution decision is resolved in favor of GPL-3.0-or-later; full replacement remains held pending runtime architecture and behavior-preservation gates.
+  - License/toolchain policy added: root `LICENSE` carries GPL v3 text; root `LICENSE_POLICY.md` states GPL-3.0-or-later; root `THIRD_PARTY_NOTICES.md` tracks DFO-LS and Tapenade; Tapenade is an external MIT-licensed code-generation tool whose generated-source provenance must be recorded.
+  - This remains offline backend-comparison tooling and does not alter the production HMC/QN path. Failure-only replay is not considered sufficient evidence for solver replacement.
 
 Next expected modernization area after this slice:
 

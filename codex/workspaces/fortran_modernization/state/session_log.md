@@ -419,3 +419,54 @@
 - No production jobs were submitted; dataset regeneration remains paused until explicit user instruction.
 - Updated repo entry docs (`docs/readme.md`, `codex/README.md`) and the outer `/Users/ccy/Documents/New project/README.md` to point new sessions at the M6 gate and paused-regeneration status.
 - Updated `FORTRAN_MODERNIZATION_MASTER_PLAN.md` and `M3_TO_M6_BEFORE_DATASET_PLAN.md` so the current position is M6 review before dataset regeneration.
+
+## 2026-05-11 JST - External official DFO-LS comparison bridge
+- User decided to externalize the DFO-LS solver layer rather than treating the in-house `run_dfo_ls_attempt` as the final package-level implementation.
+- Added `src/apps/evaluate_btn_residual_case.f90`, an offline bridge that reads `constraint_solver_fail_{z0,delz,x0}.dat`, recomputes the base flow/Jacobian from captured `x0`, constructs the current BTN seed, and evaluates the retained BTN residual.
+- Added `scripts/run_external_dfols_btn_compare.py`, which calls official `DFO-LS==1.6.5` through an `objfun(xi) -> residual_vector` callback and writes per-case CSV comparison rows.
+- Added `requirements/external-dfols.txt` and `runbooks/EXTERNAL_DFOLS_BACKEND_COMPARISON.md`.
+- Hard boundary recorded: the base flow Jacobian is not the BTN loss/residual Jacobian. External DFO-LS receives no TLTM Jacobian; it builds derivative-free models internally.
+- Double precision check passed in an isolated venv: DFO-LS objective inputs, `soln.x`, `soln.resid`, and `soln.jacobian` are all `np.float64`.
+- Makefile link flags now omit Linux `noexecstack` on macOS/Darwin while preserving it elsewhere, allowing the bridge to build locally without `LDFLAGS=` overrides.
+- Verification: `python3 -m py_compile scripts/run_external_dfols_btn_compare.py`; `make -C build evaluate_btn_residual_case`; synthetic stream-capture smoke for bridge seed/residual; one-case official DFO-LS smoke wrote CSV with `float64_contract=1`.
+- Corrected reference-package readback check: materialized M6 summary/reference packages are in remote worktree `/home/cychou/TLTM_worktrees/qn_error_handling_validation/output/reference/fortran_modernization/m6` at source commit `a1028ad`.
+- That M6 root contains R1-R4 `no_fb` and `fb_norefine` summary/per-seed tables, but no `constraint_solver_fail_*` capture files. Aggregate behavior comparison can use the existing package tables; official DFO-LS residual replay still requires a separate M6-aligned capture bundle.
+- User corrected the comparison design: failure-only replay has limited value and should not be treated as meaningful solver-replacement evidence.
+- Historical failure-capture smoke only: first 3 failures from `/Users/ccy/Documents/local_repo/build/rehydrate_eval/s20l2_t035_2M_p02_withfb/chain_003/output` preserve double precision, but this is only residual-oracle/hard-tail evidence. With `maxfun=28`, external final residuals stayed around `2.4e-2` to `3.9e-2`, while historical in-house trace best residuals were around `4e-9` to `1e-7`.
+- Correct replacement-comparison design now requires representative QN-attempt capture before the solver outcome is known, including successful and failed attempts across initial residual scales, then attempt-level comparison before any chain-level M6 behavior comparison.
+
+## 2026-05-11 JST - Representative QN-attempt DFO-LS probe
+- Added opt-in `QN_ATTEMPT_CAPTURE_DIR` instrumentation to `quasi_newton_solver.f90`. When unset, production solver behavior remains unchanged; when set, it writes `qn_attempt_{z0,delz,x0,xi0}.dat` plus `qn_attempt_meta.csv` for representative solver-entry attempts before the outcome is known.
+- Updated `evaluate_btn_residual_case` and `run_external_dfols_btn_compare.py` to support capture prefixes; representative bundles use `--capture-prefix qn_attempt --seed-source capture`.
+- Added external DFO-LS controls for `npt`, `model.abs_tol`, `model.rel_tol`, and an independent TLTM-side `residual_success` gate.
+- Local probe generated 20 representative attempts from a 1-seed, 500-cycle `fb_norefine` Stage3-style smoke at `t=0.35`, `L=2`, `nstep=20`; in-house metadata had 17/20 converged and 3/20 non-converged attempts.
+- External `DFO-LS==1.6.5` preserved `float64_contract=1` on all tested settings.
+- Important finding: package default `model.abs_tol=1e-12` is an objective tolerance and stops too early for TLTM residual targets. With `maxfun=28`, no tested attempt reached residual `<=1e-10`.
+- Better but still non-drop-in setting: `maxfun=112`, `model.abs_tol=1e-26`, `rhobeg=0.25` gave 17/20 attempts with final residual `<=1e-6` and 13/20 `<=1e-12`; several package `flag=0` cases still failed the TLTM residual gate.
+- Decision implication: official DFO-LS remains an offline backend candidate only. Production replacement requires a residual-gated wrapper, broader representative comparison, and explicit integration design.
+
+## 2026-05-11 JST - Tuned official DFO-LS candidate
+- User correctly rejected adding external escape/backtracking/best-rescue wrapper logic around official DFO-LS. Tuning scope was restricted to official package options plus a thin TLTM residual callback/dtype/failure/gate boundary.
+- Added `run_external_dfols_btn_compare.py` options `--objfun-has-noise` and repeatable `--dfols-param KEY=VALUE` so official package internals can be tuned reproducibly.
+- Found a viable candidate setting for the retained BTN residual: `maxfun=250`, `objfun_has_noise=True`, `model.abs_tol=1e-30`, `model.rel_tol=0`, `rhobeg=0.05`, `rhoend=1e-16`, and TLTM residual gate `<=1e-13`.
+- On the first 20-attempt probe, the same candidate family passed 20/20 at `maxfun=150`; `maxfun=250` made package flags clean as well, with max residual about `1e-15`.
+- Generated a larger 69-attempt representative probe from a 1-seed, 500-cycle `fb_norefine` Stage3-style smoke. Current in-house metadata: 61/69 attempts converged, 8/69 nonconverged.
+- Candidate official DFO-LS result on 69 attempts: 69/69 double precision, 66/69 residual `<=1e-13`, and 61/61 success on the in-house-converged subset with max residual `1.59e-15`.
+- The three official failures are attempts 33, 64, and 68; all three were already in-house nonconverged. Official-only tuning with larger budget can solve 33 and 64, but tested settings up to `maxfun=1000` did not solve 68.
+- Conclusion: official DFO-LS is usable as an attempt-level backend candidate if configured, but package defaults are not acceptable. Production integration should preserve TLTM residual-gated acceptance and existing outer QN/HMC failure control flow.
+
+## 2026-05-11 JST - Official DFO-LS replacement decision gate
+- Added in-house QN attempt diagnostics to opt-in `QN_ATTEMPT_CAPTURE_DIR` metadata: `residual_eval_count` and `cpu_seconds`.
+- Rebuilt the bridge and regenerated `output/tests/external_dfols_replacement_gate`, producing 69 representative QN attempts with in-house cost metadata.
+- Cost proxy on in-house-converged attempts: in-house residual calls median/mean/p90/max = `46/50.6/72/92`; official candidate `nf` median/mean/p90/max = `40/65.4/127/250`.
+- Interpretation: official DFO-LS is not worse in the typical successful case by residual-call proxy, but has a heavier successful-attempt tail.
+- Product/runtime check at that moment: installed `DFO-LS==1.6.5` is Python source plus NumPy/Pandas/SciPy dependencies and reports license `GPL-3.0-or-later`; TLTM carried an MIT license file under `docs/LICENSE`.
+- Decision gate recorded in `EXTERNAL_DFOLS_BACKEND_COMPARISON.md`: algorithmic backend candidate passes, direct Python subprocess production replacement is rejected, and full production replacement was held pending runtime architecture plus GPL-compatible distribution decision.
+
+## 2026-05-11 JST - License policy and Tapenade AD toolchain
+- User decided preserving MIT is not required for TLTM; TLTM is user-written and unpublished.
+- Added repository-root `LICENSE` with GPL v3 text, plus `LICENSE_POLICY.md` with the project-level GPL-3.0-or-later grant; removed the old MIT-only `docs/LICENSE` file to avoid ambiguous repository license state.
+- Added repository-root `THIRD_PARTY_NOTICES.md`.
+- Recorded official DFO-LS `DFO-LS==1.6.5` as GPL-3.0-or-later and the planned production solver backend after behavior gates pass.
+- Checked Tapenade AD as part of the toolchain: local usage is external CLI/source-transformation codegen through `GEN_BACKEND=st_tapenade`; official Tapenade distribution license checked on 2026-05-11 is MIT License, Copyright INRIA.
+- Tapenade does not drive the GPL decision, but releases must record Tapenade version/generation command and inspect generated Fortran for retained notices, helper routines, or runtime dependencies.

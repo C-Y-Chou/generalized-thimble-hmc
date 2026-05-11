@@ -1,5 +1,5 @@
 module quasi_newton_solver_mod
-   use runtime_env_mod, only: read_string_env
+   use runtime_env_mod, only: parse_int_env, read_string_env
    use utils, only: dp, complex_to_real, real_to_complex
    use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_value, ieee_quiet_nan
@@ -52,6 +52,21 @@ module quasi_newton_solver_mod
    integer, save :: quasi_watchdog_last_used = 0
    integer, save :: quasi_watchdog_last_used_accepted_iter = 0
    integer, save :: quasi_watchdog_hit_total = 0
+   logical, save :: qn_attempt_capture_policy_loaded = .false.
+   logical, save :: qn_attempt_capture_enabled = .false.
+   logical, save :: qn_attempt_capture_files_ready = .false.
+   logical, save :: qn_attempt_capture_write_error = .false.
+   integer, save :: qn_attempt_capture_limit = 100
+   integer, save :: qn_attempt_capture_stride = 1
+   integer, save :: qn_attempt_capture_seen = 0
+   integer, save :: qn_attempt_capture_count = 0
+   integer, save :: qn_attempt_capture_z0_unit = -1
+   integer, save :: qn_attempt_capture_delz_unit = -1
+   integer, save :: qn_attempt_capture_x0_unit = -1
+   integer, save :: qn_attempt_capture_xi0_unit = -1
+   integer, save :: qn_attempt_capture_meta_unit = -1
+   integer(int64), save :: qn_current_attempt_eval_count = 0_int64
+   character(len=512), save :: qn_attempt_capture_dir = ""
 
 contains
 
@@ -245,12 +260,13 @@ contains
       integer :: n, iter_idx, i, solve_try, stagnation_limit, no_improve_count
       integer :: stall_score, escape_try, axis_idx
       real(dp) :: trust_radius, lambda, lambda_trial, step_norm
-      real(dp) :: r_norm, r_trial_norm, best_r_norm, prev_best_r_norm
+      real(dp) :: r_norm, r_trial_norm, initial_r_norm, best_r_norm, prev_best_r_norm
       real(dp) :: f_obj, f_obj_trial, ared, pred, ratio, alpha_ratio
       real(dp) :: prev_r_norm, g_norm, escape_len, escape_len_base, x_norm
+      real(dp) :: attempt_cpu_start, attempt_cpu_seconds
       logical :: eval_error, lin_error, accepted, escaped, escape_accept
 
-      real(dp), allocatable :: x(:), x_trial(:), r(:), r_trial(:)
+      real(dp), allocatable :: x(:), x_trial(:), x_seed(:), r(:), r_trial(:)
       real(dp), allocatable :: Jm(:, :), Hm(:, :), Bm(:, :), g(:), step(:), hs(:)
       real(dp), allocatable :: Jl_trial(:), x_best(:), Jl_best(:)
 
@@ -259,7 +275,7 @@ contains
       x_new = xt
       if (size(x_new) /= size(xt) .or. size(Jl) /= size(del_z)) return
 
-      allocate (x(n), x_trial(n), r(n), r_trial(n), Jm(n, n), Hm(n, n), Bm(n, n), g(n), step(n), hs(n), &
+      allocate (x(n), x_trial(n), x_seed(n), r(n), r_trial(n), Jm(n, n), Hm(n, n), Bm(n, n), g(n), step(n), hs(n), &
                 Jl_trial(n), x_best(n), Jl_best(n))
 
       if (size(x_init) == n) then
@@ -269,25 +285,37 @@ contains
       end if
 
       quasi_trace_iter = 0
+      qn_current_attempt_eval_count = 0_int64
+      call cpu_time(attempt_cpu_start)
+      call count_qn_attempt_eval()
       call f(xt, z, x, r, del_z, eval_error, Jl, jac)
       if (eval_error .or. .not. real_vector_is_finite(r)) then
          x = 0.0_dp
          quasi_trace_iter = 0
+         call count_qn_attempt_eval()
          call f(xt, z, x, r, del_z, eval_error, Jl, jac)
       end if
       if (eval_error .or. .not. real_vector_is_finite(r)) then
          call append_quasi_trace_sample(0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
-         deallocate (x, x_trial, r, r_trial, Jm, Hm, Bm, g, step, hs, Jl_trial, x_best, Jl_best)
+         attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
+         call capture_qn_attempt(xt, z, del_z, x, attempt_idx, max_iter, tol, huge(1.0_dp), huge(1.0_dp), .false., .false., &
+                                 qn_current_attempt_eval_count, attempt_cpu_seconds)
+         deallocate (x, x_trial, x_seed, r, r_trial, Jm, Hm, Bm, g, step, hs, Jl_trial, x_best, Jl_best)
          return
       end if
 
+      x_seed = x
       r_norm = norm2(r)
       if (.not. ieee_is_finite(r_norm)) then
          call append_quasi_trace_sample(0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
-         deallocate (x, x_trial, r, r_trial, Jm, Hm, Bm, g, step, hs, Jl_trial, x_best, Jl_best)
+         attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
+         call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, max_iter, tol, r_norm, huge(1.0_dp), .false., .false., &
+                                 qn_current_attempt_eval_count, attempt_cpu_seconds)
+         deallocate (x, x_trial, x_seed, r, r_trial, Jm, Hm, Bm, g, step, hs, Jl_trial, x_best, Jl_best)
          return
       end if
 
+      initial_r_norm = r_norm
       call append_quasi_trace_sample(0.0_dp, 0, 0, attempt_idx, r_norm, .false., .true.)
       best_r_norm = r_norm
       prev_best_r_norm = best_r_norm
@@ -348,6 +376,7 @@ contains
 
             x_trial = x + step
             quasi_trace_iter = iter_idx
+            call count_qn_attempt_eval()
             call f(xt, z, x_trial, r_trial, del_z, eval_error, Jl_trial, jac)
             if (eval_error .or. .not. real_vector_is_finite(r_trial)) then
                call append_quasi_trace_sample(0.0_dp, iter_idx, 0, attempt_idx, huge(1.0_dp), .false., .false.)
@@ -393,7 +422,7 @@ contains
                if (ieee_is_finite(ratio)) then
                   if (ratio >= eta_expand .and. step_norm >= 0.8_dp*trust_radius) then
                      trust_radius = min(trust_radius_max, 1.8_dp*trust_radius)
-                  elseif (ratio < eta_shrink) then
+                  else if (ratio < eta_shrink) then
                      trust_radius = max(trust_radius_min, 0.5_dp*trust_radius)
                   end if
                end if
@@ -467,6 +496,7 @@ contains
 
                x_trial = x + escape_len*step
                quasi_trace_iter = iter_idx
+               call count_qn_attempt_eval()
                call f(xt, z, x_trial, r_trial, del_z, eval_error, Jl_trial, jac)
                if (eval_error .or. .not. real_vector_is_finite(r_trial)) then
                   call append_quasi_trace_sample(0.0_dp, iter_idx, 100 + escape_try, attempt_idx, huge(1.0_dp), .false., .false.)
@@ -525,8 +555,11 @@ contains
          if (size(x_best_out) == size(x_best)) x_best_out = x_best
       end if
       if (present(best_res_out)) best_res_out = best_r_norm
+      attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
+      call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, max_iter, tol, initial_r_norm, best_r_norm, converged, .true., &
+                              qn_current_attempt_eval_count, attempt_cpu_seconds)
 
-      deallocate (x, x_trial, r, r_trial, Jm, Hm, Bm, g, step, hs, Jl_trial, x_best, Jl_best)
+      deallocate (x, x_trial, x_seed, r, r_trial, Jm, Hm, Bm, g, step, hs, Jl_trial, x_best, Jl_best)
    end subroutine run_dfo_ls_attempt
 
    subroutine build_dfo_gn_jacobian(f, xt, z, del_z, jac, x, r, trust_radius, iter_idx, Jm)
@@ -568,6 +601,7 @@ contains
          x_probe = x
          x_probe(i) = x_probe(i) + h
          quasi_trace_iter = iter_idx
+         call count_qn_attempt_eval()
          call f(xt, z, x_probe, r_plus, del_z, eval_error, Jl_probe, jac)
          if (.not. eval_error .and. real_vector_is_finite(r_plus)) eval_plus_ok = .true.
 
@@ -575,6 +609,7 @@ contains
          x_probe = x
          x_probe(i) = x_probe(i) - h
          quasi_trace_iter = iter_idx
+         call count_qn_attempt_eval()
          call f(xt, z, x_probe, r_minus, del_z, eval_error, Jl_probe, jac)
          if (.not. eval_error .and. real_vector_is_finite(r_minus)) eval_minus_ok = .true.
 
@@ -901,7 +936,7 @@ contains
 
       if (.not. allocated(buf)) then
          allocate (buf(n_need))
-      elseif (size(buf) < n_need) then
+      else if (size(buf) < n_need) then
          deallocate (buf)
          allocate (buf(n_need))
       end if
@@ -914,7 +949,7 @@ contains
 
       if (.not. allocated(buf)) then
          allocate (buf(n_need))
-      elseif (size(buf) < n_need) then
+      else if (size(buf) < n_need) then
          deallocate (buf)
          allocate (buf(n_need))
       end if
@@ -927,7 +962,7 @@ contains
 
       if (.not. allocated(buf)) then
          allocate (buf(n_need))
-      elseif (size(buf) < n_need) then
+      else if (size(buf) < n_need) then
          deallocate (buf)
          allocate (buf(n_need))
       end if
@@ -940,7 +975,7 @@ contains
 
       if (.not. allocated(buf)) then
          allocate (buf(n_need))
-      elseif (size(buf) < n_need) then
+      else if (size(buf) < n_need) then
          deallocate (buf)
          allocate (buf(n_need))
       end if
@@ -1251,5 +1286,200 @@ contains
       pass_count = quasi_global_filter_pass_count
       reject_count = quasi_global_filter_reject_count
    end subroutine get_quasi_global_filter_stats
+
+   subroutine count_qn_attempt_eval()
+      implicit none
+
+      qn_current_attempt_eval_count = qn_current_attempt_eval_count + 1_int64
+   end subroutine count_qn_attempt_eval
+
+   real(dp) function qn_attempt_elapsed_seconds(start_seconds) result(elapsed)
+      implicit none
+      real(dp), intent(in) :: start_seconds
+      real(dp) :: stop_seconds
+
+      call cpu_time(stop_seconds)
+      elapsed = max(0.0_dp, stop_seconds - start_seconds)
+   end function qn_attempt_elapsed_seconds
+
+   subroutine capture_qn_attempt(xt, z, del_z, xi0, attempt_idx, max_iter, tol, initial_residual_norm, best_residual_norm, &
+                                 converged, initial_eval_ok, residual_eval_count, cpu_seconds)
+      implicit none
+      real(dp), intent(in) :: xt(:), del_z(:), xi0(:)
+      complex(dp), intent(in) :: z(:)
+      integer, intent(in) :: attempt_idx, max_iter
+      real(dp), intent(in) :: tol, initial_residual_norm, best_residual_norm
+      logical, intent(in) :: converged, initial_eval_ok
+      integer(int64), intent(in) :: residual_eval_count
+      real(dp), intent(in) :: cpu_seconds
+
+      integer :: sample_idx, n_z, n_delz, n_x, n_xi, ios
+      logical :: io_ok
+
+      call load_qn_attempt_capture_policy()
+      if (.not. qn_attempt_capture_enabled) return
+
+      qn_attempt_capture_seen = qn_attempt_capture_seen + 1
+      if (qn_attempt_capture_stride > 1) then
+         if (mod(qn_attempt_capture_seen - 1, qn_attempt_capture_stride) /= 0) return
+      end if
+      if (qn_attempt_capture_limit > 0 .and. qn_attempt_capture_count >= qn_attempt_capture_limit) return
+
+      call ensure_qn_attempt_capture_files(io_ok)
+      if (.not. io_ok) return
+
+      sample_idx = qn_attempt_capture_count + 1
+      n_z = size(z)
+      n_delz = size(del_z)
+      n_x = size(xt)
+      n_xi = size(xi0)
+
+      write (qn_attempt_capture_z0_unit, iostat=ios) sample_idx, n_z, z
+      if (ios /= 0) then
+         call handle_qn_attempt_capture_error("[WARN] Failed writing QN attempt z0 snapshot.")
+         return
+      end if
+      write (qn_attempt_capture_delz_unit, iostat=ios) sample_idx, n_delz, del_z
+      if (ios /= 0) then
+         call handle_qn_attempt_capture_error("[WARN] Failed writing QN attempt delz snapshot.")
+         return
+      end if
+      write (qn_attempt_capture_x0_unit, iostat=ios) sample_idx, n_x, xt
+      if (ios /= 0) then
+         call handle_qn_attempt_capture_error("[WARN] Failed writing QN attempt x0 snapshot.")
+         return
+      end if
+      write (qn_attempt_capture_xi0_unit, iostat=ios) sample_idx, n_xi, xi0
+      if (ios /= 0) then
+         call handle_qn_attempt_capture_error("[WARN] Failed writing QN attempt xi0 snapshot.")
+         return
+      end if
+      write (qn_attempt_capture_meta_unit, '(*(g0,:,","))', iostat=ios) sample_idx, attempt_idx, max_iter, n_z, n_x, n_xi, &
+         tol, initial_residual_norm, best_residual_norm, norm2(xi0), logical_to_int(converged), logical_to_int(initial_eval_ok), &
+         residual_eval_count, cpu_seconds
+      if (ios /= 0) then
+         call handle_qn_attempt_capture_error("[WARN] Failed writing QN attempt meta row.")
+         return
+      end if
+
+      flush (qn_attempt_capture_z0_unit)
+      flush (qn_attempt_capture_delz_unit)
+      flush (qn_attempt_capture_x0_unit)
+      flush (qn_attempt_capture_xi0_unit)
+      flush (qn_attempt_capture_meta_unit)
+      qn_attempt_capture_count = sample_idx
+   end subroutine capture_qn_attempt
+
+   subroutine load_qn_attempt_capture_policy()
+      implicit none
+      logical :: env_present
+
+      if (qn_attempt_capture_policy_loaded) return
+      qn_attempt_capture_policy_loaded = .true.
+
+      qn_attempt_capture_dir = ""
+      call read_string_env("QN_ATTEMPT_CAPTURE_DIR", qn_attempt_capture_dir, env_present)
+      qn_attempt_capture_enabled = env_present .and. len_trim(qn_attempt_capture_dir) > 0
+      if (.not. qn_attempt_capture_enabled) return
+
+      qn_attempt_capture_limit = 100
+      qn_attempt_capture_stride = 1
+      call parse_int_env("QN_ATTEMPT_CAPTURE_LIMIT", qn_attempt_capture_limit)
+      call parse_int_env("QN_ATTEMPT_CAPTURE_STRIDE", qn_attempt_capture_stride)
+      qn_attempt_capture_stride = max(1, qn_attempt_capture_stride)
+
+      if (qn_attempt_capture_limit > 0) then
+         write (*, '(A,I0)') "[INFO] QN attempt capture limit=", qn_attempt_capture_limit
+      else
+         write (*, '(A)') "[INFO] QN attempt capture limit=unlimited"
+      end if
+      write (*, '(A,I0)') "[INFO] QN attempt capture stride=", qn_attempt_capture_stride
+      write (*, '(A,1X,A)') "[INFO] QN attempt capture dir=", trim(qn_attempt_capture_dir)
+   end subroutine load_qn_attempt_capture_policy
+
+   subroutine ensure_qn_attempt_capture_files(io_ok)
+      implicit none
+      logical, intent(out) :: io_ok
+      integer :: ios
+
+      io_ok = .true.
+      if (qn_attempt_capture_files_ready) return
+      if (qn_attempt_capture_write_error) then
+         io_ok = .false.
+         return
+      end if
+
+      open (newunit=qn_attempt_capture_z0_unit, file=trim(join_capture_path("qn_attempt_z0.dat")), status='replace', &
+            access='stream', form='unformatted', action='write', iostat=ios)
+      if (ios /= 0) then
+         call handle_qn_attempt_capture_error("[WARN] Failed opening QN attempt z0 output.")
+         io_ok = .false.
+         return
+      end if
+      open (newunit=qn_attempt_capture_delz_unit, file=trim(join_capture_path("qn_attempt_delz.dat")), status='replace', &
+            access='stream', form='unformatted', action='write', iostat=ios)
+      if (ios /= 0) then
+         call handle_qn_attempt_capture_error("[WARN] Failed opening QN attempt delz output.")
+         io_ok = .false.
+         return
+      end if
+      open (newunit=qn_attempt_capture_x0_unit, file=trim(join_capture_path("qn_attempt_x0.dat")), status='replace', &
+            access='stream', form='unformatted', action='write', iostat=ios)
+      if (ios /= 0) then
+         call handle_qn_attempt_capture_error("[WARN] Failed opening QN attempt x0 output.")
+         io_ok = .false.
+         return
+      end if
+      open (newunit=qn_attempt_capture_xi0_unit, file=trim(join_capture_path("qn_attempt_xi0.dat")), status='replace', &
+            access='stream', form='unformatted', action='write', iostat=ios)
+      if (ios /= 0) then
+         call handle_qn_attempt_capture_error("[WARN] Failed opening QN attempt xi0 output.")
+         io_ok = .false.
+         return
+      end if
+      open (newunit=qn_attempt_capture_meta_unit, file=trim(join_capture_path("qn_attempt_meta.csv")), status='replace', &
+            action='write', iostat=ios)
+      if (ios /= 0) then
+         call handle_qn_attempt_capture_error("[WARN] Failed opening QN attempt meta output.")
+         io_ok = .false.
+         return
+      end if
+      write (qn_attempt_capture_meta_unit, '(A)') &
+         "sample_idx,attempt_idx,max_iter,n_z,n_x,n_xi,tol,initial_residual_norm,best_residual_norm,xi0_norm,converged,"// &
+         "initial_eval_ok,residual_eval_count,cpu_seconds"
+
+      qn_attempt_capture_files_ready = .true.
+   end subroutine ensure_qn_attempt_capture_files
+
+   function join_capture_path(file_name) result(path)
+      implicit none
+      character(len=*), intent(in) :: file_name
+      character(len=1024) :: path
+      integer :: n_dir
+
+      n_dir = len_trim(qn_attempt_capture_dir)
+      if (n_dir <= 0) then
+         path = trim(file_name)
+      else if (qn_attempt_capture_dir(n_dir:n_dir) == "/") then
+         path = trim(qn_attempt_capture_dir)//trim(file_name)
+      else
+         path = trim(qn_attempt_capture_dir)//"/"//trim(file_name)
+      end if
+   end function join_capture_path
+
+   subroutine handle_qn_attempt_capture_error(message)
+      implicit none
+      character(len=*), intent(in) :: message
+
+      if (.not. qn_attempt_capture_write_error) write (*, '(A)') trim(message)
+      qn_attempt_capture_write_error = .true.
+   end subroutine handle_qn_attempt_capture_error
+
+   integer function logical_to_int(value) result(out)
+      implicit none
+      logical, intent(in) :: value
+
+      out = merge(1, 0, value)
+   end function logical_to_int
 
 end module quasi_newton_solver_mod

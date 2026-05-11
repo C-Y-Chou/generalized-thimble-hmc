@@ -23,6 +23,8 @@ Current modernization state:
 - Stage2/Stage3 remain compatibility workflow entry points while M6 product-readiness work defines the future unified TLTM wrapper path.
 - Stage3_4 owns the separate `nofb` vs `withfb` production-comparison workflow.
 - Modernization reference-dataset construction/registration is paused until the M6 checklist is reviewed and explicitly started.
+- Repository-level distribution license is GPL-3.0-or-later, selected to allow
+  official DFO-LS production backend integration.
 
 ## Quick Start
 
@@ -138,7 +140,23 @@ Generated derivatives support backends via `GEN_BACKEND`:
 - `st_tapenade`: force Tapenade adapter (`scripts/st_backends/tapenade_codegen.py`)
 - `st_enzyme`: force Enzyme adapter (`scripts/st_backends/enzyme_codegen.py`, requires external driver)
 
-See [source_transform_backend.md](./source_transform_backend.md) for setup and environment variables.
+See [source_transform_backend.md](./source_transform_backend.md) for setup,
+environment variables, and Tapenade provenance/license handling.
+
+## License And Third-Party Notices
+
+TLTM is distributed under GPL-3.0-or-later; see the repository-root `LICENSE`
+and `LICENSE_POLICY.md`.
+
+Third-party packages/tools that affect production distribution or generated-code
+provenance are tracked in repository-root `THIRD_PARTY_NOTICES.md`. In
+particular:
+
+- Official DFO-LS is GPL-3.0-or-later and is the planned production solver
+  backend after behavior gates pass.
+- Tapenade is currently treated as an external MIT-licensed code-generation
+  tool; Tapenade-generated files require version/provenance recording before
+  release.
 
 ## State Vector Convention
 
