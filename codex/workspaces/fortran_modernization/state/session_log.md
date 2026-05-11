@@ -487,3 +487,4 @@
 - Official-only tuning showed larger `rhobeg` values fix sample 6 but regress other in-house-converged attempts. The stable revised preset is `npt=4`, `rhobeg=0.018`, `objfun_has_noise=True`, `rhoend=1e-16`, `model.abs_tol=1e-30`, `model.rel_tol=0`, `maxfun=250`.
 - Revised preset result on the same 77-attempt gate capture: 71/77 residual successes, 63/63 in-house-converged attempts preserved, 0/77 float64 failures; residual-fail samples were 23, 28, 35, 46, 47, and 54, all in-house-nonconverged.
 - Updated the PBS gate scaffold to use the revised `npt=4`, `rhobeg=0.018` official DFO-LS preset for future reruns.
+- Updated-scaffold gate rerun `14728.anode01` (`official_dfols_backend_gate_20260511_1543cb4`) completed with PBS `Exit_status=0`; summary matched the revised preset readback: 77 attempts replayed, 63/63 in-house-converged attempts preserved, and 0 float64 failures.

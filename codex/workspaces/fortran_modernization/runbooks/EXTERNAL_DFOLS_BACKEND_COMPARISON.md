@@ -263,6 +263,8 @@ Readback on 2026-05-11:
   fixed sample 6 but regressed other in-house-converged attempts. The stable
   safety-gate setting was `npt=4`, `rhobeg=0.018`, with the same noise-aware
   and tolerance controls.
+- Updated-scaffold rerun `official_dfols_backend_gate_20260511_1543cb4`
+  completed with PBS `Exit_status=0` using the revised preset.
 
 Revised preset result on the 77-attempt gate capture:
 

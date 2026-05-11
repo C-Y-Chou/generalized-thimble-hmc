@@ -124,6 +124,7 @@ Latest behavior-neutral infrastructure cleanup:
     - The fixed gate captured 77 QN-entry attempts and replayed all rows through official `DFO-LS==1.6.5`.
     - Old preset `rhobeg=0.05`, `npt=default`, `maxfun=250` failed the safety gate because one in-house-converged attempt regressed.
     - Revised official-only preset `npt=4`, `rhobeg=0.018`, `objfun_has_noise=True`, `rhoend=1e-16`, `model.abs_tol=1e-30`, `model.rel_tol=0`, `maxfun=250` passed the 77-attempt safety gate: 71/77 residual successes, 63/63 in-house-converged attempts preserved, 0/77 float64 failures.
+    - Updated-scaffold rerun `14728.anode01` / `official_dfols_backend_gate_20260511_1543cb4` completed with PBS `Exit_status=0` and the same safety-gate summary.
   - This remains offline backend-comparison tooling and does not alter the production HMC/QN path. Failure-only replay is not considered sufficient evidence for solver replacement.
 
 Next expected modernization area after this slice:
