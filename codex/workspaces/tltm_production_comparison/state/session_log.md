@@ -503,3 +503,35 @@ Use this file to append per-session notes.
   - `official_dfols_small_20260511_10seed_10k_p28_rg_nofb_withfb`
   - `official_dfols_gate_20260511_32seed_50k_p28_rg_nofb_withfb`
   - `official_dfols_gate_20260511_128seed_100k_p28_rg_withfb_r4`
+
+## 2026-05-11 JST - Submitted official DFO-LS 256seed/200k comparison gate
+
+- Campaign:
+  - `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`
+- Purpose:
+  - Next matched `nofb` vs `withfb/fb_norefine` production-comparison scale.
+- Production worktree:
+  - `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`
+  - branch `codex/tltm-production-comparison-official-dfols`
+  - pinned commit `c0e40218e6abe2706f4b9b4c66067dbcea74eeff`
+- Setup:
+  - `256 seeds x 200000 cycles` per method.
+  - `t=0.35,L=2,nstep=20`.
+  - RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`.
+  - Backend `QN_SOLVER_BACKEND=official_dfols`, preset `stable_gate77`.
+  - Raw/canonical mapping: `no_fb -> nofb`, `fb_norefine -> withfb`.
+- PBS:
+  - preflight build: `14814.anode01`.
+  - `no_fb` chunks: `14815..14846`.
+  - `fb_norefine` chunks: `14847..14878`.
+  - merge/report: `14879.anode01`.
+- Chunk/queue plan:
+  - `32` chunks per method, `8` seeds/chunk, `8` workers/chunk.
+  - Queue split: `C8 x24`, `C12 x24`, `C8-LONG x8`, `G x6`, `F x2`.
+  - Avoided C16 because saturated, and avoided C24/C36/C17/C17-LONG/GPU queues for current workflow hygiene.
+- Output:
+  - `output/production_comparison/provisional/official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`
+  - `output/logs/production_comparison/provisional/official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`
+- Submission status:
+  - At submission check, preflight was running and all chunk/merge jobs were in dependency hold.
+  - Expected report window: roughly `2026-05-12 05:30-12:00 JST`, depending on how many chunks enter the first post-preflight wave.

@@ -33,13 +33,10 @@ Updated: 2026-05-11 JST
 
 ## Next Action
 
-Before production continuation:
+Current live campaign:
 
-1. Run `bash codex/tasks/refresh_remote_state.sh`.
-2. Sync `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison` to the chosen official-DFO-LS modernization commit from `codex/fortran-modernization`.
-3. Submit `codex/workspaces/tltm_production_comparison/tasks/pbs/official_dfols_preflight_build.pbs` and wait for it to build with `ENABLE_OFFICIAL_DFOLS=1`; on Rocky 8 it also prepares local Python 3.11 headers under `.deps/` if the system devel package is missing.
-4. Submit production chunks from the production-comparison worktree pinned to the same commit; chunks now use `QN_SOLVER_BACKEND=official_dfols` and `QN_OFFICIAL_DFOLS_PRESET=stable_gate77`.
-5. Register any new production-comparison outputs in `codex/state/DATASETS.tsv`.
-6. Confirm no active pinned jobs depend on the target worktree before any fast-forward or cleanup.
-7. Archive or summarize evidence before deleting any newly generated outputs/logs.
-8. For any new provisional run, write outputs under a production-comparison namespace, preferably `output/production_comparison/provisional/...`, not a new `output/tests/stage3_4/...` namespace.
+1. Monitor `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`.
+2. PBS IDs: preflight `14814.anode01`, chunks `14815..14878`, merge `14879.anode01`.
+3. Report target: `output/production_comparison/provisional/official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb/REPORT.md`.
+4. Expected report window: roughly `2026-05-12 05:30-12:00 JST`, depending on first-wave scheduler admission after preflight.
+5. Before any new production submission, confirm no active pinned jobs depend on `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.
