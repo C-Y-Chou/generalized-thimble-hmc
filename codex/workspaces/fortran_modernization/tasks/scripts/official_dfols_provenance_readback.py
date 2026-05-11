@@ -45,6 +45,13 @@ def resolve_path(repo_root, path_text):
     return repo_root / path
 
 
+def display_path(path, repo_root):
+    try:
+        return str(path.relative_to(repo_root))
+    except ValueError:
+        return str(path)
+
+
 def default_python(repo_root):
     venv_python = repo_root / ".venv-dfols" / "bin" / "python"
     if venv_python.exists():
@@ -205,7 +212,7 @@ def main():
     info = collect_package_info(python_exe)
     status = status_from_info(info)
     write_state(state_out, info, status)
-    write_runbook(runbook_out, state_out.relative_to(repo_root), info, status)
+    write_runbook(runbook_out, display_path(state_out, repo_root), info, status)
     print("[OFFICIAL_DFOLS_PROVENANCE] status={0}".format(status))
     print("[OFFICIAL_DFOLS_PROVENANCE] state={0}".format(state_out))
     print("[OFFICIAL_DFOLS_PROVENANCE] runbook={0}".format(runbook_out))

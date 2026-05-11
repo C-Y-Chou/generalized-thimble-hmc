@@ -1,6 +1,6 @@
 # Official DFO-LS Provenance Readback
 
-Updated: 2026-05-11 19:06:15 JST
+Updated: 2026-05-11 19:07:34 JST
 
 Scope: local/package provenance readback for the embedded official DFO-LS
 backend. This is not a solver-performance gate and does not replace
