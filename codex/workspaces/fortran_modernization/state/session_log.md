@@ -478,3 +478,4 @@
 - Gate failure criteria: no captured QN attempts, missing official replay rows, float64 contract failure, or any in-house-converged captured attempt failing the official TLTM residual gate.
 - This is an offline backend replacement validation gate. It does not change the production HMC/QN path.
 - Added `.venv-dfols/` to `.gitignore` so the official DFO-LS Python environment can exist in local/remote worktrees without tripping clean-tree guards.
+- First submitted job `14726.anode01` failed before official replay because the PBS scaffold passed `QN_ATTEMPT_CAPTURE_DIR` as a relative path while Stage2 executed from `build/`; fixed the PBS scaffold to use absolute output/log/capture paths.

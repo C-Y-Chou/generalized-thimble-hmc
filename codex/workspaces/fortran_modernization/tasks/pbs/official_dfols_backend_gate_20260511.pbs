@@ -45,8 +45,8 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 2
 fi
 
-OUT_ROOT="output/tests/fortran_modernization/${TLTM_DFOLS_GATE_LABEL}"
-LOG_ROOT="output/logs/fortran_modernization/${TLTM_DFOLS_GATE_LABEL}"
+OUT_ROOT="${TLTM_WORKTREE}/output/tests/fortran_modernization/${TLTM_DFOLS_GATE_LABEL}"
+LOG_ROOT="${TLTM_WORKTREE}/output/logs/fortran_modernization/${TLTM_DFOLS_GATE_LABEL}"
 ATTEMPT_DIR="${OUT_ROOT}/attempts"
 DIAG_DIR="${OUT_ROOT}/dfols_diagnostics"
 BOOT_LOG="${LOG_ROOT}/pbs_boot.log"
