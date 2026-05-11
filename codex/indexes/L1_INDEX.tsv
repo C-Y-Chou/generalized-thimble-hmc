@@ -7,6 +7,7 @@ worktrees	current	codex/state/WORKTREES.tsv	Before remote fast-forward or cleanu
 local_worktrees	current	codex/state/LOCAL_WORKTREES.tsv	Before local git pull/switch/cleanup/overwrite	codex/state/LOCAL_TARGETS.tsv
 decisions	current	codex/state/DECISIONS.tsv	When checking whether a choice was already made	codex/knowledge/DECISIONS_AND_RISKS.md
 open_items	current	codex/state/OPEN_ITEMS.tsv	When choosing next action	codex/runbooks/GLOBAL_STATUS.md
+caveats	current	codex/state/CAVEATS.tsv	Before deciding whether a caveat blocks, makes work provisional, or triggers rerun	codex/runbooks/CAVEAT_AUDIT_AND_WORK_INCLUSION_POLICY.md
 datasets	current	codex/state/DATASETS.tsv	Before dataset cleanup/readback/reference registration	codex/workspaces/fortran_modernization/state/M6_REFERENCE_PACKAGES.tsv
 references	current	codex/state/REFERENCES.tsv	Before algorithm/reference-backed review	codex/workspaces/fortran_modernization/references/REFERENCES_INDEX.md
 fortran_modernization	active	codex/workspaces/fortran_modernization/context/STATE_BRIEF.md	When entering fortran_modernization	codex/workspaces/fortran_modernization/runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md

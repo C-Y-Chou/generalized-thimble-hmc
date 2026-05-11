@@ -14,7 +14,7 @@
             "job_id": "14766.anode01",
             "job_state": "R",
             "queue": "C8",
-            "worktree": "NA"
+            "worktree": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp"
           },
           {
             "Job_Name": "pc32_nofb_01",
@@ -26,7 +26,7 @@
             "job_id": "14767.anode01",
             "job_state": "R",
             "queue": "C8",
-            "worktree": "NA"
+            "worktree": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp"
           },
           {
             "Job_Name": "pc32_nofb_02",
@@ -38,7 +38,7 @@
             "job_id": "14768.anode01",
             "job_state": "R",
             "queue": "C8",
-            "worktree": "NA"
+            "worktree": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp"
           },
           {
             "Job_Name": "pc32_nofb_03",
@@ -50,7 +50,7 @@
             "job_id": "14769.anode01",
             "job_state": "R",
             "queue": "C8",
-            "worktree": "NA"
+            "worktree": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp"
           },
           {
             "Job_Name": "pc32_wfb_00",
@@ -62,7 +62,7 @@
             "job_id": "14770.anode01",
             "job_state": "R",
             "queue": "C8",
-            "worktree": "NA"
+            "worktree": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp"
           },
           {
             "Job_Name": "pc32_wfb_01",
@@ -74,7 +74,7 @@
             "job_id": "14771.anode01",
             "job_state": "R",
             "queue": "C8",
-            "worktree": "NA"
+            "worktree": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp"
           },
           {
             "Job_Name": "pc32_wfb_02",
@@ -86,7 +86,7 @@
             "job_id": "14772.anode01",
             "job_state": "R",
             "queue": "C8",
-            "worktree": "NA"
+            "worktree": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp"
           },
           {
             "Job_Name": "pc32_wfb_03",
@@ -98,7 +98,7 @@
             "job_id": "14773.anode01",
             "job_state": "R",
             "queue": "C8",
-            "worktree": "NA"
+            "worktree": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp"
           },
           {
             "Job_Name": "pc32_merge",
@@ -109,7 +109,7 @@
             "job_id": "14774.anode01",
             "job_state": "H",
             "queue": "C8",
-            "worktree": "NA"
+            "worktree": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp"
           }
         ],
         "worktrees": {
@@ -154,7 +154,7 @@
       "stderr": ""
     }
   },
-  "refreshed_at_jst": "2026-05-11T15:59:13+09:00",
+  "refreshed_at_jst": "2026-05-11T16:07:04+09:00",
   "targets": [
     {
       "branch": "codex/control-plane-official-dfols",

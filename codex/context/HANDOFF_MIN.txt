@@ -10,8 +10,9 @@ Ambiguity rule:
 Read in this order:
 1) /Users/ccy/Documents/TLTM_qn_error_handling/codex/context/CORE.md
 2) /Users/ccy/Documents/TLTM_qn_error_handling/codex/context/L0_BOOT.md
-3) /Users/ccy/Documents/TLTM_qn_error_handling/codex/indexes/L1_INDEX.tsv
-4) /Users/ccy/Documents/TLTM_qn_error_handling/codex/runbooks/task_registry.tsv
+3) /Users/ccy/Documents/TLTM_qn_error_handling/codex/state/CAVEATS.tsv
+4) /Users/ccy/Documents/TLTM_qn_error_handling/codex/indexes/L1_INDEX.tsv
+5) /Users/ccy/Documents/TLTM_qn_error_handling/codex/runbooks/task_registry.tsv
 
 Do not read long runbooks by default. Use L1 trigger rules.
 

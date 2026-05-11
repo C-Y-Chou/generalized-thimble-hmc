@@ -9,6 +9,7 @@
 - Build env: `module load compiler/2025.3.0 mpi/2021.17 mkl/2025.3`
 - Required flow policy: `nofb/withfb -> RG -> Metropolis`
 - Compact boot state: `/Users/ccy/Documents/TLTM_qn_error_handling/codex/context/L0_BOOT.md`
+- Caveat register: `/Users/ccy/Documents/TLTM_qn_error_handling/codex/state/CAVEATS.tsv`
 - Routing index: `/Users/ccy/Documents/TLTM_qn_error_handling/codex/indexes/L1_INDEX.tsv`
 - Remote refresh: `bash /Users/ccy/Documents/TLTM_qn_error_handling/codex/tasks/refresh_remote_state.sh`
 - Local refresh: `bash /Users/ccy/Documents/TLTM_qn_error_handling/codex/tasks/refresh_local_state.sh`

@@ -18,6 +18,7 @@ REQUIRED = [
     "codex/runbooks/CONTROL_PLANE_MEMORY_COMPACTION_PLAN.md",
     "codex/state/DECISIONS.tsv",
     "codex/state/OPEN_ITEMS.tsv",
+    "codex/state/CAVEATS.tsv",
     "codex/state/REMOTE_TARGETS.tsv",
     "codex/state/WORKTREES.tsv",
     "codex/state/LOCAL_TARGETS.tsv",
@@ -32,6 +33,18 @@ TSV_HEADERS = {
     "codex/indexes/L1_INDEX.tsv": ["topic", "status", "source_of_truth", "when_to_read", "archive_or_detail"],
     "codex/state/DECISIONS.tsv": ["date_jst", "scope", "decision", "rationale", "impact", "reversible", "source"],
     "codex/state/OPEN_ITEMS.tsv": ["id", "scope", "status", "priority", "item", "next_action", "source"],
+    "codex/state/CAVEATS.tsv": [
+        "id",
+        "scope",
+        "status",
+        "priority",
+        "kind",
+        "blocks",
+        "item",
+        "required_work",
+        "rerun_trigger",
+        "source",
+    ],
     "codex/state/REMOTE_TARGETS.tsv": [
         "target_id",
         "host",
@@ -145,6 +158,8 @@ def main() -> int:
     handoff = (root / "codex/context/HANDOFF_MIN.txt").read_text(encoding="utf-8")
     if "L0_BOOT.md" not in handoff:
         fail("HANDOFF_MIN.txt does not reference L0_BOOT.md", errors)
+    if "CAVEATS.tsv" not in handoff:
+        fail("HANDOFF_MIN.txt does not reference CAVEATS.tsv", errors)
     if "/Users/ccy/Documents/TLTM_qn_error_handling" not in handoff:
         fail("HANDOFF_MIN.txt does not name the canonical local TLTM repo", errors)
     if "codex/fortran-modernization" not in handoff:

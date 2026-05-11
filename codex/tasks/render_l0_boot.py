@@ -39,6 +39,7 @@ def main() -> int:
     worktrees = read_tsv(codex / "state" / "WORKTREES.tsv")
     local_worktrees = read_tsv(codex / "state" / "LOCAL_WORKTREES.tsv")
     open_items = read_tsv(codex / "state" / "OPEN_ITEMS.tsv")
+    caveats = read_tsv(codex / "state" / "CAVEATS.tsv")
     decisions = read_tsv(codex / "state" / "DECISIONS.tsv")
     live_path = codex / "state" / "REMOTE_LIVE_CACHE.json"
     live = {}
@@ -57,6 +58,7 @@ def main() -> int:
         or row.get("dirty") not in {"0", "", "NA"}
     ]
     high_open = [row for row in open_items if row.get("priority") == "high" and row.get("status") == "active"]
+    high_caveats = [row for row in caveats if row.get("priority") == "high" and row.get("status") == "active"]
     recent_decisions = decisions[-6:]
     refreshed = live.get("refreshed_at_jst", "not refreshed")
 
@@ -82,7 +84,7 @@ def main() -> int:
     lines.append("- If a remote worktree has active pinned jobs, do not fast-forward or clean it.")
     lines.append("- For cluster02 queue choice, work splitting, submission, or job repair, use the cluster02 scheduling agent.")
     lines.append("- Do not use `qmove` as the official repair path; cancel/resubmit/rebuild dependencies.")
-    lines.append("- Default read set is `HANDOFF_MIN -> L0_BOOT -> L1_INDEX -> chosen workspace STATE_BRIEF`.")
+    lines.append("- Default read set is `HANDOFF_MIN -> L0_BOOT -> CAVEATS -> L1_INDEX -> chosen workspace STATE_BRIEF`.")
     lines.append("")
     lines.append("## Active Remote Risk")
     lines.append("")
@@ -123,6 +125,16 @@ def main() -> int:
     else:
         lines.append("- No active jobs in `codex/state/JOBS.tsv`.")
     lines.append("")
+    lines.append("## Active Caveats")
+    lines.append("")
+    if high_caveats:
+        for row in high_caveats[:6]:
+            lines.append(
+                f"- `{row.get('id')}` {row.get('scope')} blocks `{row.get('blocks')}`: {row.get('item')} Rerun trigger: {row.get('rerun_trigger')}"
+            )
+    else:
+        lines.append("- No active high-priority caveat recorded in `codex/state/CAVEATS.tsv`.")
+    lines.append("")
     lines.append("## High-Priority Open Items")
     lines.append("")
     if high_open:
@@ -141,6 +153,7 @@ def main() -> int:
     lines.append("- L1 index: `codex/indexes/L1_INDEX.tsv`")
     lines.append("- Remote live cache: `codex/state/REMOTE_LIVE_CACHE.json`")
     lines.append("- Local worktrees: `codex/state/LOCAL_WORKTREES.tsv`")
+    lines.append("- Caveats: `codex/state/CAVEATS.tsv`")
     lines.append("- Jobs: `codex/state/JOBS.tsv`")
     lines.append("- Worktrees: `codex/state/WORKTREES.tsv`")
     lines.append("- Control-plane plan: `codex/runbooks/CONTROL_PLANE_MEMORY_COMPACTION_PLAN.md`")

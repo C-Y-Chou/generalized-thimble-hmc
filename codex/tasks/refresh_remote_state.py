@@ -144,6 +144,8 @@ def parse_remote_output(text: str) -> Dict[str, object]:
             if current_job is not None:
                 var_text = current_job.get("Variable_List", "")
                 current_job["worktree"] = extract_var(var_text, "TLTM_WORKTREE")
+                if current_job["worktree"] == "NA":
+                    current_job["worktree"] = extract_var(var_text, "PBS_O_WORKDIR")
                 current_job["expected_commit"] = extract_var(var_text, "TLTM_EXPECTED_GIT_COMMIT")
                 jobs.append(current_job)
             current_job = None
@@ -176,7 +178,16 @@ def extract_var(variable_list: str, name: str) -> str:
 def same_or_truncated_path(lhs: str, rhs: str) -> bool:
     if lhs in {"", "NA"} or rhs in {"", "NA"}:
         return False
-    return lhs == rhs or lhs.startswith(rhs) or rhs.startswith(lhs)
+    lhs = lhs.rstrip("/")
+    rhs = rhs.rstrip("/")
+    if lhs == rhs:
+        return True
+    if lhs.startswith(rhs + "/"):
+        return True
+    # PBS qstat may truncate Variable_List values. Permit a truncated job
+    # workdir to match its registered target, but do not let sibling paths such
+    # as TLTM and TLTM_worktrees match by a bare string prefix.
+    return len(lhs) >= 16 and rhs.startswith(lhs)
 
 
 def main() -> int:
@@ -336,6 +347,8 @@ def main() -> int:
 
 
 def infer_dataset(name: str) -> str:
+    if name.startswith("pc32_"):
+        return "official_dfols_gate_20260511_32seed_50k"
     if name.startswith("m6R1"):
         return "m6_r1_4seed_1k"
     if name.startswith("m6R2"):

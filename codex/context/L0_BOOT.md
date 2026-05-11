@@ -1,7 +1,7 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-11T15:59:16+09:00
-Remote refreshed: 2026-05-11T15:59:13+09:00
+Generated: 2026-05-11T16:07:08+09:00
+Remote refreshed: 2026-05-11T16:07:04+09:00
 
 ## Canonical Entry
 
@@ -19,33 +19,43 @@ Remote refreshed: 2026-05-11T15:59:13+09:00
 - If a remote worktree has active pinned jobs, do not fast-forward or clean it.
 - For cluster02 queue choice, work splitting, submission, or job repair, use the cluster02 scheduling agent.
 - Do not use `qmove` as the official repair path; cancel/resubmit/rebuild dependencies.
-- Default read set is `HANDOFF_MIN -> L0_BOOT -> L1_INDEX -> chosen workspace STATE_BRIEF`.
+- Default read set is `HANDOFF_MIN -> L0_BOOT -> CAVEATS -> L1_INDEX -> chosen workspace STATE_BRIEF`.
 
 ## Active Remote Risk
 
-- No unsafe worktree recorded in the latest registry. If cache is stale, refresh before acting.
+- `tltm_production_comparison_provisional`: branch `codex/tltm-production-comparison-official-dfols`, commit `d3f133d1fd7de2ec6a5b7ac27840c01287be5be7`, 9 active jobs, examples: 14766.anode01,14767.anode01,14768.anode01,14769.anode01,14770.anode01,14771.anode01,14772.anode01,14773.anode01, pinned `d3f133d1fd7de2ec6a5b7ac27840c01287be5be7`. Do not fast-forward.
 
 ## Active Local Risk
 
-- `local_canonical_official_dfols`: branch `codex/fortran-modernization`, commit `c21d7b8b92a77d8e06d8ba585eb2d77cae021407`, dirty `3`, ahead `0`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
+- `local_canonical_official_dfols`: branch `codex/fortran-modernization`, commit `8b5a9f1162d9c29e54509e01bba6c341a6fb2df8`, dirty `16`, ahead `0`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
 
 ## Active/Pending Jobs
 
-- `14766.anode01` `pc32_nofb_00` queue `C8` state `R` dataset `unknown`.
-- `14767.anode01` `pc32_nofb_01` queue `C8` state `R` dataset `unknown`.
-- `14768.anode01` `pc32_nofb_02` queue `C8` state `R` dataset `unknown`.
-- `14769.anode01` `pc32_nofb_03` queue `C8` state `R` dataset `unknown`.
-- `14770.anode01` `pc32_wfb_00` queue `C8` state `R` dataset `unknown`.
-- `14771.anode01` `pc32_wfb_01` queue `C8` state `R` dataset `unknown`.
-- `14772.anode01` `pc32_wfb_02` queue `C8` state `R` dataset `unknown`.
-- `14773.anode01` `pc32_wfb_03` queue `C8` state `R` dataset `unknown`.
-- `14774.anode01` `pc32_merge` queue `C8` state `H` dataset `unknown`.
+- `14766.anode01` `pc32_nofb_00` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
+- `14767.anode01` `pc32_nofb_01` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
+- `14768.anode01` `pc32_nofb_02` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
+- `14769.anode01` `pc32_nofb_03` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
+- `14770.anode01` `pc32_wfb_00` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
+- `14771.anode01` `pc32_wfb_01` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
+- `14772.anode01` `pc32_wfb_02` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
+- `14773.anode01` `pc32_wfb_03` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
+- `14774.anode01` `pc32_merge` queue `C8` state `H` dataset `official_dfols_gate_20260511_32seed_50k`.
+
+## Active Caveats
+
+- `CV-001` kernel_correctness_audit blocks `final_publication_production`: Proposal-kernel correctness evidence is sampled/provisional, not a publishable proof for every official DFO-LS piecewise route. Rerun trigger: Changing solver backend, route order, tolerances, reverse gate, final-flow policy, Metropolis acceptance, counter timing, or making a final correctness claim.
+- `CV-002` tltm_production_comparison blocks `final_publication_dataset`: Production-comparison outputs before modernization convergence are provisional-discussion datasets, not final publication datasets. Rerun trigger: Any change to method mapping, public schema, counter/status semantics, wrapper behavior, RNG ownership, proposal construction, solver policy, tolerances, or final-flow policy.
+- `CV-003` tltm_production_comparison blocks `production_job_submission`: Production-comparison jobs must execute from the synchronized production-comparison worktree, not from the modernization source worktree. Rerun trigger: Only misrouted jobs/artifacts rerun; docs, route guards, and state-register fixes do not invalidate correctly routed scientific outputs.
+- `CV-004` fortran_modernization blocks `source_code_modernization`: Post-M6 source refactors need an accepted reference package or an explicit narrower baseline before touching behavior-relevant code. Rerun trigger: Any source change that can affect RNG order, proposal construction, solver route, failure classification, counters, schema meaning, or public wrapper behavior.
 
 ## High-Priority Open Items
 
 - `CP-001` control_plane: Keep L0/L1 current after remote/job changes Next: Run refresh_remote_state and render_l0_boot before remote/PBS work
 - `CP-003` cluster02: Record new queue failures/successes into scheduler observations Next: Use fresh qstat/probes for current scheduling; record notable future outcomes as priors, not fixed availability
 - `CP-008` tltm_production_comparison: Read M6 R1-R4 as production-calibration aliases Next: Build a read-only production-calibration report from accepted M6 packages, then decide the next seed/cycle grid
+- `CP-010` control_plane: Keep material caveats in the caveat register before changing work scope Next: Run the caveat audit steps, update CAVEATS.tsv, and add blocking caveats to OPEN_ITEMS.tsv before major workflow continuation
+- `CP-011` kernel_correctness_audit: Decide the official-DFO-LS-line kernel correctness gate before final publication production Next: Current official DFO-LS gates may continue as provisional, but final publication production needs the CV-001 correctness gate or explicit accepted limitation
+- `CP-012` tltm_production_comparison: Maintain provisional-vs-final production boundary Next: Treat official DFO-LS production-comparison gates as provisional until final wrapper/schema/naming/counter conventions are frozen or final regeneration is scheduled
 
 ## Recent Decisions
 
@@ -61,6 +71,7 @@ Remote refreshed: 2026-05-11T15:59:13+09:00
 - L1 index: `codex/indexes/L1_INDEX.tsv`
 - Remote live cache: `codex/state/REMOTE_LIVE_CACHE.json`
 - Local worktrees: `codex/state/LOCAL_WORKTREES.tsv`
+- Caveats: `codex/state/CAVEATS.tsv`
 - Jobs: `codex/state/JOBS.tsv`
 - Worktrees: `codex/state/WORKTREES.tsv`
 - Control-plane plan: `codex/runbooks/CONTROL_PLANE_MEMORY_COMPACTION_PLAN.md`

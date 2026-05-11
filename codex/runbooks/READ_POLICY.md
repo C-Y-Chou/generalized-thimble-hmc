@@ -8,6 +8,7 @@ New conversations should read only:
 
 - `context/HANDOFF_MIN.txt`
 - `context/L0_BOOT.md`
+- `state/CAVEATS.tsv`
 - `indexes/L1_INDEX.tsv`
 - the chosen workspace `context/TASK.md`
 - the chosen workspace `context/STATE_BRIEF.md` when present
@@ -33,6 +34,14 @@ Read long runbooks only when triggered by L1:
 - Algorithm changes: read the relevant algorithm-to-implementation map and paper reference notes.
 - Output cleanup: read dataset/job/worktree registries before touching files.
 - Historical explanation: read the archived long runbook named by L1.
+
+## Caveat Rule
+
+Before continuing a major workflow, classify active caveats through
+`state/CAVEATS.tsv`. If a caveat blocks the requested next step, it must also
+be an active high-priority row in `state/OPEN_ITEMS.tsv`. If it does not block,
+record whether it makes the current output provisional or defines a future rerun
+trigger.
 
 ## Remote Rule
 

@@ -24,6 +24,7 @@ bash codex/tasks/render_l0_boot.sh
 ## Always-read compact status
 - `/Users/ccy/Documents/TLTM_qn_error_handling/codex/context/HANDOFF_MIN.txt`
 - `/Users/ccy/Documents/TLTM_qn_error_handling/codex/context/L0_BOOT.md`
+- `/Users/ccy/Documents/TLTM_qn_error_handling/codex/state/CAVEATS.tsv`
 - `/Users/ccy/Documents/TLTM_qn_error_handling/codex/indexes/L1_INDEX.tsv`
 
 Do not read long runbooks by default. Use `runbooks/READ_POLICY.md` and `indexes/L1_INDEX.tsv`.
@@ -31,8 +32,9 @@ Do not read long runbooks by default. Use `runbooks/READ_POLICY.md` and `indexes
 ## Task entry
 1. Read `/Users/ccy/Documents/TLTM_qn_error_handling/codex/context/HANDOFF_MIN.txt`
 2. Read `/Users/ccy/Documents/TLTM_qn_error_handling/codex/context/L0_BOOT.md`
-3. Pick the target task from `/Users/ccy/Documents/TLTM_qn_error_handling/codex/runbooks/task_registry.tsv`
-4. Enter that workspace and read its `context/TASK.md` plus `context/STATE_BRIEF.md` when present
+3. Check `/Users/ccy/Documents/TLTM_qn_error_handling/codex/state/CAVEATS.tsv`
+4. Pick the target task from `/Users/ccy/Documents/TLTM_qn_error_handling/codex/runbooks/task_registry.tsv`
+5. Enter that workspace and read its `context/TASK.md` plus `context/STATE_BRIEF.md` when present
 
 ## Current Canonical Entry
 - Local canonical repo: `/Users/ccy/Documents/TLTM_qn_error_handling`
