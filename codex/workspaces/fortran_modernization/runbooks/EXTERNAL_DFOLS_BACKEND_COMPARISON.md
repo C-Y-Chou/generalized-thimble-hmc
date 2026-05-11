@@ -240,9 +240,9 @@ maxfun = 250
 success gate = residual_norm <= 1e-13
 ```
 
-This PBS gate remains an offline replacement test. It does not make official
-DFO-LS the production default and it does not introduce per-residual subprocess
-calls into the live HMC loop.
+This PBS gate remains the offline replacement safety test. It is now paired with
+an embedded in-process production backend; per-residual subprocess calls remain
+rejected for the live HMC loop.
 
 ## PBS Backend Gate Readback
 
@@ -294,9 +294,12 @@ Algorithmic readiness:
 
 Runtime readiness:
 
-- Pass only as a residual-call proxy.
+- Pass for embedded in-process Python integration on the local live Stage2
+  smoke.
 - Direct Python subprocess calls are rejected for production HMC inner-loop use.
-- A production replacement would need either a compiled in-process backend, a carefully embedded Python design that is demonstrated not to dominate runtime, or an explicit decision to accept a Python-driven product architecture.
+- The accepted runtime architecture is an embedded official DFO-LS bridge through
+  Python's C API, with the TLTM residual callback kept inside Fortran and the
+  TLTM residual gate applied after package return.
 
 License/product readiness:
 
@@ -313,17 +316,32 @@ License/product readiness:
 Current final gate status:
 
 - `GO` for: keeping official DFO-LS as the offline validation/calibration oracle and candidate reference backend.
-- `GO` for: designing a residual-only backend interface in TLTM that can host either the current in-house solver or an official-DFO-LS-compatible backend.
+- `GO` for: embedded official DFO-LS as the default QN backend in TLTM.
 - `NO-GO` for: direct production replacement by per-residual Python subprocess calls.
 - `GO` for: GPL-compatible product direction.
-- `HOLD` for: making official DFO-LS the production default until runtime
-  integration is implemented and a small chain-level behavior gate is run.
+- `GO` for: production redo after rebuilding target worktrees with
+  `ENABLE_OFFICIAL_DFOLS=1` and setting `TLTM_OFFICIAL_DFOLS_PYTHONPATH`.
 
-Remaining implementation choices:
+Embedded production implementation:
 
-1. Backend-interface first: introduce a solver-backend abstraction, keep in-house as default, and add official DFO-LS as an opt-in experimental backend.
-2. Full replacement: after behavior gates pass, make the official-DFO-LS backend the production default and keep the in-house solver only as a controlled fallback or deletion candidate.
-3. Runtime architecture: choose compiled/in-process backend, carefully embedded Python, or a Python-driven product architecture; per-residual subprocess is rejected.
+- `src/external/official_dfols_c_bridge.c` calls `dfols.solve` in process
+  through Python's C API.
+- `src/sampler/quasi_newton_solver.f90` defaults to `QN_SOLVER_BACKEND=official_dfols`.
+- `QN_SOLVER_BACKEND=internal` remains only for controlled legacy comparison.
+- Production preset policy is in
+  `codex/workspaces/fortran_modernization/runbooks/OFFICIAL_DFOLS_PRESET_TUNING_POLICY.md`.
+
+Local live-smoke verification on 2026-05-11:
+
+- Built `../bin/run_tltm_stage2` and `../bin/evaluate_btn_residual_case` with
+  `ENABLE_OFFICIAL_DFOLS=1`.
+- Installed `DFO-LS==1.6.5` in `.venv-dfols` and ran a 1-seed, 500-cycle
+  `fb_norefine` Stage3-style smoke with `TLTM_OFFICIAL_DFOLS_PYTHONPATH`.
+- Stage2 summary: `quasi_stage_stats probe_attempt=50 probe_success=45`,
+  `constraint_stats quasi=45 failed=5`, and `qn_eval_flow_status success=7063`.
+- Captured first 10 official-backend QN attempts; all 10 converged with
+  `best_residual_norm` around `1e-15`.
+- No official bridge/import/runtime error was present in the Stage2 log.
 
 ## Reference Dataset Comparison Plan
 

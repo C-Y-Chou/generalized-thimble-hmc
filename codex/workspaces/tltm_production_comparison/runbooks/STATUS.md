@@ -2,7 +2,7 @@
 
 NOTE: This is a long historical status file from the legacy `stage3_4` workspace. For new conversations, read `context/STATE_BRIEF.md` and `runbooks/SOFT_DECOUPLING_AND_PROVISIONAL_CONTRACT.md` first, then use `codex/state/JOBS.tsv`, `codex/state/DATASETS.tsv`, and `codex/state/WORKTREES.tsv` for current cleanup/scheduling decisions.
 
-Updated: 2026-05-10 JST
+Updated: 2026-05-11 JST
 
 ## Superseding Current Position
 
@@ -12,8 +12,25 @@ Updated: 2026-05-10 JST
 - Current canonical production-comparison roles are `nofb` and `withfb`; the current legacy raw mapping is `nofb == no_fb` and `withfb == fb_norefine`.
 - Historical rows below are retained for traceability. They are not a final publication dataset contract.
 
+## Official DFO-LS Redo Position
+
+- Production redo should be launched from the synchronized
+  `codex/fortran-modernization` commit that contains the embedded official
+  DFO-LS backend.
+- Before chunk submission, run
+  `codex/workspaces/tltm_production_comparison/tasks/pbs/official_dfols_preflight_build.pbs`
+  on the target tree. It creates/updates `.venv-dfols`, verifies official
+  `DFO-LS==1.6.5`, and builds `run_tltm_stage2` plus
+  `evaluate_expectations` with `ENABLE_OFFICIAL_DFOLS=1`.
+- Chunk jobs now set `QN_SOLVER_BACKEND=official_dfols`,
+  `QN_OFFICIAL_DFOLS_PRESET=stable_gate77`, and
+  `TLTM_OFFICIAL_DFOLS_PYTHONPATH` from `.venv-dfols`.
+- The old live-job list below is historical; check `qstat -u cychou` before
+  reusing or fast-forwarding any production tree.
+
 ## Active objective
-- Run next intermediate scale-up: `no_fb` vs `fb_norefine`, 128 matched seeds x 100k cycles.
+- Redo production comparison from the official DFO-LS backend after tree sync
+  and preflight build.
 
 ## Live jobs (current)
 - 128seed/100k compute chunks are running.

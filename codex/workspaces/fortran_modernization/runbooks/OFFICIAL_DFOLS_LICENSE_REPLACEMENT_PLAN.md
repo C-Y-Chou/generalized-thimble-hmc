@@ -171,7 +171,8 @@ Once the license path is selected:
 1. Implement residual-only solver backend interface.
 2. Add official DFO-LS production backend using the tuned preset:
    - `objfun_has_noise = true`
-   - `rhobeg = 0.05`
+   - `npt = 4`
+   - `rhobeg = 0.018`
    - `rhoend = 1e-16`
    - `model.abs_tol = 1e-30`
    - `model.rel_tol = 0`

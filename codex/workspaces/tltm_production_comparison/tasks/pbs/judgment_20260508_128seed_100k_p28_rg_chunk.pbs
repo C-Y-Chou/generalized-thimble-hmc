@@ -6,9 +6,11 @@ module load compiler/2025.3.0
 module load mpi/2021.17
 module load mkl/2025.3
 
-cd /lustre1/home/cychou/TLTM
+: "${TLTM_WORKTREE:=/home/cychou/TLTM}"
+: "${TLTM_EXPECTED_GIT_BRANCH:=codex/fortran-modernization}"
+cd "${TLTM_WORKTREE}"
 
-EXPECTED_BRANCH="codex/tltm-production-comparison"
+EXPECTED_BRANCH="${TLTM_EXPECTED_GIT_BRANCH}"
 EXPECTED_COMMIT="${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 CURRENT_COMMIT="$(git rev-parse HEAD)"
@@ -46,6 +48,19 @@ export QN_S1_NEAR_RESCUE_ENABLED=0
 export QN_S1_NONNEAR_RESCUE_ENABLED=0
 export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
 export QN_QUASI_TOL_OVERRIDE=1e-13
+export QN_SOLVER_BACKEND=official_dfols
+export QN_OFFICIAL_DFOLS_PRESET=stable_gate77
+
+if [ ! -x .venv-dfols/bin/python ]; then
+  echo "[ERROR] missing .venv-dfols; run official_dfols_preflight_build.pbs before production chunks" >&2
+  exit 4
+fi
+DFOLS_SITE_PACKAGES="$(.venv-dfols/bin/python - <<'PY'
+import sysconfig
+print(sysconfig.get_paths()["purelib"])
+PY
+)"
+export TLTM_OFFICIAL_DFOLS_PYTHONPATH="${DFOLS_SITE_PACKAGES}${TLTM_OFFICIAL_DFOLS_PYTHONPATH:+:${TLTM_OFFICIAL_DFOLS_PYTHONPATH}}"
 
 CONFIG_JSON="docs/stage_3_4_t035_paired_128seed_100k_rg_nofb_fbnorefine.json"
 ROOT_SUBDIR="output/tests/stage3_4/judgment_20260508_128seed_100k_p28_rg_nofb_fbnorefine"
@@ -74,6 +89,9 @@ mkdir -p "${OUT_SUBDIR}" "${LOG_SUBDIR}"
   echo "QN_REVERSE_GATE_TOL=${QN_REVERSE_GATE_TOL}"
   echo "QN_S1_PROBE_MAX_ITER=${QN_S1_PROBE_MAX_ITER}"
   echo "QN_QUASI_TOL_OVERRIDE=${QN_QUASI_TOL_OVERRIDE}"
+  echo "QN_SOLVER_BACKEND=${QN_SOLVER_BACKEND}"
+  echo "QN_OFFICIAL_DFOLS_PRESET=${QN_OFFICIAL_DFOLS_PRESET}"
+  echo "TLTM_OFFICIAL_DFOLS_PYTHONPATH=${TLTM_OFFICIAL_DFOLS_PYTHONPATH}"
   if [ "${TLTM_METHOD}" = "fb_norefine" ]; then
     echo "METHOD_SPEC_POST_REFINE=disabled"
   fi

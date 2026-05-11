@@ -21,14 +21,14 @@ Updated: 2026-05-11 JST
   - `runbooks/BASELINE_VERIFICATION_MATRIX.md`
   - `runbooks/PLANNING_DISCUSSION_BRIEF.md`
 - Current flow policy is ODEX primary integration with solver-internal ODE assist for NT/QN residual evaluation and strict final proposal/live-state flow.
-- Current p28 route is Newton -> p28 QN BTN/backflow rescue residual -> reverse gate -> Metropolis, without post-refine or non-p28 QN families.
+- Current p28 route is Newton -> p28 QN BTN/backflow rescue residual solved by embedded official DFO-LS -> reverse gate -> Metropolis, without post-refine or non-p28 QN families.
 - ODEX completeness follow-up is explicitly tracked: full-Hairer-style explicit stability checks are not currently a separate implemented control surface, so a future ODEX pass must either implement an equivalent stability guard or document the endpoint solver as a reduced ODEX-like integrator with validation evidence.
 
 ## Current architecture understanding
 - `solve_flow.f90` is flow mapping plus ODEX-like integration plus solver-internal residual-assist policy plus diagnostics.
 - `hmc_integrator_core.f90` is the central proposal hub: Newton, canonical p28 quasi fallback, reverse gate, flow/Jacobian update, momentum projection, and solver statistics.
 - `quasi_newton_solver.f90` now carries the retained p28 DFO-LS-style residual/solver machinery plus traces, solver-internal assist/watchdog accounting, and route counters; legacy DFO-GN/Broyden/global-continuation/post-refine source paths have been removed.
-- DFO-LS completeness follow-up is explicit: current source is an in-house DFO-LS-style finite-difference/trust-region/LM solver layer around the project-specific BTN residual, not an exact external DFO-LS package implementation. An offline official-DFO-LS bridge now exists for residual-oracle and representative QN-attempt replay; user selected a GPL-compatible product direction, so production replacement now remains gated by residual-gated backend design, broader representative comparison, fixed-seed route-census gates, and a runtime-boundary design.
+- DFO-LS replacement is now implemented as an embedded official `DFO-LS==1.6.5` backend through Python's C API. TLTM still owns the residual callback, residual gate, reverse gate, Metropolis logic, and failure-as-rejection semantics. The stable production preset is documented in `runbooks/OFFICIAL_DFOLS_PRESET_TUNING_POLICY.md`; `QN_SOLVER_BACKEND=internal` is retained only for controlled legacy comparison.
 - `tltm_stage2_driver.f90` owns production orchestration and output/counter contracts used by Stage3_4 interpretation.
 - `runtime_env_mod.f90` centralizes Stage1/Stage2 runtime environment parser helpers while preserving caller defaults and existing env names.
 

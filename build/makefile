@@ -16,6 +16,18 @@ ifeq ($(strip $(FC)),)
 $(error No Fortran compiler found. Load modules (e.g. Intel/MPI) or set FC=<compiler>)
 endif
 
+ifeq ($(origin CC), default)
+CC          := $(shell if command -v icx >/dev/null 2>&1; then echo icx; \
+                 elif command -v clang >/dev/null 2>&1; then echo clang; \
+                 elif command -v gcc >/dev/null 2>&1; then echo gcc; \
+                 elif command -v cc >/dev/null 2>&1; then echo cc; \
+                 fi)
+endif
+
+ifeq ($(strip $(CC)),)
+$(error No C compiler found. Load modules or set CC=<compiler>)
+endif
+
 FC_VERSION   := $(shell $(FC) --version 2>/dev/null | head -n 1 | tr '[:upper:]' '[:lower:]')
 ifneq ($(findstring intel,$(FC_VERSION)),)
 FC_FAMILY    := intel
@@ -42,6 +54,20 @@ endif
 PYTHON_GE_38 := $(shell $(PYTHON) -c "import sys; print(1 if sys.version_info >= (3, 8) else 0)" 2>/dev/null)
 ifneq ($(PYTHON_GE_38),1)
 $(error $(PYTHON) is not usable for code generation. Use Python >=3.8, e.g. PYTHON=python3.11)
+endif
+
+ENABLE_OFFICIAL_DFOLS ?= 1
+PYTHON_EMBED_CFLAGS ?= $(shell $(PYTHON)-config --includes 2>/dev/null || \
+                    $(PYTHON) -c "import sysconfig; print('-I' + sysconfig.get_paths()['include'])")
+PYTHON_EMBED_LDFLAGS ?= $(shell $(PYTHON)-config --ldflags --embed 2>/dev/null || \
+                    $(PYTHON) -c "import sysconfig; libdir=sysconfig.get_config_var('LIBDIR') or ''; version=sysconfig.get_config_var('VERSION') or ''; libs=' '.join(str(sysconfig.get_config_var(k) or '') for k in ('LIBS','SYSLIBS','LINKFORSHARED')); print((' -L' + libdir if libdir else '') + (' -lpython' + version if version else '') + (' ' + libs if libs.strip() else ''))")
+CFLAGS ?= -O2
+LDLIBS ?=
+ifneq ($(filter 1 yes true on,$(ENABLE_OFFICIAL_DFOLS)),)
+LDLIBS += $(PYTHON_EMBED_LDFLAGS)
+OFFICIAL_DFOLS_C_MODE := enabled
+else
+OFFICIAL_DFOLS_C_MODE := stub
 endif
 
 OMP         ?= 0
@@ -153,6 +179,7 @@ SOURCES_TEST1  := $(SOURCES_COMMON) $(TEST_DIR)/test_hamiltonian_conservation.f9
 SOURCES_TEST2  := $(SOURCES_COMMON) $(TEST_DIR)/test_action_derivatives.f90
 SOURCES_TEST_ODEX := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_solver.f90
 SOURCES_TEST_TLTM_SWAP := $(SOURCES_COMMON) $(TEST_DIR)/test_tltm_swap_kernel_contract.f90
+OFFICIAL_DFOLS_C_OBJECT := $(OBJ_DIR)/src/external/official_dfols_c_bridge_$(OFFICIAL_DFOLS_C_MODE).o
 
 # map source path -> object path
 define src_to_obj
@@ -163,19 +190,19 @@ define test_to_obj
 $(patsubst $(TEST_DIR)/%.f90,$(OBJ_DIR)/tests/%.o,$(1))
 endef
 
-OBJECTS_STEP2 := $(call src_to_obj,$(SOURCES_STEP2))
-OBJECTS_STEP3 := $(call src_to_obj,$(SOURCES_STEP3))
-OBJECTS_STEP9 := $(call src_to_obj,$(SOURCES_STEP9))
-OBJECTS_STEP10 := $(call src_to_obj,$(SOURCES_STEP10))
-OBJECTS_BTN_RESIDUAL := $(call src_to_obj,$(SOURCES_BTN_RESIDUAL))
+OBJECTS_STEP2 := $(call src_to_obj,$(SOURCES_STEP2)) $(OFFICIAL_DFOLS_C_OBJECT)
+OBJECTS_STEP3 := $(call src_to_obj,$(SOURCES_STEP3)) $(OFFICIAL_DFOLS_C_OBJECT)
+OBJECTS_STEP9 := $(call src_to_obj,$(SOURCES_STEP9)) $(OFFICIAL_DFOLS_C_OBJECT)
+OBJECTS_STEP10 := $(call src_to_obj,$(SOURCES_STEP10)) $(OFFICIAL_DFOLS_C_OBJECT)
+OBJECTS_BTN_RESIDUAL := $(call src_to_obj,$(SOURCES_BTN_RESIDUAL)) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_TEST1 := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST1))) \
-                 $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST1)))
+                 $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST1))) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_TEST2 := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST2))) \
-                 $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST2)))
+                 $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST2))) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_TEST_ODEX := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_ODEX))) \
-                     $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_ODEX)))
+                     $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_ODEX))) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_TEST_TLTM_SWAP := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_TLTM_SWAP))) \
-                          $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_TLTM_SWAP)))
+                          $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_TLTM_SWAP))) $(OFFICIAL_DFOLS_C_OBJECT)
 
 SOURCES_DEP := $(sort $(SOURCES_STEP2) $(SOURCES_STEP3) $(SOURCES_STEP9) $(SOURCES_BTN_RESIDUAL) \
                 $(SOURCES_STEP10) $(SOURCES_TEST1) $(SOURCES_TEST2) $(SOURCES_TEST_ODEX) $(SOURCES_TEST_TLTM_SWAP))
@@ -221,33 +248,41 @@ $(OBJ_DIR)/tests/%.o: $(TEST_DIR)/%.f90 | $(MOD_DIR)
 	@mkdir -p $(dir $@)
 	$(FC) $(FFLAGS) -c $< -o $@ $(MOD_FLAG)
 
+$(OBJ_DIR)/src/external/official_dfols_c_bridge_enabled.o: $(SRC_DIR)/external/official_dfols_c_bridge.c | $(MOD_DIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(PYTHON_EMBED_CFLAGS) -DTLTM_ENABLE_OFFICIAL_DFOLS -c $< -o $@
+
+$(OBJ_DIR)/src/external/official_dfols_c_bridge_stub.o: $(SRC_DIR)/external/official_dfols_c_bridge.c | $(MOD_DIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 # link rules
 $(BIN_DIR)/generate_markov_chain: $(OBJECTS_STEP2) | $(BIN_DIR)
-	$(FC) $(LDFLAGS) -o $@ $^
+	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 $(BIN_DIR)/evaluate_expectations: $(OBJECTS_STEP3) | $(BIN_DIR)
-	$(FC) $(LDFLAGS) -o $@ $^
+	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 $(BIN_DIR)/run_tltm_stage1: $(OBJECTS_STEP9) | $(BIN_DIR)
-	$(FC) $(LDFLAGS) -o $@ $^
+	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 $(BIN_DIR)/run_tltm_stage2: $(OBJECTS_STEP10) | $(BIN_DIR)
-	$(FC) $(LDFLAGS) -o $@ $^
+	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 $(BIN_DIR)/evaluate_btn_residual_case: $(OBJECTS_BTN_RESIDUAL) | $(BIN_DIR)
-	$(FC) $(LDFLAGS) -o $@ $^
+	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 $(BIN_DIR)/test_program: $(OBJECTS_TEST1) | $(BIN_DIR)
-	$(FC) $(LDFLAGS) -o $@ $^
+	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 $(BIN_DIR)/test_program2: $(OBJECTS_TEST2) | $(BIN_DIR)
-	$(FC) $(LDFLAGS) -o $@ $^
+	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 $(BIN_DIR)/test_odex_solver: $(OBJECTS_TEST_ODEX) | $(BIN_DIR)
-	$(FC) $(LDFLAGS) -o $@ $^
+	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 $(BIN_DIR)/test_tltm_swap_kernel_contract: $(OBJECTS_TEST_TLTM_SWAP) | $(BIN_DIR)
-	$(FC) $(LDFLAGS) -o $@ $^
+	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 # create build directories if missing
 $(MOD_DIR) $(BIN_DIR) $(OUT_DIR) $(OUT_PROD_DIR) $(OUT_TEST_DIR) $(OUT_TEST1_DIR) $(OUT_LOG_DIR):
@@ -262,6 +297,8 @@ help:
 	@echo "  make fast     - build with debug-friendly fast flags"
 	@echo "  make OMP=1    - enable OpenMP (Intel path also enables parallel MKL)"
 	@echo "  make FC=<compiler> PYTHON=<python> - override auto-detected toolchain"
+	@echo "  make ENABLE_OFFICIAL_DFOLS=1 - build the embedded official DFO-LS backend (default)"
+	@echo "  make ENABLE_OFFICIAL_DFOLS=0 - build a stub bridge; set QN_SOLVER_BACKEND=internal for legacy in-house runs"
 	@echo "  make GNU_LINALG_LIBS='-lopenblas'   - optionally link external BLAS/LAPACK on GNU"
 	@echo "  make regen_model_derivatives - regenerate src/physics/model_generated.f90 (GEN_BACKEND=auto|symbolic|tape|st_auto|st_tapenade|st_enzyme; default=auto)"
 	@echo "    uses ST_TAPENADE_CMD if set; otherwise auto-detects ~/tools/tapenade-3.16-v2/bin/tapenade"

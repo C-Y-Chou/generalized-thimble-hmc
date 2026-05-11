@@ -1,9 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-cd /lustre1/home/cychou/TLTM
+: "${TLTM_WORKTREE:=/home/cychou/TLTM}"
+: "${TLTM_EXPECTED_GIT_BRANCH:=codex/fortran-modernization}"
+cd "${TLTM_WORKTREE}"
 
-EXPECTED_BRANCH="codex/tltm-production-comparison"
+EXPECTED_BRANCH="${TLTM_EXPECTED_GIT_BRANCH}"
 EXPECTED_COMMIT="${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 CURRENT_COMMIT="$(git rev-parse HEAD)"

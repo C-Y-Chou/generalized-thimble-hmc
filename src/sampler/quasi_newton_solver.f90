@@ -1,7 +1,8 @@
 module quasi_newton_solver_mod
-   use runtime_env_mod, only: parse_int_env, read_string_env
+   use runtime_env_mod, only: parse_int_env, parse_real_env, parse_logical_env, read_string_env, to_lower_ascii
    use utils, only: dp, complex_to_real, real_to_complex
    use, intrinsic :: iso_fortran_env, only: int64
+   use, intrinsic :: iso_c_binding, only: c_double, c_funloc, c_funptr, c_int, c_null_ptr, c_ptr
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_value, ieee_quiet_nan
    use solve_flow, only: flowzr, flowz, set_intode_stage_trace, set_intode_quasi_iter_trace, intode_stage_quasi, &
                          get_intode_rescue_stats, intode_status_unknown, intode_status_success, intode_status_success_zero_time, &
@@ -67,6 +68,38 @@ module quasi_newton_solver_mod
    integer, save :: qn_attempt_capture_meta_unit = -1
    integer(int64), save :: qn_current_attempt_eval_count = 0_int64
    character(len=512), save :: qn_attempt_capture_dir = ""
+   integer, parameter :: qn_backend_internal = 1
+   integer, parameter :: qn_backend_official_dfols = 2
+   logical, save :: qn_backend_policy_loaded = .false.
+   integer, save :: qn_solver_backend = qn_backend_official_dfols
+   logical, save :: qn_backend_notice_printed = .false.
+   logical, save :: qn_official_dfols_failure_warned = .false.
+   integer, save :: qn_official_dfols_npt = 4
+   integer, save :: qn_official_dfols_maxfun = 250
+   logical, save :: qn_official_dfols_objfun_has_noise = .true.
+   real(dp), save :: qn_official_dfols_rhobeg = 1.8e-2_dp
+   real(dp), save :: qn_official_dfols_rhoend = 1.0e-16_dp
+   real(dp), save :: qn_official_dfols_model_abs_tol = 1.0e-30_dp
+   real(dp), save :: qn_official_dfols_model_rel_tol = 0.0_dp
+   logical, save :: qn_official_context_active = .false.
+   real(dp), allocatable, save :: qn_official_xt(:), qn_official_del_z(:), qn_official_last_jl(:)
+   complex(dp), allocatable, save :: qn_official_z(:), qn_official_jac(:, :)
+
+   interface
+      integer(c_int) function tltm_official_dfols_solve_c(n, x0, x_out, package_residual_norm, nf, flag, npt, rhobeg, &
+                                                          rhoend, maxfun, objfun_has_noise, model_abs_tol, model_rel_tol, &
+                                                          ctx, objfun) bind(C, name="tltm_official_dfols_solve")
+         import :: c_double, c_funptr, c_int, c_ptr
+         integer(c_int), value :: n, npt, maxfun, objfun_has_noise
+         real(c_double), intent(in) :: x0(*)
+         real(c_double), intent(out) :: x_out(*)
+         real(c_double), intent(out) :: package_residual_norm
+         integer(c_int), intent(out) :: nf, flag
+         real(c_double), value :: rhobeg, rhoend, model_abs_tol, model_rel_tol
+         type(c_ptr), value :: ctx
+         type(c_funptr), value :: objfun
+      end function tltm_official_dfols_solve_c
+   end interface
 
 contains
 
@@ -133,6 +166,34 @@ contains
       Jl_best_global = 0.0_dp
       x_new = xt
       x_try = xt
+
+      call load_qn_backend_policy()
+      if (qn_solver_backend == qn_backend_official_dfols) then
+         attempt_idx = 1
+         quasi_trace_route_code = 10
+         call run_official_dfols_attempt(tol, attempt_idx, xt, z, del_z, jac, x0_guess, stage_converged, Jl, x_new, &
+                                         x_best_out=x_best_first, best_res_out=best_res_first)
+         best_res_global = best_res_first
+         Jl_best_global = Jl
+         x_best_global = x_best_first
+         converged = stage_converged
+         if ((.not. converged) .and. ieee_is_finite(best_res_global) .and. &
+             best_res_global <= probe_global_rescue_trigger_res) then
+            global_filter_candidate = .true.
+         end if
+         if (global_filter_candidate) call record_quasi_global_filter(converged)
+         if (.not. converged) then
+            x_new = xt
+            Jl = Jl_best_global
+         end if
+         ierr = .not. converged
+         if (present(x_best_solution)) then
+            if (size(x_best_solution) == n) x_best_solution = x_best_global
+         end if
+         call end_quasi_watchdog_scope()
+         deallocate (x0_guess, x_best_first, x_stage_best, x_stage_seed, x_try, x_best_global, Jl_try, Jl_best_global)
+         return
+      end if
 
       attempt_idx = 1
       quasi_trace_route_code = 1
@@ -218,6 +279,244 @@ contains
          quasi_global_filter_reject_count = quasi_global_filter_reject_count + 1_int64
       end if
    end subroutine record_quasi_global_filter
+
+   subroutine run_official_dfols_attempt(tol, attempt_idx, xt, z, del_z, jac, x_init, converged, Jl, x_new, &
+                                         x_best_out, best_res_out)
+      implicit none
+      integer, intent(in) :: attempt_idx
+      real(dp), intent(in) :: tol
+      real(dp), intent(in) :: xt(:), del_z(:), x_init(:)
+      complex(dp), intent(in) :: z(:), jac(:, :)
+      logical, intent(out) :: converged
+      real(dp), intent(out) :: Jl(:), x_new(:)
+      real(dp), intent(out), optional :: x_best_out(:)
+      real(dp), intent(out), optional :: best_res_out
+
+      integer :: n, i
+      integer(c_int) :: c_status, c_n, c_nf, c_flag, c_objfun_has_noise
+      real(c_double) :: c_package_residual_norm
+      real(dp) :: initial_r_norm, final_r_norm, best_r_norm, attempt_cpu_start, attempt_cpu_seconds
+      logical :: eval_error, initial_eval_ok
+      real(dp), allocatable :: x_seed(:), x_solution(:), x_best(:), r(:), Jl_eval(:), Jl_best(:)
+      real(c_double), allocatable :: x0_c(:), x_solution_c(:)
+
+      n = 2*size(z)
+      converged = .false.
+      x_new = xt
+      if (size(x_new) /= size(xt) .or. size(Jl) /= size(del_z)) return
+
+      allocate (x_seed(n), x_solution(n), x_best(n), r(n), Jl_eval(n), Jl_best(n), x0_c(n), x_solution_c(n))
+      if (size(x_init) == n) then
+         x_seed = x_init
+      else
+         x_seed = 0.0_dp
+      end if
+      x_solution = x_seed
+      x_best = x_seed
+      Jl = 0.0_dp
+      Jl_eval = 0.0_dp
+      Jl_best = 0.0_dp
+      initial_r_norm = huge(1.0_dp)
+      final_r_norm = huge(1.0_dp)
+      best_r_norm = huge(1.0_dp)
+      initial_eval_ok = .false.
+      qn_current_attempt_eval_count = 0_int64
+      quasi_trace_iter = 0
+      call cpu_time(attempt_cpu_start)
+
+      call count_qn_attempt_eval()
+      call evaluate_constraint_residual(xt, z, x_seed, r, del_z, eval_error, Jl_eval, jac)
+      if (eval_error .or. .not. real_vector_is_finite(r)) then
+         x_seed = 0.0_dp
+         quasi_trace_iter = 0
+         call count_qn_attempt_eval()
+         call evaluate_constraint_residual(xt, z, x_seed, r, del_z, eval_error, Jl_eval, jac)
+      end if
+      if (eval_error .or. .not. real_vector_is_finite(r)) then
+         call append_quasi_trace_sample(0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
+         attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
+         call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, qn_official_dfols_maxfun, tol, &
+                                 huge(1.0_dp), huge(1.0_dp), .false., .false., &
+                                 qn_current_attempt_eval_count, attempt_cpu_seconds)
+         deallocate (x_seed, x_solution, x_best, r, Jl_eval, Jl_best, x0_c, x_solution_c)
+         return
+      end if
+
+      initial_eval_ok = .true.
+      initial_r_norm = norm2(r)
+      if (ieee_is_finite(initial_r_norm)) then
+         best_r_norm = initial_r_norm
+         x_best = x_seed
+         Jl_best = Jl_eval
+      end if
+      call append_quasi_trace_sample(0.0_dp, 0, 0, attempt_idx, initial_r_norm, &
+                                     residual_within_accept_tolerance(initial_r_norm, tol), .true.)
+
+      if (residual_within_accept_tolerance(best_r_norm, tol)) then
+         call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged)
+         if (.not. converged) x_new = xt
+         if (present(x_best_out)) then
+            if (size(x_best_out) == size(x_best)) x_best_out = x_best
+         end if
+         if (present(best_res_out)) best_res_out = best_r_norm
+         attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
+         call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, qn_official_dfols_maxfun, tol, &
+                                 initial_r_norm, best_r_norm, converged, initial_eval_ok, &
+                                 qn_current_attempt_eval_count, attempt_cpu_seconds)
+         deallocate (x_seed, x_solution, x_best, r, Jl_eval, Jl_best, x0_c, x_solution_c)
+         return
+      end if
+
+      call activate_qn_official_context(xt, z, del_z, jac)
+      do i = 1, n
+         x0_c(i) = real(x_seed(i), c_double)
+         x_solution_c(i) = real(x_seed(i), c_double)
+      end do
+      c_n = int(n, c_int)
+      if (qn_official_dfols_objfun_has_noise) then
+         c_objfun_has_noise = 1_c_int
+      else
+         c_objfun_has_noise = 0_c_int
+      end if
+      c_status = tltm_official_dfols_solve_c(c_n, x0_c, x_solution_c, c_package_residual_norm, c_nf, c_flag, &
+                                             int(qn_official_dfols_npt, c_int), qn_official_dfols_rhobeg, &
+                                             qn_official_dfols_rhoend, int(qn_official_dfols_maxfun, c_int), &
+                                             c_objfun_has_noise, qn_official_dfols_model_abs_tol, &
+                                             qn_official_dfols_model_rel_tol, c_null_ptr, &
+                                             c_funloc(qn_official_dfols_eval_callback))
+      call deactivate_qn_official_context()
+
+      if (c_status /= 0_c_int) then
+         call warn_official_dfols_failure(int(c_status), int(c_flag))
+         call append_quasi_trace_sample(0.0_dp, 0, int(c_status), attempt_idx, huge(1.0_dp), .false., .false.)
+      else
+         do i = 1, n
+            x_solution(i) = real(x_solution_c(i), dp)
+         end do
+         if (real_vector_is_finite(x_solution)) then
+            quasi_trace_iter = 0
+            call count_qn_attempt_eval()
+            call evaluate_constraint_residual(xt, z, x_solution, r, del_z, eval_error, Jl_eval, jac)
+            if (.not. eval_error .and. real_vector_is_finite(r)) then
+               final_r_norm = norm2(r)
+               call append_quasi_trace_sample(1.0_dp, 0, int(c_nf), attempt_idx, final_r_norm, &
+                                              residual_within_accept_tolerance(final_r_norm, tol), .true.)
+               if (ieee_is_finite(final_r_norm) .and. final_r_norm < best_r_norm) then
+                  best_r_norm = final_r_norm
+                  x_best = x_solution
+                  Jl_best = Jl_eval
+               end if
+            else
+               call append_quasi_trace_sample(1.0_dp, 0, int(c_nf), attempt_idx, huge(1.0_dp), .false., .false.)
+            end if
+         else
+            call append_quasi_trace_sample(1.0_dp, 0, int(c_nf), attempt_idx, huge(1.0_dp), .false., .false.)
+         end if
+      end if
+
+      call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged)
+      if (.not. converged) then
+         x_new = xt
+         if (size(Jl_best) == size(Jl)) Jl = Jl_best
+      end if
+      if (present(x_best_out)) then
+         if (size(x_best_out) == size(x_best)) x_best_out = x_best
+      end if
+      if (present(best_res_out)) best_res_out = best_r_norm
+      attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
+      call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, qn_official_dfols_maxfun, tol, &
+                              initial_r_norm, best_r_norm, converged, initial_eval_ok, &
+                              qn_current_attempt_eval_count, attempt_cpu_seconds)
+
+      deallocate (x_seed, x_solution, x_best, r, Jl_eval, Jl_best, x0_c, x_solution_c)
+   end subroutine run_official_dfols_attempt
+
+   integer(c_int) function qn_official_dfols_eval_callback(ctx, n_c, x_c, r_c) bind(C) result(status)
+      implicit none
+      type(c_ptr), value :: ctx
+      integer(c_int), value :: n_c
+      real(c_double), intent(in) :: x_c(*)
+      real(c_double), intent(out) :: r_c(*)
+
+      integer :: n, i
+      logical :: eval_error
+      real(dp), allocatable :: xi(:), fq(:), jl(:)
+
+      status = 1_c_int
+      n = int(n_c)
+      if (.not. qn_official_context_active) return
+      if (n <= 0) return
+      if (.not. allocated(qn_official_del_z)) return
+      if (size(qn_official_del_z) /= n) return
+      allocate (xi(n), fq(n), jl(n))
+
+      do i = 1, n
+         xi(i) = real(x_c(i), dp)
+      end do
+      if (.not. real_vector_is_finite(xi)) goto 100
+
+      quasi_trace_iter = 0
+      call count_qn_attempt_eval()
+      call evaluate_constraint_residual(qn_official_xt, qn_official_z, xi, fq, qn_official_del_z, eval_error, jl, qn_official_jac)
+      if (eval_error .or. .not. real_vector_is_finite(fq)) goto 100
+
+      do i = 1, n
+         r_c(i) = real(fq(i), c_double)
+      end do
+      if (allocated(qn_official_last_jl)) then
+         if (size(qn_official_last_jl) == n) qn_official_last_jl = jl
+      end if
+      status = 0_c_int
+
+100   continue
+      if (allocated(xi)) deallocate (xi)
+      if (allocated(fq)) deallocate (fq)
+      if (allocated(jl)) deallocate (jl)
+   end function qn_official_dfols_eval_callback
+
+   subroutine activate_qn_official_context(xt, z, del_z, jac)
+      implicit none
+      real(dp), intent(in) :: xt(:), del_z(:)
+      complex(dp), intent(in) :: z(:), jac(:, :)
+      integer :: n_xt, n_z, n_delz
+
+      n_xt = size(xt)
+      n_z = size(z)
+      n_delz = size(del_z)
+      call ensure_real_workspace(qn_official_xt, n_xt)
+      call ensure_complex_workspace(qn_official_z, n_z)
+      call ensure_real_workspace(qn_official_del_z, n_delz)
+      call ensure_real_workspace(qn_official_last_jl, n_delz)
+      if (allocated(qn_official_jac)) then
+         if (size(qn_official_jac, 1) /= size(jac, 1) .or. size(qn_official_jac, 2) /= size(jac, 2)) then
+            deallocate (qn_official_jac)
+         end if
+      end if
+      if (.not. allocated(qn_official_jac)) allocate (qn_official_jac(size(jac, 1), size(jac, 2)))
+
+      qn_official_xt(1:n_xt) = xt
+      qn_official_z(1:n_z) = z
+      qn_official_del_z(1:n_delz) = del_z
+      qn_official_last_jl(1:n_delz) = 0.0_dp
+      qn_official_jac = jac
+      qn_official_context_active = .true.
+   end subroutine activate_qn_official_context
+
+   subroutine deactivate_qn_official_context()
+      implicit none
+
+      qn_official_context_active = .false.
+   end subroutine deactivate_qn_official_context
+
+   subroutine warn_official_dfols_failure(status, flag)
+      implicit none
+      integer, intent(in) :: status, flag
+
+      if (qn_official_dfols_failure_warned) return
+      qn_official_dfols_failure_warned = .true.
+      write (*, '(A,I0,A,I0,A)') "[WARN] Official DFO-LS bridge failed: status=", status, &
+         " flag=", flag, "; QN attempt will be rejected without internal fallback."
+   end subroutine warn_official_dfols_failure
 
    subroutine run_dfo_ls_attempt(f, tol, max_iter, attempt_idx, xt, z, del_z, jac, x_init, converged, Jl, x_new, &
                                  x_best_out, best_res_out)
@@ -1206,6 +1505,119 @@ contains
                                    success_radau_fixed_tol, success_radau_chunked, solver_assist_success, &
                                    fail_radau_adaptive_robust, fail_radau_fixed_tol, fail_radau_chunked, fail_final_resort)
    end function current_solver_assist_success_count
+
+   subroutine load_qn_backend_policy()
+      implicit none
+      character(len=128) :: env_value, token
+      logical :: env_present
+
+      if (qn_backend_policy_loaded) return
+      qn_backend_policy_loaded = .true.
+      qn_solver_backend = qn_backend_official_dfols
+      call apply_qn_official_dfols_preset("stable_gate77")
+
+      call read_string_env("QN_SOLVER_BACKEND", env_value, env_present)
+      if (env_present) then
+         token = trim(to_lower_ascii(adjustl(env_value)))
+         select case (token)
+         case ("official", "official_dfols", "official-dfols", "dfols", "external_dfols")
+            qn_solver_backend = qn_backend_official_dfols
+         case ("internal", "inhouse", "in_house", "legacy")
+            qn_solver_backend = qn_backend_internal
+         case default
+            write (*, '(A,A,A)') "[WARN] Unknown QN_SOLVER_BACKEND='", trim(env_value), "'; using official_dfols."
+            qn_solver_backend = qn_backend_official_dfols
+         end select
+      end if
+
+      call read_string_env("QN_OFFICIAL_DFOLS_PRESET", env_value, env_present)
+      if (env_present) then
+         token = trim(to_lower_ascii(adjustl(env_value)))
+         call apply_qn_official_dfols_preset(token)
+      end if
+
+      call parse_int_env("QN_OFFICIAL_DFOLS_NPT", qn_official_dfols_npt)
+      call parse_int_env("QN_OFFICIAL_DFOLS_MAXFUN", qn_official_dfols_maxfun)
+      call parse_logical_env("QN_OFFICIAL_DFOLS_OBJFUN_HAS_NOISE", qn_official_dfols_objfun_has_noise)
+      call parse_real_env("QN_OFFICIAL_DFOLS_RHOBEG", qn_official_dfols_rhobeg)
+      call parse_real_env("QN_OFFICIAL_DFOLS_RHOEND", qn_official_dfols_rhoend)
+      call parse_real_env("QN_OFFICIAL_DFOLS_MODEL_ABS_TOL", qn_official_dfols_model_abs_tol)
+      call parse_real_env("QN_OFFICIAL_DFOLS_MODEL_REL_TOL", qn_official_dfols_model_rel_tol)
+
+      qn_official_dfols_npt = max(0, qn_official_dfols_npt)
+      qn_official_dfols_maxfun = max(1, qn_official_dfols_maxfun)
+      if (.not. ieee_is_finite(qn_official_dfols_rhobeg)) qn_official_dfols_rhobeg = 1.8e-2_dp
+      if (.not. ieee_is_finite(qn_official_dfols_rhoend) .or. qn_official_dfols_rhoend <= 0.0_dp) then
+         qn_official_dfols_rhoend = 1.0e-16_dp
+      end if
+      if (.not. ieee_is_finite(qn_official_dfols_model_abs_tol) .or. qn_official_dfols_model_abs_tol < 0.0_dp) then
+         qn_official_dfols_model_abs_tol = 1.0e-30_dp
+      end if
+      if (.not. ieee_is_finite(qn_official_dfols_model_rel_tol) .or. qn_official_dfols_model_rel_tol < 0.0_dp) then
+         qn_official_dfols_model_rel_tol = 0.0_dp
+      end if
+
+      call print_qn_backend_policy_once()
+   end subroutine load_qn_backend_policy
+
+   subroutine apply_qn_official_dfols_preset(preset_name)
+      implicit none
+      character(len=*), intent(in) :: preset_name
+      character(len=128) :: token
+
+      token = trim(to_lower_ascii(adjustl(preset_name)))
+      select case (token)
+      case ("", "stable", "stable_gate77", "gate77", "production", "official_alone")
+         qn_official_dfols_npt = 4
+         qn_official_dfols_maxfun = 250
+         qn_official_dfols_objfun_has_noise = .true.
+         qn_official_dfols_rhobeg = 1.8e-2_dp
+         qn_official_dfols_rhoend = 1.0e-16_dp
+         qn_official_dfols_model_abs_tol = 1.0e-30_dp
+         qn_official_dfols_model_rel_tol = 0.0_dp
+      case ("legacy", "legacy69", "r005", "gate69")
+         qn_official_dfols_npt = 0
+         qn_official_dfols_maxfun = 250
+         qn_official_dfols_objfun_has_noise = .true.
+         qn_official_dfols_rhobeg = 5.0e-2_dp
+         qn_official_dfols_rhoend = 1.0e-16_dp
+         qn_official_dfols_model_abs_tol = 1.0e-30_dp
+         qn_official_dfols_model_rel_tol = 0.0_dp
+      case default
+         write (*, '(A,A,A)') "[WARN] Unknown QN_OFFICIAL_DFOLS_PRESET='", trim(preset_name), "'; using stable_gate77."
+         qn_official_dfols_npt = 4
+         qn_official_dfols_maxfun = 250
+         qn_official_dfols_objfun_has_noise = .true.
+         qn_official_dfols_rhobeg = 1.8e-2_dp
+         qn_official_dfols_rhoend = 1.0e-16_dp
+         qn_official_dfols_model_abs_tol = 1.0e-30_dp
+         qn_official_dfols_model_rel_tol = 0.0_dp
+      end select
+   end subroutine apply_qn_official_dfols_preset
+
+   subroutine print_qn_backend_policy_once()
+      implicit none
+      character(len=32) :: backend_name
+
+      if (qn_backend_notice_printed) return
+      qn_backend_notice_printed = .true.
+      if (qn_solver_backend == qn_backend_internal) then
+         backend_name = "internal"
+      else
+         backend_name = "official_dfols"
+      end if
+      write (*, '(A,A)') "[INFO] QN solver backend=", trim(backend_name)
+      if (qn_solver_backend == qn_backend_official_dfols) then
+         write (*, '(A,I0,1X,A,I0,1X,A,L1,1X,A,ES10.3,1X,A,ES10.3)') &
+            "[INFO] official DFO-LS preset npt=", qn_official_dfols_npt, &
+            "maxfun=", qn_official_dfols_maxfun, &
+            "noise=", qn_official_dfols_objfun_has_noise, &
+            "rhobeg=", qn_official_dfols_rhobeg, "rhoend=", qn_official_dfols_rhoend
+         write (*, '(A,ES10.3,1X,A,ES10.3)') &
+            "[INFO] official DFO-LS model.abs_tol=", qn_official_dfols_model_abs_tol, &
+            "model.rel_tol=", qn_official_dfols_model_rel_tol
+      end if
+   end subroutine print_qn_backend_policy_once
 
    subroutine load_quasi_watchdog_policy()
       implicit none

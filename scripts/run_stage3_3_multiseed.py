@@ -496,6 +496,7 @@ def build_binaries(repo_root, omp_enabled):
         "-C",
         str(build_dir),
         "OMP={0}".format(1 if omp_enabled else 0),
+        "ENABLE_OFFICIAL_DFOLS=1",
         "../bin/run_tltm_stage2",
         "../bin/evaluate_expectations",
     ]
@@ -521,6 +522,7 @@ def selected_manifest_env(env):
         "OPENBLAS_NUM_THREADS",
         "VECLIB_MAXIMUM_THREADS",
         "NUMEXPR_NUM_THREADS",
+        "TLTM_OFFICIAL_DFOLS_PYTHONPATH",
     }
     prefixes = (
         "TLTM_STAGE2_",

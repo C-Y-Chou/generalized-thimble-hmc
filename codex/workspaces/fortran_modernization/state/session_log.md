@@ -488,3 +488,13 @@
 - Revised preset result on the same 77-attempt gate capture: 71/77 residual successes, 63/63 in-house-converged attempts preserved, 0/77 float64 failures; residual-fail samples were 23, 28, 35, 46, 47, and 54, all in-house-nonconverged.
 - Updated the PBS gate scaffold to use the revised `npt=4`, `rhobeg=0.018` official DFO-LS preset for future reruns.
 - Updated-scaffold gate rerun `14728.anode01` (`official_dfols_backend_gate_20260511_1543cb4`) completed with PBS `Exit_status=0`; summary matched the revised preset readback: 77 attempts replayed, 63/63 in-house-converged attempts preserved, and 0 float64 failures.
+
+## 2026-05-11 JST - Embedded official DFO-LS backend replacement
+- Added `src/external/official_dfols_c_bridge.c`, an in-process Python C-API bridge to official `dfols.solve`. The C bridge exposes only official package controls and delegates the residual callback to TLTM Fortran.
+- Replaced the default QN backend path in `solve_constraint_quasi_newton` with official DFO-LS. `QN_SOLVER_BACKEND=internal` remains available only for controlled legacy comparison.
+- Added official-alone preset controls and `stable_gate77` as the production default: `npt=4`, `rhobeg=0.018`, `rhoend=1e-16`, `maxfun=250`, `objfun_has_noise=true`, `model.abs_tol=1e-30`, `model.rel_tol=0`.
+- Added `build/makefile` support for `ENABLE_OFFICIAL_DFOLS=1`, Python embed compile/link flags, and the C bridge object. Official backend build is now the default.
+- Updated Stage3 multiseed build/manifest handling so production preflight builds pass `ENABLE_OFFICIAL_DFOLS=1` and per-seed manifests record `TLTM_OFFICIAL_DFOLS_PYTHONPATH`.
+- Added `runbooks/OFFICIAL_DFOLS_PRESET_TUNING_POLICY.md`.
+- Local verification: built `../bin/run_tltm_stage2` and `../bin/evaluate_btn_residual_case`; installed `DFO-LS==1.6.5` into `.venv-dfols`; ran a 1-seed, 500-cycle `fb_norefine` Stage3-style smoke with `QN_SOLVER_BACKEND=official_dfols`.
+- Live-smoke readback: `quasi_stage_stats probe_attempt=50 probe_success=45`, `constraint_stats quasi=45 failed=5`, `qn_eval_flow_status success=7063`, and captured 10 official-backend QN attempts with best residuals around `1e-15`. No official bridge/import/runtime error was present.
