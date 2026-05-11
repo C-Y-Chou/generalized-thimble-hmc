@@ -26,6 +26,7 @@ module load mkl/2025.3
 : "${TLTM_DFOLS_GATE_LABEL:=official_dfols_backend_gate_20260511}"
 : "${TLTM_DFOLS_GATE_ALLOW_OVERWRITE:=0}"
 : "${TLTM_DFOLS_GATE_MAX_CASES:=0}"
+: "${TLTM_BUILD_JOBS:=8}"
 
 cd "${TLTM_WORKTREE}"
 
@@ -87,17 +88,115 @@ if [ -z "${PYTHON_FOR_DFOLS}" ]; then
   fi
 fi
 
+PY_VERSION="$("${PYTHON_FOR_DFOLS}" - <<'PY'
+import sys
+print("{}.{}".format(sys.version_info[0], sys.version_info[1]))
+PY
+)"
+PY_INCLUDE="$("${PYTHON_FOR_DFOLS}" - <<'PY'
+import sysconfig
+print(sysconfig.get_paths()["include"])
+PY
+)"
+PY_LIBDIR="$("${PYTHON_FOR_DFOLS}" - <<'PY'
+import sysconfig
+print(sysconfig.get_config_var("LIBDIR") or "")
+PY
+)"
+PY_LDLIBRARY="$("${PYTHON_FOR_DFOLS}" - <<'PY'
+import sysconfig
+print(sysconfig.get_config_var("LDLIBRARY") or "")
+PY
+)"
+PY_EMBED_EXTRA_LDFLAGS="$("${PYTHON_FOR_DFOLS}" - <<'PY'
+import sysconfig
+print(" ".join(str(sysconfig.get_config_var(k) or "") for k in ("LIBS", "SYSLIBS", "LINKFORSHARED")))
+PY
+)"
+
+if [ -n "${TLTM_PYTHON_INCLUDE_DIR:-}" ]; then
+  if [ ! -f "${TLTM_PYTHON_INCLUDE_DIR}/Python.h" ]; then
+    echo "[ERROR] TLTM_PYTHON_INCLUDE_DIR lacks Python.h: ${TLTM_PYTHON_INCLUDE_DIR}" >&2
+    exit 4
+  fi
+  export PYTHON_EMBED_CFLAGS="-I${TLTM_PYTHON_INCLUDE_DIR}${PYTHON_EMBED_CFLAGS:+ ${PYTHON_EMBED_CFLAGS}}"
+elif [ -f "${PY_INCLUDE}/Python.h" ]; then
+  :
+elif [ "${PY_VERSION}" = "3.11" ]; then
+  : "${TLTM_PYTHON_DEVEL_ROOT:=${PWD}/.deps/python-devel-3.11}"
+  : "${TLTM_PYTHON_DEVEL_RPM_URL:=https://rockylinux.t-2.net/8/Devel/x86_64/os/Packages/p/python3.11-devel-3.11.11-1.el8_10.x86_64.rpm}"
+  RPM_DIR="${PWD}/.deps/rpms"
+  RPM_FILE="${RPM_DIR}/${TLTM_PYTHON_DEVEL_RPM_URL##*/}"
+  mkdir -p "${RPM_DIR}" "${TLTM_PYTHON_DEVEL_ROOT}"
+  if [ ! -f "${RPM_FILE}" ]; then
+    if ! command -v curl >/dev/null 2>&1; then
+      echo "[ERROR] Python.h missing and curl is unavailable for python-devel RPM download" >&2
+      exit 4
+    fi
+    curl -L --fail --retry 3 -o "${RPM_FILE}" "${TLTM_PYTHON_DEVEL_RPM_URL}"
+  fi
+  if [ ! -f "${TLTM_PYTHON_DEVEL_ROOT}/usr/include/python3.11/Python.h" ]; then
+    if ! command -v rpm2cpio >/dev/null 2>&1 || ! command -v cpio >/dev/null 2>&1; then
+      echo "[ERROR] Python.h missing and rpm2cpio/cpio is unavailable for local RPM extraction" >&2
+      exit 4
+    fi
+    (cd "${TLTM_PYTHON_DEVEL_ROOT}" && rpm2cpio "${RPM_FILE}" | cpio -idm >/dev/null)
+  fi
+  PY_DEVEL_INCLUDE="${TLTM_PYTHON_DEVEL_ROOT}/usr/include/python3.11"
+  PY_HEADER_CFLAGS="-I${PY_DEVEL_INCLUDE}"
+  if grep -q 'pyconfig-' "${PY_DEVEL_INCLUDE}/pyconfig.h" && ! ls "${PY_DEVEL_INCLUDE}"/pyconfig-*.h >/dev/null 2>&1; then
+    if ls "${PY_INCLUDE}"/pyconfig-*.h >/dev/null 2>&1; then
+      PY_HEADER_CFLAGS="${PY_HEADER_CFLAGS} -I${PY_INCLUDE}"
+    else
+      echo "[ERROR] extracted Python headers require a pyconfig platform fragment; set TLTM_PYTHON_INCLUDE_DIR" >&2
+      exit 4
+    fi
+  fi
+  export PYTHON_EMBED_CFLAGS="${PY_HEADER_CFLAGS}${PYTHON_EMBED_CFLAGS:+ ${PYTHON_EMBED_CFLAGS}}"
+else
+  echo "[ERROR] Python.h missing for ${PYTHON_FOR_DFOLS} (${PY_VERSION}); set TLTM_PYTHON_INCLUDE_DIR" >&2
+  exit 4
+fi
+
+if [ -z "${PYTHON_EMBED_LDFLAGS:-}" ] && [ -n "${PY_LIBDIR}" ] && [ -n "${PY_LDLIBRARY}" ] && [ ! -f "${PY_LIBDIR}/${PY_LDLIBRARY}" ]; then
+  PY_VERSIONED_RUNTIME="${PY_LIBDIR}/${PY_LDLIBRARY}.1.0"
+  if [ -f "${PY_VERSIONED_RUNTIME}" ]; then
+    export PYTHON_EMBED_LDFLAGS="${PY_VERSIONED_RUNTIME} ${PY_EMBED_EXTRA_LDFLAGS}"
+  else
+    echo "[ERROR] cannot find ${PY_LIBDIR}/${PY_LDLIBRARY}; set PYTHON_EMBED_LDFLAGS" >&2
+    exit 4
+  fi
+fi
+
 if [ ! -x .venv-dfols/bin/python ]; then
   "${PYTHON_FOR_DFOLS}" -m venv .venv-dfols
 fi
 .venv-dfols/bin/python -m pip install -q -r requirements/external-dfols.txt
+export TLTM_OFFICIAL_DFOLS_PYTHONPATH="$(
+  .venv-dfols/bin/python - <<'PY'
+import site
+print(":".join(site.getsitepackages()))
+PY
+)"
 .venv-dfols/bin/python - <<'PY'
 import dfols, numpy
 print("dfols_version={}".format(getattr(dfols, "__version__", "unknown")))
 print("numpy_version={}".format(numpy.__version__))
 PY
 
-make -C build -j 8 ../bin/run_tltm_stage2 ../bin/evaluate_expectations ../bin/evaluate_btn_residual_case
+MAKE_ARGS=(
+  -C build
+  -j "${TLTM_BUILD_JOBS}"
+  ENABLE_OFFICIAL_DFOLS=1
+  PYTHON="${PYTHON_FOR_DFOLS}"
+)
+if [ -n "${PYTHON_EMBED_CFLAGS:-}" ]; then
+  MAKE_ARGS+=(PYTHON_EMBED_CFLAGS="${PYTHON_EMBED_CFLAGS}")
+fi
+if [ -n "${PYTHON_EMBED_LDFLAGS:-}" ]; then
+  MAKE_ARGS+=(PYTHON_EMBED_LDFLAGS="${PYTHON_EMBED_LDFLAGS}")
+fi
+make "${MAKE_ARGS[@]}" ../bin/run_tltm_stage2 ../bin/evaluate_expectations ../bin/evaluate_btn_residual_case
 
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
@@ -114,6 +213,16 @@ export QN_S1_NONNEAR_RESCUE_ENABLED=0
 export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
 export QN_QUASI_TOL_OVERRIDE=1e-13
 
+export QN_SOLVER_BACKEND=official_dfols
+export QN_OFFICIAL_DFOLS_PRESET=stable_gate77
+export QN_OFFICIAL_DFOLS_NPT=4
+export QN_OFFICIAL_DFOLS_MAXFUN=250
+export QN_OFFICIAL_DFOLS_OBJFUN_HAS_NOISE=1
+export QN_OFFICIAL_DFOLS_RHOBEG=0.018
+export QN_OFFICIAL_DFOLS_RHOEND=1e-16
+export QN_OFFICIAL_DFOLS_MODEL_ABS_TOL=1e-30
+export QN_OFFICIAL_DFOLS_MODEL_REL_TOL=0
+
 export QN_ATTEMPT_CAPTURE_DIR="${ATTEMPT_DIR}"
 export QN_ATTEMPT_CAPTURE_LIMIT=100
 export QN_ATTEMPT_CAPTURE_STRIDE=1
@@ -129,10 +238,13 @@ export QN_ATTEMPT_CAPTURE_STRIDE=1
   echo "pbs_script=codex/workspaces/fortran_modernization/tasks/pbs/official_dfols_backend_gate_20260511.pbs"
   echo "config=${CONFIG_JSON}"
   echo "method=fb_norefine"
+  echo "backend=official_dfols"
+  echo "embedded_capture=1"
   echo "max_seeds=1"
   echo "cycles_per_seed=500"
   echo "capture_dir=${ATTEMPT_DIR}"
   echo "capture_limit=${QN_ATTEMPT_CAPTURE_LIMIT}"
+  echo "official_dfols_preset=stable_gate77"
   echo "official_dfols_maxfun=250"
   echo "official_dfols_objfun_has_noise=true"
   echo "official_dfols_npt=4"
@@ -140,6 +252,10 @@ export QN_ATTEMPT_CAPTURE_STRIDE=1
   echo "official_dfols_rhoend=1e-16"
   echo "official_dfols_model_abs_tol=1e-30"
   echo "official_dfols_model_rel_tol=0"
+  echo "tltm_official_dfols_pythonpath=${TLTM_OFFICIAL_DFOLS_PYTHONPATH}"
+  echo "python_for_dfols=${PYTHON_FOR_DFOLS}"
+  echo "python_embed_cflags=${PYTHON_EMBED_CFLAGS:-}"
+  echo "python_embed_ldflags=${PYTHON_EMBED_LDFLAGS:-}"
   echo "tltm_residual_success_tol=1e-13"
 } > "${OUT_ROOT}/run_manifest.txt"
 
@@ -202,12 +318,12 @@ result_by_sample = {int(row["sample_idx"]): row for row in result_rows}
 missing = sorted(set(meta_by_sample) - set(result_by_sample))
 float64_fail = [idx for idx, row in result_by_sample.items() if int(row.get("float64_contract", "0")) != 1]
 residual_fail = [idx for idx, row in result_by_sample.items() if int(row.get("residual_success", "0")) != 1]
-inhouse_converged = [
+captured_converged = [
     idx for idx, row in meta_by_sample.items()
     if int(row.get("converged", "0")) == 1 and idx in result_by_sample
 ]
-inhouse_converged_regressions = [
-    idx for idx in inhouse_converged
+captured_converged_regressions = [
+    idx for idx in captured_converged
     if int(result_by_sample[idx].get("residual_success", "0")) != 1
 ]
 
@@ -215,16 +331,16 @@ max_residual = max((float(row["final_residual_norm"]) for row in result_rows), d
 summary_lines = [
     "attempt_count={}".format(len(meta_rows)),
     "official_result_count={}".format(len(result_rows)),
-    "inhouse_converged_count={}".format(len(inhouse_converged)),
+    "embedded_captured_converged_count={}".format(len(captured_converged)),
     "official_residual_success_count={}".format(len(result_rows) - len(residual_fail)),
     "float64_fail_count={}".format(len(float64_fail)),
     "missing_result_count={}".format(len(missing)),
-    "inhouse_converged_regression_count={}".format(len(inhouse_converged_regressions)),
+    "embedded_captured_converged_regression_count={}".format(len(captured_converged_regressions)),
     "max_official_final_residual_norm={:.17e}".format(max_residual),
     "missing_samples={}".format(",".join(map(str, missing))),
     "float64_fail_samples={}".format(",".join(map(str, float64_fail))),
     "residual_fail_samples={}".format(",".join(map(str, residual_fail))),
-    "inhouse_converged_regression_samples={}".format(",".join(map(str, inhouse_converged_regressions))),
+    "embedded_captured_converged_regression_samples={}".format(",".join(map(str, captured_converged_regressions))),
 ]
 summary_path.write_text("\n".join(summary_lines) + "\n", encoding="utf-8")
 print("\n".join(summary_lines))
@@ -235,8 +351,8 @@ if missing:
     raise SystemExit("official DFO-LS did not produce rows for all captured attempts")
 if float64_fail:
     raise SystemExit("float64 contract failure")
-if inhouse_converged_regressions:
-    raise SystemExit("official DFO-LS regressed an in-house-converged attempt")
+if captured_converged_regressions:
+    raise SystemExit("official DFO-LS replay regressed an embedded-converged attempt")
 PY
 
 echo "date_end=$(date -Is)" >> "${OUT_ROOT}/run_manifest.txt"
