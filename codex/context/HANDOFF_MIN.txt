@@ -1,5 +1,5 @@
 Use /Users/ccy/Documents/TLTM_qn_error_handling/codex as the local canonical TLTM control-plane entrypoint.
-The current default TLTM line is official DFO-LS on branch codex/fortran-modernization.
+The current default TLTM line is official DFO-LS on branch codex/fortran-modernization. F2 official DFO-LS backend replacement is accepted for the current representative scope; the next modernization foundation work is F3 retained-core deterministic evidence.
 
 Ambiguity rule:
 - If a new conversation starts in /Users/ccy/Documents/New project, do not treat that outer folder or its TLTM_repo checkout as the source of truth.

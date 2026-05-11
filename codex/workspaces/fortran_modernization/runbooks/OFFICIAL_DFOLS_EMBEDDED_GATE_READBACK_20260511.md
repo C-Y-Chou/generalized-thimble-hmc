@@ -9,6 +9,11 @@ replay those captured residual cases through the official package without
 regressing attempts that the embedded path already accepted by the TLTM
 residual gate.
 
+Supersession note: the representative embedded 10seed x 10k gate in
+`OFFICIAL_DFOLS_REPRESENTATIVE_GATE_READBACK_20260511.md` later accepted
+`CV-008`/`F2` for the current backend-replacement scope. This file remains the
+small-gate evidence only.
+
 ## Run
 
 - PBS job: `14803.anode01`
@@ -72,6 +77,6 @@ accepted by the embedded TLTM residual gate; there were zero regressions among
 the 93 embedded-converged captured attempts.
 
 This closes the small embedded-backend smoke/readback subtask for `CV-008`.
-It does not close `CV-008` as a final replacement claim. Remaining work is a
-representative-scale embedded-backend readback beyond this 1seed x 500-cycle
-gate and explicit promotion criteria for production regeneration.
+It did not close `CV-008` at the time because the representative gate had not
+yet run. Use `OFFICIAL_DFOLS_REPRESENTATIVE_GATE_READBACK_20260511.md` for the
+current F2 verdict.

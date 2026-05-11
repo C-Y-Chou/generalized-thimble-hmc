@@ -169,9 +169,8 @@ The state TSV is
 and the readback note is
 `codex/workspaces/fortran_modernization/runbooks/OFFICIAL_DFOLS_PROVENANCE_READBACK_20260511.md`.
 
-This closes only the package-version provenance subtask. It does not replace
-the remaining embedded-backend captured-attempt comparison, TLTM residual gate
-readback, or representative-scale production-readiness evidence.
+This closes the package-version provenance subtask. The representative embedded
+backend gate below closes the current F2 backend-replacement scope.
 
 ## Embedded Backend Gate
 
@@ -194,6 +193,43 @@ residual_fail_samples=26,40,41,74,87,90,99
 The readback is recorded in
 `codex/workspaces/fortran_modernization/runbooks/OFFICIAL_DFOLS_EMBEDDED_GATE_READBACK_20260511.md`.
 
-This confirms the embedded backend path and small captured-attempt replay
-contract. It does not replace representative-scale embedded readback before
-production regeneration.
+This confirmed the embedded backend path and small captured-attempt replay
+contract. It was superseded as the F2 scale gate by the representative readback
+below.
+
+## Representative Embedded Backend Gate
+
+The remote 2026-05-11 representative embedded gate passed:
+
+```text
+Stage2 PBS job: 14804.anode01
+Replay recovery PBS job: 14805.anode01
+data-generation commit: 9d6f9fcad21df5e8833dceb0aab90e1c93d69355
+future replay-discovery repair commit: 248777d6ff683407d4bceb9d9ad29830d67fdfff
+label: official_dfols_repr_gate_20260511_9d6f9fc
+config: docs/stage_3_4_t035_paired_10k_10seed.json
+method: fb_norefine
+seed/cycle shape: 10 seeds x 10000 cycles
+capture shape: 100 attempts per seed
+case_count=10
+attempt_count=1000
+official_result_count=1000
+embedded_captured_converged_count=923
+official_residual_success_count=923
+float64_fail_count=0
+missing_result_count=0
+embedded_captured_converged_regression_count=0
+stage_total_unresolved_failure_count=1179
+```
+
+The readback is recorded in
+`codex/workspaces/fortran_modernization/runbooks/OFFICIAL_DFOLS_REPRESENTATIVE_GATE_READBACK_20260511.md`.
+
+This accepts official DFO-LS backend replacement for the current representative
+scope: `DFO-LS==1.6.5`, `stable_gate77`, current residual callback, current TLTM
+residual-gate acceptance, and current QN route. Reopen if any of those surfaces
+change.
+
+Final publication production is still outside this F2 verdict and remains gated
+by the kernel-correctness, retained-core, diagnostics/accounting, and
+schema/wrapper rows.

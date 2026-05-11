@@ -21,7 +21,7 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 - `CV-005`: auxiliary or historical scripts require deep-read before reuse as evidence or automation.
 - `CV-006`: DFO-LS claims must distinguish historical in-house/DFO-LS-style paths from embedded official package runs.
 - `CV-007`: ODEX backend is accepted reduced scope; do not claim full Hairer ODEX package unless reopened.
-- `CV-008`: official DFO-LS package-version provenance/readback and small embedded captured-attempt gate now pass; backend replacement still needs representative-scale embedded readback before production regeneration.
+- `CV-008`: official DFO-LS backend replacement is accepted for the representative scope: package provenance, preset/source contract, sidecar provenance guardrails, small embedded gate, imported official assist calibration, and representative embedded 10seed x 10k readback all pass. Reopen only on package/preset/callback/runtime/QN-route changes or broader final-production claims.
 - `CV-009`: retained Newton/RATTLE/QN/HMC/RG cores need deterministic evidence packs before being treated as complete.
 - `CV-010`: diagnostics/status/counter accounting needs a typed foundation before final schema or production regeneration.
 - `CV-011`: RNG/workspace/reentrancy remains an unfinished productization foundation.
@@ -32,7 +32,7 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 | --- | --- | --- | --- | --- | --- |
 | F0 | foundation completeness reset | active | yes | `FOUNDATION_COMPLETENESS_RESET_20260511.md`, expanded `CAVEATS.tsv`/`OPEN_ITEMS.tsv` | no compact doc says foundation is complete |
 | F1 | ODEX backend completeness | done | yes | accepted reduced-scope endpoint extrapolation backend; result/workspace/status, flow/Jacobian, assist-policy, and representative assist-on/off guardrails pass | reopen only for full Hairer ODEX package, dense output, stability-control behavior, or changed final-flow/assist policy |
-| F2 | official DFO-LS backend completion | active | docs/tests first | official 10seed/10k nofb-vs-withfb evidence is imported as calibration; official-alone preset policy, sidecar provenance-env guardrail, package-version provenance readback, and small embedded 1seed x 500 captured-attempt gate pass | official backend claims have representative-scale embedded-backend readback and promotion criteria |
+| F2 | official DFO-LS backend completion | done | yes | representative embedded official DFO-LS 10seed x 10k gate passed with 1000 captured attempts, 923 embedded-converged attempts, 0 float64 failures, 0 missing rows, and 0 embedded-converged regressions | reopen only on official DFO-LS package/preset/residual callback/acceptance gate/runtime bridge/QN-route changes or broader final-production claims |
 | F3 | retained-core deterministic evidence pack | active | tests/tooling | Newton/RATTLE/QN/HMC/RG replay fixtures and comparison rules | affected core rows pass or are explicitly scoped |
 | F4 | diagnostics/status/accounting foundation | active | design/tests | typed diagnostics context and schema compatibility plan | counters/status/capture meaning is versioned and testable |
 | F5 | M6 read-only comparison tooling | done | yes | `m6_reference_compare.py`, comparison summary/report | tool can regenerate report from accepted M6 readback or raw package CSV |
@@ -44,7 +44,7 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 | F11 | diagnostics accounting implementation | gated | after F4/schema decision | structured forward/replay/probe/reject accounting | schema versioning and compatibility readers exist |
 | F12 | unified wrapper/product interface | gated | after schema decision | wrapper runs same Stage2/Stage3 protocol with v1 sidecars | no public behavior replacement without compatibility layer |
 | F13 | RNG/reentrancy/module workspace migration | deferred | no | explicit per-run/per-replica state | deterministic parallel/reference comparisons exist |
-| F14 | publication-grade production regeneration | deferred | no | final production datasets | CV-001/CV-002/CV-007/CV-008/CV-009/CV-010 resolved or explicitly accepted |
+| F14 | publication-grade production regeneration | deferred | no | final production datasets | CV-001/CV-002/CV-006/CV-009/CV-010 and schema/wrapper decisions resolved or explicitly accepted |
 
 ## What Can Continue While 32seed/50k Official Gate Runs
 
@@ -53,16 +53,16 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 - Local guardrail/tooling additions that do not mutate production outputs or active remote worktrees.
 - Production-gate monitoring and readback.
 
-Do not fast-forward or clean `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison` while jobs `14766..14774` are active.
+Do not fast-forward or clean `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison` while production-comparison jobs are active or pinned.
 
 ## Immediate Work
 
 Read `FOUNDATION_COMPLETENESS_RESET_20260511.md` before any modernization task. The immediate implementation planning order is:
 
-1. Official DFO-LS representative-scale embedded-backend readback and production-regeneration promotion criteria.
-2. Retained-core deterministic evidence pack.
-3. Diagnostics/status/accounting foundation.
-4. Reference-comparison harness for future behavior-relevant source patches.
+1. Retained-core deterministic evidence pack.
+2. Diagnostics/status/accounting foundation.
+3. Reference-comparison harness for future behavior-relevant source patches.
+4. Publication-production regeneration decision after remaining caveats are closed or explicitly accepted.
 
 M6 comparison tooling remains available as historical/internal behavior readback, especially for assist-off degeneracy observation, with:
 

@@ -13,6 +13,7 @@ Updated: 2026-05-11 JST
 - The old `qn_error_handling_validation` remote path/branch is historical and should not be the active target for new modernization work.
 - Latest refresh shows no active pinned M6 jobs.
 - Embedded official DFO-LS is now the default QN backend. `QN_SOLVER_BACKEND=internal` is only for controlled legacy comparison.
+- Official DFO-LS backend replacement F2 is accepted for the current representative scope: representative embedded 10seed x 10k gate passed with 1000 captured attempts, 923 embedded-converged attempts, 0 float64 failures, 0 missing replay rows, and 0 embedded-converged regressions.
 - The default local source of truth is `/Users/ccy/Documents/TLTM_qn_error_handling`, not `/Users/ccy/Documents/New project/TLTM_repo`.
 
 ## Hard Rules
@@ -34,4 +35,4 @@ Updated: 2026-05-11 JST
 
 ## Next Action
 
-Use `runbooks/MODERNIZATION_FORWARD_WORKSTEPS_20260511.md` as the active forward queue. The first ODEX non-invasive evidence slice is complete via `test_odex_foundation_contract` and `runbooks/ODEX_FOUNDATION_TEST_READBACK_20260511.md`; `CV-007` remains open for source-level backend result/workspace/status separation, stability-control decision, flow-wrapper/Jacobian deterministic tests, and ODEX-only vs assist revalidation. Do not start behavior-relevant source refactors until the affected foundation and baseline gates are satisfied.
+Use `runbooks/MODERNIZATION_FORWARD_WORKSTEPS_20260511.md` as the active forward queue. F1 ODEX is accepted reduced scope and F2 official DFO-LS backend replacement is accepted for the current representative scope. The immediate next technical work is F3 retained-core deterministic evidence for Newton/RATTLE/QN/HMC/RG. Do not start behavior-relevant source refactors until the affected foundation and baseline gates are satisfied.

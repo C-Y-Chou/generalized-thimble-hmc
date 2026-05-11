@@ -6,6 +6,11 @@ Scope: current-code deterministic gate for the `intode` solver-internal assist
 policy. This is a source-level policy boundary test, not a production-scale
 ODEX assist-on/off validation.
 
+Supersession note: this file was one intermediate ODEX policy slice. Later
+result/workspace/status, flow/Jacobian, and representative assist-on/off
+readbacks accepted `CV-007`/`F1` as reduced scope; this file should not be read
+as the current ODEX final-status row by itself.
+
 ## Source Change
 
 Added comparison-only environment control:

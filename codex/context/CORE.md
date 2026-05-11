@@ -17,7 +17,7 @@
 - Control-plane validation: `bash /Users/ccy/Documents/TLTM_qn_error_handling/codex/tasks/validate_control_plane.sh`
 - Source audit docs are triggered reads, not always-read files.
 - Cluster02 scheduling agent: `/Users/ccy/Documents/TLTM_qn_error_handling/codex/agents/cluster02_scheduler/README.md`
-- Latest solver line: embedded official DFO-LS is the default QN backend; TLTM residual gate remains authoritative.
+- Latest solver line: embedded official DFO-LS is the default QN backend; TLTM residual gate remains authoritative; F2 representative backend replacement gate passed on 2026-05-11.
 - Active ops workspaces:
   - `/Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/tltm_production_comparison`
   - `/Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/fortran_modernization`

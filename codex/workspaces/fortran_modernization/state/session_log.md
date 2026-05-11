@@ -560,4 +560,12 @@
 - Submitted PBS job `14803.anode01` with label `official_dfols_embedded_gate_20260511_5ebb85c` on the canonical remote modernization worktree.
 - PBS exit status was `0`.
 - Gate readback: 100 captured attempts, 100 official replay rows, 93 embedded-converged attempts, 93 residual successes, 0 float64 failures, 0 missing rows, and 0 replay regressions among embedded-converged attempts.
-- Remaining F2 work is representative-scale embedded official backend readback and explicit production-regeneration promotion criteria.
+- At that point, remaining F2 work was representative-scale embedded official backend readback and explicit production-regeneration promotion criteria; this was superseded by the representative gate section below.
+
+## 2026-05-11 JST - Official DFO-LS representative embedded backend gate
+- Parameterized `codex/workspaces/fortran_modernization/tasks/pbs/official_dfols_backend_gate_20260511.pbs` for representative runs and added per-seed capture wiring through `QN_ATTEMPT_CAPTURE_BASE_DIR` in `scripts/run_stage3_3_multiseed.py` so multi-seed captures cannot overwrite each other.
+- Submitted representative Stage2 PBS job `14804.anode01` with label `official_dfols_repr_gate_20260511_9d6f9fc`, config `docs/stage_3_4_t035_paired_10k_10seed.json`, method `fb_norefine`, 10 seeds x 10000 cycles, and 100 captured QN attempts per seed.
+- Stage2 aggregate readback passed for 10 seeds: total unresolved failures `1179`, mean unresolved failures `117.9`, mean quasi probe successes `905.6`, total QN eval-flow successes `1476550`, total QN solver-assist count `1858`, total reverse-gate rejects `996`, and per-seed protocol audits passed.
+- Fixed future replay discovery from depth 2 to depth 3 after the representative Stage2 run exposed the new `attempts/<method>/seed_<id>/qn_attempt_meta.csv` layout.
+- Submitted replay recovery PBS job `14805.anode01` against existing captures. Replay summary: 10 seed cases, 1000 captured attempts, 1000 official replay rows, 923 embedded-converged attempts, 923 official residual successes, 0 float64 failures, 0 missing rows, and 0 embedded-converged regressions.
+- Recorded `CV-008` as accepted representative scope and `F2`/`FM-004` as completed. Final production redo remains gated by `CV-001`, `CV-002`, `CV-009`, `CV-010`, and schema/wrapper decisions.
