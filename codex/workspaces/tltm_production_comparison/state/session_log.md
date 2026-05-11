@@ -349,3 +349,33 @@ Use this file to append per-session notes.
 - Chunk jobs now require the preflight-created `.venv-dfols`, set `QN_SOLVER_BACKEND=official_dfols`, set `QN_OFFICIAL_DFOLS_PRESET=stable_gate77`, and export `TLTM_OFFICIAL_DFOLS_PYTHONPATH` from the venv site-packages.
 - Added `tasks/pbs/official_dfols_preflight_build.pbs` to create/update `.venv-dfols`, verify `DFO-LS==1.6.5`, prepare local Python 3.11 headers under `.deps/` when the system devel package is missing, and build `run_tltm_stage2` plus `evaluate_expectations` with `ENABLE_OFFICIAL_DFOLS=1`.
 - New production order: sync the remote production tree to the official-DFO-LS commit, submit the preflight build, then submit chunks pinned to the same commit after preflight succeeds.
+
+## 2026-05-11 JST - Official DFO-LS small production-comparison redo submitted
+- Campaign:
+  - `official_dfols_small_20260511_10seed_10k_p28_rg_nofb_withfb`
+- Purpose:
+  - Restart `tltm_production_comparison` from a small seed/cycle gate using the new official DFO-LS backend before scaling.
+- Execution line:
+  - local/remote branch: `codex/fortran-modernization`
+  - remote worktree: `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`
+  - pinned commit: `b72d5602c81ada436742cc7aef87a9b6fb2262da`
+- Protocol:
+  - `docs/production_comparison_official_dfols_20260511_10seed_10k_nofb_withfb.json`
+  - scale: `10 seeds x 10000 cycles`
+  - physical point: `t=0.35,L=2,nstep=20`
+  - raw/canonical mapping: `no_fb -> nofb`, `fb_norefine -> withfb`
+  - backend: `QN_SOLVER_BACKEND=official_dfols`, `QN_OFFICIAL_DFOLS_PRESET=stable_gate77`
+  - gate/tolerance: RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`
+- PBS:
+  - preflight build: `14756.anode01`
+  - small redo afterok dependency: `14757.anode01`
+- Output target:
+  - `output/production_comparison/provisional/official_dfols_small_20260511_10seed_10k_p28_rg_nofb_withfb/REPORT.md`
+
+## 2026-05-11 JST - Corrected production-comparison execution worktree
+- Correction:
+  - Production-comparison jobs must execute from `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`, not from `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`.
+  - `fortran_modernization` is the official DFO-LS source/code line; production worktree is synced to the chosen commit before production output generation.
+- Action:
+  - Cancelled misrouted small redo job `14757.anode01`; any partial output under the modernization worktree is not a valid production-comparison artifact.
+  - Updated production-comparison PBS defaults and route documentation to use the production-comparison worktree and branch `codex/tltm-production-comparison-official-dfols`.

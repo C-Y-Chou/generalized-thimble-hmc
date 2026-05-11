@@ -10,4 +10,4 @@
 - Canonical method roles: `nofb` and `withfb`
 - Legacy raw method mapping: `nofb == no_fb`, `withfb == fb_norefine` for the current p28 fallback-enabled no-post-refine route.
 - Write scope: this workspace state plus approved scheduler actions for production-comparison jobs.
-- Boundary: current redo execution uses the official-DFO-LS `fortran_modernization` code line. Do not switch to legacy/control-plane branches unless explicitly requested.
+- Boundary: modernization supplies the official-DFO-LS code commit, but production-comparison jobs execute from `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison` after sync. Do not run production-comparison jobs from the modernization worktree.

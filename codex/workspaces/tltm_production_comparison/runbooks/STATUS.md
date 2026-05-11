@@ -14,10 +14,11 @@ Updated: 2026-05-11 JST
 
 ## Official DFO-LS Redo Position
 
-- Production redo should be launched from the synchronized
-  `codex/fortran-modernization` worktree
-  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`, at the commit
-  that contains the embedded official DFO-LS backend.
+- Production redo should be launched from the synchronized production-comparison
+  worktree
+  `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`, after it
+  has been synced to the official DFO-LS commit from
+  `codex/fortran-modernization`.
 - Before chunk submission, run
   `codex/workspaces/tltm_production_comparison/tasks/pbs/official_dfols_preflight_build.pbs`
   on the target tree. It creates/updates `.venv-dfols`, verifies official

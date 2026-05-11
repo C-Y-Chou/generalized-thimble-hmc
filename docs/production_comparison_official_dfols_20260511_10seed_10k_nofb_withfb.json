@@ -5,8 +5,9 @@
     "goal": "Small official DFO-LS redo for the provisional TLTM nofb vs withfb production-comparison workflow.",
     "status": "provisional_calibration",
     "execution_line": {
-      "local_branch": "codex/fortran-modernization",
-      "remote_worktree": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization",
+      "source_branch": "codex/fortran-modernization",
+      "execution_branch": "codex/tltm-production-comparison-official-dfols",
+      "remote_worktree": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison",
       "qn_backend": "official_dfols",
       "qn_official_dfols_preset": "stable_gate77"
     },

@@ -19,7 +19,7 @@ This is a soft decoupling, not a hard freeze:
 | Workstream | Canonical workspace | Remote target | Branch | Remote worktree |
 | --- | --- | --- | --- | --- |
 | Fortran modernization | `codex/workspaces/fortran_modernization` | `fortran_modernization` | `codex/fortran-modernization` | `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization` |
-| Production comparison | `codex/workspaces/tltm_production_comparison` | `tltm_production_comparison_provisional` | `codex/tltm-production-comparison` | `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison` |
+| Production comparison | `codex/workspaces/tltm_production_comparison` | `tltm_production_comparison_provisional` | `codex/tltm-production-comparison-official-dfols` | `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison` |
 
 Legacy names:
 
@@ -86,6 +86,7 @@ If any of those change, provisional production outputs remain useful for discuss
 
 - Always refresh `codex/state/REMOTE_LIVE_CACHE.json`, `WORKTREES.tsv`, and `JOBS.tsv` before SSH/PBS/git cleanup.
 - Do not submit production-comparison jobs from `fortran_modernization`.
+- Sync production-comparison to the selected official-DFO-LS commit, then build/run inside the production-comparison worktree.
 - Do not do Fortran code-refine work inside `tltm_production_comparison` unless the user explicitly opens a production-code-fix task.
 - Use the shared cluster02 scheduler agent for both workstreams.
 - Do not use the old `stage3_4` queue playbook for queue choice.

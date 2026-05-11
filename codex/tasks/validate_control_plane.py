@@ -172,6 +172,13 @@ def main() -> int:
         for row in remote_targets
     ):
         fail("REMOTE_TARGETS.tsv does not contain canonical fortran_modernization execution target", errors)
+    if not any(
+        row.get("target_id") == "tltm_production_comparison_provisional"
+        and row.get("worktree_path") == "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison"
+        and row.get("branch") == "codex/tltm-production-comparison-official-dfols"
+        for row in remote_targets
+    ):
+        fail("REMOTE_TARGETS.tsv does not contain production-comparison execution target", errors)
     task_registry = read_tsv(root / "codex/runbooks/task_registry.tsv")
     for row in task_registry:
         if row.get("status") == "active" and row.get("root_path", "").startswith("/home/cychou/TLTM/codex"):
@@ -192,6 +199,18 @@ def main() -> int:
     stage_queue = root / "codex/workspaces/tltm_production_comparison/runbooks/QUEUE_OPTIMIZATION.md"
     if stage_queue.exists() and "SUPERSEDED" not in stage_queue.read_text(encoding="utf-8")[:500]:
         fail("Production-comparison queue optimization playbook lacks SUPERSEDED marker", errors)
+    production_pbs = [
+        "codex/workspaces/tltm_production_comparison/tasks/pbs/official_dfols_preflight_build.pbs",
+        "codex/workspaces/tltm_production_comparison/tasks/pbs/official_dfols_small_20260511_10seed_10k_nofb_withfb.pbs",
+        "codex/workspaces/tltm_production_comparison/tasks/pbs/judgment_20260508_128seed_100k_p28_rg_chunk.pbs",
+        "codex/workspaces/tltm_production_comparison/tasks/pbs/judgment_20260508_128seed_100k_p28_rg_merge.pbs",
+    ]
+    for rel in production_pbs:
+        text = (root / rel).read_text(encoding="utf-8")
+        if "TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison" not in text:
+            fail(f"{rel} does not default to the production-comparison worktree", errors)
+        if "TLTM_EXPECTED_GIT_BRANCH:=codex/tltm-production-comparison-official-dfols" not in text:
+            fail(f"{rel} does not default to the production-comparison official-DFO-LS branch", errors)
 
     if errors:
         for error in errors:
