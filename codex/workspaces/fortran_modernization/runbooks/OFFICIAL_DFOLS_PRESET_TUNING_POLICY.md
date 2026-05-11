@@ -93,8 +93,10 @@ make -C build ENABLE_OFFICIAL_DFOLS=1 ../bin/run_tltm_stage2 ../bin/evaluate_exp
 
 On remote Rocky 8 nodes where `python3.11-devel` is not installed system-wide,
 run the production preflight PBS first. It extracts rebuildable Python headers
-under `.deps/python-devel-3.11` when needed and passes `PYTHON_EMBED_CFLAGS`
-to `make`. If the cluster changes, override with `TLTM_PYTHON_INCLUDE_DIR`.
+under `.deps/python-devel-3.11` when needed, reuses the matching system
+`pyconfig` fragment from the active interpreter include path, and passes
+`PYTHON_EMBED_CFLAGS` to `make`. If the cluster changes, override with
+`TLTM_PYTHON_INCLUDE_DIR`.
 
 Production jobs must expose the official package to the embedded interpreter:
 

@@ -96,7 +96,18 @@ elif [ "${PY_VERSION}" = "3.11" ]; then
     fi
     (cd "${TLTM_PYTHON_DEVEL_ROOT}" && rpm2cpio "${RPM_FILE}" | cpio -idm >/dev/null)
   fi
-  export PYTHON_EMBED_CFLAGS="-I${TLTM_PYTHON_DEVEL_ROOT}/usr/include/python3.11${PYTHON_EMBED_CFLAGS:+ ${PYTHON_EMBED_CFLAGS}}"
+  PY_DEVEL_INCLUDE="${TLTM_PYTHON_DEVEL_ROOT}/usr/include/python3.11"
+  PY_HEADER_CFLAGS="-I${PY_DEVEL_INCLUDE}"
+  PYCONFIG_FRAGMENT="$(sed -n 's/^#include "\(pyconfig-[^"]*\.h\)"/\1/p' "${PY_DEVEL_INCLUDE}/pyconfig.h" | head -n 1)"
+  if [ -n "${PYCONFIG_FRAGMENT}" ] && [ ! -f "${PY_DEVEL_INCLUDE}/${PYCONFIG_FRAGMENT}" ]; then
+    if [ -f "${PY_INCLUDE}/${PYCONFIG_FRAGMENT}" ]; then
+      PY_HEADER_CFLAGS="${PY_HEADER_CFLAGS} -I${PY_INCLUDE}"
+    else
+      echo "[ERROR] extracted Python headers require ${PYCONFIG_FRAGMENT}; set TLTM_PYTHON_INCLUDE_DIR" >&2
+      exit 4
+    fi
+  fi
+  export PYTHON_EMBED_CFLAGS="${PY_HEADER_CFLAGS}${PYTHON_EMBED_CFLAGS:+ ${PYTHON_EMBED_CFLAGS}}"
 else
   echo "[ERROR] Python.h missing for ${PYTHON_FOR_DFOLS} (${PY_VERSION}); set TLTM_PYTHON_INCLUDE_DIR" >&2
   exit 4
