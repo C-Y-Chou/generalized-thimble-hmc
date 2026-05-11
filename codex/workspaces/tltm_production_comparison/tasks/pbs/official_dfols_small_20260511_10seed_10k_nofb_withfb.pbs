@@ -1,0 +1,250 @@
+#!/bin/bash
+#PBS -N pc_odf_10s10k
+#PBS -q C8
+#PBS -l select=1:ncpus=8:mpiprocs=8:mem=16gb
+#PBS -l walltime=03:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  # shellcheck source=/dev/null
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization}"
+: "${TLTM_EXPECTED_GIT_BRANCH:=codex/fortran-modernization}"
+: "${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
+
+cd "${TLTM_WORKTREE}"
+
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+CURRENT_COMMIT="$(git rev-parse HEAD)"
+if [ "${CURRENT_BRANCH}" != "${TLTM_EXPECTED_GIT_BRANCH}" ]; then
+  echo "[ERROR] expected branch ${TLTM_EXPECTED_GIT_BRANCH}, got ${CURRENT_BRANCH}" >&2
+  exit 2
+fi
+if [ "${CURRENT_COMMIT}" != "${TLTM_EXPECTED_GIT_COMMIT}" ]; then
+  echo "[ERROR] expected commit ${TLTM_EXPECTED_GIT_COMMIT}, got ${CURRENT_COMMIT}" >&2
+  exit 2
+fi
+if [ -n "$(git status --porcelain)" ]; then
+  echo "[ERROR] working tree is dirty; refusing official DFO-LS small production-comparison run" >&2
+  git status --short >&2
+  exit 2
+fi
+if [ ! -x .venv-dfols/bin/python ]; then
+  echo "[ERROR] missing .venv-dfols; run official_dfols_preflight_build.pbs before this job" >&2
+  exit 4
+fi
+
+DFOLS_SITE_PACKAGES="$(.venv-dfols/bin/python - <<'PY'
+import sysconfig
+print(sysconfig.get_paths()["purelib"])
+PY
+)"
+export TLTM_OFFICIAL_DFOLS_PYTHONPATH="${DFOLS_SITE_PACKAGES}${TLTM_OFFICIAL_DFOLS_PYTHONPATH:+:${TLTM_OFFICIAL_DFOLS_PYTHONPATH}}"
+
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
+
+export TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-13
+export QN_REVERSE_GATE_ENABLED=1
+export QN_REVERSE_GATE_TOL=1e-8
+export QN_S1_PROBE_MAX_ITER=28
+export QN_S1_NEAR_RESCUE_ENABLED=0
+export QN_S1_NONNEAR_RESCUE_ENABLED=0
+export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
+export QN_QUASI_TOL_OVERRIDE=1e-13
+export QN_SOLVER_BACKEND=official_dfols
+export QN_OFFICIAL_DFOLS_PRESET=stable_gate77
+
+CONFIG_JSON="docs/production_comparison_official_dfols_20260511_10seed_10k_nofb_withfb.json"
+CAMPAIGN="official_dfols_small_20260511_10seed_10k_p28_rg_nofb_withfb"
+ROOT_SUBDIR="output/production_comparison/provisional/${CAMPAIGN}"
+ROOT_LOG_SUBDIR="output/logs/production_comparison/provisional/${CAMPAIGN}"
+RUN_JOBS="${TLTM_RUN_JOBS:-8}"
+
+rm -rf "${ROOT_SUBDIR}" "${ROOT_LOG_SUBDIR}"
+mkdir -p "${ROOT_SUBDIR}" "${ROOT_LOG_SUBDIR}"
+
+{
+  echo "RUN_DATE=$(date -Is)"
+  echo "RUNNER=codex"
+  echo "GIT_BRANCH=${CURRENT_BRANCH}"
+  echo "GIT_COMMIT=${CURRENT_COMMIT}"
+  echo "CONFIG_JSON=${CONFIG_JSON}"
+  echo "CANONICAL_METHODS=nofb,withfb"
+  echo "RAW_METHODS=no_fb,fb_norefine"
+  echo "OUTPUT_SUBDIR=${ROOT_SUBDIR}"
+  echo "LOG_SUBDIR=${ROOT_LOG_SUBDIR}"
+  echo "TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=${TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE}"
+  echo "QN_REVERSE_GATE_ENABLED=${QN_REVERSE_GATE_ENABLED}"
+  echo "QN_REVERSE_GATE_TOL=${QN_REVERSE_GATE_TOL}"
+  echo "QN_S1_PROBE_MAX_ITER=${QN_S1_PROBE_MAX_ITER}"
+  echo "QN_QUASI_TOL_OVERRIDE=${QN_QUASI_TOL_OVERRIDE}"
+  echo "QN_SOLVER_BACKEND=${QN_SOLVER_BACKEND}"
+  echo "QN_OFFICIAL_DFOLS_PRESET=${QN_OFFICIAL_DFOLS_PRESET}"
+  echo "TLTM_OFFICIAL_DFOLS_PYTHONPATH=${TLTM_OFFICIAL_DFOLS_PYTHONPATH}"
+} > "${ROOT_SUBDIR}/campaign_manifest.env"
+
+python3 scripts/run_stage3_3_multiseed.py \
+  --repo-root . \
+  --config "${CONFIG_JSON}" \
+  --methods no_fb \
+  --max-seeds 10 \
+  --output-subdir "${ROOT_SUBDIR}/no_fb" \
+  --logs-subdir "${ROOT_LOG_SUBDIR}/no_fb" \
+  --log-prefix "pc_official_dfols_20260511_10seed_10k_no_fb" \
+  --report-title "TLTM production comparison official DFO-LS 10seed 10k no_fb" \
+  --schedule paired \
+  --pair-order no_fb_first \
+  --jobs "${RUN_JOBS}" \
+  --stage2-threads 1 \
+  --eval-threads 1 \
+  --skip-build
+
+python3 scripts/run_stage3_3_multiseed.py \
+  --repo-root . \
+  --config "${CONFIG_JSON}" \
+  --methods fb_norefine \
+  --max-seeds 10 \
+  --output-subdir "${ROOT_SUBDIR}/fb_norefine" \
+  --logs-subdir "${ROOT_LOG_SUBDIR}/fb_norefine" \
+  --log-prefix "pc_official_dfols_20260511_10seed_10k_fb_norefine" \
+  --report-title "TLTM production comparison official DFO-LS 10seed 10k fb_norefine" \
+  --schedule paired \
+  --pair-order fb_first \
+  --jobs "${RUN_JOBS}" \
+  --stage2-threads 1 \
+  --eval-threads 1 \
+  --skip-build
+
+python3 - <<'PY'
+import csv
+from pathlib import Path
+
+root = Path("output/production_comparison/provisional/official_dfols_small_20260511_10seed_10k_p28_rg_nofb_withfb")
+sets = [
+    ("nofb", "no_fb", root / "no_fb"),
+    ("withfb", "fb_norefine", root / "fb_norefine"),
+]
+
+rows = []
+per_seed_counts = {}
+for canonical, raw, subroot in sets:
+    agg_path = subroot / "aggregated_summary_table.csv"
+    per_seed_path = subroot / "per_seed_summary_table.csv"
+    if not agg_path.exists():
+        raise SystemExit("missing aggregate: {0}".format(agg_path))
+    if not per_seed_path.exists():
+        raise SystemExit("missing per-seed table: {0}".format(per_seed_path))
+    with agg_path.open(newline="") as handle:
+        agg_rows = list(csv.DictReader(handle))
+    if len(agg_rows) != 1:
+        raise SystemExit("expected one aggregate row in {0}, got {1}".format(agg_path, len(agg_rows)))
+    row = dict(agg_rows[0])
+    row["canonical_method"] = canonical
+    row["raw_method"] = raw
+    rows.append(row)
+    with per_seed_path.open(newline="") as handle:
+        per_seed_counts[canonical] = sum(1 for _ in csv.DictReader(handle))
+
+preferred = [
+    "canonical_method",
+    "raw_method",
+    "method",
+    "n_seeds",
+    "P68_re",
+    "P95_re",
+    "P68_im",
+    "P95_im",
+    "mean_Ohat_re",
+    "mean_Ohat_im",
+    "std_Ohat_re",
+    "std_Ohat_im",
+    "Zmean_re",
+    "Zmean_im",
+    "total_unresolved_failure_count",
+    "total_reverse_gate_total_reject_count",
+    "mean_runtime_total",
+    "total_post_refine_skip_count",
+    "total_post_refine_success_count",
+    "total_post_refine_attempt_count",
+]
+columns = preferred + sorted(set().union(*(set(r) for r in rows)) - set(preferred))
+with (root / "combined_summary_table.csv").open("w", newline="") as handle:
+    writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(rows)
+
+by = {row["canonical_method"]: row for row in rows}
+nofb = by["nofb"]
+withfb = by["withfb"]
+
+def f(row, key, default=""):
+    return row.get(key, default)
+
+def num(row, key):
+    return float(row[key])
+
+def integer_delta(key):
+    return int(float(withfb[key])) - int(float(nofb[key]))
+
+lines = [
+    "# Official DFO-LS Small Production-Comparison Redo",
+    "",
+    "Campaign: `official_dfols_small_20260511_10seed_10k_p28_rg_nofb_withfb`",
+    "",
+    "Setup:",
+    "- physical point: `t=0.35,L=2,nstep=20`",
+    "- scale: `10 seeds x 10000 cycles`",
+    "- backend: `QN_SOLVER_BACKEND=official_dfols`, `QN_OFFICIAL_DFOLS_PRESET=stable_gate77`",
+    "- gate: RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`",
+    "- raw/canonical mapping: `no_fb -> nofb`, `fb_norefine -> withfb`",
+    "",
+    "| canonical | raw | n_seeds | P68 Re | P95 Re | P68 Im | P95 Im | mean Re<O> | mean Im<O> | std Re<O> | std Im<O> | Zmean Re<O> | Zmean Im<O> | failure | rev_rej | runtime | post-refine |",
+    "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+]
+for row in rows:
+    post = "{0}/{1}".format(f(row, "total_post_refine_success_count", "0"), f(row, "total_post_refine_attempt_count", "0"))
+    lines.append(
+        "| {canonical_method} | {raw_method} | {n_seeds} | {P68_re} | {P95_re} | {P68_im} | {P95_im} | {mean_Ohat_re} | {mean_Ohat_im} | {std_Ohat_re} | {std_Ohat_im} | {Zmean_re} | {Zmean_im} | {total_unresolved_failure_count} | {total_reverse_gate_total_reject_count} | {mean_runtime_total} | {post} |".format(post=post, **row)
+    )
+
+lines.extend([
+    "",
+    "Direct comparison `withfb - nofb`:",
+    "- mean shift: Re `{0:+.6g}`, Im `{1:+.6g}`".format(num(withfb, "mean_Ohat_re") - num(nofb, "mean_Ohat_re"), num(withfb, "mean_Ohat_im") - num(nofb, "mean_Ohat_im")),
+    "- Zmean shift: Re `{0:+.6g}`, Im `{1:+.6g}`".format(num(withfb, "Zmean_re") - num(nofb, "Zmean_re"), num(withfb, "Zmean_im") - num(nofb, "Zmean_im")),
+    "- unresolved failures: `{0}`".format(integer_delta("total_unresolved_failure_count")),
+    "- reverse-gate rejects: `{0}`".format(integer_delta("total_reverse_gate_total_reject_count")),
+    "- mean runtime: `{0:+.6g}` seconds".format(num(withfb, "mean_runtime_total") - num(nofb, "mean_runtime_total")),
+    "",
+    "Per-seed row counts:",
+    "- `nofb`: `{0}`".format(per_seed_counts["nofb"]),
+    "- `withfb`: `{0}`".format(per_seed_counts["withfb"]),
+    "",
+    "Artifacts:",
+    "- `combined_summary_table.csv`",
+    "- `campaign_manifest.env`",
+    "- per-method `aggregated_summary_table.csv`, `per_seed_summary_table.csv`, and method report files",
+])
+
+(root / "REPORT.md").write_text("\n".join(lines) + "\n")
+print("[combined] wrote {0}".format(root / "combined_summary_table.csv"))
+print("[combined] wrote {0}".format(root / "REPORT.md"))
+PY
+
+echo "[DONE] official DFO-LS small production-comparison redo complete"
