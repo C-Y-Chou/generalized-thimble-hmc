@@ -204,6 +204,8 @@ def main() -> int:
         "codex/workspaces/tltm_production_comparison/tasks/pbs/official_dfols_small_20260511_10seed_10k_nofb_withfb.pbs",
         "codex/workspaces/tltm_production_comparison/tasks/pbs/official_dfols_small_20260511_10seed_10k_method.pbs",
         "codex/workspaces/tltm_production_comparison/tasks/pbs/official_dfols_small_20260511_10seed_10k_merge.pbs",
+        "codex/workspaces/tltm_production_comparison/tasks/pbs/official_dfols_gate_20260511_32seed_50k_chunk.pbs",
+        "codex/workspaces/tltm_production_comparison/tasks/pbs/official_dfols_gate_20260511_32seed_50k_merge.pbs",
         "codex/workspaces/tltm_production_comparison/tasks/pbs/judgment_20260508_128seed_100k_p28_rg_chunk.pbs",
         "codex/workspaces/tltm_production_comparison/tasks/pbs/judgment_20260508_128seed_100k_p28_rg_merge.pbs",
     ]

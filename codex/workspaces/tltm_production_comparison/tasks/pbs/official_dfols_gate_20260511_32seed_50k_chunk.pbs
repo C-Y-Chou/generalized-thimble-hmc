@@ -1,0 +1,129 @@
+#!/bin/bash
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  # shellcheck source=/dev/null
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison}"
+: "${TLTM_EXPECTED_GIT_BRANCH:=codex/tltm-production-comparison-official-dfols}"
+: "${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
+: "${TLTM_METHOD:?TLTM_METHOD is required: no_fb or fb_norefine}"
+: "${TLTM_CANONICAL_METHOD:?TLTM_CANONICAL_METHOD is required: nofb or withfb}"
+: "${TLTM_CHUNK_ID:?TLTM_CHUNK_ID is required}"
+: "${TLTM_SEED_OFFSET:?TLTM_SEED_OFFSET is required}"
+: "${TLTM_MAX_SEEDS:?TLTM_MAX_SEEDS is required}"
+: "${TLTM_RUN_JOBS:=8}"
+
+cd "${TLTM_WORKTREE}"
+
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+CURRENT_COMMIT="$(git rev-parse HEAD)"
+if [ "${CURRENT_BRANCH}" != "${TLTM_EXPECTED_GIT_BRANCH}" ]; then
+  echo "[ERROR] expected branch ${TLTM_EXPECTED_GIT_BRANCH}, got ${CURRENT_BRANCH}" >&2
+  exit 2
+fi
+if [ "${CURRENT_COMMIT}" != "${TLTM_EXPECTED_GIT_COMMIT}" ]; then
+  echo "[ERROR] expected commit ${TLTM_EXPECTED_GIT_COMMIT}, got ${CURRENT_COMMIT}" >&2
+  exit 2
+fi
+if [ -n "$(git status --porcelain)" ]; then
+  echo "[ERROR] working tree is dirty; refusing official DFO-LS 32seed/50k chunk" >&2
+  git status --short >&2
+  exit 2
+fi
+if [ ! -x .venv-dfols/bin/python ]; then
+  echo "[ERROR] missing .venv-dfols; run official_dfols_preflight_build.pbs before this job" >&2
+  exit 4
+fi
+
+case "${TLTM_METHOD}" in
+  no_fb|fb_norefine) ;;
+  *) echo "[ERROR] unsupported TLTM_METHOD=${TLTM_METHOD}" >&2; exit 2 ;;
+esac
+
+DFOLS_SITE_PACKAGES="$(.venv-dfols/bin/python - <<'PY'
+import sysconfig
+print(sysconfig.get_paths()["purelib"])
+PY
+)"
+export TLTM_OFFICIAL_DFOLS_PYTHONPATH="${DFOLS_SITE_PACKAGES}${TLTM_OFFICIAL_DFOLS_PYTHONPATH:+:${TLTM_OFFICIAL_DFOLS_PYTHONPATH}}"
+
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
+
+export TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-13
+export QN_REVERSE_GATE_ENABLED=1
+export QN_REVERSE_GATE_TOL=1e-8
+export QN_S1_PROBE_MAX_ITER=28
+export QN_S1_NEAR_RESCUE_ENABLED=0
+export QN_S1_NONNEAR_RESCUE_ENABLED=0
+export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
+export QN_QUASI_TOL_OVERRIDE=1e-13
+export QN_SOLVER_BACKEND=official_dfols
+export QN_OFFICIAL_DFOLS_PRESET=stable_gate77
+
+CONFIG_JSON="docs/production_comparison_official_dfols_20260511_32seed_50k_nofb_withfb.json"
+CAMPAIGN="official_dfols_gate_20260511_32seed_50k_p28_rg_nofb_withfb"
+ROOT_SUBDIR="output/production_comparison/provisional/${CAMPAIGN}"
+ROOT_LOG_SUBDIR="output/logs/production_comparison/provisional/${CAMPAIGN}"
+OUT_SUBDIR="${ROOT_SUBDIR}/${TLTM_METHOD}/chunk_${TLTM_CHUNK_ID}"
+LOG_SUBDIR="${ROOT_LOG_SUBDIR}/${TLTM_METHOD}/chunk_${TLTM_CHUNK_ID}"
+
+rm -rf "${OUT_SUBDIR}" "${LOG_SUBDIR}"
+mkdir -p "${OUT_SUBDIR}" "${LOG_SUBDIR}"
+
+{
+  echo "RUN_DATE=$(date -Is)"
+  echo "RUNNER=codex"
+  echo "GIT_BRANCH=${CURRENT_BRANCH}"
+  echo "GIT_COMMIT=${CURRENT_COMMIT}"
+  echo "CONFIG_JSON=${CONFIG_JSON}"
+  echo "CANONICAL_METHOD=${TLTM_CANONICAL_METHOD}"
+  echo "RAW_METHOD=${TLTM_METHOD}"
+  echo "CHUNK_ID=${TLTM_CHUNK_ID}"
+  echo "SEED_OFFSET=${TLTM_SEED_OFFSET}"
+  echo "MAX_SEEDS=${TLTM_MAX_SEEDS}"
+  echo "RUN_JOBS=${TLTM_RUN_JOBS}"
+  echo "OUTPUT_SUBDIR=${OUT_SUBDIR}"
+  echo "LOG_SUBDIR=${LOG_SUBDIR}"
+  echo "TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=${TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE}"
+  echo "QN_REVERSE_GATE_ENABLED=${QN_REVERSE_GATE_ENABLED}"
+  echo "QN_REVERSE_GATE_TOL=${QN_REVERSE_GATE_TOL}"
+  echo "QN_S1_PROBE_MAX_ITER=${QN_S1_PROBE_MAX_ITER}"
+  echo "QN_QUASI_TOL_OVERRIDE=${QN_QUASI_TOL_OVERRIDE}"
+  echo "QN_SOLVER_BACKEND=${QN_SOLVER_BACKEND}"
+  echo "QN_OFFICIAL_DFOLS_PRESET=${QN_OFFICIAL_DFOLS_PRESET}"
+  echo "TLTM_OFFICIAL_DFOLS_PYTHONPATH=${TLTM_OFFICIAL_DFOLS_PYTHONPATH}"
+} > "${OUT_SUBDIR}.manifest.env"
+
+python3 scripts/run_stage3_3_multiseed.py \
+  --repo-root . \
+  --config "${CONFIG_JSON}" \
+  --methods "${TLTM_METHOD}" \
+  --seed-offset "${TLTM_SEED_OFFSET}" \
+  --max-seeds "${TLTM_MAX_SEEDS}" \
+  --output-subdir "${OUT_SUBDIR}" \
+  --logs-subdir "${LOG_SUBDIR}" \
+  --log-prefix "pc_official_dfols_20260511_32seed_50k_${TLTM_METHOD}_chunk_${TLTM_CHUNK_ID}" \
+  --report-title "TLTM production comparison official DFO-LS 32seed 50k ${TLTM_METHOD} chunk ${TLTM_CHUNK_ID}" \
+  --schedule task \
+  --task-method-order no_fb_first \
+  --jobs "${TLTM_RUN_JOBS}" \
+  --stage2-threads 1 \
+  --eval-threads 1 \
+  --skip-build
+
+echo "[DONE] official DFO-LS 32seed/50k chunk complete: ${TLTM_METHOD} chunk ${TLTM_CHUNK_ID}"

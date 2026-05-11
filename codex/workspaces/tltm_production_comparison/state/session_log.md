@@ -409,3 +409,18 @@ Use this file to append per-session notes.
 - In-house comparison:
   - Readback written to `codex/workspaces/tltm_production_comparison/runbooks/OFFICIAL_DFOLS_SMALL_READBACK_20260511.md`.
   - Main preserved-baseline comparison uses `no_fb` and `fb_norefine -> withfb`; old raw reports were cleaned, so `no_fb` std is inferred from preserved mean and Zmean.
+
+## 2026-05-11 JST - Planned next official DFO-LS comparison gate
+- Next scale after `10 seeds x 10k cycles`:
+  - `32 seeds x 50k cycles` per method.
+  - Methods: `no_fb -> nofb`, `fb_norefine -> withfb`.
+  - Physical point: `t=0.35,L=2,nstep=20`.
+  - Backend/gate: official DFO-LS `stable_gate77`, RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`.
+- Queue/chunk strategy from live queue check:
+  - C8 was empty; C16 was saturated; C12 and C12-LONG had running jobs; F was empty but only one node.
+  - Use C8 as the fastest clean one-wave option.
+  - Submit 8 chunks total: 4 chunks for `no_fb`, 4 chunks for `fb_norefine`.
+  - Each chunk has 8 seeds and 8 workers.
+  - Preflight build runs first; all chunks depend on preflight; one merge/report job depends on all 8 chunks.
+- Expected walltime if C8 admits all chunks promptly:
+  - about `1.5-2h` compute plus merge overhead.
