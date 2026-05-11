@@ -14,7 +14,6 @@ behavior, but not to certify the official DFO-LS backend.
 
 ## Current Source Readback
 
-- Current local HEAD when this report was generated: `bd26636cf7cc`.
 - Large-scale evidence source: `codex/workspaces/fortran_modernization/runbooks/ODEX_SOLVER_ASSIST_VALIDATION_RESULT_20260509_QNCLEAN.md`.
 - ODEX-only comparison source: `codex/workspaces/fortran_modernization/runbooks/ODEX_50K_100K_VALIDATION_RESULT_20260509_QNCLEAN.md`.
 - Deterministic current-code boundary evidence:
@@ -22,6 +21,8 @@ behavior, but not to certify the official DFO-LS backend.
 - ODX-F2: pass via `make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_solver`
 - ODX-F3: pass via `ENABLE_OFFICIAL_DFOLS=0 python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags "" --keep-going`
 - ODX-F4: info via `python3 codex/workspaces/fortran_modernization/tasks/scripts/odex_assist_revalidation.py`
+- ODX-F5: pass via `make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_assist_policy`
+- ODX-F6: pass via `INTODE_SOLVER_ASSIST_ENABLED=0 python3 scripts/run_stage3_3_multiseed.py --repo-root . --config output/tests/m4_guardrails/tiny_stage3_guardrail.json --skip-build --max-seeds 1 --methods no_fb --output-subdir output/tests/odex_assist_policy_stage3_disabled --logs-subdir output/logs/odex_assist_policy_stage3_disabled --log-prefix odex_assist_policy_disabled --allow-oversubscribe`
 
 ## Recomputed Robustness Comparison
 

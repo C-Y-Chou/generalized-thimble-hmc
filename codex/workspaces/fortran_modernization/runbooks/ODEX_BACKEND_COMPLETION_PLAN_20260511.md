@@ -126,7 +126,7 @@ This script recomputes the ODEX-only vs solver-assist historical readback from
 the recorded 50k/100k QN-clean validation artifacts and writes:
 
 - `state/ODEX_ASSIST_REVALIDATION_SUMMARY.tsv`
-- `runbooks/ODEX_ASSIST_REVALIDATION_CONCLUSION_20260511.md`
+- `runbooks/ODEX_ASSIST_HISTORICAL_READBACK_20260511.md`
 
 Correction: this is not a fresh current-code ODEX policy test and must not be
 treated as a current revalidation conclusion. It shows that historical pure
@@ -136,6 +136,24 @@ assist-on/off or equivalent policy test remains required before closing the
 policy question. M6 reference datasets are not official DFO-LS evidence; they
 can only serve as historical/internal behavior anchors for observing assist-off
 degeneracy.
+
+## Current Assist Policy Gate
+
+Added target:
+
+```bash
+make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_assist_policy
+```
+
+The target runs the current source twice:
+
+- default policy, with solver-internal assist enabled;
+- `INTODE_SOLVER_ASSIST_ENABLED=0`, with solver-internal assist disabled.
+
+This proves the current `intode` policy gate is explicit and testable without
+changing default behavior. It does not prove production-scale ODEX behavior;
+that still requires a representative current-code assist-on/off Stage/TLTM
+validation.
 
 ## Next Source Slice
 

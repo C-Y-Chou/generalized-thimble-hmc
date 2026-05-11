@@ -3,6 +3,7 @@ module solve_flow
    use utils, only: dp, complex_to_real, map_to_complex, real_to_complex
    use model, only: ds, hessian_vec
    use perf_profile, only: perf_tic, perf_toc, PERF_INTODE, PERF_FLOW, PERF_FLOWZ, PERF_FLOWZR
+   use runtime_env_mod, only: parse_logical_env
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    implicit none
 
@@ -61,7 +62,9 @@ module solve_flow
    integer, save :: intode_fallback_failures_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
    integer, save :: intode_rescue_success_solver_assist = 0
    integer, save :: intode_solver_assist_fail = 0
-   logical, parameter :: intode_enable_solver_assist = .true.
+   logical, parameter :: intode_solver_assist_enabled_default = .true.
+   logical, save :: intode_enable_solver_assist = intode_solver_assist_enabled_default
+   logical, save :: intode_solver_assist_policy_loaded = .false.
    logical, parameter :: intode_fast_hmin_assist = .true.
    logical, parameter :: intode_verbose_logs = .false.
    ! <= 0 means unlimited solver-assist uses (still context-gated).
@@ -553,36 +556,14 @@ contains
       integer, intent(in) :: reason_code
       real(dp), intent(out) :: y_out(:)
       logical, intent(out) :: accepted
-      logical :: allow_context, allow_stage
 
       accepted = .false.
       y_out = y_curr
 
-      if (.not. intode_enable_solver_assist) then
+      if (.not. intode_solver_assist_policy_allows(reason_code, intode_current_context, intode_trace_stage, &
+                                                   intode_rescue_success_solver_assist)) then
          intode_solver_assist_fail = intode_solver_assist_fail + 1
          return
-      end if
-      if (reason_code /= intode_reason_h_min) then
-         intode_solver_assist_fail = intode_solver_assist_fail + 1
-         return
-      end if
-      allow_context = (intode_current_context == intode_ctx_flowz .or. intode_current_context == intode_ctx_flowzr)
-      if (.not. allow_context) then
-         intode_solver_assist_fail = intode_solver_assist_fail + 1
-         return
-      end if
-      ! This is a solver-internal residual assist only; final proposal flow remains strict.
-      allow_stage = (intode_trace_stage == intode_stage_newton .or. intode_trace_stage == intode_stage_quasi .or. &
-                     intode_trace_stage == intode_stage_quasi_retry)
-      if (.not. allow_stage) then
-         intode_solver_assist_fail = intode_solver_assist_fail + 1
-         return
-      end if
-      if (intode_solver_assist_max_uses > 0) then
-         if (intode_rescue_success_solver_assist >= intode_solver_assist_max_uses) then
-            intode_solver_assist_fail = intode_solver_assist_fail + 1
-            return
-         end if
       end if
 
       accepted = .true.
@@ -600,6 +581,32 @@ contains
          intode_solver_assist_log_count = intode_solver_assist_log_count + 1
       end if
    end subroutine intode_try_solver_assist
+
+   logical function intode_solver_assist_policy_allows(reason_code, context_code, stage_code, success_count) result(allowed)
+      implicit none
+      integer, intent(in) :: reason_code, context_code, stage_code, success_count
+      logical :: allow_context, allow_stage
+
+      call ensure_intode_solver_assist_policy()
+
+      allowed = .false.
+      if (.not. intode_enable_solver_assist) return
+      if (reason_code /= intode_reason_h_min) return
+
+      allow_context = (context_code == intode_ctx_flowz .or. context_code == intode_ctx_flowzr)
+      if (.not. allow_context) return
+
+      ! This is a solver-internal residual assist only; final proposal flow remains strict.
+      allow_stage = (stage_code == intode_stage_newton .or. stage_code == intode_stage_quasi .or. &
+                     stage_code == intode_stage_quasi_retry)
+      if (.not. allow_stage) return
+
+      if (intode_solver_assist_max_uses > 0) then
+         if (success_count >= intode_solver_assist_max_uses) return
+      end if
+
+      allowed = .true.
+   end function intode_solver_assist_policy_allows
 
    subroutine record_intode_fallback_attempt_context(ctx_code)
       implicit none
@@ -747,10 +754,22 @@ contains
       integer, intent(out) :: max_uses
       logical, intent(out) :: fast_hmin_assist
 
+      call ensure_intode_solver_assist_policy()
+
       enabled = intode_enable_solver_assist
       max_uses = intode_solver_assist_max_uses
       fast_hmin_assist = intode_fast_hmin_assist
    end subroutine get_intode_solver_assist_policy
+
+   subroutine ensure_intode_solver_assist_policy()
+      implicit none
+
+      if (intode_solver_assist_policy_loaded) return
+
+      intode_enable_solver_assist = intode_solver_assist_enabled_default
+      call parse_logical_env("INTODE_SOLVER_ASSIST_ENABLED", intode_enable_solver_assist)
+      intode_solver_assist_policy_loaded = .true.
+   end subroutine ensure_intode_solver_assist_policy
 
    subroutine get_intode_final_resort_policy(enabled, max_uses, fast_hmin_bypass)
       implicit none

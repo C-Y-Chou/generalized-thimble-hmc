@@ -179,6 +179,7 @@ SOURCES_TEST1  := $(SOURCES_COMMON) $(TEST_DIR)/test_hamiltonian_conservation.f9
 SOURCES_TEST2  := $(SOURCES_COMMON) $(TEST_DIR)/test_action_derivatives.f90
 SOURCES_TEST_ODEX := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_solver.f90
 SOURCES_TEST_ODEX_FOUNDATION := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_foundation_contract.f90
+SOURCES_TEST_ODEX_ASSIST_POLICY := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_assist_policy.f90
 SOURCES_TEST_TLTM_SWAP := $(SOURCES_COMMON) $(TEST_DIR)/test_tltm_swap_kernel_contract.f90
 OFFICIAL_DFOLS_C_OBJECT := $(OBJ_DIR)/src/external/official_dfols_c_bridge_$(OFFICIAL_DFOLS_C_MODE).o
 
@@ -204,12 +205,14 @@ OBJECTS_TEST_ODEX := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_
                      $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_ODEX))) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_TEST_ODEX_FOUNDATION := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_ODEX_FOUNDATION))) \
                                 $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_ODEX_FOUNDATION))) $(OFFICIAL_DFOLS_C_OBJECT)
+OBJECTS_TEST_ODEX_ASSIST_POLICY := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_ODEX_ASSIST_POLICY))) \
+                                   $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_ODEX_ASSIST_POLICY))) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_TEST_TLTM_SWAP := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_TLTM_SWAP))) \
                           $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_TLTM_SWAP))) $(OFFICIAL_DFOLS_C_OBJECT)
 
 SOURCES_DEP := $(sort $(SOURCES_STEP2) $(SOURCES_STEP3) $(SOURCES_STEP9) $(SOURCES_BTN_RESIDUAL) \
                 $(SOURCES_STEP10) $(SOURCES_TEST1) $(SOURCES_TEST2) $(SOURCES_TEST_ODEX) \
-                $(SOURCES_TEST_ODEX_FOUNDATION) $(SOURCES_TEST_TLTM_SWAP))
+                $(SOURCES_TEST_ODEX_FOUNDATION) $(SOURCES_TEST_ODEX_ASSIST_POLICY) $(SOURCES_TEST_TLTM_SWAP))
 
 $(DEP_OUT): $(SOURCES_DEP) $(DEP_SCRIPT) | $(MOD_DIR)
 	$(PYTHON) $(DEP_SCRIPT) --root .. --obj-dir $(OBJ_DIR) > $@
@@ -225,7 +228,7 @@ endif
 BINARIES     = generate_markov_chain evaluate_expectations \
                run_tltm_stage1 run_tltm_stage2 \
                evaluate_btn_residual_case \
-               test_program test_program2 test_odex_solver test_odex_foundation_contract test_tltm_swap_kernel_contract
+               test_program test_program2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_tltm_swap_kernel_contract
 EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 
 ###############################################################################
@@ -234,7 +237,7 @@ EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 .DEFAULT_GOAL := all
 override FFLAGS := $(FFLAGS_OPT) $(FFLAGS_INC)
 
-.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract evaluate_btn_residual_case test_tltm_swap_kernel_contract modernization_guardrails \
+.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy evaluate_btn_residual_case test_tltm_swap_kernel_contract modernization_guardrails \
         test1_fb_on test1_fb_off test2_fb_on test2_fb_off test_fb_matrix \
         prepare_outputs clean_outputs clean veryclean
 all: regen_model_derivatives $(EXECUTABLES)
@@ -288,6 +291,9 @@ $(BIN_DIR)/test_odex_solver: $(OBJECTS_TEST_ODEX) | $(BIN_DIR)
 $(BIN_DIR)/test_odex_foundation_contract: $(OBJECTS_TEST_ODEX_FOUNDATION) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
+$(BIN_DIR)/test_odex_assist_policy: $(OBJECTS_TEST_ODEX_ASSIST_POLICY) | $(BIN_DIR)
+	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+
 $(BIN_DIR)/test_tltm_swap_kernel_contract: $(OBJECTS_TEST_TLTM_SWAP) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
@@ -324,6 +330,7 @@ help:
 	@echo "  make test2    - run action derivative test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_odex_solver - run analytic ODEX/status smoke test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_odex_foundation_contract - run ODEX foundation contract test (log -> $(OUT_LOG_DIR))"
+	@echo "  make test_odex_assist_policy - run ODEX assist on/off policy gate (log -> $(OUT_LOG_DIR))"
 	@echo "  make evaluate_btn_residual_case - build offline BTN residual bridge for external DFO-LS comparison"
 	@echo "  make test_tltm_swap_kernel_contract - run TLTM swap-kernel contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make modernization_guardrails - run M4 local compile/build/audit/smoke guardrails"
@@ -442,6 +449,10 @@ test_odex_solver: $(BIN_DIR)/test_odex_solver prepare_outputs
 
 test_odex_foundation_contract: $(BIN_DIR)/test_odex_foundation_contract prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_odex_foundation_contract 2>&1 | tee $(OUT_LOG_DIR)/test_odex_foundation_contract.log
+
+test_odex_assist_policy: $(BIN_DIR)/test_odex_assist_policy prepare_outputs
+	@set -o pipefail; $(BIN_DIR)/test_odex_assist_policy enabled 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_enabled.log
+	@set -o pipefail; INTODE_SOLVER_ASSIST_ENABLED=0 $(BIN_DIR)/test_odex_assist_policy disabled 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_disabled.log
 
 test_tltm_swap_kernel_contract: $(BIN_DIR)/test_tltm_swap_kernel_contract prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_tltm_swap_kernel_contract 2>&1 | tee $(OUT_LOG_DIR)/test_tltm_swap_kernel_contract.log

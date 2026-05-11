@@ -223,6 +223,7 @@ def run_guardrails(args):
                     "../bin/evaluate_expectations",
                     "test_odex_solver",
                     "test_odex_foundation_contract",
+                    "test_odex_assist_policy",
                     "test_tltm_swap_kernel_contract",
                 ],
             ),

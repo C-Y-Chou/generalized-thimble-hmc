@@ -24,7 +24,7 @@ SUMMARY_OUT = (
 )
 REPORT_OUT = (
     "codex/workspaces/fortran_modernization/runbooks/"
-    "ODEX_ASSIST_REVALIDATION_CONCLUSION_20260511.md"
+    "ODEX_ASSIST_HISTORICAL_READBACK_20260511.md"
 )
 
 
@@ -36,17 +36,6 @@ def repo_root():
         universal_newlines=True,
     )
     return Path(result.stdout.strip()).resolve()
-
-
-def git_head(root):
-    result = subprocess.run(
-        ["git", "rev-parse", "--short=12", "HEAD"],
-        cwd=str(root),
-        check=True,
-        stdout=subprocess.PIPE,
-        universal_newlines=True,
-    )
-    return result.stdout.strip()
 
 
 def split_markdown_row(line):
@@ -191,9 +180,6 @@ def write_report(root, values, summary_rows, evidence_rows):
         "",
         "## Current Source Readback",
         "",
-        "- Current local HEAD when this report was generated: `{head}`.".format(
-            head=values["head"]
-        ),
         "- Large-scale evidence source: `{assist}`.".format(assist=ASSIST_RUNBOOK),
         "- ODEX-only comparison source: `{odex}`.".format(odex=ODEX_ONLY_RUNBOOK),
         "- Deterministic current-code boundary evidence:",
@@ -350,7 +336,6 @@ def main():
     unresolved_pct_100k = 100.0 * unresolved_delta_100k / odex_unresolved_100k
     pre_odex_unresolved_100k = as_int(pre_unresolved_row["pre-ODEX fb_norefine"])
     values = {
-        "head": git_head(root),
         "odex_unresolved_100k": odex_unresolved_100k,
         "assist_unresolved_100k": assist_unresolved_100k,
         "unresolved_delta_100k": unresolved_delta_100k,
