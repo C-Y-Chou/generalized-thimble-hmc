@@ -1,7 +1,7 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-11T16:35:18+09:00
-Remote refreshed: 2026-05-11T16:19:20+09:00
+Generated: 2026-05-11T16:36:31+09:00
+Remote refreshed: 2026-05-11T16:36:18+09:00
 
 ## Canonical Entry
 
@@ -23,7 +23,7 @@ Remote refreshed: 2026-05-11T16:19:20+09:00
 
 ## Active Remote Risk
 
-- `tltm_production_comparison_provisional`: branch `codex/tltm-production-comparison-official-dfols`, commit `d3f133d1fd7de2ec6a5b7ac27840c01287be5be7`, 9 active jobs, examples: 14766.anode01,14767.anode01,14768.anode01,14769.anode01,14770.anode01,14771.anode01,14772.anode01,14773.anode01, pinned `d3f133d1fd7de2ec6a5b7ac27840c01287be5be7`. Do not fast-forward.
+- `tltm_production_comparison_provisional`: branch `codex/tltm-production-comparison-official-dfols`, commit `d3f133d1fd7de2ec6a5b7ac27840c01287be5be7`, 5 active jobs, examples: 14770.anode01,14771.anode01,14772.anode01,14773.anode01,14774.anode01, pinned `d3f133d1fd7de2ec6a5b7ac27840c01287be5be7`. Do not fast-forward.
 
 ## Active Local Risk
 
@@ -31,10 +31,6 @@ Remote refreshed: 2026-05-11T16:19:20+09:00
 
 ## Active/Pending Jobs
 
-- `14766.anode01` `pc32_nofb_00` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
-- `14767.anode01` `pc32_nofb_01` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
-- `14768.anode01` `pc32_nofb_02` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
-- `14769.anode01` `pc32_nofb_03` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
 - `14770.anode01` `pc32_wfb_00` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
 - `14771.anode01` `pc32_wfb_01` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
 - `14772.anode01` `pc32_wfb_02` queue `C8` state `R` dataset `official_dfols_gate_20260511_32seed_50k`.
