@@ -2,15 +2,15 @@
 
 Updated: 2026-05-11 JST
 
-Scope: caveat-gated forward queue for continuing TLTM Fortran modernization after official DFO-LS became the default backend and after the M6 R1-R4 reference baseline was accepted.
+Scope: foundation-gap-gated forward queue for continuing TLTM Fortran modernization after official DFO-LS became the default backend and after the M6 R1-R4 reference baseline was accepted.
 
 ## Current Position
 
 ```text
-Completed foundation -> accepted M6 reference baseline -> caveat-gated forward modernization
+Reference-audited core + accepted M6 behavior baseline -> foundation gaps still active -> source modernization remains gated
 ```
 
-This queue supersedes any interpretation that M6 means modernization is complete. M6 is the behavior-protection anchor for the next work.
+This queue supersedes any interpretation that M2/M6 means the numerical/software foundation is complete. M6 is the behavior-protection anchor; `FOUNDATION_COMPLETENESS_RESET_20260511.md` is the reset map for the unfinished foundation.
 
 ## Active Caveat Gates
 
@@ -20,26 +20,31 @@ This queue supersedes any interpretation that M6 means modernization is complete
 - `CV-004`: behavior-relevant source refactors need accepted reference comparison or an explicitly approved narrower baseline.
 - `CV-005`: auxiliary or historical scripts require deep-read before reuse as evidence or automation.
 - `CV-006`: DFO-LS claims must distinguish historical in-house/DFO-LS-style paths from embedded official package runs.
-- `CV-007`: ODEX claims must state the current ODEX-primary/reduced-scope flow instead of pure or complete ODEX.
+- `CV-007`: ODEX backend completeness requires actual implementation/design/test work, not just wording cleanup.
+- `CV-008`: official DFO-LS backend replacement needs official-alone preset policy, provenance, representative comparison, and TLTM residual readback.
+- `CV-009`: retained Newton/RATTLE/QN/HMC/RG cores need deterministic evidence packs before being treated as complete.
+- `CV-010`: diagnostics/status/counter accounting needs a typed foundation before final schema or production regeneration.
+- `CV-011`: RNG/workspace/reentrancy remains an unfinished productization foundation.
 
 ## Forward Queue
 
 | Step | Workstream | Status | Allowed now | Output | Gate to advance |
 | --- | --- | --- | --- | --- | --- |
-| F0 | control-plane caveat hygiene | done | yes | `codex/state/CAVEATS.tsv`, L0 caveat display | `validate_control_plane` pass |
-| F1 | implementation-truth caveat audit | active | yes | DFO-LS and ODEX truth boundaries registered and visible | no modernization claim stronger than implementation/evidence |
-| F2 | DFO-LS claim-boundary cleanup | active | yes | historical in-house/DFO-LS-style evidence separated from official backend evidence | official claims require embedded backend/package provenance |
-| F3 | ODEX scope-boundary cleanup | active | yes | ODEX-primary/reduced-scope wording and missing-completeness decisions explicit | no pure-ODEX or complete-ODEX overclaim |
-| F4 | M6 read-only comparison tooling | active | yes | `m6_reference_compare.py`, comparison summary/report | tool can regenerate report from accepted M6 readback or raw package CSV |
-| F5 | M6/product calibration reconciliation | next | yes, read-only | compare M6 R1-R4 against official DFO-LS provisional gates | no source changes; label all production outputs provisional |
-| F6 | public method naming and schema-role design | next | docs/schema design only | raw `fb_norefine` remains readable; canonical `withfb` and algorithm IDs specified | no field removal until versioned schema exists |
-| F7 | reference comparison harness for source patches | next | tests/tooling only | patch header template plus baseline comparison command set | required before behavior-relevant source refactors |
-| F8 | low-risk non-physics utility/API cleanup | gated | only after F7 | exact-output or tolerance-bound comparison against accepted rows | no RNG/proposal/schema/counter meaning drift |
-| F9 | typed status/result propagation | gated | after F7/F8 | explicit flow/solver/RATTLE/HMC/reverse-gate result objects | route/counter equality checks pass |
-| F10 | diagnostics accounting context | gated | after schema decision | structured forward/replay/probe/reject accounting | schema versioning and compatibility readers exist |
-| F11 | unified wrapper/product interface | gated | after schema decision | wrapper runs same Stage2/Stage3 protocol with v1 sidecars | no public behavior replacement without compatibility layer |
-| F12 | RNG/reentrancy/module workspace migration | deferred | no | explicit per-run/per-replica state | deterministic parallel/reference comparisons exist |
-| F13 | publication-grade production regeneration | deferred | no | final production datasets | CV-001/CV-002/CV-006/CV-007 resolved or explicitly accepted |
+| F0 | foundation completeness reset | active | yes | `FOUNDATION_COMPLETENESS_RESET_20260511.md`, expanded `CAVEATS.tsv`/`OPEN_ITEMS.tsv` | no compact doc says foundation is complete |
+| F1 | ODEX backend completeness | active | docs/tests first | ODEX solver contract, stability/dense-output decision, mechanism-policy split plan, deterministic test plan | ODEX source work has accepted affected baselines |
+| F2 | official DFO-LS backend completion | active | docs/tests first | official-alone preset tuning policy, provenance/readback, captured comparison, residual-gate checklist | official backend claims have package provenance and TLTM residual readback |
+| F3 | retained-core deterministic evidence pack | active | tests/tooling | Newton/RATTLE/QN/HMC/RG replay fixtures and comparison rules | affected core rows pass or are explicitly scoped |
+| F4 | diagnostics/status/accounting foundation | active | design/tests | typed diagnostics context and schema compatibility plan | counters/status/capture meaning is versioned and testable |
+| F5 | M6 read-only comparison tooling | done | yes | `m6_reference_compare.py`, comparison summary/report | tool can regenerate report from accepted M6 readback or raw package CSV |
+| F6 | M6/product calibration reconciliation | next | yes, read-only | compare M6 R1-R4 against official DFO-LS provisional gates | no source changes; label all production outputs provisional |
+| F7 | public method naming and schema-role design | gated | docs/schema design only | raw aliases remain readable; canonical roles/algorithm IDs specified | no field removal until versioned schema exists |
+| F8 | reference comparison harness for source patches | gated | tests/tooling only | patch header template plus baseline comparison command set | required before behavior-relevant source refactors |
+| F9 | low-risk non-physics utility/API cleanup | gated | only after F8 and affected foundation rows | exact-output or tolerance-bound comparison against accepted rows | no RNG/proposal/schema/counter meaning drift |
+| F10 | typed status/result propagation | gated | after F3/F4/F8 | explicit flow/solver/RATTLE/HMC/reverse-gate result objects | route/counter equality checks pass |
+| F11 | diagnostics accounting implementation | gated | after F4/schema decision | structured forward/replay/probe/reject accounting | schema versioning and compatibility readers exist |
+| F12 | unified wrapper/product interface | gated | after schema decision | wrapper runs same Stage2/Stage3 protocol with v1 sidecars | no public behavior replacement without compatibility layer |
+| F13 | RNG/reentrancy/module workspace migration | deferred | no | explicit per-run/per-replica state | deterministic parallel/reference comparisons exist |
+| F14 | publication-grade production regeneration | deferred | no | final production datasets | CV-001/CV-002/CV-007/CV-008/CV-009/CV-010 resolved or explicitly accepted |
 
 ## What Can Continue While 32seed/50k Official Gate Runs
 
@@ -52,11 +57,17 @@ Do not fast-forward or clean `/lustre1/home/cychou/TLTM_worktrees/tltm_productio
 
 ## Immediate Work
 
-Keep F1-F3 current by auditing the implementation-truth caveats in `IMPLEMENTATION_TRUTH_CAVEATS_20260511.md`.
-After that, run F4 with:
+Read `FOUNDATION_COMPLETENESS_RESET_20260511.md` before any modernization task. The immediate implementation planning order is:
+
+1. ODEX completion contract and deterministic tests.
+2. Official DFO-LS preset/provenance/readback policy.
+3. Retained-core deterministic evidence pack.
+4. Diagnostics/status/accounting foundation.
+
+M6 comparison tooling remains available with:
 
 ```bash
 python3 codex/workspaces/fortran_modernization/tasks/scripts/m6_reference_compare.py
 ```
 
-Then use the generated report as the first comparison anchor before planning schema/naming and source-patch comparison harnesses.
+Use the generated report as a behavior anchor, not as evidence that the foundation is complete.

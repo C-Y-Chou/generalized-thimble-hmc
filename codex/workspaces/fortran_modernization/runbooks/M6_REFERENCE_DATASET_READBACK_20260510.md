@@ -82,7 +82,7 @@ Still decision-gated:
 Proceed from the workstream matrix:
 
 ```text
-Completed foundation -> Accepted M6 reference baseline -> Remaining modernization blocks
+Reference-audited core + accepted M6 behavior baseline -> foundation gaps still active -> source modernization remains gated
 ```
 
 Recommended immediate sequence:

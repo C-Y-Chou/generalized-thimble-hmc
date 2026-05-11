@@ -128,7 +128,7 @@ def main() -> int:
     lines.append("## Active Caveats")
     lines.append("")
     if high_caveats:
-        for row in high_caveats[:6]:
+        for row in high_caveats[:10]:
             lines.append(
                 f"- `{row.get('id')}` {row.get('scope')} blocks `{row.get('blocks')}`: {row.get('item')} Rerun trigger: {row.get('rerun_trigger')}"
             )
@@ -138,7 +138,7 @@ def main() -> int:
     lines.append("## High-Priority Open Items")
     lines.append("")
     if high_open:
-        for row in high_open[:6]:
+        for row in high_open[:14]:
             lines.append(f"- `{row.get('id')}` {row.get('scope')}: {row.get('item')} Next: {row.get('next_action')}")
     else:
         lines.append("- No active high-priority open item recorded.")

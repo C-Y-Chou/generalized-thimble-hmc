@@ -14,6 +14,7 @@ Every material caveat must be classified in `codex/state/CAVEATS.tsv` before the
 - `provisional`: work may continue, but outputs must be labeled provisional and rerun triggers must be explicit.
 - `guardrail`: the caveat changes workflow safety, not science; fix the workflow and rerun only invalid artifacts.
 - `implementation_truth`: the project label or claim is stronger than the implementation or evidence; fix the claim, fix the implementation, or rerun the right evidence before using it.
+- `foundation_gap`: a retained core, backend, diagnostic surface, or execution contract is not yet complete enough for publication-grade modernization; implement the missing work or explicitly accept the reduced scope before treating the foundation as complete.
 - `historical`: no active work unless that historical artifact or script is reused.
 
 ## Audit Steps

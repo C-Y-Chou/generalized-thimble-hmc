@@ -1,6 +1,6 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-11T16:19:30+09:00
+Generated: 2026-05-11T16:35:18+09:00
 Remote refreshed: 2026-05-11T16:19:20+09:00
 
 ## Canonical Entry
@@ -48,7 +48,10 @@ Remote refreshed: 2026-05-11T16:19:20+09:00
 - `CV-003` tltm_production_comparison blocks `production_job_submission`: Production-comparison jobs must execute from the synchronized production-comparison worktree, not from the modernization source worktree. Rerun trigger: Only misrouted jobs/artifacts rerun; docs, route guards, and state-register fixes do not invalidate correctly routed scientific outputs.
 - `CV-004` fortran_modernization blocks `source_code_modernization`: Post-M6 source refactors need an accepted reference package or an explicit narrower baseline before touching behavior-relevant code. Rerun trigger: Any source change that can affect RNG order, proposal construction, solver route, failure classification, counters, schema meaning, or public wrapper behavior.
 - `CV-006` fortran_modernization blocks `dfols_claims_and_outputs`: Historical TLTM "DFO-LS" or "DFO-LS-style" QN paths were in-house implementations, not the official DFO-LS package. Official DFO-LS claims require the embedded official backend and package provenance. Rerun trigger: Any dataset or claim labeled official DFO-LS without ENABLE_OFFICIAL_DFOLS, QN_SOLVER_BACKEND=official_dfols, stable preset provenance, and TLTM residual-gate readback must be rerun or relabeled.
-- `CV-007` fortran_modernization blocks `odex_claims_and_flow_policy`: TLTM flow is ODEX-primary with solver-internal residual assist and strict final flow, not pure ODEX-only and not a complete Hairer ODEX package claim. Rerun trigger: Changing ODEX sequence, stability control, tolerance floors, solver-internal assist, or final-flow strictness requires rerun of affected flow/proposal/reference gates.
+- `CV-007` fortran_modernization blocks `odex_backend_completeness`: Current ODEX is a partially completed endpoint extrapolation backend plus TLTM flow policy, not yet a publication-grade standalone ODEX solver contract. Rerun trigger: Changing ODEX sequence, stability control, tolerance floors, solver-internal assist, final-flow strictness, or publishing an ODEX-completeness claim requires rerun of affected flow/proposal/reference gates.
+- `CV-008` fortran_modernization blocks `official_dfols_backend_completeness`: Official DFO-LS is embedded and tuned enough for provisional gates, but the official solver replacement is not finished until official-alone preset policy, package provenance, representative comparison, and TLTM residual readback are complete. Rerun trigger: Changing official DFO-LS package version, preset, residual callback, acceptance gate, maxfun/trust-region settings, or making final official-solver claims requires rerun of affected QN/backend/reference gates.
+- `CV-009` fortran_modernization blocks `retained_core_deterministic_evidence`: The retained Newton, RATTLE, QN/BTN, HMC/Metropolis, and reverse-gate cores were reference-audited, but several required deterministic replay/contract tests are still missing. Rerun trigger: Any source change touching residuals, projection, route budgets, reverse gate, failure-as-rejection, Metropolis acceptance, or final correctness claims requires the affected deterministic evidence to pass or be explicitly re-scoped.
+- `CV-010` fortran_modernization blocks `diagnostics_state_accounting`: Diagnostic counters, failure capture, status propagation, reverse replay accounting, and solver-assist labels remain patchwork and can change interpretation even when physics is unchanged. Rerun trigger: Changing counter/status semantics, capture controls, replay suppression, output schema, wrapper behavior, or using diagnostics for final claims requires schema/versioned readback and affected reference comparisons.
 
 ## High-Priority Open Items
 
@@ -58,6 +61,12 @@ Remote refreshed: 2026-05-11T16:19:20+09:00
 - `CP-010` control_plane: Keep material caveats in the caveat register before changing work scope Next: Run the caveat audit steps, update CAVEATS.tsv, and add blocking caveats to OPEN_ITEMS.tsv before major workflow continuation
 - `CP-011` kernel_correctness_audit: Decide the official-DFO-LS-line kernel correctness gate before final publication production Next: Current official DFO-LS gates may continue as provisional, but final publication production needs the CV-001 correctness gate or explicit accepted limitation
 - `CP-012` tltm_production_comparison: Maintain provisional-vs-final production boundary Next: Treat official DFO-LS production-comparison gates as provisional until final wrapper/schema/naming/counter conventions are frozen or final regeneration is scheduled
+- `FM-001` fortran_modernization: Reset modernization around foundation completeness Next: Treat M6 as a behavior baseline, not completed foundation; use FOUNDATION_COMPLETENESS_RESET_20260511 before any source modernization step
+- `FM-002` fortran_modernization: Fix DFO-LS evidence and implementation boundary Next: Separate historical in-house/DFO-LS-style evidence from official-package evidence, then finish official solver integration/preset work before final claims
+- `FM-003` fortran_modernization: Implement the ODEX completeness workstream Next: Define and implement or explicitly scope the real ODEX backend contract: stability control, endpoint/dense-output policy, mechanism-policy split, workspace/result/status API, and revalidation
+- `FM-004` fortran_modernization: Finish official DFO-LS backend replacement policy Next: Design official-alone preset tuning, in-package robustness choices, provenance/readback, captured comparison, and TLTM residual gate acceptance without external rescue wrappers
+- `FM-005` fortran_modernization: Build retained-core deterministic evidence pack Next: Cover Newton, RATTLE, QN/BTN, HMC/Metropolis, reverse-gate pass/reject, and official-DFO-LS-line route behavior before treating the numerical foundation as complete
+- `FM-006` fortran_modernization: Repair diagnostics/status/accounting foundation Next: Move patchwork counters/status/capture/replay accounting toward a typed diagnostics context before final schema or production regeneration
 
 ## Recent Decisions
 

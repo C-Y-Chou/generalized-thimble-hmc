@@ -12,7 +12,7 @@ Purpose: persistent full-program risk map for TLTM Stage3_3/Stage3_4 work. This 
 - Constraint stage: `src/sampler/hmc_integrator_core.f90` does Newton first, then optional canonical p28 QN fallback, reverse gate, then returns to Metropolis.
 - Newton loss: `src/sampler/hmc_constraints.f90` solves independent `u, ld` variables for the Newton/RATTLE constraint.
 - QN loss: `src/sampler/quasi_newton_solver.f90` contains the retained p28 BTN/backflow rescue residual, the embedded official DFO-LS backend interface, and the legacy in-house/internal comparison backend. Historical "DFO-LS-style" evidence is not official package evidence unless the run records `QN_SOLVER_BACKEND=official_dfols` and official package provenance.
-- Flow/model: `src/physics/solve_flow.f90` implements forward flow `flow/flowz` and inverse flow `flowzr`; `src/physics/model*.f90` defines action and derivatives. The current flow policy is ODEX-primary with solver-internal residual assist and strict final proposal flow, not pure ODEX-only and not a complete Hairer ODEX package claim.
+- Flow/model: `src/physics/solve_flow.f90` implements forward flow `flow/flowz` and inverse flow `flowzr`; `src/physics/model*.f90` defines action and derivatives. The current flow policy is ODEX-primary with solver-internal residual assist and strict final proposal flow, but ODEX backend completeness is an active foundation gap, not just a wording caveat.
 - Counters/capture: `src/sampler/constraint_solver_stats.f90` owns solver/fallback/reverse-gate/status counters and failure capture; some legacy-compatible output labels remain for schema stability.
 - Evaluation: `src/apps/evaluate_expectations.f90` reads binary histories and computes phase-reweighted observable means, robust errors, and diagnostics.
 
@@ -21,7 +21,8 @@ Purpose: persistent full-program risk map for TLTM Stage3_3/Stage3_4 work. This 
 - Stage2 writes fixed max-flow-slot history before swap. This is a valid convention only if explicitly treated as the sampling definition; it can confuse first-N-cycle comparisons.
 - The legacy `x(2)` progress sentinel is no longer an active proposal-failure gate; deeper typed state redesign is still required because many kernels encode `x(1)` as flow time and `x(2:)` as physical coordinates positionally.
 - Many modules use `SAVE` or module-global workspaces. Current PBS process-level parallelism is okay, but OpenMP or in-process replica parallelism would be unsafe without refactoring.
-- Implementation-truth claim drift is now an explicit risk: project wording must not call historical in-house QN results official DFO-LS, and must not call the current flow policy pure/complete ODEX.
+- Foundation-completeness drift is now an explicit risk: M2/M6 evidence must not be treated as proof that ODEX, official DFO-LS, retained-core deterministic tests, diagnostics/accounting, RNG/workspace ownership, or wrapper/schema foundations are complete.
+- Official DFO-LS package integration is the default backend line, but final solver-replacement claims still require official-alone preset policy, package provenance, captured comparison, and TLTM residual readback.
 
 ## Fixed pre-production risks
 - 2026-05-07: reverse-gate replay statistics are suppressed during the internal reverse `rattle_step_core` call. Outer forward proposals still record solver/failure counters, and outer RG candidate/pass/reject counters are still recorded. This prevents RG diagnostic replay from inflating production `failure` or `fallback_trigger` counts.
@@ -48,7 +49,7 @@ Purpose: persistent full-program risk map for TLTM Stage3_3/Stage3_4 work. This 
 ## Required next discussion before new 3_4 production
 - Decide how to audit or enforce proposal symmetry/volume correctness for QN fallback route mixtures.
 - Decide whether Stage2 history timing should remain "pre-swap fixed max-flow slot" or be changed/documented more explicitly.
-- Audit and fix DFO-LS/ODEX implementation-truth wording before treating old evidence as final modernization support.
+- Resolve or explicitly scope `FOUNDATION_COMPLETENESS_RESET_20260511.md` gaps before treating old evidence as final modernization support.
 
 ## Active audit sequence
 - Probe 1: deterministic/single-valued repeatability in `codex/workspaces/kernel_correctness_audit` completed as PASS on 2026-05-07 for one historical 500-cycle withfb/RG/p28/post-refine seed plus captured-case replay. This is historical evidence only; post-refine is no longer active.
@@ -58,7 +59,7 @@ Purpose: persistent full-program risk map for TLTM Stage3_3/Stage3_4 work. This 
 - Probe 3: local volume audit completed as PASS on 2026-05-07 for sampled branch-stable successful proposal points. The implementation uses 1D coordinates `(q,c)` with tangent momentum `p=J(q)c`, and checks metric-corrected `log|det d(q',c')/d(q,c)| + 2log|J_out| - 2log|J_in|`. It passed at eps `3e-5`, `1e-5`, and `3e-6`; each eps had 16 stable rows and 2 QN-used stable rows.
 - Probe 4a: fallback-only `REVCHK` completed as PASS on 2026-05-07. It checked 50 fallback-used successful proposals, with 0 nonfallback records, 0 bad rows, and max `dx/dz/dj/dp <= 1.1e-9`.
 - Historical kernel-correctness probes are evidence for the route they actually exercised. They are not by themselves sufficient for official DFO-LS publication claims after the backend replacement.
-- Next active risk: official-DFO-LS-line kernel correctness coverage, including QN/official local volume and branch-measure behavior under the current backend/preset.
+- Next active risk: foundation-completeness evidence on the official DFO-LS line, including ODEX backend completion, QN/official local volume, branch-measure behavior, deterministic retained-core replay, and diagnostics/accounting separation.
 
 ## Update rule
 When a risk is fixed, disproved, or intentionally accepted, update this file and append the decision to `codex/knowledge/DECISIONS_AND_RISKS.md` plus `codex/state/session_log.md`.

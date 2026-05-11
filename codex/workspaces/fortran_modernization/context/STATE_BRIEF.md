@@ -4,9 +4,9 @@ Updated: 2026-05-11 JST
 
 ## Current Position
 
-- Current position is `Completed foundation -> Accepted M6 reference baseline -> Remaining modernization blocks`.
-- M6 is not "modernization complete"; it is the accepted reference-baseline/product-readiness gate before larger source refactors resume.
-- The compact source of truth for this positioning is `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`.
+- Current position is `Reference-audited core + accepted M6 behavior baseline -> foundation gaps still active -> source modernization remains gated`.
+- M6 is not "modernization complete" and is not proof that the numerical/software foundation is complete; it is the accepted behavior baseline before larger source refactors resume.
+- The compact source of truth for this positioning is `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`; the reset source of truth for foundation gaps is `runbooks/FOUNDATION_COMPLETENESS_RESET_20260511.md`.
 - M3/M4/M5 modernization infrastructure work is treated as completed, partial, or explicitly deferred by workstream in that matrix.
 - M6 R1-R4 reference packages are accepted after readback: expected per-method rows are present and protocol audit status is `pass` for R1-R4.
 - The remote target is now semantically `fortran_modernization`, with branch `codex/fortran-modernization` and worktree `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`.
@@ -34,4 +34,4 @@ Updated: 2026-05-11 JST
 
 ## Next Action
 
-Use `runbooks/MODERNIZATION_FORWARD_WORKSTEPS_20260511.md` as the active forward queue. The immediate modernization step is implementation-truth caveat cleanup: DFO-LS wording must distinguish historical in-house/DFO-LS-style evidence from official package evidence, and ODEX wording must say ODEX-primary with solver-internal residual assist and strict final flow rather than pure/complete ODEX. Do not start behavior-relevant source refactors until the relevant caveat and baseline gates are satisfied.
+Use `runbooks/MODERNIZATION_FORWARD_WORKSTEPS_20260511.md` as the active forward queue. The immediate modernization step is foundation completeness reset: ODEX completion, official DFO-LS backend completion, retained-core deterministic evidence, and diagnostics/status accounting must be treated as active work, not wording cleanup. Do not start behavior-relevant source refactors until the affected foundation and baseline gates are satisfied.

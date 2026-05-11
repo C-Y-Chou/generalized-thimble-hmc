@@ -4,6 +4,8 @@ Updated: 2026-05-11 JST
 
 Scope: caveats where the implementation or evidence is narrower than a casual project label could imply. These are not cosmetic wording issues; they define what can be claimed, what must be rerun, and what modernization work must address before publication-grade production.
 
+Supersession note: this document remains useful for claim/evidence boundaries, but `FOUNDATION_COMPLETENESS_RESET_20260511.md` is the stronger active gate. ODEX and official DFO-LS issues are implementation/completeness workstreams, not wording cleanup.
+
 ## Rule
 
 If a label is stronger than the implementation, fix the label or fix the implementation before using the result as evidence.
