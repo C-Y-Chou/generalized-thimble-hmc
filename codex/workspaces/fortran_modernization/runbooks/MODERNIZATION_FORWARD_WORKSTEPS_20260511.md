@@ -21,7 +21,7 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 - `CV-005`: auxiliary or historical scripts require deep-read before reuse as evidence or automation.
 - `CV-006`: DFO-LS claims must distinguish historical in-house/DFO-LS-style paths from embedded official package runs.
 - `CV-007`: ODEX backend is accepted reduced scope; do not claim full Hairer ODEX package unless reopened.
-- `CV-008`: official DFO-LS package-version provenance/readback now passes; backend replacement still needs representative embedded-backend comparison and TLTM residual readback.
+- `CV-008`: official DFO-LS package-version provenance/readback and small embedded captured-attempt gate now pass; backend replacement still needs representative-scale embedded readback before production regeneration.
 - `CV-009`: retained Newton/RATTLE/QN/HMC/RG cores need deterministic evidence packs before being treated as complete.
 - `CV-010`: diagnostics/status/counter accounting needs a typed foundation before final schema or production regeneration.
 - `CV-011`: RNG/workspace/reentrancy remains an unfinished productization foundation.
@@ -32,7 +32,7 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 | --- | --- | --- | --- | --- | --- |
 | F0 | foundation completeness reset | active | yes | `FOUNDATION_COMPLETENESS_RESET_20260511.md`, expanded `CAVEATS.tsv`/`OPEN_ITEMS.tsv` | no compact doc says foundation is complete |
 | F1 | ODEX backend completeness | done | yes | accepted reduced-scope endpoint extrapolation backend; result/workspace/status, flow/Jacobian, assist-policy, and representative assist-on/off guardrails pass | reopen only for full Hairer ODEX package, dense output, stability-control behavior, or changed final-flow/assist policy |
-| F2 | official DFO-LS backend completion | active | docs/tests first | official 10seed/10k nofb-vs-withfb evidence is imported as calibration; official-alone preset policy, sidecar provenance-env guardrail, and package-version provenance readback exist | official backend claims have embedded-backend captured-attempt comparison and TLTM residual readback |
+| F2 | official DFO-LS backend completion | active | docs/tests first | official 10seed/10k nofb-vs-withfb evidence is imported as calibration; official-alone preset policy, sidecar provenance-env guardrail, package-version provenance readback, and small embedded 1seed x 500 captured-attempt gate pass | official backend claims have representative-scale embedded-backend readback and promotion criteria |
 | F3 | retained-core deterministic evidence pack | active | tests/tooling | Newton/RATTLE/QN/HMC/RG replay fixtures and comparison rules | affected core rows pass or are explicitly scoped |
 | F4 | diagnostics/status/accounting foundation | active | design/tests | typed diagnostics context and schema compatibility plan | counters/status/capture meaning is versioned and testable |
 | F5 | M6 read-only comparison tooling | done | yes | `m6_reference_compare.py`, comparison summary/report | tool can regenerate report from accepted M6 readback or raw package CSV |
@@ -59,7 +59,7 @@ Do not fast-forward or clean `/lustre1/home/cychou/TLTM_worktrees/tltm_productio
 
 Read `FOUNDATION_COMPLETENESS_RESET_20260511.md` before any modernization task. The immediate implementation planning order is:
 
-1. Official DFO-LS embedded-backend captured-attempt comparison and TLTM residual readback.
+1. Official DFO-LS representative-scale embedded-backend readback and production-regeneration promotion criteria.
 2. Retained-core deterministic evidence pack.
 3. Diagnostics/status/accounting foundation.
 4. Reference-comparison harness for future behavior-relevant source patches.

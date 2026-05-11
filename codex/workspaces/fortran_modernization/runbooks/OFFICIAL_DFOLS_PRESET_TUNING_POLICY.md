@@ -172,3 +172,28 @@ and the readback note is
 This closes only the package-version provenance subtask. It does not replace
 the remaining embedded-backend captured-attempt comparison, TLTM residual gate
 readback, or representative-scale production-readiness evidence.
+
+## Embedded Backend Gate
+
+The remote 2026-05-11 embedded gate passed:
+
+```text
+PBS job: 14803.anode01
+commit: 5ebb85c45e956bcd5d511718a6cad49df8e11386
+label: official_dfols_embedded_gate_20260511_5ebb85c
+attempt_count=100
+official_result_count=100
+embedded_captured_converged_count=93
+official_residual_success_count=93
+float64_fail_count=0
+missing_result_count=0
+embedded_captured_converged_regression_count=0
+residual_fail_samples=26,40,41,74,87,90,99
+```
+
+The readback is recorded in
+`codex/workspaces/fortran_modernization/runbooks/OFFICIAL_DFOLS_EMBEDDED_GATE_READBACK_20260511.md`.
+
+This confirms the embedded backend path and small captured-attempt replay
+contract. It does not replace representative-scale embedded readback before
+production regeneration.

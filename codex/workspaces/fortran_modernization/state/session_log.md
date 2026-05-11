@@ -554,3 +554,10 @@
 - Local readback passed for `DFO-LS==1.6.5`, `GPL-3.0-or-later`, Python `3.11.14`, and module path under `.venv-dfols/lib/python3.11/site-packages/dfols`.
 - Added the script to M4 Python compile guardrails.
 - CV-008 remains open because package identity is not the same as embedded-backend captured-attempt comparison, TLTM residual acceptance evidence, or representative-scale readback.
+
+## 2026-05-11 JST - Official DFO-LS embedded backend gate
+- Updated `codex/workspaces/fortran_modernization/tasks/pbs/official_dfols_backend_gate_20260511.pbs` so the gate builds with `ENABLE_OFFICIAL_DFOLS=1`, records `TLTM_OFFICIAL_DFOLS_PYTHONPATH`, and sets the `stable_gate77` official backend env controls before Stage2 capture.
+- Submitted PBS job `14803.anode01` with label `official_dfols_embedded_gate_20260511_5ebb85c` on the canonical remote modernization worktree.
+- PBS exit status was `0`.
+- Gate readback: 100 captured attempts, 100 official replay rows, 93 embedded-converged attempts, 93 residual successes, 0 float64 failures, 0 missing rows, and 0 replay regressions among embedded-converged attempts.
+- Remaining F2 work is representative-scale embedded official backend readback and explicit production-regeneration promotion criteria.
