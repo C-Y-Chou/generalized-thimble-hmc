@@ -227,15 +227,66 @@ Purpose:
   captured attempt, if the float64 contract fails, or if an attempt that
   converged in the in-house solver fails the official TLTM residual gate.
 
+Current gate preset:
+
+```text
+objfun_has_noise = true
+npt = 4
+rhobeg = 0.018
+rhoend = 1e-16
+model.abs_tol = 1e-30
+model.rel_tol = 0
+maxfun = 250
+success gate = residual_norm <= 1e-13
+```
+
 This PBS gate remains an offline replacement test. It does not make official
 DFO-LS the production default and it does not introduce per-residual subprocess
 calls into the live HMC loop.
+
+## PBS Backend Gate Readback
+
+Readback on 2026-05-11:
+
+- Initial submitted gate `official_dfols_backend_gate_20260511_24297d1`
+  built and ran the Stage3-style smoke but failed before replay because the
+  capture path was relative while Stage2 executed from `build/`.
+- Fixed capture/log/output paths in commit `3082dcc`.
+- Second submitted gate `official_dfols_backend_gate_20260511_3082dcc`
+  captured 77 representative QN attempts and replayed all of them through
+  official `DFO-LS==1.6.5`.
+- The then-current preset `rhobeg=0.05`, `npt=default`, `maxfun=250` failed
+  the safety criterion: 75/77 official residual successes, 77/77 float64
+  contract pass, but one in-house-converged attempt regressed
+  (`sample_idx=6`, official residual `5.36e-4`).
+- Official-only tuning on the same capture showed that increasing `rhobeg`
+  fixed sample 6 but regressed other in-house-converged attempts. The stable
+  safety-gate setting was `npt=4`, `rhobeg=0.018`, with the same noise-aware
+  and tolerance controls.
+
+Revised preset result on the 77-attempt gate capture:
+
+| Preset | Attempts | Official residual <= `1e-13` | In-house-converged regressions | Float64 failures | `nf` median/mean/p90/max | Residual-fail samples |
+|---|---:|---:|---:|---:|---:|---|
+| `npt=4`, `rhobeg=0.018`, `maxfun=250` | 77 | 71/77 | 0/63 | 0/77 | 49 / 79.6 / 250 / 250 | 23, 28, 35, 46, 47, 54 |
+
+Interpretation:
+
+- The revised preset passes the replacement safety criterion for this
+  representative gate: all attempts that converged in the current in-house QN
+  solver also pass the official TLTM residual gate.
+- The six remaining official failures are hard attempts that were already
+  nonconverged in the in-house metadata.
+- The preset remains an offline backend candidate, not a production default.
+  Chain-level behavior gates and runtime integration design are still required.
 
 ## Replacement Decision Gate
 
 Algorithmic readiness:
 
 - Pass for attempt-level backend candidate on the current 1D toy-model representative probe.
+- Pass for the 77-attempt offline PBS replacement safety gate with
+  `npt=4`, `rhobeg=0.018`, `maxfun=250`, and the TLTM residual gate.
 - Official DFO-LS preserves all in-house-converged attempts in the replacement-gate probe.
 - Official DFO-LS improves several in-house-nonconverged attempts but does not eliminate every hard failure.
 

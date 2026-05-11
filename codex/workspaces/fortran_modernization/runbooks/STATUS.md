@@ -119,6 +119,11 @@ Latest behavior-neutral infrastructure cleanup:
     - `tasks/config/official_dfols_backend_gate_1seed_500cycle_t035.json`
     - `tasks/pbs/official_dfols_backend_gate_20260511.pbs`
     - The gate generates representative QN-entry attempts from a 1-seed, 500-cycle `fb_norefine` t=0.35 Stage3-style smoke, replays them through official `DFO-LS==1.6.5` with the tuned preset, and fails if float64 plumbing breaks or any in-house-converged attempt regresses under the official residual gate.
+  - PBS gate readback:
+    - First gate job failed because the capture path was relative while Stage2 ran from `build/`; the scaffold was fixed to use absolute output/log/capture paths.
+    - The fixed gate captured 77 QN-entry attempts and replayed all rows through official `DFO-LS==1.6.5`.
+    - Old preset `rhobeg=0.05`, `npt=default`, `maxfun=250` failed the safety gate because one in-house-converged attempt regressed.
+    - Revised official-only preset `npt=4`, `rhobeg=0.018`, `objfun_has_noise=True`, `rhoend=1e-16`, `model.abs_tol=1e-30`, `model.rel_tol=0`, `maxfun=250` passed the 77-attempt safety gate: 71/77 residual successes, 63/63 in-house-converged attempts preserved, 0/77 float64 failures.
   - This remains offline backend-comparison tooling and does not alter the production HMC/QN path. Failure-only replay is not considered sufficient evidence for solver replacement.
 
 Next expected modernization area after this slice:

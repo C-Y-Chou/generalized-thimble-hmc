@@ -135,7 +135,8 @@ export QN_ATTEMPT_CAPTURE_STRIDE=1
   echo "capture_limit=${QN_ATTEMPT_CAPTURE_LIMIT}"
   echo "official_dfols_maxfun=250"
   echo "official_dfols_objfun_has_noise=true"
-  echo "official_dfols_rhobeg=0.05"
+  echo "official_dfols_npt=4"
+  echo "official_dfols_rhobeg=0.018"
   echo "official_dfols_rhoend=1e-16"
   echo "official_dfols_model_abs_tol=1e-30"
   echo "official_dfols_model_rel_tol=0"
@@ -173,7 +174,8 @@ test -s "${ATTEMPT_DIR}/qn_attempt_meta.csv"
   --objfun-has-noise \
   --model-abs-tol 1e-30 \
   --model-rel-tol 0 \
-  --rhobeg 0.05 \
+  --npt 4 \
+  --rhobeg 0.018 \
   --rhoend 1e-16 \
   --residual-success-tol 1e-13 \
   --out-csv "${RESULT_CSV}" \

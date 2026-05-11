@@ -479,3 +479,11 @@
 - This is an offline backend replacement validation gate. It does not change the production HMC/QN path.
 - Added `.venv-dfols/` to `.gitignore` so the official DFO-LS Python environment can exist in local/remote worktrees without tripping clean-tree guards.
 - First submitted job `14726.anode01` failed before official replay because the PBS scaffold passed `QN_ATTEMPT_CAPTURE_DIR` as a relative path while Stage2 executed from `build/`; fixed the PBS scaffold to use absolute output/log/capture paths.
+
+## 2026-05-11 JST - Official DFO-LS backend gate readback and preset revision
+- Fixed-path gate job `14727.anode01` completed capture and replay for `official_dfols_backend_gate_20260511_3082dcc`.
+- Gate capture contained 77 representative QN attempts; official replay produced 77 rows and preserved the float64 contract on all rows.
+- Old preset `rhobeg=0.05`, `npt=default`, `maxfun=250` failed the replacement safety criterion: 75/77 residual successes, but one in-house-converged attempt (`sample_idx=6`) regressed to official residual `5.36e-4`.
+- Official-only tuning showed larger `rhobeg` values fix sample 6 but regress other in-house-converged attempts. The stable revised preset is `npt=4`, `rhobeg=0.018`, `objfun_has_noise=True`, `rhoend=1e-16`, `model.abs_tol=1e-30`, `model.rel_tol=0`, `maxfun=250`.
+- Revised preset result on the same 77-attempt gate capture: 71/77 residual successes, 63/63 in-house-converged attempts preserved, 0/77 float64 failures; residual-fail samples were 23, 28, 35, 46, 47, and 54, all in-house-nonconverged.
+- Updated the PBS gate scaffold to use the revised `npt=4`, `rhobeg=0.018` official DFO-LS preset for future reruns.
