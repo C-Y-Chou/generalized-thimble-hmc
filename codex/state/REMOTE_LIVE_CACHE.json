@@ -7,44 +7,110 @@
           {
             "Job_Name": "dfols_preflight",
             "Resource_List.select": "1:ncpus=8:mpiprocs=8:mem=8gb",
-            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_COMMIT=81b0784473073a6bc3ec1604f3f2e5930e70e252,,PBS_O_QUEUE=C8,PBS_O_HOST=ithems_fe02.intra.riken.jp,Exit_status=0",
+            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,PBS_O_QUEUE=C8,PBS_O_HOST=ithems_fe02.intra.riken.jp,Exit_status=0",
             "exec_host": "cnode17/0*8",
-            "expected_commit": "81b0784473073a6bc3ec1604f3f2e5930e70e252",
+            "expected_commit": "d3f133d1fd7de2ec6a5b7ac27840c01287be5be7",
             "host": "ithems_fe02.intra.riken.jp",
-            "job_id": "14760.anode01",
+            "job_id": "14765.anode01",
             "job_state": "E",
             "queue": "C8",
             "worktree": "NA"
           },
           {
-            "Job_Name": "pc_odf10_m",
-            "Resource_List.select": "1:ncpus=10:mpiprocs=10:mem=16gb",
-            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_COMMIT=81b0784473073a6bc3ec1604f3f2e5930e70e252,,TLTM_METHOD=no_fb,TLTM_CANONICAL_METHOD=nofb,PBS_O_QUEUE=C8,,PBS_O_HOST=ithems_fe02.intra.riken.jp,MIT=81b0784473073a6bc3ec1604f3f2e5930e70e252,TLTM_METHOD=no_fb,,TLTM_CANONICAL_METHOD=nofb codex/workspaces/tltm_production_comparison",
-            "expected_commit": "81b0784473073a6bc3ec1604f3f2e5930e70e252",
+            "Job_Name": "pc32_nofb_00",
+            "Resource_List.select": "1:ncpus=8:mpiprocs=8:mem=16gb",
+            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,TLTM_METHOD=no_fb,TLTM_CANONICAL_METHOD=nofb,TLTM_CHUNK_ID=00,,TLTM_SEED_OFFSET=0,TLTM_MAX_SEEDS=8,TLTM_RUN_JOBS=8,PBS_O_QUEUE=C8,,PBS_O_HOST=ithems_fe02.intra.riken.jp,M_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,TLTM_METHOD=no_fb,TLTM_CANONICAL_METHOD=nofb,TLTM_CHUNK_ID=00,,TLTM_SEED_OFFSET=0,TLTM_MAX_SEEDS=8,,TLTM_RUN_JOBS=8 codex/workspaces/tltm_production_comparison/tasks/pbs/",
+            "expected_commit": "d3f133d1fd7de2ec6a5b7ac27840c01287be5be7",
             "host": "ithems_fe02.intra.riken.jp",
-            "job_id": "14761.anode01",
+            "job_id": "14766.anode01",
             "job_state": "H",
             "queue": "C8",
             "worktree": "NA"
           },
           {
-            "Job_Name": "pc_odf10_m",
-            "Resource_List.select": "1:ncpus=10:mpiprocs=10:mem=16gb",
-            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_COMMIT=81b0784473073a6bc3ec1604f3f2e5930e70e252,,TLTM_METHOD=fb_norefine,TLTM_CANONICAL_METHOD=withfb,PBS_O_QUEUE=C8,,PBS_O_HOST=ithems_fe02.intra.riken.jp,MIT=81b0784473073a6bc3ec1604f3f2e5930e70e252,TLTM_METHOD=fb_norefine,,TLTM_CANONICAL_METHOD=withfb codex/workspaces/tltm_production_comparis",
-            "expected_commit": "81b0784473073a6bc3ec1604f3f2e5930e70e252",
+            "Job_Name": "pc32_nofb_01",
+            "Resource_List.select": "1:ncpus=8:mpiprocs=8:mem=16gb",
+            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,TLTM_METHOD=no_fb,TLTM_CANONICAL_METHOD=nofb,TLTM_CHUNK_ID=01,,TLTM_SEED_OFFSET=8,TLTM_MAX_SEEDS=8,TLTM_RUN_JOBS=8,PBS_O_QUEUE=C8,,PBS_O_HOST=ithems_fe02.intra.riken.jp,M_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,TLTM_METHOD=no_fb,TLTM_CANONICAL_METHOD=nofb,TLTM_CHUNK_ID=01,,TLTM_SEED_OFFSET=8,TLTM_MAX_SEEDS=8,,TLTM_RUN_JOBS=8 codex/workspaces/tltm_production_comparison/tasks/pbs/",
+            "expected_commit": "d3f133d1fd7de2ec6a5b7ac27840c01287be5be7",
             "host": "ithems_fe02.intra.riken.jp",
-            "job_id": "14762.anode01",
+            "job_id": "14767.anode01",
             "job_state": "H",
             "queue": "C8",
             "worktree": "NA"
           },
           {
-            "Job_Name": "pc_odf10_mg",
+            "Job_Name": "pc32_nofb_02",
+            "Resource_List.select": "1:ncpus=8:mpiprocs=8:mem=16gb",
+            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,TLTM_METHOD=no_fb,TLTM_CANONICAL_METHOD=nofb,TLTM_CHUNK_ID=02,,TLTM_SEED_OFFSET=16,TLTM_MAX_SEEDS=8,TLTM_RUN_JOBS=8,PBS_O_QUEUE=C8,,PBS_O_HOST=ithems_fe02.intra.riken.jp,M_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,TLTM_METHOD=no_fb,TLTM_CANONICAL_METHOD=nofb,TLTM_CHUNK_ID=02,,TLTM_SEED_OFFSET=16,TLTM_MAX_SEEDS=8,,TLTM_RUN_JOBS=8 codex/workspaces/tltm_production_comparison/tasks/pbs/",
+            "expected_commit": "d3f133d1fd7de2ec6a5b7ac27840c01287be5be7",
+            "host": "ithems_fe02.intra.riken.jp",
+            "job_id": "14768.anode01",
+            "job_state": "H",
+            "queue": "C8",
+            "worktree": "NA"
+          },
+          {
+            "Job_Name": "pc32_nofb_03",
+            "Resource_List.select": "1:ncpus=8:mpiprocs=8:mem=16gb",
+            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,TLTM_METHOD=no_fb,TLTM_CANONICAL_METHOD=nofb,TLTM_CHUNK_ID=03,,TLTM_SEED_OFFSET=24,TLTM_MAX_SEEDS=8,TLTM_RUN_JOBS=8,PBS_O_QUEUE=C8,,PBS_O_HOST=ithems_fe02.intra.riken.jp,M_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,TLTM_METHOD=no_fb,TLTM_CANONICAL_METHOD=nofb,TLTM_CHUNK_ID=03,,TLTM_SEED_OFFSET=24,TLTM_MAX_SEEDS=8,,TLTM_RUN_JOBS=8 codex/workspaces/tltm_production_comparison/tasks/pbs/",
+            "expected_commit": "d3f133d1fd7de2ec6a5b7ac27840c01287be5be7",
+            "host": "ithems_fe02.intra.riken.jp",
+            "job_id": "14769.anode01",
+            "job_state": "H",
+            "queue": "C8",
+            "worktree": "NA"
+          },
+          {
+            "Job_Name": "pc32_wfb_00",
+            "Resource_List.select": "1:ncpus=8:mpiprocs=8:mem=16gb",
+            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,TLTM_METHOD=fb_norefine,TLTM_CANONICAL_METHOD=withfb,TLTM_CHUNK_ID=00,,TLTM_SEED_OFFSET=0,TLTM_MAX_SEEDS=8,TLTM_RUN_JOBS=8,PBS_O_QUEUE=C8,,PBS_O_HOST=ithems_fe02.intra.riken.jp,_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,TLTM_METHOD=fb_norefine,TLTM_CANONICAL_METHOD=withfb,TLTM_CHUNK_ID=00,,TLTM_SEED_OFFSET=0,TLTM_MAX_SEEDS=8,,TLTM_RUN_JOBS=8 codex/workspaces/tltm_production_comparison/tasks/pbs/",
+            "expected_commit": "d3f133d1fd7de2ec6a5b7ac27840c01287be5be7",
+            "host": "ithems_fe02.intra.riken.jp",
+            "job_id": "14770.anode01",
+            "job_state": "H",
+            "queue": "C8",
+            "worktree": "NA"
+          },
+          {
+            "Job_Name": "pc32_wfb_01",
+            "Resource_List.select": "1:ncpus=8:mpiprocs=8:mem=16gb",
+            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,TLTM_METHOD=fb_norefine,TLTM_CANONICAL_METHOD=withfb,TLTM_CHUNK_ID=01,,TLTM_SEED_OFFSET=8,TLTM_MAX_SEEDS=8,TLTM_RUN_JOBS=8,PBS_O_QUEUE=C8,,PBS_O_HOST=ithems_fe02.intra.riken.jp,_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,TLTM_METHOD=fb_norefine,TLTM_CANONICAL_METHOD=withfb,TLTM_CHUNK_ID=01,,TLTM_SEED_OFFSET=8,TLTM_MAX_SEEDS=8,,TLTM_RUN_JOBS=8 codex/workspaces/tltm_production_comparison/tasks/pbs/",
+            "expected_commit": "d3f133d1fd7de2ec6a5b7ac27840c01287be5be7",
+            "host": "ithems_fe02.intra.riken.jp",
+            "job_id": "14771.anode01",
+            "job_state": "H",
+            "queue": "C8",
+            "worktree": "NA"
+          },
+          {
+            "Job_Name": "pc32_wfb_02",
+            "Resource_List.select": "1:ncpus=8:mpiprocs=8:mem=16gb",
+            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,TLTM_METHOD=fb_norefine,TLTM_CANONICAL_METHOD=withfb,TLTM_CHUNK_ID=02,,TLTM_SEED_OFFSET=16,TLTM_MAX_SEEDS=8,TLTM_RUN_JOBS=8,PBS_O_QUEUE=C8,,PBS_O_HOST=ithems_fe02.intra.riken.jp,_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,TLTM_METHOD=fb_norefine,TLTM_CANONICAL_METHOD=withfb,TLTM_CHUNK_ID=02,,TLTM_SEED_OFFSET=16,TLTM_MAX_SEEDS=8,,TLTM_RUN_JOBS=8 codex/workspaces/tltm_production_comparison/tasks/pbs/",
+            "expected_commit": "d3f133d1fd7de2ec6a5b7ac27840c01287be5be7",
+            "host": "ithems_fe02.intra.riken.jp",
+            "job_id": "14772.anode01",
+            "job_state": "H",
+            "queue": "C8",
+            "worktree": "NA"
+          },
+          {
+            "Job_Name": "pc32_wfb_03",
+            "Resource_List.select": "1:ncpus=8:mpiprocs=8:mem=16gb",
+            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,TLTM_METHOD=fb_norefine,TLTM_CANONICAL_METHOD=withfb,TLTM_CHUNK_ID=03,,TLTM_SEED_OFFSET=24,TLTM_MAX_SEEDS=8,TLTM_RUN_JOBS=8,PBS_O_QUEUE=C8,,PBS_O_HOST=ithems_fe02.intra.riken.jp,_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,TLTM_METHOD=fb_norefine,TLTM_CANONICAL_METHOD=withfb,TLTM_CHUNK_ID=03,,TLTM_SEED_OFFSET=24,TLTM_MAX_SEEDS=8,,TLTM_RUN_JOBS=8 codex/workspaces/tltm_production_comparison/tasks/pbs/",
+            "expected_commit": "d3f133d1fd7de2ec6a5b7ac27840c01287be5be7",
+            "host": "ithems_fe02.intra.riken.jp",
+            "job_id": "14773.anode01",
+            "job_state": "H",
+            "queue": "C8",
+            "worktree": "NA"
+          },
+          {
+            "Job_Name": "pc32_merge",
             "Resource_List.select": "1:ncpus=1:mpiprocs=1:mem=4gb",
-            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_COMMIT=81b0784473073a6bc3ec1604f3f2e5930e70e252,,PBS_O_QUEUE=C8,PBS_O_HOST=ithems_fe02.intra.riken.jp,PECTED_GIT_COMMIT=81b0784473073a6bc3ec1604f3f2e5930e70e252 codex/worksp",
-            "expected_commit": "81b0784473073a6bc3ec1604f3f2e5930e70e252",
+            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_COMMIT=d3f133d1fd7de2ec6a5b7ac27840c01287be5be7,,PBS_O_QUEUE=C8,PBS_O_HOST=ithems_fe02.intra.riken.jp",
+            "expected_commit": "d3f133d1fd7de2ec6a5b7ac27840c01287be5be7",
             "host": "ithems_fe02.intra.riken.jp",
-            "job_id": "14763.anode01",
+            "job_id": "14774.anode01",
             "job_state": "H",
             "queue": "C8",
             "worktree": "NA"
@@ -81,7 +147,7 @@
           },
           "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison": {
             "branch": "codex/tltm-production-comparison-official-dfols",
-            "commit": "81b0784473073a6bc3ec1604f3f2e5930e70e252",
+            "commit": "d3f133d1fd7de2ec6a5b7ac27840c01287be5be7",
             "dirty_count": "0",
             "exists": "1",
             "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison"
@@ -92,7 +158,7 @@
       "stderr": ""
     }
   },
-  "refreshed_at_jst": "2026-05-11T14:48:56+09:00",
+  "refreshed_at_jst": "2026-05-11T15:25:14+09:00",
   "targets": [
     {
       "branch": "codex/control-plane-official-dfols",

@@ -424,3 +424,22 @@ Use this file to append per-session notes.
   - Preflight build runs first; all chunks depend on preflight; one merge/report job depends on all 8 chunks.
 - Expected walltime if C8 admits all chunks promptly:
   - about `1.5-2h` compute plus merge overhead.
+
+## 2026-05-11 JST - Submitted official DFO-LS 32seed/50k comparison gate
+- Campaign:
+  - `official_dfols_gate_20260511_32seed_50k_p28_rg_nofb_withfb`
+- Production worktree:
+  - `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`
+  - branch `codex/tltm-production-comparison-official-dfols`
+  - pinned commit `d3f133d1fd7de2ec6a5b7ac27840c01287be5be7`
+- Queue/chunk plan:
+  - `C8` one-wave plan because live `C8` was empty at submission time.
+  - `no_fb`: chunks `00..03`, offsets `0,8,16,24`, 8 seeds/chunk, 8 workers/chunk.
+  - `fb_norefine`: chunks `00..03`, offsets `0,8,16,24`, 8 seeds/chunk, 8 workers/chunk.
+- PBS jobs:
+  - preflight build: `14765.anode01`
+  - `no_fb`: `14766.anode01`, `14767.anode01`, `14768.anode01`, `14769.anode01`
+  - `fb_norefine`: `14770.anode01`, `14771.anode01`, `14772.anode01`, `14773.anode01`
+  - merge/report: `14774.anode01`
+- Note:
+  - Initial shell helper hit a dependency-string quoting error after submitting all chunks; merge was submitted immediately afterward with explicit dependency on `14766..14773`.
