@@ -16,6 +16,13 @@
 - Gate verifies h-min assist is allowed only in Newton/QN/QN-retry `flowz`/`flowzr` residual contexts, and rejects wrong reason, unknown context, final-flow context, and non-residual stages.
 - This is a deterministic current-code policy boundary test, not a production-scale ODEX assist-on/off validation.
 
+## 2026-05-11 JST - Representative ODEX assist on/off readback completed
+- Added and ran `odex_official_dfols_assist_onoff_10seed_10k_20260511.pbs` on canonical remote modernization tree commit `61505c307358323fe81568eeb49cdd177a134496`.
+- Scope: embedded official DFO-LS backend, `fb_norefine`, `t=0.35,L=2,nstep=20`, 10 seeds x 10000 cycles; only `INTODE_SOLVER_ASSIST_ENABLED` changed between variants.
+- PBS job `14797.anode01` completed with `Exit_status=0`; imported aggregate/per-seed evidence into `state/odex_official_dfols_assist_onoff_20260511/`.
+- Readback: assist-on Newton/QN solver-assist counters `682682/1858`; assist-off counters `0/0`; unresolved failures `1179 -> 1542`; h-min failures `0/0 -> 14515/118`.
+- Conclusion: current-code solver-internal assist is a real robustness mechanism at this representative scale. This closes the representative policy readback slice, but CV-007 remains open for source-level ODEX result/workspace/status mapping and flow/Jacobian deterministic tests.
+
 ## 2026-04-30 16:05 JST
 - Goal: establish the modernization governance and planning set before code refactors.
 - Scope: architecture, solver-chain redesign planning, behavior-preservation rules, testing roadmap, risk tracking.

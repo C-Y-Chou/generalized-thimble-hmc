@@ -91,9 +91,12 @@ def metric_row(metric, on_row, off_row, key, signed=False):
     if signed:
         pct = "NA"
         ratio = "NA"
+    elif on_value == 0.0:
+        pct = "NA"
+        ratio = "NA"
     else:
-        pct = fmt(100.0 * delta / on_value if on_value != 0.0 else 0.0)
-        ratio = fmt(off_value / on_value if on_value != 0.0 else 0.0)
+        pct = fmt(100.0 * delta / on_value)
+        ratio = fmt(off_value / on_value)
     return {
         "metric": metric,
         "assist_on": fmt(on_value, 12),
@@ -151,7 +154,7 @@ def write_report(root, rows, values):
         "",
         "- Imported evidence root: `{root}`.".format(root=EVIDENCE_ROOT),
         "- PBS script: `{script}`.".format(script=PBS_SCRIPT),
-        "- Current local HEAD when this report was generated: `{head}`.".format(head=values["head"]),
+        "- Readback-generation local HEAD before the evidence commit: `{head}`.".format(head=values["head"]),
         "- Run commit recorded by manifest: `{commit}`.".format(commit=values["run_commit"] or "unknown"),
         "- Backend/preset: `QN_SOLVER_BACKEND=official_dfols`, `QN_OFFICIAL_DFOLS_PRESET=stable_gate77`.",
         "- Physical point: `t=0.35,L=2,nstep=20`; scale: `10 seeds x 10000 cycles`; method `fb_norefine`.",

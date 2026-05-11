@@ -152,8 +152,36 @@ The target runs the current source twice:
 
 This proves the current `intode` policy gate is explicit and testable without
 changing default behavior. It does not prove production-scale ODEX behavior;
-that still requires a representative current-code assist-on/off Stage/TLTM
-validation.
+that still required a representative current-code assist-on/off Stage/TLTM
+validation before the policy question could be read back.
+
+## Representative Assist On/Off Readback
+
+Added PBS gate and readback script:
+
+```bash
+qsub -v TLTM_EXPECTED_GIT_COMMIT=<commit>,TLTM_EXPECTED_GIT_BRANCH=codex/fortran-modernization \
+  codex/workspaces/fortran_modernization/tasks/pbs/odex_official_dfols_assist_onoff_10seed_10k_20260511.pbs
+python3 codex/workspaces/fortran_modernization/tasks/scripts/odex_official_assist_onoff_readback.py
+```
+
+This ran current-code `fb_norefine` with embedded official DFO-LS at
+`10 seeds x 10000 cycles`, changing only:
+
+- `INTODE_SOLVER_ASSIST_ENABLED=1`
+- `INTODE_SOLVER_ASSIST_ENABLED=0`
+
+Readback:
+
+- assist-on solver counters: Newton `682682`, QN `1858`;
+- assist-off solver counters: Newton `0`, QN `0`;
+- unresolved failures increased `1179 -> 1542`;
+- h-min failures changed from Newton/QN `0/0` to `14515/118`.
+
+Conclusion: current-code solver-internal assist is a real robustness mechanism
+at this representative scale. Disabling it creates a robustness degradation.
+This resolves the representative assist-on/off policy readback slice, but it
+does not complete the ODEX backend source contract.
 
 ## Next Source Slice
 

@@ -70,6 +70,7 @@
 - 2026-05-11 JST: Imported production-comparison official DFO-LS 10seed/10k nofb-vs-withfb evidence into modernization state; `withfb` reduces unresolved failures from `7502` to `1179`, while M6 remains historical/internal evidence and not official DFO-LS certification.
 - 2026-05-11 JST: Corrected ODEX assist language: the ODEX-only vs solver-assist artifact is a historical readback, not a fresh current-code ODEX policy revalidation; CV-007 remains open pending a real current ODEX policy test.
 - 2026-05-11 JST: Added current-code deterministic ODEX assist policy gate with default-enabled and `INTODE_SOLVER_ASSIST_ENABLED=0` disabled modes; representative Stage/TLTM assist-on/off validation remains open.
+- 2026-05-11 JST: Completed representative current-code ODEX solver-internal assist on/off readback under embedded official DFO-LS, `fb_norefine`, 10seed x 10k; assist-off zeroed solver-assist counters and increased unresolved failures `1179 -> 1542`, so the next F1 work is source-level result/workspace/status mapping plus flow/Jacobian deterministic tests, not another wording audit.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit
