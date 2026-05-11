@@ -68,11 +68,13 @@ Dense output:
 Stability control:
 
 - A full Hairer ODEX-style stability control surface is not currently implemented as a separate contract.
-- This cannot remain a hidden caveat. The next source slice must either:
-  - implement an explicit stability-control mode and tests; or
-  - record an accepted reduced-scope decision that TLTM uses an endpoint extrapolation backend with validation evidence, not a full ODEX package.
+- This cannot remain a hidden caveat. The accepted production scope is now the
+  reduced-scope endpoint backend policy below.
 
-The default forward path is to implement an explicit `stability_control = none | conservative` option and start with `none` as behavior-preserving default, then add tests before enabling any behavior-changing mode.
+Accepted decision, 2026-05-11 JST: do not implement conservative stability
+control before production redo. TLTM should be described as using an endpoint
+extrapolation backend with `stability_control = none` by default, not as a full
+Hairer ODEX package clone.
 
 ## Mechanism vs Policy Split
 
@@ -101,6 +103,7 @@ Added target:
 ```bash
 make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_foundation_contract
 make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_result_contract
+make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_flow_jacobian_contract
 ```
 
 The new test covers:
@@ -119,6 +122,14 @@ The result/workspace/status contract test covers:
 - `odex_result` reset, success, zero-time, and failure mapping;
 - `odex_status_from_failure_reason` for max-steps, invalid-RHS, and h-min failures;
 - separation between ODEX mechanism statuses and TLTM policy statuses such as solver assist.
+
+The flow/Jacobian contract test covers:
+
+- zero-flow endpoint/Jacobian identity;
+- `flow(...)` endpoint consistency with `flowz(...)`;
+- `flowzr(...)` inverse replay on a deterministic endpoint;
+- `flow(...)` Jacobian consistency with finite differences of `flowz(...)`;
+- no fallback/assist use in the deterministic contract case.
 
 Existing target retained:
 
@@ -203,26 +214,29 @@ Completed source changes:
 2. Kept `intode(...)` public behavior compatible.
 3. Added backend result mapping inside `intode` without changing existing status values.
 4. Added `test_odex_result_contract`.
-5. Included the new target in M4 guardrails.
+5. Added `test_odex_flow_jacobian_contract`.
+6. Included the new targets in M4 guardrails.
 
 Verification:
 
 ```bash
-make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_result_contract test_odex_foundation_contract test_odex_solver test_odex_assist_policy
+make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_result_contract test_odex_flow_jacobian_contract test_odex_foundation_contract test_odex_solver test_odex_assist_policy
 python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags ''
 ```
 
 Both commands passed on 2026-05-11 JST.
 
-## Next Decision Point
+## Accepted Reduced-Scope Production Policy
 
-The next source change would stop being just a contract split if it enables new
-ODEX stability behavior or claims a full standalone ODEX solver. Before that
-work starts, choose one of these:
+Production wording must use this scope unless a future behavior-changing
+stability-control/dense-output implementation is explicitly approved:
 
-1. Implement and validate `stability_control = conservative` as a behavior-changing ODEX mode.
-2. Accept the reduced-scope backend for production wording: TLTM uses an endpoint extrapolation backend with `stability_control = none` by default, plus solver-internal assist for residual evaluation and strict final proposal flow.
+- TLTM uses an endpoint extrapolation backend with Hairer `IWORK(3)=3` step sequence.
+- Dense output is not part of the accepted backend scope.
+- Conservative stability control is not enabled.
+- Solver-internal assist remains a TLTM residual-evaluation policy, not part of the ODEX mechanism result.
+- Final proposal/live-state flow remains strict.
 
-Dense output remains nonblocking for TLTM because current flow callers require
-endpoint values only. If publication wording needs a full Hairer-package ODEX
-claim, dense-output/stability work must be added before closing `CV-007`.
+`CV-007` is therefore closed only as accepted reduced scope. A future full
+Hairer-package ODEX claim would reopen this row and require stability-control
+and dense-output work.

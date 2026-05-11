@@ -530,3 +530,11 @@
 - Focused verification passed: `make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_result_contract test_odex_foundation_contract test_odex_solver test_odex_assist_policy`.
 - Full local guardrail passed: `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags ''`.
 - `CV-007` remains open. The next real decision point is whether to implement behavior-changing conservative stability control or accept the reduced-scope endpoint backend policy with `stability_control = none` plus explicit wording and flow/Jacobian deterministic tests.
+
+## 2026-05-11 JST - ODEX reduced-scope endpoint backend accepted
+- User accepted skipping pre-production conservative stability control.
+- Recorded `CV-007` as accepted reduced scope: endpoint extrapolation backend, Hairer `IWORK(3)=3` sequence, no dense output, `stability_control = none`, solver-internal assist only as TLTM residual-evaluation policy, and strict final proposal/live-state flow.
+- Added `tests/test_odex_flow_jacobian_contract.f90` and `make test_odex_flow_jacobian_contract`.
+- The deterministic flow/Jacobian test covers zero-flow identity, `flow`/`flowz` endpoint consistency, `flowzr` inverse replay, Jacobian finite-difference consistency, and no fallback use.
+- Focused verification passed: `make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_result_contract test_odex_flow_jacobian_contract test_odex_foundation_contract test_odex_solver test_odex_assist_policy`.
+- Full local guardrail passed: `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags ''`.
