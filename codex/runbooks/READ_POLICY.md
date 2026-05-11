@@ -1,6 +1,6 @@
 # Codex Read Policy
 
-Updated: 2026-05-10 JST
+Updated: 2026-05-11 JST
 
 ## Default Read Set
 
@@ -11,6 +11,13 @@ New conversations should read only:
 - `indexes/L1_INDEX.tsv`
 - the chosen workspace `context/TASK.md`
 - the chosen workspace `context/STATE_BRIEF.md` when present
+
+## Canonical Entry Rule
+
+If a conversation starts in `/Users/ccy/Documents/New project`, first route to
+`/Users/ccy/Documents/TLTM_qn_error_handling`. The nested
+`/Users/ccy/Documents/New project/TLTM_repo` checkout is legacy unless the user
+explicitly asks for legacy/control-plane work.
 
 ## Triggered Deep Reads
 

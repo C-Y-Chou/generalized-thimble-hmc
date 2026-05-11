@@ -3,8 +3,8 @@
 - Task type: governance
 - Status: active
 - Owner: unassigned
-- Root: /home/cychou/TLTM/codex/workspaces/fortran_modernization
-- Goal: establish and maintain the master engineering plan for turning the TLTM Fortran codebase into a mature, publishable scientific software project without changing the underlying physics.
+- Root: /Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/fortran_modernization
+- Goal: maintain the official-DFO-LS modernization and production-redo code line while preserving TLTM physics and output contracts.
 - Write scope: this workspace planning documents, trackers, and modernization governance notes.
 
 ## Cluster/PBS Scheduling Responsibility

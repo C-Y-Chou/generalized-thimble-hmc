@@ -133,6 +133,12 @@ def main() -> int:
     handoff = (root / "codex/context/HANDOFF_MIN.txt").read_text(encoding="utf-8")
     if "L0_BOOT.md" not in handoff:
         fail("HANDOFF_MIN.txt does not reference L0_BOOT.md", errors)
+    if "/Users/ccy/Documents/TLTM_qn_error_handling" not in handoff:
+        fail("HANDOFF_MIN.txt does not name the canonical local TLTM repo", errors)
+    if "codex/fortran-modernization" not in handoff:
+        fail("HANDOFF_MIN.txt does not name the current official DFO-LS branch", errors)
+    if "New project/TLTM_repo is a legacy" not in handoff:
+        fail("HANDOFF_MIN.txt does not mark New project/TLTM_repo as legacy", errors)
     stage_queue = root / "codex/workspaces/tltm_production_comparison/runbooks/QUEUE_OPTIMIZATION.md"
     if stage_queue.exists() and "SUPERSEDED" not in stage_queue.read_text(encoding="utf-8")[:500]:
         fail("Production-comparison queue optimization playbook lacks SUPERSEDED marker", errors)

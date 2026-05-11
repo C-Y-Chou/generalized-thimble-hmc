@@ -1,29 +1,41 @@
-Use /home/cychou/TLTM/codex as the shared control-plane entrypoint.
+Use /Users/ccy/Documents/TLTM_qn_error_handling/codex as the local canonical TLTM control-plane entrypoint.
+The current default TLTM line is official DFO-LS on branch codex/fortran-modernization.
+
+Ambiguity rule:
+- If a new conversation starts in /Users/ccy/Documents/New project, do not treat that outer folder or its TLTM_repo checkout as the source of truth.
+- /Users/ccy/Documents/New project/TLTM_repo is a legacy local control-plane checkout unless the user explicitly asks for legacy/control-plane work.
+- For current modernization, production redo, solver, PBS, and repo-state work, default to /Users/ccy/Documents/TLTM_qn_error_handling and the remote target /lustre1/home/cychou/TLTM_worktrees/fortran_modernization.
 
 Read in this order:
-1) /home/cychou/TLTM/codex/context/CORE.md
-2) /home/cychou/TLTM/codex/context/L0_BOOT.md
-3) /home/cychou/TLTM/codex/indexes/L1_INDEX.tsv
-4) /home/cychou/TLTM/codex/runbooks/task_registry.tsv
+1) /Users/ccy/Documents/TLTM_qn_error_handling/codex/context/CORE.md
+2) /Users/ccy/Documents/TLTM_qn_error_handling/codex/context/L0_BOOT.md
+3) /Users/ccy/Documents/TLTM_qn_error_handling/codex/indexes/L1_INDEX.tsv
+4) /Users/ccy/Documents/TLTM_qn_error_handling/codex/runbooks/task_registry.tsv
 
 Do not read long runbooks by default. Use L1 trigger rules.
 
 Refresh remote state before SSH/PBS/git cleanup work:
-- bash /home/cychou/TLTM/codex/tasks/refresh_remote_state.sh
-- bash /home/cychou/TLTM/codex/tasks/render_l0_boot.sh
+- cd /Users/ccy/Documents/TLTM_qn_error_handling
+- bash codex/tasks/refresh_remote_state.sh
+- bash codex/tasks/render_l0_boot.sh
+
+Refresh local worktree state before local git switching/pulling/cleanup:
+- cd /Users/ccy/Documents/TLTM_qn_error_handling
+- bash codex/tasks/refresh_local_state.sh
+- bash codex/tasks/render_l0_boot.sh
 
 Cluster/PBS rule:
 - If the work involves iTHEMS cluster02 queues, PBS submission, dataset generation, or job repair, the responsible scheduling authority is the task-local cluster02 scheduling agent.
-- For fortran_modernization, read /home/cychou/TLTM/codex/workspaces/fortran_modernization/runbooks/CLUSTER02_SCHEDULING_AGENT.md before choosing queues or splitting work.
+- For fortran_modernization, read /Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/fortran_modernization/runbooks/CLUSTER02_SCHEDULING_AGENT.md before choosing queues or splitting work.
 - Use the persistent scheduler knowledge and observation log before live qstat-based decisions:
-  /home/cychou/TLTM/codex/workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_KNOWLEDGE.json
-  /home/cychou/TLTM/codex/workspaces/fortran_modernization/state/CLUSTER02_QUEUE_OBSERVATIONS.tsv
+  /Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_KNOWLEDGE.json
+  /Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/fortran_modernization/state/CLUSTER02_QUEUE_OBSERVATIONS.tsv
 
 Then choose exactly one task workspace and continue there.
 Read that workspace's context/TASK.md and context/STATE_BRIEF.md if present.
 If the task is one of these, use:
-- /home/cychou/TLTM/codex/workspaces/tltm_production_comparison
-- /home/cychou/TLTM/codex/workspaces/stage3_3_rg_redo
-- /home/cychou/TLTM/codex/workspaces/ngport_rg_single_replica_t03_nstep_grid
-- /home/cychou/TLTM/codex/workspaces/repo_cleanup
-- /home/cychou/TLTM/codex/workspaces/fortran_modernization
+- /Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/tltm_production_comparison
+- /Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/stage3_3_rg_redo
+- /Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/ngport_rg_single_replica_t03_nstep_grid
+- /Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/repo_cleanup
+- /Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/fortran_modernization

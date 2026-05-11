@@ -6,22 +6,36 @@
         "jobs": [],
         "worktrees": {
           "/home/cychou/TLTM": {
-            "branch": "codex/control-plane",
-            "commit": "42ac8f8de7d537513bcfed3b14c2d29811cacf09",
+            "branch": "codex/control-plane-official-dfols",
+            "commit": "00a71540189196dc8dafdd41607768bc0ef5a169",
             "dirty_count": "0",
             "exists": "1",
             "worktree_path": "/home/cychou/TLTM"
           },
+          "/lustre1/home/cychou/TLTM": {
+            "branch": "codex/control-plane-official-dfols",
+            "commit": "00a71540189196dc8dafdd41607768bc0ef5a169",
+            "dirty_count": "0",
+            "exists": "1",
+            "worktree_path": "/lustre1/home/cychou/TLTM"
+          },
           "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization": {
             "branch": "codex/fortran-modernization",
-            "commit": "42ac8f8de7d537513bcfed3b14c2d29811cacf09",
+            "commit": "00a71540189196dc8dafdd41607768bc0ef5a169",
             "dirty_count": "0",
             "exists": "1",
             "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization"
           },
+          "/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation": {
+            "branch": "codex/qn-error-handling-validation-official-dfols",
+            "commit": "00a71540189196dc8dafdd41607768bc0ef5a169",
+            "dirty_count": "0",
+            "exists": "1",
+            "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation"
+          },
           "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison": {
-            "branch": "codex/tltm-production-comparison",
-            "commit": "42ac8f8de7d537513bcfed3b14c2d29811cacf09",
+            "branch": "codex/tltm-production-comparison-official-dfols",
+            "commit": "00a71540189196dc8dafdd41607768bc0ef5a169",
             "dirty_count": "0",
             "exists": "1",
             "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison"
@@ -32,40 +46,62 @@
       "stderr": ""
     }
   },
-  "refreshed_at_jst": "2026-05-11T00:28:13+09:00",
+  "refreshed_at_jst": "2026-05-11T12:53:03+09:00",
   "targets": [
     {
-      "branch": "codex/control-plane",
+      "branch": "codex/control-plane-official-dfols",
       "fast_forward_policy": "refresh_only_until_checked",
       "host": "ithems_fe02.intra.riken.jp",
-      "notes": "Primary remote control plane path used by handoff docs; branch renamed from codex/preprod-hardening on 2026-05-11.",
-      "purpose": "shared_codex_control_plane",
+      "notes": "Mirror synced to origin/codex/fortran-modernization after official DFO-LS replacement; not the default local source of truth.",
+      "purpose": "remote_official_dfols_control_plane_mirror",
       "repo_path": "/home/cychou/TLTM",
       "target_id": "remote_control_plane",
       "user": "cychou",
       "worktree_path": "/home/cychou/TLTM"
     },
     {
+      "branch": "codex/control-plane-official-dfols",
+      "fast_forward_policy": "refresh_only_until_checked",
+      "host": "ithems_fe02.intra.riken.jp",
+      "notes": "Lustre mirror synced to origin/codex/fortran-modernization after official DFO-LS replacement.",
+      "purpose": "remote_official_dfols_control_plane_mirror",
+      "repo_path": "/home/cychou/TLTM",
+      "target_id": "remote_lustre_root",
+      "user": "cychou",
+      "worktree_path": "/lustre1/home/cychou/TLTM"
+    },
+    {
       "branch": "codex/fortran-modernization",
       "fast_forward_policy": "do_not_fast_forward_if_active_pinned_jobs",
       "host": "ithems_fe02.intra.riken.jp",
-      "notes": "Semantic modernization worktree after accepted M6 reference baseline; legacy qn_error_handling_validation path is historical only.",
-      "purpose": "active_fortran_modernization_code_refine",
+      "notes": "Canonical remote target for current modernization, official DFO-LS solver, and production redo.",
+      "purpose": "active_official_dfols_modernization_and_production_redo",
       "repo_path": "/home/cychou/TLTM",
       "target_id": "fortran_modernization",
       "user": "cychou",
       "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization"
     },
     {
-      "branch": "codex/tltm-production-comparison",
+      "branch": "codex/tltm-production-comparison-official-dfols",
       "fast_forward_policy": "do_not_fast_forward_if_active_pinned_jobs",
       "host": "ithems_fe02.intra.riken.jp",
-      "notes": "Canonical production-comparison worktree; legacy workspace alias was stage3_4.",
-      "purpose": "provisional_nofb_vs_withfb_production_comparison",
+      "notes": "Mirror synced to origin/codex/fortran-modernization; production-comparison docs live here but current execution defaults to fortran_modernization target.",
+      "purpose": "official_dfols_production_comparison_mirror",
       "repo_path": "/home/cychou/TLTM",
       "target_id": "tltm_production_comparison_provisional",
       "user": "cychou",
       "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison"
+    },
+    {
+      "branch": "codex/qn-error-handling-validation-official-dfols",
+      "fast_forward_policy": "refresh_only_until_checked",
+      "host": "ithems_fe02.intra.riken.jp",
+      "notes": "Historical validation worktree retained as an official-DFO-LS mirror; do not select as active target unless explicitly requested.",
+      "purpose": "legacy_validation_mirror_after_official_dfols_sync",
+      "repo_path": "/home/cychou/TLTM",
+      "target_id": "qn_error_handling_validation_official_dfols",
+      "user": "cychou",
+      "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/qn_error_handling_validation"
     }
   ]
 }

@@ -1,7 +1,14 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-11T00:28:15+09:00
-Remote refreshed: 2026-05-11T00:28:13+09:00
+Generated: 2026-05-11T12:53:43+09:00
+Remote refreshed: 2026-05-11T12:53:03+09:00
+
+## Canonical Entry
+
+- Local source of truth: `/Users/ccy/Documents/TLTM_qn_error_handling`.
+- Default branch/workline: `codex/fortran-modernization` with embedded official DFO-LS as the default QN backend.
+- Default remote execution target: `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`.
+- `/Users/ccy/Documents/New project/TLTM_repo` is legacy unless the user explicitly asks for legacy/control-plane work.
 
 ## Hard Rules
 
@@ -19,7 +26,7 @@ Remote refreshed: 2026-05-11T00:28:13+09:00
 
 ## Active Local Risk
 
-- No local worktree risk recorded in `codex/state/LOCAL_WORKTREES.tsv`.
+- `local_canonical_official_dfols`: branch `codex/fortran-modernization`, commit `00a71540189196dc8dafdd41607768bc0ef5a169`, dirty `11`, ahead `0`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
 
 ## Active/Pending Jobs
 
@@ -33,12 +40,12 @@ Remote refreshed: 2026-05-11T00:28:13+09:00
 
 ## Recent Decisions
 
-- 2026-05-10 `global`: Soft-decouple modernization and production comparison
 - 2026-05-10 `tltm_production_comparison`: Clear legacy Stage3_4 raw output/log folders before rerun
 - 2026-05-10 `global`: Clear legacy Stage1-Stage3_3 and obsolete ODEX validation raw datasets
 - 2026-05-10 `tltm_production_comparison`: Reuse accepted M6 reference datasets as first production-calibration tier
 - 2026-05-11 `repo_cleanup`: Track local TLTM worktrees as first-class state
 - 2026-05-11 `remote_control_plane`: Rename codex/preprod-hardening to codex/control-plane
+- 2026-05-11 `control_plane`: Canonical handoff now defaults to official DFO-LS line
 
 ## Pointers
 

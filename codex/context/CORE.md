@@ -1,20 +1,24 @@
 # CORE (Token-Saving Context)
 
-- Repo: /home/cychou/TLTM
-- Working hub: /home/cychou/TLTM/codex
-- Mandatory pre-read: /home/cychou/TLTM/docs/AGENT_GUIDE.md
+- Local canonical repo: /Users/ccy/Documents/TLTM_qn_error_handling
+- Local canonical hub: /Users/ccy/Documents/TLTM_qn_error_handling/codex
+- Current default branch: codex/fortran-modernization
+- Current default remote worktree: /lustre1/home/cychou/TLTM_worktrees/fortran_modernization
+- Legacy local checkout /Users/ccy/Documents/New project/TLTM_repo is not the default source of truth.
+- Mandatory pre-read: /Users/ccy/Documents/TLTM_qn_error_handling/docs/AGENT_GUIDE.md
 - Build env: `module load compiler/2025.3.0 mpi/2021.17 mkl/2025.3`
 - Required flow policy: `nofb/withfb -> RG -> Metropolis`
-- Compact boot state: `/home/cychou/TLTM/codex/context/L0_BOOT.md`
-- Routing index: `/home/cychou/TLTM/codex/indexes/L1_INDEX.tsv`
-- Remote refresh: `bash /home/cychou/TLTM/codex/tasks/refresh_remote_state.sh`
-- L0 render: `bash /home/cychou/TLTM/codex/tasks/render_l0_boot.sh`
-- Control-plane validation: `bash /home/cychou/TLTM/codex/tasks/validate_control_plane.sh`
+- Compact boot state: `/Users/ccy/Documents/TLTM_qn_error_handling/codex/context/L0_BOOT.md`
+- Routing index: `/Users/ccy/Documents/TLTM_qn_error_handling/codex/indexes/L1_INDEX.tsv`
+- Remote refresh: `bash /Users/ccy/Documents/TLTM_qn_error_handling/codex/tasks/refresh_remote_state.sh`
+- Local refresh: `bash /Users/ccy/Documents/TLTM_qn_error_handling/codex/tasks/refresh_local_state.sh`
+- L0 render: `bash /Users/ccy/Documents/TLTM_qn_error_handling/codex/tasks/render_l0_boot.sh`
+- Control-plane validation: `bash /Users/ccy/Documents/TLTM_qn_error_handling/codex/tasks/validate_control_plane.sh`
 - Source audit docs are triggered reads, not always-read files.
-- Cluster02 scheduling agent: `/home/cychou/TLTM/codex/agents/cluster02_scheduler/README.md`
-- Latest pre-production hardening: RG replay stats suppression, RG `jac` check, explicit `proposal_ok`, Stage3 warmup fail-fast, per-seed `run_manifest.json`.
+- Cluster02 scheduling agent: `/Users/ccy/Documents/TLTM_qn_error_handling/codex/agents/cluster02_scheduler/README.md`
+- Latest solver line: embedded official DFO-LS is the default QN backend; TLTM residual gate remains authoritative.
 - Active ops workspaces:
-  - `/home/cychou/TLTM/codex/workspaces/tltm_production_comparison`
-  - `/home/cychou/TLTM/codex/workspaces/stage3_3_rg_redo`
-  - `/home/cychou/TLTM/codex/workspaces/ngport_rg_single_replica_t03_nstep_grid`
-- Registry: `/home/cychou/TLTM/codex/runbooks/task_registry.tsv`
+  - `/Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/tltm_production_comparison`
+  - `/Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/fortran_modernization`
+  - `/Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/ngport_rg_single_replica_t03_nstep_grid`
+- Registry: `/Users/ccy/Documents/TLTM_qn_error_handling/codex/runbooks/task_registry.tsv`

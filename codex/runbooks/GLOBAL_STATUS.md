@@ -27,22 +27,24 @@ Updated: 2026-05-11 JST
 
 ## Active or important workstreams
 
-- `fortran_modernization`: active code-refine/modernization workstream with accepted M6 reference baselines; use `context/STATE_BRIEF.md`.
-- `tltm_production_comparison`: parallel provisional `nofb` vs `withfb` production-comparison workstream; legacy alias `stage3_4`; old queue playbook is superseded.
-- `remote_control_plane`: shared control-plane checkout on branch `codex/control-plane`; legacy branch name `codex/preprod-hardening` is retired.
+- Canonical local entry for new conversations is `/Users/ccy/Documents/TLTM_qn_error_handling` on `codex/fortran-modernization`.
+- `fortran_modernization`: active official-DFO-LS modernization and production-redo execution target; use `context/STATE_BRIEF.md`.
+- `tltm_production_comparison`: production-comparison workflow/docs; current redo execution defaults to the `fortran_modernization` remote target unless legacy comparison is explicitly requested.
+- `remote_control_plane`: `/home/cychou/TLTM` is now an official-DFO-LS mirror branch, not the default local source of truth.
 - Legacy Stage1 to Stage3_4 raw outputs/logs were cleared on 2026-05-10 after preserving key summaries; new provisional runs should use `output/production_comparison/provisional/...`.
 - Obsolete ODEX validation raw data was cleared after confirming accepted M6 modernization reference datasets exist.
 - Accepted M6 reference datasets may be reused as production-calibration aliases before launching new production-comparison seed/cycle grids.
 - `repo_cleanup`: planned control-plane/local/remote cleanup; no deletion without registry/readback.
 - `kernel_correctness_audit` and `ngport_rg_single_replica_t03_nstep_grid`: existing workspaces; read their task briefs/status only when entering those tasks.
 - `stage3_3_rg_redo`: historical workspace only; raw output was cleared after summary preservation.
-- Local `/Users/ccy/Documents/New project/TLTM_repo` was safely stashed, fast-forwarded, and renamed to branch `codex/control-plane` on 2026-05-11; local worktrees are tracked in `codex/state/LOCAL_WORKTREES.tsv`.
+- Local `/Users/ccy/Documents/New project/TLTM_repo` is a legacy checkout; do not select it by default for new work.
 
 ## Shared rules
 - Use PBS-only execution for heavy runs.
 - For cluster02 queue decisions, use the cluster02 scheduling agent before live queue choice.
 - Refresh remote state before SSH/PBS/git cleanup work.
 - Refresh local state before local TLTM `git pull`, branch switch, cleanup, or overwrite.
+- If the user asks to "continue this work" without naming legacy/control-plane, continue from the canonical official-DFO-LS line.
 - Do not fast-forward or clean active pinned remote worktrees.
 - Record manifests, job trackers, and session logs in the matching workspace.
 - Do not delete generated outputs/logs until summarized, registered, or archived.

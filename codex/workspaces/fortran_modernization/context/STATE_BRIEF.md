@@ -1,6 +1,6 @@
 # Fortran Modernization State Brief
 
-Updated: 2026-05-10 JST
+Updated: 2026-05-11 JST
 
 ## Current Position
 
@@ -12,6 +12,8 @@ Updated: 2026-05-10 JST
 - The remote target is now semantically `fortran_modernization`, with branch `codex/fortran-modernization` and worktree `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`.
 - The old `qn_error_handling_validation` remote path/branch is historical and should not be the active target for new modernization work.
 - Latest refresh shows no active pinned M6 jobs.
+- Embedded official DFO-LS is now the default QN backend. `QN_SOLVER_BACKEND=internal` is only for controlled legacy comparison.
+- The default local source of truth is `/Users/ccy/Documents/TLTM_qn_error_handling`, not `/Users/ccy/Documents/New project/TLTM_repo`.
 
 ## Hard Rules
 
@@ -32,4 +34,4 @@ Updated: 2026-05-10 JST
 
 ## Next Action
 
-Choose the next remaining modernization block from the workstream matrix. Recommended order: formalize read-only comparison tooling, then public method/schema naming around `fb_norefine`/`withfb`, then low-risk architecture/API cleanup before RNG/reentrancy/state ownership.
+Continue official DFO-LS production redo or choose the next remaining modernization block from the workstream matrix. If the user says "production redo" without further qualification, use the official DFO-LS line and the `fortran_modernization` remote worktree.

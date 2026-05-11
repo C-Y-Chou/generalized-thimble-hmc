@@ -14,27 +14,36 @@ This folder is a shared Codex control plane for TLTM work.
 
 ## First command in any new chat
 ```bash
-cd /home/cychou/TLTM/codex
-bash tasks/bootstrap.sh
-bash tasks/refresh_remote_state.sh
-bash tasks/render_l0_boot.sh
+cd /Users/ccy/Documents/TLTM_qn_error_handling
+bash codex/tasks/bootstrap.sh
+bash codex/tasks/refresh_remote_state.sh
+bash codex/tasks/refresh_local_state.sh
+bash codex/tasks/render_l0_boot.sh
 ```
 
 ## Always-read compact status
-- `/home/cychou/TLTM/codex/context/L0_BOOT.md`
-- `/home/cychou/TLTM/codex/indexes/L1_INDEX.tsv`
+- `/Users/ccy/Documents/TLTM_qn_error_handling/codex/context/HANDOFF_MIN.txt`
+- `/Users/ccy/Documents/TLTM_qn_error_handling/codex/context/L0_BOOT.md`
+- `/Users/ccy/Documents/TLTM_qn_error_handling/codex/indexes/L1_INDEX.tsv`
 
 Do not read long runbooks by default. Use `runbooks/READ_POLICY.md` and `indexes/L1_INDEX.tsv`.
 
 ## Task entry
-1. Read `/home/cychou/TLTM/codex/context/HANDOFF_MIN.txt`
-2. Read `/home/cychou/TLTM/codex/context/L0_BOOT.md`
-3. Pick the target task from `/home/cychou/TLTM/codex/runbooks/task_registry.tsv`
+1. Read `/Users/ccy/Documents/TLTM_qn_error_handling/codex/context/HANDOFF_MIN.txt`
+2. Read `/Users/ccy/Documents/TLTM_qn_error_handling/codex/context/L0_BOOT.md`
+3. Pick the target task from `/Users/ccy/Documents/TLTM_qn_error_handling/codex/runbooks/task_registry.tsv`
 4. Enter that workspace and read its `context/TASK.md` plus `context/STATE_BRIEF.md` when present
 
+## Current Canonical Entry
+- Local canonical repo: `/Users/ccy/Documents/TLTM_qn_error_handling`
+- Default branch: `codex/fortran-modernization`
+- Default remote execution target: `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`
+- Legacy local checkout: `/Users/ccy/Documents/New project/TLTM_repo`; do not use as the source of truth unless explicitly requested.
+- Current solver line: embedded official DFO-LS is the default QN backend; TLTM residual gate remains authoritative.
+
 ## Current Fortran Modernization Entry
-- Workspace: `/home/cychou/TLTM/codex/workspaces/fortran_modernization`
-- Current phase: M6 modernization reference-dataset product-readiness planning after M5 direct-env/config ownership consolidation.
+- Workspace: `/Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/fortran_modernization`
+- Current phase: official DFO-LS backend embedded as default, production redo ready after preflight.
 - Read next:
   - `runbooks/STATUS.md`
   - `runbooks/OFFICIAL_DFOLS_LICENSE_REPLACEMENT_PLAN.md`
@@ -66,8 +75,8 @@ Do not read long runbooks by default. Use `runbooks/READ_POLICY.md` and `indexes
 - Production-comparison outputs before final modernization convergence are provisional-discussion datasets; final publication datasets should be regenerated after wrapper/schema/naming/counter conventions settle.
 
 ## Current Production Comparison Entry
-- Workspace: `/home/cychou/TLTM/codex/workspaces/tltm_production_comparison`
-- Current mode: provisional TLTM `nofb` vs `withfb` production comparison for collaborator discussion and workflow rehearsal.
+- Workspace: `/Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/tltm_production_comparison`
+- Current mode: official DFO-LS production redo planning/execution; launch from the default remote execution target unless a legacy comparison is explicitly requested.
 - Read next:
   - `context/STATE_BRIEF.md`
   - `runbooks/SOFT_DECOUPLING_AND_PROVISIONAL_CONTRACT.md`
@@ -76,7 +85,7 @@ Do not read long runbooks by default. Use `runbooks/READ_POLICY.md` and `indexes
   - `output/production_comparison/provisional/...`
 
 ## Policy
-- Read `/home/cychou/TLTM/docs/AGENT_GUIDE.md` first.
+- Read `/Users/ccy/Documents/TLTM_qn_error_handling/docs/AGENT_GUIDE.md` first.
 - Run heavy jobs only via PBS on compute nodes.
 - Commit and push production-relevant changes before validation or production submission.
 - For cluster02 PBS work, never choose queues ad hoc; consult the persistent scheduling agent first, then live `qstat -Qf`.

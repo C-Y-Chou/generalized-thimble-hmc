@@ -1,12 +1,12 @@
 # TLTM Production Comparison State Brief
 
-Updated: 2026-05-10 JST
+Updated: 2026-05-11 JST
 
 ## Current Position
 
 - `tltm_production_comparison` is the canonical workspace for TLTM `nofb` vs `withfb` production-comparison work.
 - Legacy name: `stage3_4`. Treat old `stage3_4` paths, configs, and output roots as historical/provisional artifacts, not the long-term workspace identity.
-- This workstream is separate from `fortran_modernization`.
+- This workstream is logically separate from `fortran_modernization`, but the current production redo executes from the official-DFO-LS `fortran_modernization` code line.
 - Current production-comparison status is provisional-discussion, not final publication data. It may be used for collaborator discussion, workflow rehearsal, queue scaling, and physical trend checks; final datasets should be regenerated after modernization converges.
 - Existing long `runbooks/STATUS.md` contains historical production and validation details. Read `runbooks/SOFT_DECOUPLING_AND_PROVISIONAL_CONTRACT.md` for the current boundary.
 - Cleanup of legacy production-comparison outputs/logs is allowed only after dataset/job/worktree registry refresh and summary/archive decisions.
@@ -21,9 +21,12 @@ Updated: 2026-05-10 JST
 
 ## Decoupled Worktree Model
 
-- Production comparison remote target: `tltm_production_comparison_provisional`.
-- Production comparison branch: `codex/tltm-production-comparison`.
-- Production comparison remote worktree: `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.
+- Production comparison documentation/mirror target: `tltm_production_comparison_provisional`.
+- Production comparison mirror branch: `codex/tltm-production-comparison-official-dfols`.
+- Production comparison mirror worktree: `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.
+- Current redo execution target: `fortran_modernization`.
+- Current redo execution branch: `codex/fortran-modernization`.
+- Current redo execution worktree: `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`.
 - Modernization remote target: `fortran_modernization`.
 - Modernization branch: `codex/fortran-modernization`.
 - Modernization remote worktree: `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`.
