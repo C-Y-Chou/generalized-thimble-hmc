@@ -36,6 +36,23 @@ Use this file to append per-session notes.
   - `withfb/fb_norefine` is the affected method: official DFO-LS shifts mean Re by `-0.00216217`, mean Im by `+0.00349921`, reduces unresolved failures by `8627`, and reduces RG rejects by `8940` relative to M6 R3.
 - Next action: use M6 R3/R4 as the baseline family for future official DFO-LS production-comparison scaling decisions.
 
+## 2026-05-11 17:25 JST
+- Goal: submit next official DFO-LS production-comparison gate.
+- Campaign: `official_dfols_gate_20260511_128seed_100k_p28_rg_withfb_r4`.
+- Config: `docs/production_comparison_official_dfols_20260511_128seed_100k_withfb_r4.json`.
+- Method: `fb_norefine` only, canonical `withfb`.
+- Baseline policy: compare against accepted M6 R4 `nofb` and `withfb/fb_norefine`; do not rerun `nofb` because the 32seed gate showed no observable/counter difference for `nofb`.
+- Execution commit: `1edbbd465663640e711d1935f8d2fa5b47bf8510`.
+- Remote worktree: `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`, branch `codex/tltm-production-comparison-official-dfols`.
+- Queue plan:
+  - Preflight build: `14775.anode01` on `C8`.
+  - Chunks `00..07`: `14776..14783` on `C8`, offsets `0,8,16,24,32,40,48,56`.
+  - Chunks `08..15`: `14784..14791` on `C12`, offsets `64,72,80,88,96,104,112,120`.
+  - Merge/report: `14792.anode01` on `C8`, afterok all chunks.
+- Scale: `128 seeds x 100000 cycles`, `16 chunks x 8 seeds`, `8 workers/chunk`.
+- Expected runtime: if preflight and all chunks start promptly, chunk compute is about `3.1h` from 32seed/50k scaling; report expected roughly `21:00-21:40 JST`.
+- Initial status: preflight running; chunks and merge held by dependencies.
+
 ## 2026-04-30 14:31 JST
 - Goal: run no_fb_ref_reverse_gate 1024-seed with unified nofb/withfb->RG->Metropolis flow; accelerate queue throughput.
 - Code change: /home/cychou/TLTM/src/sampler/hmc_integrator_core.f90
