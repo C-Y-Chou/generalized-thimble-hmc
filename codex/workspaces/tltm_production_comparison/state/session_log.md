@@ -52,6 +52,7 @@ Use this file to append per-session notes.
 - Scale: `128 seeds x 100000 cycles`, `16 chunks x 8 seeds`, `8 workers/chunk`.
 - Expected runtime: if preflight and all chunks start promptly, chunk compute is about `3.1h` from 32seed/50k scaling; report expected roughly `21:00-21:40 JST`.
 - Initial status: preflight running; chunks and merge held by dependencies.
+- 2026-05-11 17:29 JST status refresh: preflight `14775` finished with `Exit_status=0`; all chunks `14776..14791` are running; merge `14792` remains held until all chunks finish.
 
 ## 2026-04-30 14:31 JST
 - Goal: run no_fb_ref_reverse_gate 1024-seed with unified nofb/withfb->RG->Metropolis flow; accelerate queue throughput.
