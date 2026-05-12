@@ -599,3 +599,24 @@
 - The `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb` artifact was generated under production-comparison commit `c0e40218e6abe2706f4b9b4c66067dbcea74eeff`.
 - It is not a rerun after the latest modernization HEAD, and it does not mean modernization is ready to update production and formally rerun final production.
 - Current answer to that readiness question is no: F3/CV-009, F4/CV-010, CV-001/CV-002, and final schema/wrapper/naming decisions still block F14 unless explicitly accepted.
+
+## 2026-05-12 JST - F3 retained-core completion to F14 decision point
+- Extended `test_retained_core_qn_route_contract` so official bridge builds must prove true package success instead of passing after a missing `dfols` import. Official package success passed with `DFO-LS==1.6.5`, `ierr=F`, and an accepted TLTM residual-gated result.
+- Added fixed-step official-line route census inside the QN retained-core test. Step sizes `0.002`, `0.003`, and `0.004` all stayed on route code `10` and all succeeded/accepted when the official package path was provided.
+- Preserved stub-bridge no-fallback coverage: `ENABLE_OFFICIAL_DFOLS=0` passes with route code `10`, no internal fallback, and no package-success expectation.
+- Added an official/stub bridge-mode stamp to `build/makefile` so switching `ENABLE_OFFICIAL_DFOLS` relinks binaries instead of silently reusing the previous bridge mode.
+- Updated M4 guardrails to load `.venv-dfols` and `TLTM_OFFICIAL_DFOLS_PYTHONPATH`, so local M4 exercises the true official package-success branch.
+- Added `test_retained_core_rg_reject_identity`, covering HMC and Metropolis stay-put outputs on reverse-gate rejection and local-transition accounting: `local_reject=1`, legacy `projection_failure_count=1`, and typed `reverse_gate_reject_count=1`.
+- F3/CV-009 is now decision-pending rather than a hidden missing-work caveat. The remaining choice is whether deterministic branch coverage is sufficient for the next production redo or whether a formal local-volume/branch-measure proof/harness is required first.
+
+## 2026-05-12 JST - F4/F14 production-regeneration decision packet
+- Added `DIAGNOSTICS_STATUS_ACCOUNTING_F4_DECISION_20260512.md`: typed diagnostics/accounting remains unimplemented unless explicitly accepted as reduced scope.
+- Added `F14_PRODUCTION_REGENERATION_DECISION_PACKET_20260512.md`: F14 now stops at a user decision between conservative completion first and reduced-scope production redo acceptance.
+- Updated CAVEATS and OPEN_ITEMS so future handoffs cannot imply production redo is ready without this decision.
+
+## 2026-05-12 JST - Reopen F1/CV-007 for full Hairer ODEX endpoint package
+- User requested a complete standalone/full Hairer ODEX endpoint package and a direct test of whether disabling solver assist causes actual observable degeneracy.
+- User clarified dense output is not required; dense output is out of scope for the reopened F1 target.
+- Reopened `CV-007` and `F1`; previous reduced-scope endpoint backend acceptance is now only historical evidence, not completion of the requested target.
+- Added `runbooks/FULL_HAIRER_ODEX_REOPEN_PLAN_20260512.md`.
+- F14 production regeneration is blocked until full ODEX endpoint package evidence and assist-off observable evidence exist, unless the user explicitly re-scopes ODEX back to reduced scope.

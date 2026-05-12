@@ -10,6 +10,8 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, List
 
+VISIBLE_BLOCKING_STATUSES = {"active", "decision_pending", "decision_required"}
+
 
 def repo_root() -> Path:
     result = subprocess.run(
@@ -57,8 +59,16 @@ def main() -> int:
         if row.get("safe_to_pull") not in {"yes", ""}
         or row.get("dirty") not in {"0", "", "NA"}
     ]
-    high_open = [row for row in open_items if row.get("priority") == "high" and row.get("status") == "active"]
-    high_caveats = [row for row in caveats if row.get("priority") == "high" and row.get("status") == "active"]
+    high_open = [
+        row
+        for row in open_items
+        if row.get("priority") == "high" and row.get("status") in VISIBLE_BLOCKING_STATUSES
+    ]
+    high_caveats = [
+        row
+        for row in caveats
+        if row.get("priority") == "high" and row.get("status") in VISIBLE_BLOCKING_STATUSES
+    ]
     recent_decisions = decisions[-6:]
     refreshed = live.get("refreshed_at_jst", "not refreshed")
 
@@ -125,21 +135,23 @@ def main() -> int:
     else:
         lines.append("- No active jobs in `codex/state/JOBS.tsv`.")
     lines.append("")
-    lines.append("## Active Caveats")
+    lines.append("## Active/Decision Caveats")
     lines.append("")
     if high_caveats:
         for row in high_caveats[:10]:
             lines.append(
-                f"- `{row.get('id')}` {row.get('scope')} blocks `{row.get('blocks')}`: {row.get('item')} Rerun trigger: {row.get('rerun_trigger')}"
+                f"- `{row.get('id')}` status `{row.get('status')}` {row.get('scope')} blocks `{row.get('blocks')}`: {row.get('item')} Rerun trigger: {row.get('rerun_trigger')}"
             )
     else:
-        lines.append("- No active high-priority caveat recorded in `codex/state/CAVEATS.tsv`.")
+        lines.append("- No active or decision-pending high-priority caveat recorded in `codex/state/CAVEATS.tsv`.")
     lines.append("")
     lines.append("## High-Priority Open Items")
     lines.append("")
     if high_open:
         for row in high_open[:14]:
-            lines.append(f"- `{row.get('id')}` {row.get('scope')}: {row.get('item')} Next: {row.get('next_action')}")
+            lines.append(
+                f"- `{row.get('id')}` status `{row.get('status')}` {row.get('scope')}: {row.get('item')} Next: {row.get('next_action')}"
+            )
     else:
         lines.append("- No active high-priority open item recorded.")
     lines.append("")

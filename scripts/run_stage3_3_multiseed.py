@@ -214,9 +214,9 @@ def parse_args():
     )
     parser.add_argument(
         "--methods",
-        choices=("both", "no_fb", "fb", "fb_norefine"),
+        choices=("both", "no_fb_fbnorefine", "no_fb", "fb", "fb_norefine"),
         default=os.environ.get("STAGE3_3_METHODS", "both"),
-        help="Select methods to run. 'both'=no_fb+fb.",
+        help="Select methods to run. 'both'=no_fb+fb; 'no_fb_fbnorefine'=production comparison pair.",
     )
     parser.add_argument(
         "--allow-oversubscribe",
@@ -526,6 +526,8 @@ def selected_manifest_env(env):
     }
     prefixes = (
         "INTODE_",
+        "TLTM_LOCAL_",
+        "TLTM_RG_",
         "TLTM_STAGE2_",
         "QN_",
         "S1_",
@@ -1102,6 +1104,14 @@ def run_one_seed(
         qn_capture_dir = Path(qn_capture_base) / method_name / ("seed_{0}".format(seed_id))
         qn_capture_dir.mkdir(parents=True, exist_ok=True)
         env_stage2["QN_ATTEMPT_CAPTURE_DIR"] = str(qn_capture_dir)
+    local_transition_audit_base = os.environ.get("TLTM_LOCAL_TRANSITION_AUDIT_BASE_DIR", "").strip()
+    if local_transition_audit_base:
+        local_transition_audit_root = Path(local_transition_audit_base)
+        if not local_transition_audit_root.is_absolute():
+            local_transition_audit_root = repo_root / local_transition_audit_root
+        local_transition_audit_dir = local_transition_audit_root / method_name / ("seed_{0}".format(seed_id))
+        local_transition_audit_dir.mkdir(parents=True, exist_ok=True)
+        env_stage2["TLTM_LOCAL_TRANSITION_AUDIT_FILE"] = str(local_transition_audit_dir / "local_transition_audit.csv")
     if "CONSTRAINT_FAIL_CAPTURE_LIMIT" in os.environ:
         env_stage2["CONSTRAINT_FAIL_CAPTURE_LIMIT"] = os.environ["CONSTRAINT_FAIL_CAPTURE_LIMIT"]
     if setup.get("stage2_init_mode"):
@@ -1314,6 +1324,8 @@ def method_item(name):
 def selected_method_names(methods):
     if methods == "both":
         return ("no_fb", "fb")
+    if methods == "no_fb_fbnorefine":
+        return ("no_fb", "fb_norefine")
     return (methods,)
 
 

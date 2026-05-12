@@ -38,7 +38,7 @@ contains
 
    subroutine integrate_hmc_proposal(state_x, state_z, step_size, num_steps, &
                                      final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok, &
-                                     proposal_status)
+                                     proposal_status, initial_momentum_out, final_momentum_out)
       implicit none
       real(dp), intent(in) :: state_x(:)
       complex(dp), intent(in) :: state_z(:)
@@ -52,11 +52,12 @@ contains
       real(dp), intent(out) :: final_hamiltonian
       logical, intent(out), optional :: proposal_ok
       integer, intent(out), optional :: proposal_status
+      real(dp), intent(out), optional :: initial_momentum_out(:), final_momentum_out(:)
       logical :: local_ok
       integer :: local_status
 
       call rattle(state_x, state_z, step_size, num_steps, final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, &
-                  local_ok, local_status)
+                  local_ok, local_status, initial_momentum_out, final_momentum_out)
       if (present(proposal_ok)) proposal_ok = local_ok
       if (present(proposal_status)) proposal_status = local_status
    end subroutine integrate_hmc_proposal
@@ -79,7 +80,8 @@ contains
    end subroutine integrate_hmc_warmup
 
    subroutine rattle(state_x, state_z, step_size, num_steps, &
-                     final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok, proposal_status)
+                     final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok, proposal_status, &
+                     initial_momentum_out, final_momentum_out)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -95,6 +97,7 @@ contains
       real(dp), intent(out) :: final_hamiltonian
       logical, intent(out) :: proposal_ok
       integer, intent(out) :: proposal_status
+      real(dp), intent(out), optional :: initial_momentum_out(:), final_momentum_out(:)
 
       integer :: step, state_size
       real(dp) :: integration_step_size
@@ -124,6 +127,8 @@ contains
       state_size = size(state_z)
       initial_hamiltonian = unavailable_hamiltonian()
       final_hamiltonian = unavailable_hamiltonian()
+      call clear_optional_momentum(initial_momentum_out)
+      call clear_optional_momentum(final_momentum_out)
 
       if (size(final_x) /= size(state_x) .or. size(final_z) /= state_size) then
          proposal_status = hmc_proposal_status_output_size_mismatch
@@ -153,6 +158,7 @@ contains
       end if
       momentum = momentumu
       initial_momentum = momentum
+      call publish_optional_momentum(initial_momentum_out, initial_momentum)
       call calculate_hamiltonian(state_z, momentum, initial_hamiltonian)
       call clear_intode_runtime_trace()
       call reset_constraint_newton_warm_start()
@@ -184,6 +190,7 @@ contains
          return
       end if
       momentum = momentumu
+      call publish_optional_momentum(final_momentum_out, momentum)
 
       call calculate_hamiltonian(final_z, momentum, final_hamiltonian)
       call get_intode_fallback_stats(fb_calls_after, fb_calls_integrating_after, fb_attempts_after, fb_success_after, fb_failure_after, &
@@ -268,6 +275,11 @@ contains
                                   local_method_converged, local_ws, local_step_status)
             if (.not. local_method_converged) then
                local_proposal_status = proposal_status_from_step_status(local_step_status)
+               out_x = start_x
+               out_z = start_z
+               out_jac = start_jac
+               out_momentum = start_momentum
+               h_final = unavailable_hamiltonian()
                call release_rattle_step_workspace(local_ws)
                if (allocated(local_momentum)) deallocate (local_momentum)
                if (allocated(local_momentumuv)) deallocate (local_momentumuv)
@@ -287,6 +299,11 @@ contains
          call decompose2(local_momentum, local_momentumuv, local_momentumu, local_momentumv, local_jac, local_error)
          if (local_error) then
             local_proposal_status = hmc_proposal_status_final_projection_failed
+            out_x = start_x
+            out_z = start_z
+            out_jac = start_jac
+            out_momentum = start_momentum
+            h_final = unavailable_hamiltonian()
             call release_rattle_step_workspace(local_ws)
             if (allocated(local_momentum)) deallocate (local_momentum)
             if (allocated(local_momentumuv)) deallocate (local_momentumuv)
@@ -365,6 +382,21 @@ contains
          end if
       end function maxabs_complex_mat
 
+      subroutine clear_optional_momentum(momentum_out)
+         real(dp), intent(out), optional :: momentum_out(:)
+
+         if (present(momentum_out)) momentum_out = ieee_value(0.0_dp, ieee_quiet_nan)
+      end subroutine clear_optional_momentum
+
+      subroutine publish_optional_momentum(momentum_out, momentum_value)
+         real(dp), intent(out), optional :: momentum_out(:)
+         real(dp), intent(in) :: momentum_value(:)
+
+         if (present(momentum_out)) then
+            if (size(momentum_out) == size(momentum_value)) momentum_out = momentum_value
+         end if
+      end subroutine publish_optional_momentum
+
       subroutine deallocate_all()
          if (allocated(momentum)) deallocate (momentum)
          if (allocated(momentumuv)) deallocate (momentumuv)
@@ -383,6 +415,8 @@ contains
       end subroutine deallocate_all
 
       subroutine abort_with_failure()
+         final_x = state_x
+         final_z = state_z
          final_hamiltonian = unavailable_hamiltonian()
          jacf = jaci
          call deallocate_all()

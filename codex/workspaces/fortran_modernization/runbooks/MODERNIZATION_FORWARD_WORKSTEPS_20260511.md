@@ -22,8 +22,8 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 - `CV-006`: DFO-LS claims must distinguish historical in-house/DFO-LS-style paths from embedded official package runs.
 - `CV-007`: ODEX backend is accepted reduced scope; do not claim full Hairer ODEX package unless reopened.
 - `CV-008`: official DFO-LS backend replacement is accepted for the representative scope: package provenance, preset/source contract, sidecar provenance guardrails, small embedded gate, imported official assist calibration, and representative embedded 10seed x 10k readback all pass. Reopen only on package/preset/callback/runtime/QN-route changes or broader final-production claims.
-- `CV-009`: retained Newton/RATTLE/QN/HMC/RG cores need deterministic evidence packs before being treated as complete; Newton, successful RATTLE/RG pass replay, BTN residual reconstruction, and official-route no-fallback surface now pass, while fixed-seed route census, package-success route coverage, RG reject/live-state identity, and volume/branch coverage remain open.
-- `CV-010`: diagnostics/status/counter accounting needs a typed foundation before final schema or production regeneration.
+- `CV-009`: retained Newton/RATTLE/QN/HMC/RG cores now have deterministic guardrails for Newton replay, successful RATTLE/RG pass replay, BTN residual reconstruction, official package-success route census, stub no-fallback behavior, RG reject stay-put identity, and failure-as-rejection accounting; the remaining F14 decision is whether deterministic branch coverage is sufficient or a formal local-volume/branch-measure proof/harness is required first.
+- `CV-010`: diagnostics/status/counter accounting is decision-pending; compatibility counters and sidecars exist, but typed proposal/replay/residual/probe/reject/accept event context is not implemented.
 - `CV-011`: RNG/workspace/reentrancy remains an unfinished productization foundation.
 
 ## Forward Queue
@@ -33,8 +33,8 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 | F0 | foundation completeness reset | active | yes | `FOUNDATION_COMPLETENESS_RESET_20260511.md`, expanded `CAVEATS.tsv`/`OPEN_ITEMS.tsv` | no compact doc says foundation is complete |
 | F1 | ODEX backend completeness | done | yes | accepted reduced-scope endpoint extrapolation backend; result/workspace/status, flow/Jacobian, assist-policy, and representative assist-on/off guardrails pass | reopen only for full Hairer ODEX package, dense output, stability-control behavior, or changed final-flow/assist policy |
 | F2 | official DFO-LS backend completion | done | yes | representative embedded official DFO-LS 10seed x 10k gate passed with 1000 captured attempts, 923 embedded-converged attempts, 0 float64 failures, 0 missing rows, and 0 embedded-converged regressions | reopen only on official DFO-LS package/preset/residual callback/acceptance gate/runtime bridge/QN-route changes or broader final-production claims |
-| F3 | retained-core deterministic evidence pack | active | tests/tooling | Newton replay, successful RATTLE/RG pass replay, BTN residual reconstruction, and official-route no-fallback guardrails pass; next add fixed-seed route census, package-success route coverage, RG reject identity, and local-volume/branch-measure checks | affected core rows pass or are explicitly scoped |
-| F4 | diagnostics/status/accounting foundation | active | design/tests | typed diagnostics context and schema compatibility plan | counters/status/capture meaning is versioned and testable |
+| F3 | retained-core deterministic evidence pack | decision_pending | decision only | deterministic guardrails now cover Newton, successful RATTLE/RG, BTN residual, official package-success route census, stub no-fallback behavior, RG reject identity, and failure-as-rejection accounting | accept deterministic branch coverage or require formal local-volume/branch-measure proof/harness |
+| F4 | diagnostics/status/accounting foundation | decision_pending | decision only | compatibility counters and sidecars exist; typed diagnostics context is specified but not implemented | implement typed accounting before production or accept current compatibility-first diagnostics as reduced scope |
 | F5 | M6 read-only comparison tooling | done | yes | `m6_reference_compare.py`, comparison summary/report | tool can regenerate report from accepted M6 readback or raw package CSV |
 | F6 | M6 and official-small degeneracy observation | active | yes, read-only | use M6 R1-R4 only as historical/internal anchors; use imported official 10seed/10k production-comparison evidence for real official-line nofb-vs-withfb degeneracy observation | M6 is not official DFO-LS evidence; official 10seed/10k is calibration only; no source changes; label all production outputs provisional |
 | F7 | public method naming and schema-role design | gated | docs/schema design only | raw aliases remain readable; canonical roles/algorithm IDs specified | no field removal until versioned schema exists |
@@ -44,7 +44,7 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 | F11 | diagnostics accounting implementation | gated | after F4/schema decision | structured forward/replay/probe/reject accounting | schema versioning and compatibility readers exist |
 | F12 | unified wrapper/product interface | gated | after schema decision | wrapper runs same Stage2/Stage3 protocol with v1 sidecars | no public behavior replacement without compatibility layer |
 | F13 | RNG/reentrancy/module workspace migration | deferred | no | explicit per-run/per-replica state | deterministic parallel/reference comparisons exist |
-| F14 | publication-grade production regeneration | deferred | no | final production datasets | CV-001/CV-002/CV-006/CV-009/CV-010 and schema/wrapper decisions resolved or explicitly accepted |
+| F14 | publication-grade production regeneration | decision_required | decision only | final production datasets | choose conservative completion first or explicitly accept reduced-scope F3/F4/schema boundaries |
 
 ## What Can Continue While 32seed/50k Official Gate Runs
 
@@ -59,10 +59,9 @@ Do not fast-forward or clean `/lustre1/home/cychou/TLTM_worktrees/tltm_productio
 
 Read `FOUNDATION_COMPLETENESS_RESET_20260511.md` before any modernization task. The immediate implementation planning order is:
 
-1. Retained-core deterministic evidence pack.
-2. Diagnostics/status/accounting foundation.
-3. Reference-comparison harness for future behavior-relevant source patches.
-4. Publication-production regeneration decision after remaining caveats are closed or explicitly accepted.
+1. F14 decision: conservative completion first, or reduced-scope production redo acceptance.
+2. If conservative, implement typed diagnostics/accounting plus formal local-volume/branch-measure proof/harness.
+3. If reduced-scope, record acceptance and keep production claims scoped accordingly before updating production and rerunning.
 
 M6 comparison tooling remains available as historical/internal behavior readback, especially for assist-off degeneracy observation, with:
 

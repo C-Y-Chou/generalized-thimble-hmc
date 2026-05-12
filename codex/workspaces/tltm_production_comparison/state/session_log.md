@@ -553,3 +553,76 @@ Use this file to append per-session notes.
 - Interpretation:
   - This gate confirms the expected solver-quality improvement in unresolved failures and RG rejects.
   - The Re observable is not clearly better: `withfb` has a larger positive Re Zmean than `nofb` at this 256seed/200k scale, so this result needs discussion before declaring the current scale a final production endpoint.
+
+## 2026-05-12 JST - Reframed QN issue and added event-level route audit
+
+- User correction:
+  - The issue is not caused by official DFO-LS alone; old in-house p28 already showed the same qualitative `withfb`/QN concern.
+- Code reading:
+  - Newton solves the RATTLE projection first.
+  - QN fallback then solves BTN/backflow residual `[Im(flowzr(z + del_z - J*(a+i*b))); a]`.
+  - RG replay checks `x/z/jac/p`, but RG alone does not prove volume preservation or proposal-density symmetry.
+  - Metropolis uses only `exp(-(H_final-H_initial))`.
+- Diagnostic added:
+  - `TLTM_LOCAL_TRANSITION_AUDIT_FILE`
+  - `TLTM_LOCAL_TRANSITION_AUDIT_MAX_ROWS`
+  - `TLTM_LOCAL_TRANSITION_AUDIT_BASE_DIR` support in `scripts/run_stage3_3_multiseed.py`.
+  - Records per local update route counter deltas plus `h_initial/h_final/delta_h/accept_probability`.
+- Validation:
+  - `make -C build tltm_stage2` passed.
+  - Local smoke run completed at `output/tests/qn_transition_audit_local_1seed_1k`.
+- First smoke evidence:
+  - Method `fb_norefine`, seed `20260421`, `1000 cycles`, internal p28, RG on, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`.
+  - QN events occurred only in the hot slot.
+  - Hot-slot accepted Newton-only: `904` rows, mean `delta_h=+9.751148437639863e-4`, negative count `464/904`.
+  - Hot-slot accepted QN: `38` rows, mean `delta_h=-2.385424146627109e-2`, negative count `27/38`.
+- Current hypothesis:
+  - The suspicious gap is QN/fallback route balance, branch selection, local volume, or proposal-density symmetry, not official backend tuning.
+  - Next test should be a short multi-seed route-conditioned `delta_h` audit before further production.
+
+## 2026-05-12 JST - Modernization boundary instruction for production Codex
+
+- User flagged `src/apps/probe_hmc_volume.f90` as an adjacent production Codex artifact, not intentional modernization source.
+- Added `runbooks/MODERNIZATION_BOUNDARY_AND_QN_ROUTE_NEXT_INSTRUCTIONS_20260512.md`.
+- Instruction to production Codex: finish the active `qn_route_bias_exact_event_capture_1seed_2k` local run, read it back, and do not submit more large production gates until exact accepted-QN events are analyzed.
+- Boundary instruction: keep production diagnostics out of the modernization source/build graph unless there is a separate reviewed modernization task.
+- Follow-up check: the local `qn_route_bias_exact_event_capture_1seed_2k` run completed, but the output appears to contain local transition audit/history/summary files only, not replayable accepted-QN event-state files. The instruction file now says to treat it as a single-seed audit replay and to add production-comparison-only accepted-QN event-state capture before claiming exact-event replay evidence.
+
+## 2026-05-12 JST - Promoted production/modernization boundary to hard blocker
+
+- Added `state/OPEN_ITEMS.tsv` with `PCB-001` as `active_blocker`.
+- Added `state/CAVEATS.tsv` with `PCV-001` documenting source-boundary contamination.
+- Updated `context/TASK.md`, `context/STATE_BRIEF.md`, and `runbooks/MODERNIZATION_BOUNDARY_AND_QN_ROUTE_NEXT_INSTRUCTIONS_20260512.md` so production Codex must resolve `src/apps/probe_hmc_volume.f90` boundary cleanup before any next local run, PBS submission, commit, evidence promotion, modernization M4, or production sync.
+- Current live local run may finish, but the next action after it finishes must be boundary cleanup.
+
+## 2026-05-12 JST - Resolved production/modernization source boundary
+
+- Moved `src/apps/probe_hmc_volume.f90` to `codex/workspaces/tltm_production_comparison/diagnostics/probe_hmc_volume.f90`.
+- Verified the modernization `build/makefile` no longer contains a `probe_hmc_volume` target/source entry.
+- Marked `PCB-001` and `PCV-001` resolved.
+- Production diagnostics must remain in production-comparison-only paths; do not re-add them to modernization source/build roots.
+## 2026-05-12 QN Route Bias Deep Diagnostics
+
+- Added local transition audit diagnostics for exact event replay:
+  - optional HMC momentum outputs in `hmc.f90` / `markovchain_metropolis.f90`;
+  - stage2 audit chart columns `q_initial,c_initial,q_proposal,c_proposal,q_after`.
+- Restored a diagnostic-only `src/apps/probe_hmc_volume.f90` for local testing, but kept it out of the persistent modernization build graph per workspace boundary.
+- Completed 10seed/2k two-slot route audit:
+  - accepted QN retained negative conditional `delta_h` profile;
+  - method-level paired Re difference was statistically insignificant at this small scale.
+- Completed fallback-only REVCHK:
+  - 100/100 fallback probes passed; max reverse coordinate/momentum errors were `O(1e-9)`.
+- Completed local volume/branch checks:
+  - generic QN stable branches showed metric log-volume near zero;
+  - exact production-captured accepted-QN events showed max abs metric log-volume `O(1e-6)`;
+  - reverse exact replay returned to original chart coordinates at `O(1e-11)`.
+- Completed 10seed/2k single-slot t=0.35 no-effective-swap check:
+  - small-window Zmean remains noisy; do not infer a robust method shift from this scale.
+- Quantified remote 256seed/200k paired production difference:
+  - `fb_norefine - no_fb = +0.001507680595551813 +/- 0.002768615480051937` using paired SE over 256 seeds;
+  - paired t-statistic `0.5446`;
+  - positive/negative seed differences `131/125`;
+  - conclusion: separate Zmeans made `withfb` look worse, but direct paired method comparison does not show significant degradation.
+- Current conclusion:
+  - direct QN/RATTLE detailed-balance bug is lower priority;
+  - next work should inspect block/window stability and autocorrelation/effective-sample behavior before deciding whether more production statistics are needed.

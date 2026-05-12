@@ -66,6 +66,12 @@ module tltm_stage2_driver
    logical, save :: rg_reject_audit_enabled = .false.
    integer, save :: rg_reject_audit_unit = -1
    character(len=512), save :: rg_reject_audit_file = ""
+   logical, save :: local_transition_audit_loaded = .false.
+   logical, save :: local_transition_audit_enabled = .false.
+   integer, save :: local_transition_audit_unit = -1
+   integer, save :: local_transition_audit_max_rows = 200000
+   integer(int64), save :: local_transition_audit_rows = 0_int64
+   character(len=512), save :: local_transition_audit_file = ""
 
    type :: local_accept_census_t
       integer(int64) :: accepted_total = 0_int64
@@ -424,6 +430,7 @@ contains
          write (*, '(A,1X,A)') "[DONE][TLTM-S2] v1alpha diagnostics package written under", trim(v1_output_dir)
       end if
       call close_rg_reject_audit()
+      call close_local_transition_audit()
    end subroutine execute_tltm_stage2
 
    subroutine initialize_slot(slot, init_sigma, max_attempts, init_mode, ok)
@@ -483,14 +490,16 @@ contains
       integer, intent(in) :: cycle_idx
 
       integer :: update_idx, z_size
-      real(dp), allocatable :: x_new(:), x_before(:)
+      real(dp), allocatable :: x_new(:), x_before(:), initial_momentum(:), final_momentum(:)
       complex(dp), allocatable :: z_new(:), j_new(:, :), z_before(:), j_before(:, :)
       logical :: accepted, proposal_failed
       integer :: transition_status
       type(solver_counter_snapshot_t) :: solver_before, solver_after
+      real(dp) :: h_initial, h_final, delta_h, accept_probability
 
       z_size = size(slot%z)
       allocate (x_new(size(slot%x)), x_before(size(slot%x)))
+      allocate (initial_momentum(2*z_size), final_momentum(2*z_size))
       allocate (z_new(z_size), z_before(z_size), j_new(z_size, z_size), j_before(z_size, z_size))
 
       do update_idx = 1, local_updates
@@ -499,7 +508,10 @@ contains
          j_before = slot%jac
          call snapshot_solver_counters(solver_before)
          call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
-                              config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status)
+                              config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
+                              h_initial_out=h_initial, h_final_out=h_final, delta_h_out=delta_h, &
+                              accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
+                              final_momentum_out=final_momentum)
          call snapshot_solver_counters(solver_after)
          if (accepted) then
             slot%x = x_new
@@ -511,10 +523,15 @@ contains
          call record_rg_reject_audit(cycle_idx, slot%slot_id, update_idx, x_before, z_before, j_before, &
                                      slot%x, slot%z, slot%jac, x_new, z_new, j_new, accepted, proposal_failed, &
                                      transition_status, solver_before, solver_after)
+         call record_local_transition_audit(cycle_idx, slot%slot_id, update_idx, accepted, proposal_failed, transition_status, &
+                                            h_initial, h_final, delta_h, accept_probability, x_before, x_new, slot%x, &
+                                            j_before, j_new, initial_momentum, final_momentum, solver_before, solver_after)
       end do
 
       if (allocated(x_new)) deallocate (x_new)
       if (allocated(x_before)) deallocate (x_before)
+      if (allocated(initial_momentum)) deallocate (initial_momentum)
+      if (allocated(final_momentum)) deallocate (final_momentum)
       if (allocated(z_new)) deallocate (z_new)
       if (allocated(z_before)) deallocate (z_before)
       if (allocated(j_new)) deallocate (j_new)
@@ -594,6 +611,124 @@ contains
       rg_reject_audit_enabled = .false.
       rg_reject_audit_unit = -1
    end subroutine close_rg_reject_audit
+
+   subroutine record_local_transition_audit(cycle_idx, slot_id, update_idx, accepted, proposal_failed, transition_status, &
+                                           h_initial, h_final, delta_h, accept_probability, x_before, x_proposal, x_after, &
+                                           j_before, j_proposal, initial_momentum, final_momentum, solver_before, solver_after)
+      integer, intent(in) :: cycle_idx, slot_id, update_idx
+      logical, intent(in) :: accepted, proposal_failed
+      integer, intent(in) :: transition_status
+      real(dp), intent(in) :: h_initial, h_final, delta_h, accept_probability
+      real(dp), intent(in) :: x_before(:), x_proposal(:), x_after(:)
+      complex(dp), intent(in) :: j_before(:, :), j_proposal(:, :)
+      real(dp), intent(in) :: initial_momentum(:), final_momentum(:)
+      type(solver_counter_snapshot_t), intent(in) :: solver_before, solver_after
+      real(dp) :: q_initial, q_proposal, q_after, c_initial, c_proposal
+
+      call load_local_transition_audit_config()
+      if (.not. local_transition_audit_enabled) return
+      if (local_transition_audit_max_rows >= 0) then
+         if (local_transition_audit_rows >= int(local_transition_audit_max_rows, int64)) return
+      end if
+
+      q_initial = seed_coord_stage2(x_before)
+      q_proposal = seed_coord_stage2(x_proposal)
+      q_after = seed_coord_stage2(x_after)
+      c_initial = tangent_coeff_stage2(initial_momentum, j_before)
+      c_proposal = tangent_coeff_stage2(final_momentum, j_proposal)
+
+      local_transition_audit_rows = local_transition_audit_rows + 1_int64
+      write (local_transition_audit_unit, &
+             '(I0,",",I0,",",I0,",",L1,",",L1,",",I0,9(",",ES24.16),18(",",I0))') &
+         cycle_idx, slot_id, update_idx, accepted, proposal_failed, transition_status, &
+         h_initial, h_final, delta_h, accept_probability, q_initial, c_initial, q_proposal, c_proposal, q_after, &
+         solver_after%newton_count - solver_before%newton_count, &
+         solver_after%quasi_count - solver_before%quasi_count, &
+         solver_after%probe_attempt_count - solver_before%probe_attempt_count, &
+         solver_after%probe_success_count - solver_before%probe_success_count, &
+         solver_after%full_attempt_count - solver_before%full_attempt_count, &
+         solver_after%full_success_count - solver_before%full_success_count, &
+         solver_after%class_local_count - solver_before%class_local_count, &
+         solver_after%class_mid_count - solver_before%class_mid_count, &
+         solver_after%class_global_count - solver_before%class_global_count, &
+         solver_after%far_route_skip_count - solver_before%far_route_skip_count, &
+         solver_after%far_route_light_count - solver_before%far_route_light_count, &
+         solver_after%far_route_anchor_count - solver_before%far_route_anchor_count, &
+         solver_after%near_attempt_count - solver_before%near_attempt_count, &
+         solver_after%near_success_count - solver_before%near_success_count, &
+         solver_after%reverse_gate_candidate_total - solver_before%reverse_gate_candidate_total, &
+         solver_after%reverse_gate_pass_total - solver_before%reverse_gate_pass_total, &
+         solver_after%reverse_gate_reject_total - solver_before%reverse_gate_reject_total, &
+         local_transition_audit_rows
+      flush (local_transition_audit_unit)
+   end subroutine record_local_transition_audit
+
+   subroutine load_local_transition_audit_config()
+      character(len=512) :: env_value
+      integer :: io_status
+      logical :: has_audit_file
+
+      if (local_transition_audit_loaded) return
+      local_transition_audit_loaded = .true.
+
+      env_value = ""
+      call read_string_env("TLTM_LOCAL_TRANSITION_AUDIT_FILE", env_value, has_audit_file)
+      if (.not. has_audit_file) return
+
+      call parse_int_env("TLTM_LOCAL_TRANSITION_AUDIT_MAX_ROWS", local_transition_audit_max_rows)
+      local_transition_audit_file = trim(env_value)
+      open (newunit=local_transition_audit_unit, file=trim(local_transition_audit_file), status='replace', action='write', iostat=io_status)
+      if (io_status /= 0) then
+         write (*, '(A,1X,A)') "[WARN][TLTM-S2] Cannot open local transition audit file:", trim(local_transition_audit_file)
+         local_transition_audit_enabled = .false.
+         local_transition_audit_unit = -1
+         return
+      end if
+
+      local_transition_audit_enabled = .true.
+      local_transition_audit_rows = 0_int64
+      write (local_transition_audit_unit, '(A)') &
+         "cycle,slot_id,update_idx,accepted,proposal_failed,transition_status,h_initial,h_final,delta_h,accept_probability,"// &
+         "q_initial,c_initial,q_proposal,c_proposal,q_after,"// &
+         "newton_delta,quasi_delta,probe_attempt_delta,probe_success_delta,full_attempt_delta,full_success_delta,"// &
+         "class_local_delta,class_mid_delta,class_global_delta,far_skip_delta,far_light_delta,far_anchor_delta,"// &
+         "near_attempt_delta,near_success_delta,rg_candidate_delta,rg_pass_delta,rg_reject_delta,row_index"
+      flush (local_transition_audit_unit)
+      write (*, '(A,1X,A,A,I0)') "[INFO][TLTM-S2] Local transition audit file:", trim(local_transition_audit_file), &
+         " max_rows=", local_transition_audit_max_rows
+   end subroutine load_local_transition_audit_config
+
+   subroutine close_local_transition_audit()
+      if (local_transition_audit_enabled .and. local_transition_audit_unit > 0) then
+         close (local_transition_audit_unit)
+      end if
+      local_transition_audit_enabled = .false.
+      local_transition_audit_unit = -1
+   end subroutine close_local_transition_audit
+
+   pure real(dp) function seed_coord_stage2(x_val) result(q_val)
+      real(dp), intent(in) :: x_val(:)
+
+      if (size(x_val) >= 2) then
+         q_val = x_val(2)
+      else
+         q_val = huge(1.0_dp)
+      end if
+   end function seed_coord_stage2
+
+   pure real(dp) function tangent_coeff_stage2(momentum, jac) result(coeff)
+      real(dp), intent(in) :: momentum(:)
+      complex(dp), intent(in) :: jac(:, :)
+      complex(dp) :: mom_c, coeff_c
+
+      if (size(momentum) < 2 .or. size(jac, 1) < 1 .or. abs(jac(1, 1)) <= 0.0_dp) then
+         coeff = huge(1.0_dp)
+         return
+      end if
+      mom_c = cmplx(momentum(1), momentum(2), dp)
+      coeff_c = mom_c/jac(1, 1)
+      coeff = real(coeff_c, dp)
+   end function tangent_coeff_stage2
 
    pure real(dp) function maxabs_real_stage2(vec)
       real(dp), intent(in) :: vec(:)

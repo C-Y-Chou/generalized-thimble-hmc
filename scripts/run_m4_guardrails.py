@@ -15,6 +15,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+GUARDRAIL_SOURCE_ROOTS = (
+    "src",
+    "tests",
+    "scripts",
+    "codex/tasks",
+    "codex/workspaces/fortran_modernization/tasks",
+    "build",
+)
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run TLTM M4 local modernization guardrails.")
@@ -55,11 +64,52 @@ def relpath_text(repo_root, path):
         return str(path)
 
 
-def run_step(label, cmd, cwd, failures, keep_going):
+def git_lines(repo_root, git_args):
+    proc = subprocess.run(
+        ["git"] + git_args,
+        cwd=str(repo_root),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return None
+    return [line for line in proc.stdout.splitlines() if line.strip()]
+
+
+def find_untracked_guardrail_files(repo_root):
+    lines = git_lines(repo_root, ["ls-files", "--others", "--exclude-standard", "--"] + list(GUARDRAIL_SOURCE_ROOTS))
+    if lines is None:
+        return []
+    return sorted(lines)
+
+
+def iter_guardrail_fortran_paths(repo_root):
+    tracked = git_lines(repo_root, ["ls-files", "--cached", "--", "src", "tests"])
+    if tracked is not None:
+        for rel_text in tracked:
+            if not rel_text.lower().endswith(".f90"):
+                continue
+            path = repo_root / rel_text
+            if path.exists():
+                yield path
+        return
+
+    for source_root in ("src", "tests"):
+        root = repo_root / source_root
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*.f90")):
+            yield path
+
+
+def run_step(label, cmd, cwd, failures, keep_going, env=None):
     print("[M4][RUN] {0}".format(label))
     proc = subprocess.run(
         cmd,
         cwd=str(cwd),
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         universal_newlines=True,
@@ -118,17 +168,13 @@ def assert_condition(label, condition, details, failures, keep_going):
 def find_uncentralized_env_reads(repo_root):
     allowed = {Path("src/config/runtime_env_mod.f90")}
     hits = []
-    for source_root in ("src", "tests"):
-        root = repo_root / source_root
-        if not root.exists():
+    for path in iter_guardrail_fortran_paths(repo_root):
+        rel = path.relative_to(repo_root)
+        if rel in allowed:
             continue
-        for path in sorted(root.rglob("*.f90")):
-            rel = path.relative_to(repo_root)
-            if rel in allowed:
-                continue
-            for line_no, line in enumerate(path.read_text(errors="replace").splitlines(), start=1):
-                if "get_environment_variable" in line.lower():
-                    hits.append("{0}:{1}: {2}".format(rel, line_no, line.strip()))
+        for line_no, line in enumerate(path.read_text(errors="replace").splitlines(), start=1):
+            if "get_environment_variable" in line.lower():
+                hits.append("{0}:{1}: {2}".format(rel, line_no, line.strip()))
     return hits
 
 
@@ -141,7 +187,30 @@ def make_cmd(repo_root, args, targets):
     return cmd
 
 
-def run_stage3_smoke(repo_root, config_path, output_root, logs_root, label, sidecars_enabled, failures, keep_going):
+def infer_official_dfols_env(repo_root):
+    env = {}
+    venv_python = repo_root / ".venv-dfols" / "bin" / "python"
+    if not venv_python.exists():
+        return env
+    env["PYTHON"] = str(venv_python)
+    proc = subprocess.run(
+        [
+            str(venv_python),
+            "-c",
+            "import site; print(site.getsitepackages()[0])",
+        ],
+        cwd=str(repo_root),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        check=False,
+    )
+    if proc.returncode == 0:
+        env["TLTM_OFFICIAL_DFOLS_PYTHONPATH"] = proc.stdout.strip()
+    return env
+
+
+def run_stage3_smoke(repo_root, config_path, output_root, logs_root, label, sidecars_enabled, failures, keep_going, env=None):
     out_subdir = output_root / label
     logs_subdir = logs_root / label
     if out_subdir.exists():
@@ -172,7 +241,7 @@ def run_stage3_smoke(repo_root, config_path, output_root, logs_root, label, side
     if sidecars_enabled:
         cmd.extend(["--stage2-v1-sidecars", "on", "--stage2-protocol-audit", "auto"])
 
-    run_step("Stage3 tiny smoke {0}".format(label), cmd, repo_root, failures, keep_going)
+    run_step("Stage3 tiny smoke {0}".format(label), cmd, repo_root, failures, keep_going, env)
     return out_subdir
 
 
@@ -183,6 +252,31 @@ def run_guardrails(args):
     output_root.mkdir(parents=True, exist_ok=True)
     logs_root.mkdir(parents=True, exist_ok=True)
     failures = []
+    guardrail_env = os.environ.copy()
+    official_env = infer_official_dfols_env(repo_root)
+    guardrail_env.update(official_env)
+    if official_env.get("TLTM_OFFICIAL_DFOLS_PYTHONPATH"):
+        print(
+            "[M4][INFO] official DFO-LS python={0}".format(
+                official_env.get("PYTHON", "")
+            )
+        )
+        print(
+            "[M4][INFO] official DFO-LS pythonpath={0}".format(
+                official_env.get("TLTM_OFFICIAL_DFOLS_PYTHONPATH", "")
+            )
+        )
+
+    untracked_guardrail_files = find_untracked_guardrail_files(repo_root)
+    assert_condition(
+        "source/task boundary has no untracked files",
+        not untracked_guardrail_files,
+        "Untracked files under guardrail-controlled source/task roots must be staged intentionally "
+        "or moved out of the modernization worktree before M4 evidence is accepted:\n"
+        + "\n".join(untracked_guardrail_files[:80]),
+        failures,
+        args.keep_going,
+    )
 
     run_step(
         "Python compile",
@@ -196,14 +290,16 @@ def run_guardrails(args):
             "scripts/run_m4_guardrails.py",
             "codex/workspaces/fortran_modernization/tasks/scripts/odex_assist_revalidation.py",
             "codex/workspaces/fortran_modernization/tasks/scripts/odex_official_assist_onoff_readback.py",
+            "codex/workspaces/fortran_modernization/tasks/scripts/odex_official_assist_observable_degeneracy.py",
             "codex/workspaces/fortran_modernization/tasks/scripts/official_dfols_small_assist_degeneracy.py",
             "codex/workspaces/fortran_modernization/tasks/scripts/official_dfols_provenance_readback.py",
         ],
         repo_root,
         failures,
         args.keep_going,
+        guardrail_env,
     )
-    run_step("git diff --check", ["git", "diff", "--check"], repo_root, failures, args.keep_going)
+    run_step("git diff --check", ["git", "diff", "--check"], repo_root, failures, args.keep_going, guardrail_env)
     env_read_hits = find_uncentralized_env_reads(repo_root)
     assert_condition(
         "direct env reads centralized",
@@ -228,16 +324,19 @@ def run_guardrails(args):
                     "test_odex_assist_policy",
                     "test_odex_result_contract",
                     "test_odex_flow_jacobian_contract",
+                    "test_odex_backend_package_contract",
                     "test_official_dfols_preset_contract",
                     "test_tltm_swap_kernel_contract",
                     "test_retained_core_newton_contract",
                     "test_retained_core_rattle_rg_contract",
                     "test_retained_core_qn_route_contract",
+                    "test_retained_core_rg_reject_identity",
                 ],
             ),
             repo_root,
             failures,
             args.keep_going,
+            guardrail_env,
         )
 
     run_step(
@@ -263,6 +362,7 @@ def run_guardrails(args):
         repo_root,
         failures,
         args.keep_going,
+        guardrail_env,
     )
 
     fixture_summary = repo_root / "output" / "tests" / "tltm_stage2_summary.dat"
@@ -278,7 +378,7 @@ def run_guardrails(args):
         fixture_label_trace = repo_root / "output" / "tests" / "tltm_stage2_label_trace.dat"
         if fixture_label_trace.exists():
             audit_cmd.extend(["--label-trace", str(fixture_label_trace)])
-        run_step("existing Stage2 protocol audit smoke", audit_cmd, repo_root, failures, args.keep_going)
+        run_step("existing Stage2 protocol audit smoke", audit_cmd, repo_root, failures, args.keep_going, guardrail_env)
 
     tiny_config = output_root / "tiny_stage3_guardrail.json"
     write_tiny_stage3_config(tiny_config)
@@ -292,6 +392,7 @@ def run_guardrails(args):
         True,
         failures,
         args.keep_going,
+        guardrail_env,
     )
     sidecar_row = read_first_csv_row(sidecar_out / "per_seed_summary_table.csv")
     assert_condition(
@@ -350,6 +451,7 @@ def run_guardrails(args):
         False,
         failures,
         args.keep_going,
+        guardrail_env,
     )
     no_sidecar_row = read_first_csv_row(no_sidecar_out / "per_seed_summary_table.csv")
     assert_condition(
@@ -394,6 +496,7 @@ def run_guardrails(args):
         repo_root,
         failures,
         args.keep_going,
+        guardrail_env,
     )
     merge_row = read_first_csv_row(merge_root / "per_seed_summary_table.csv")
     assert_condition(

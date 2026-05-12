@@ -2,6 +2,12 @@
 
 Updated: 2026-05-12 JST
 
+## Boundary Status
+
+- `PCB-001` is resolved as of 2026-05-12 JST.
+- `src/apps/probe_hmc_volume.f90` was moved out of the canonical modernization source root to `codex/workspaces/tltm_production_comparison/diagnostics/probe_hmc_volume.f90`.
+- Production-comparison diagnostics may continue from their own boundary, but must not be promoted into modernization source/build roots without a separate reviewed task.
+
 ## Current Position
 
 - `tltm_production_comparison` is the canonical workspace for TLTM `nofb` vs `withfb` production-comparison work.
@@ -36,9 +42,16 @@ Updated: 2026-05-12 JST
 
 Current live campaign:
 
+0. Boundary blocker `PCB-001` is resolved; continue QN route-bias diagnostics from production-comparison-only paths.
 1. `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb` completed with report available.
 2. Report target: `output/production_comparison/provisional/official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb/REPORT.md`.
 3. Readback: `nofb` Zmean Re `1.0466`, Zmean Im `-0.6680`; `withfb` Zmean Re `1.9730`, Zmean Im `-0.6780`.
 4. Solver counters favor `withfb`: unresolved failures `618706` vs `3846795`; RG rejects `510906` vs `607777`.
 5. Interpretation: `withfb` strongly improves failure counters but has larger positive Re Zmean than `nofb`, so discuss whether to extend statistics or diagnose residual systematic shift before calling this final production.
-6. Before any new production submission, confirm no active pinned jobs depend on `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.
+6. User correction: this is not an official-DFO-LS-only issue; the old in-house p28 line already showed the same qualitative problem. Diagnose QN/fallback route correctness before more production.
+7. New event-level diagnostic exists: `TLTM_LOCAL_TRANSITION_AUDIT_FILE` / `TLTM_LOCAL_TRANSITION_AUDIT_BASE_DIR`. It now records optional chart coordinates `q_initial,c_initial,q_proposal,c_proposal,q_after` for exact accepted-QN replay. Read `runbooks/QN_ROUTE_BIAS_DIAGNOSTICS_20260512.md`.
+8. Current production-codex work is QN route-bias/event-capture diagnostics, not modernization ODEX or final production regeneration.
+9. Exact accepted-QN replay completed locally: REVCHK passed, local metric-volume replay passed, and reverse replay returned to original chart coordinates at `~1e-11`. This lowers the priority of a direct QN/RATTLE detailed-balance bug.
+10. 256seed/200k paired method comparison is now quantified: `fb_norefine - no_fb = +0.001507680595551813 +/- 0.002768615480051937` (paired SE), t=`0.5446`, positive/negative seed differences `131/125`. The apparent `withfb` worse Zmean is not significant in direct paired comparison.
+11. Next priority before more production: inspect block/window stability and decide whether larger statistics are needed. Do not leave `probe_hmc_volume` promoted in the modernization build graph.
+12. Before any new production submission, confirm no active pinned jobs depend on `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.

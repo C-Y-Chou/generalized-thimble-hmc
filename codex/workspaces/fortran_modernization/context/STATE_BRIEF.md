@@ -15,8 +15,10 @@ Updated: 2026-05-12 JST
 - Embedded official DFO-LS is now the default QN backend. `QN_SOLVER_BACKEND=internal` is only for controlled legacy comparison.
 - Official DFO-LS backend replacement F2 is accepted for the current representative scope: representative embedded 10seed x 10k gate passed with 1000 captured attempts, 923 embedded-converged attempts, 0 float64 failures, 0 missing replay rows, and 0 embedded-converged regressions.
 - Official DFO-LS production-comparison evidence exists as a completed provisional artifact: `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`, 256 seeds x 200000 cycles for both `nofb` and `withfb`, generated under production-comparison commit `c0e4021`. This artifact predates the latest modernization HEAD and must not be interpreted as a rerun after updating production to the current modernization state.
-- Modernization is not yet at the final "update production version and redo production" gate. F14 remains deferred until F3/CV-009, F4/CV-010, CV-001/CV-002, and final schema/wrapper/naming decisions are resolved or explicitly accepted.
-- F3 retained-core deterministic evidence has passing guardrails for Newton replay, successful one-step RATTLE/RG pass replay, BTN residual reconstruction, and official-route no-fallback surface. F3 remains active for fixed-seed official-line route census, package-success route coverage, RG reject/live-state identity, and local-volume/branch-measure coverage.
+- F1/CV-007 is active again: the user reopened ODEX from reduced-scope endpoint backend to complete standalone/full Hairer ODEX endpoint package plus assist-off observable degeneracy testing. Dense output is explicitly out of scope.
+- Modernization is not at automatic production-regeneration approval. F14 production regeneration is blocked until F1/CV-007 is completed or explicitly re-scoped, then the remaining F3/CV-009 and F4/CV-010 decisions still need resolution.
+- F3 retained-core deterministic evidence has passing guardrails for Newton replay, successful one-step RATTLE/RG pass replay, BTN residual reconstruction, official package-success route census, stub no-fallback route behavior, RG reject/live-state identity, and failure-as-rejection accounting. The remaining F3 question is whether deterministic branch coverage is accepted or a formal local-volume/branch-measure proof/harness is required before production.
+- F4 diagnostics/status/accounting is decision-pending: compatibility counters and sidecars exist, but the typed proposal/replay/residual/probe/reject/accept event context is not implemented.
 - The default local source of truth is `/Users/ccy/Documents/TLTM_qn_error_handling`, not `/Users/ccy/Documents/New project/TLTM_repo`.
 
 ## Hard Rules
@@ -33,7 +35,11 @@ Updated: 2026-05-12 JST
 - `runbooks/CLUSTER02_SCHEDULING_AGENT.md`: scheduler agent.
 - `runbooks/M6_REFERENCE_DATASET_READBACK_PLAN.md`: readback gate.
 - `runbooks/M6_REFERENCE_DATASET_READBACK_20260510.md`: accepted M6 R1-R4 readback.
-- `runbooks/RETAINED_CORE_DETERMINISTIC_EVIDENCE_20260511.md`: first Newton and successful RATTLE/RG pass replay evidence.
+- `runbooks/RETAINED_CORE_DETERMINISTIC_EVIDENCE_20260511.md`: retained-core guardrail evidence, including the 2026-05-12 official package route census and RG reject identity/accounting addendum.
+- `runbooks/F14_PRODUCTION_REGENERATION_DECISION_PACKET_20260512.md`: current F14 decision packet.
+- `runbooks/DIAGNOSTICS_STATUS_ACCOUNTING_F4_DECISION_20260512.md`: F4 diagnostics/accounting decision packet.
+- `runbooks/SCHEMA_REFERENCE_F7_F8_DECISION_20260512.md`: F7/F8 schema/naming and reference-comparison decision packet.
+- `runbooks/FULL_HAIRER_ODEX_REOPEN_PLAN_20260512.md`: reopened F1/CV-007 full Hairer ODEX endpoint package and assist-off observable plan.
 - `runbooks/OFFICIAL_DFOLS_PRODUCTION_REDO_READBACK_20260512.md`: official DFO-LS 256seed/200k production-comparison redo readback.
 - `state/RETAINED_CORE_EVIDENCE.tsv`: retained-core evidence registry.
 - `state/M6_REFERENCE_PACKAGES.tsv`: package registry template.
@@ -41,4 +47,4 @@ Updated: 2026-05-12 JST
 
 ## Next Action
 
-Use `runbooks/MODERNIZATION_FORWARD_WORKSTEPS_20260511.md` as the active forward queue. F1 ODEX is accepted reduced scope and F2 official DFO-LS backend replacement is accepted for the current representative scope. The immediate next technical work is to continue F3 retained-core deterministic evidence with fixed-seed official-line route census, package-success route coverage, RG reject/live-state identity, and local-volume/branch-measure checks. Do not promote the current modernization branch into final production rerun status until the affected foundation and baseline gates are satisfied or explicitly accepted.
+Continue `runbooks/FULL_HAIRER_ODEX_REOPEN_PLAN_20260512.md`: audit and implement the standalone/full Hairer ODEX endpoint package boundary, then test whether disabling solver assist causes observable degeneracy. Do not promote the current modernization branch into final production rerun status while CV-007 is active.

@@ -1,5 +1,5 @@
 module markovchain_metropolis
-   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_quiet_nan, ieee_value
    use utils, only: dp
    use mt95, only: grnd
    use markovchain_transition_status, only: metropolis_status_accepted, metropolis_status_delta_h_invalid, &
@@ -13,7 +13,9 @@ module markovchain_metropolis
 
 contains
 
-   subroutine metropolis_step(x, z, j, total_step_size, num_steps, x_new, z_new, j_new, accept, proposal_failed, transition_status)
+   subroutine metropolis_step(x, z, j, total_step_size, num_steps, x_new, z_new, j_new, accept, proposal_failed, transition_status, &
+                              h_initial_out, h_final_out, delta_h_out, accept_probability_out, &
+                              initial_momentum_out, final_momentum_out)
       implicit none
 
       real(dp), intent(in) :: x(:)
@@ -28,6 +30,8 @@ contains
       logical, intent(out) :: accept
       logical, intent(out), optional :: proposal_failed
       integer, intent(out), optional :: transition_status
+      real(dp), intent(out), optional :: h_initial_out, h_final_out, delta_h_out, accept_probability_out
+      real(dp), intent(out), optional :: initial_momentum_out(:), final_momentum_out(:)
 
       real(dp) :: h_initial
       real(dp) :: h_final
@@ -40,6 +44,14 @@ contains
       accept = .false.
       if (present(proposal_failed)) proposal_failed = .false.
       if (present(transition_status)) transition_status = metropolis_status_rejected
+      h_initial = huge(1.0_dp)
+      h_final = huge(1.0_dp)
+      delta_h = huge(1.0_dp)
+      accept_probability = 0.0_dp
+      call publish_metropolis_diagnostics(h_initial, h_final, delta_h, accept_probability, &
+                                          h_initial_out, h_final_out, delta_h_out, accept_probability_out)
+      call clear_optional_momentum(initial_momentum_out)
+      call clear_optional_momentum(final_momentum_out)
 
       if (size(x_new) /= size(x) .or. size(z_new) /= size(z) .or. &
           size(j_new, 1) /= size(j, 1) .or. size(j_new, 2) /= size(j, 2)) then
@@ -49,10 +61,19 @@ contains
          return
       end if
 
+      x_new = x
+      z_new = z
+      j_new = j
+
       call integrate_hmc_proposal(x, z, total_step_size, num_steps, x_new, z_new, h_initial, h_final, j, j_new, &
-                                  proposal_ok, hmc_status)
+                                  proposal_ok, hmc_status, initial_momentum_out, final_momentum_out)
+      call publish_metropolis_diagnostics(h_initial, h_final, delta_h, accept_probability, &
+                                          h_initial_out, h_final_out, delta_h_out, accept_probability_out)
 
       if (.not. proposal_ok) then
+         x_new = x
+         z_new = z
+         j_new = j
          accept = .false.
          if (present(proposal_failed)) proposal_failed = .true.
          if (present(transition_status)) transition_status = metropolis_status_from_hmc_status(hmc_status)
@@ -60,6 +81,9 @@ contains
       end if
 
       if ((.not. ieee_is_finite(h_initial)) .or. (.not. ieee_is_finite(h_final))) then
+         x_new = x
+         z_new = z
+         j_new = j
          accept = .false.
          if (present(proposal_failed)) proposal_failed = .true.
          if (present(transition_status)) transition_status = metropolis_status_hamiltonian_invalid
@@ -68,9 +92,14 @@ contains
 
       delta_h = h_final - h_initial
       if (.not. ieee_is_finite(delta_h)) then
+         x_new = x
+         z_new = z
+         j_new = j
          accept = .false.
          if (present(proposal_failed)) proposal_failed = .true.
          if (present(transition_status)) transition_status = metropolis_status_delta_h_invalid
+         call publish_metropolis_diagnostics(h_initial, h_final, delta_h, accept_probability, &
+                                             h_initial_out, h_final_out, delta_h_out, accept_probability_out)
          return
       end if
 
@@ -79,6 +108,8 @@ contains
       else
          accept_probability = exp(-delta_h)
       end if
+      call publish_metropolis_diagnostics(h_initial, h_final, delta_h, accept_probability, &
+                                          h_initial_out, h_final_out, delta_h_out, accept_probability_out)
 
       rand = grnd()
       if (accept_probability >= 1.0_dp .or. rand <= accept_probability) then
@@ -89,6 +120,23 @@ contains
          if (present(transition_status)) transition_status = metropolis_status_rejected
       end if
    end subroutine metropolis_step
+
+   subroutine publish_metropolis_diagnostics(h_initial, h_final, delta_h, accept_probability, &
+                                             h_initial_out, h_final_out, delta_h_out, accept_probability_out)
+      real(dp), intent(in) :: h_initial, h_final, delta_h, accept_probability
+      real(dp), intent(out), optional :: h_initial_out, h_final_out, delta_h_out, accept_probability_out
+
+      if (present(h_initial_out)) h_initial_out = h_initial
+      if (present(h_final_out)) h_final_out = h_final
+      if (present(delta_h_out)) delta_h_out = delta_h
+      if (present(accept_probability_out)) accept_probability_out = accept_probability
+   end subroutine publish_metropolis_diagnostics
+
+   subroutine clear_optional_momentum(momentum_out)
+      real(dp), intent(out), optional :: momentum_out(:)
+
+      if (present(momentum_out)) momentum_out = ieee_value(0.0_dp, ieee_quiet_nan)
+   end subroutine clear_optional_momentum
 
    pure integer function metropolis_status_from_hmc_status(hmc_status) result(status)
       integer, intent(in) :: hmc_status

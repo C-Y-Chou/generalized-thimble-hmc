@@ -7,6 +7,7 @@ program test_retained_core_qn_route_contract
    use quasi_newton_solver_mod, only: evaluate_constraint_residual, get_qn_official_dfols_policy, &
                                       get_quasi_newton_last_trace_r2c, qn_backend_official_dfols, &
                                       solve_constraint_quasi_newton
+   use runtime_env_mod, only: parse_logical_env
    use solve_flow, only: flow, flowzr, intode_status_is_strict_success, intode_status_unknown
    use utils, only: complex_to_real, dp, real_to_complex, x_set_flow_time, x_set_seed_real
    implicit none
@@ -42,6 +43,7 @@ program test_retained_core_qn_route_contract
 
    call check_btn_paper_residual(x, z, jac, del_z, xi, fq, Jl, failures)
    call check_official_route_contract(x, z, jac, del_z, Jl_solver, x_new, x_best, failures)
+   call check_official_route_census(x, z, jac, dV, Jl_solver, x_new, x_best, failures)
 
    deallocate (seed, x, z, jac)
    deallocate (del_z, dV, E0_real, E0_perp)
@@ -133,7 +135,8 @@ contains
       real(dp), intent(inout) :: Jl(:), x_new(:), x_best(:)
       integer, intent(inout) :: failures
 
-      logical :: ierr, available, ok_policy, ok_trace, has_eval_ok
+      logical :: ierr, available, ok_policy, ok_trace, ok_package_success, expect_package_success
+      logical :: has_eval_ok, has_accepted
       integer :: backend_code, npt, maxfun, proposal_count, idx
       logical :: objfun_has_noise
       real(dp) :: rhobeg, rhoend, model_abs_tol, model_rel_tol
@@ -145,6 +148,8 @@ contains
       call get_qn_official_dfols_policy(backend_code, npt, maxfun, objfun_has_noise, &
                                         rhobeg, rhoend, model_abs_tol, model_rel_tol)
       ok_policy = backend_code == qn_backend_official_dfols .and. npt == 4 .and. maxfun == 250 .and. objfun_has_noise
+      expect_package_success = .false.
+      call parse_logical_env("QN_ROUTE_CONTRACT_EXPECT_PACKAGE_SUCCESS", expect_package_success)
 
       call solve_constraint_quasi_newton(evaluate_constraint_residual, cttol, 28, x, z, del_z, ierr, Jl, x_new, jac, &
                                          x_best_solution=x_best)
@@ -152,21 +157,27 @@ contains
                                            iter_idx, backtrack_idx, attempt_idx, accepted, eval_ok, route_code)
 
       has_eval_ok = .false.
+      has_accepted = .false.
       ok_trace = available .and. proposal_count >= 1
       if (ok_trace) then
          do idx = 1, proposal_count
             ok_trace = ok_trace .and. route_code(idx) == 10 .and. attempt_idx(idx) == 1
             has_eval_ok = has_eval_ok .or. eval_ok(idx)
+            has_accepted = has_accepted .or. accepted(idx)
          end do
       end if
       ok_trace = ok_trace .and. has_eval_ok
+      ok_package_success = (.not. expect_package_success) .or. ((.not. ierr) .and. has_accepted)
 
       write (*, '(A,L1,A,I0,A,I0,A,L1,A,L1)') "[CHECK] official_qn_route_policy ok=", ok_policy, &
          " npt=", npt, " maxfun=", maxfun, " noise=", objfun_has_noise, " ierr=", ierr
       write (*, '(A,L1,A,L1,A,I0,A,L1)') "[CHECK] official_qn_route_trace ok=", ok_trace, &
          " available=", available, " proposal_count=", proposal_count, " has_eval_ok=", has_eval_ok
+      write (*, '(A,L1,A,L1,A,L1,A,L1)') "[CHECK] official_qn_package_success ok=", ok_package_success, &
+         " expect=", expect_package_success, " ierr=", ierr, " has_accepted=", has_accepted
       if (.not. ok_policy) failures = failures + 1
       if (.not. ok_trace) failures = failures + 1
+      if (.not. ok_package_success) failures = failures + 1
 
       if (allocated(z_proposed)) deallocate (z_proposed)
       if (allocated(z_flowed)) deallocate (z_flowed)
@@ -179,5 +190,76 @@ contains
       if (allocated(accepted)) deallocate (accepted)
       if (allocated(eval_ok)) deallocate (eval_ok)
    end subroutine check_official_route_contract
+
+   subroutine check_official_route_census(x, z, jac, dV, Jl, x_new, x_best, failures)
+      real(dp), intent(in) :: x(:), dV(:)
+      complex(dp), intent(in) :: z(:), jac(:, :)
+      real(dp), intent(inout) :: Jl(:), x_new(:), x_best(:)
+      integer, intent(inout) :: failures
+
+      real(dp), parameter :: step_sizes(3) = (/0.002_dp, 0.003_dp, 0.004_dp/)
+      real(dp), allocatable :: del_z_case(:), residual_norm(:), alpha(:)
+      complex(dp), allocatable :: z_proposed(:), z_flowed(:)
+      integer, allocatable :: iter_idx(:), backtrack_idx(:), attempt_idx(:), route_code(:)
+      logical, allocatable :: accepted(:), eval_ok(:)
+      logical :: ierr, available, expect_package_success
+      logical :: all_route10, any_eval_ok, any_accepted, case_ok, ok
+      integer :: case_idx, proposal_count, idx, route10_cases, success_cases, accepted_cases
+
+      allocate (del_z_case(size(dV)))
+      expect_package_success = .false.
+      call parse_logical_env("QN_ROUTE_CONTRACT_EXPECT_PACKAGE_SUCCESS", expect_package_success)
+      route10_cases = 0
+      success_cases = 0
+      accepted_cases = 0
+
+      do case_idx = 1, size(step_sizes)
+         del_z_case = -step_sizes(case_idx)**2*dV
+         call solve_constraint_quasi_newton(evaluate_constraint_residual, cttol, 28, x, z, del_z_case, ierr, Jl, x_new, jac, &
+                                            x_best_solution=x_best)
+         call get_quasi_newton_last_trace_r2c(available, proposal_count, z_proposed, z_flowed, residual_norm, alpha, &
+                                              iter_idx, backtrack_idx, attempt_idx, accepted, eval_ok, route_code)
+
+         all_route10 = available .and. proposal_count >= 1
+         any_eval_ok = .false.
+         any_accepted = .false.
+         if (available) then
+            do idx = 1, proposal_count
+               all_route10 = all_route10 .and. route_code(idx) == 10 .and. attempt_idx(idx) == 1
+               any_eval_ok = any_eval_ok .or. eval_ok(idx)
+               any_accepted = any_accepted .or. accepted(idx)
+            end do
+         end if
+         case_ok = all_route10 .and. any_eval_ok
+         if (expect_package_success) case_ok = case_ok .and. (.not. ierr) .and. any_accepted
+         if (all_route10 .and. any_eval_ok) route10_cases = route10_cases + 1
+         if (.not. ierr) success_cases = success_cases + 1
+         if (any_accepted) accepted_cases = accepted_cases + 1
+
+         write (*, '(A,I0,A,L1,A,ES10.3,A,I0,A,L1,A,L1,A,L1)') "[CHECK] official_qn_route_census_case idx=", &
+            case_idx, " ok=", case_ok, " step=", step_sizes(case_idx), " proposals=", proposal_count, &
+            " route10=", all_route10, " ierr=", ierr, " accepted=", any_accepted
+
+         if (allocated(z_proposed)) deallocate (z_proposed)
+         if (allocated(z_flowed)) deallocate (z_flowed)
+         if (allocated(residual_norm)) deallocate (residual_norm)
+         if (allocated(alpha)) deallocate (alpha)
+         if (allocated(iter_idx)) deallocate (iter_idx)
+         if (allocated(backtrack_idx)) deallocate (backtrack_idx)
+         if (allocated(attempt_idx)) deallocate (attempt_idx)
+         if (allocated(route_code)) deallocate (route_code)
+         if (allocated(accepted)) deallocate (accepted)
+         if (allocated(eval_ok)) deallocate (eval_ok)
+      end do
+
+      ok = route10_cases == size(step_sizes)
+      if (expect_package_success) ok = ok .and. success_cases == size(step_sizes) .and. accepted_cases == size(step_sizes)
+      write (*, '(A,L1,A,I0,A,I0,A,I0,A,L1)') "[CHECK] official_qn_route_census_summary ok=", ok, &
+         " route10_cases=", route10_cases, " success_cases=", success_cases, &
+         " accepted_cases=", accepted_cases, " expect_package_success=", expect_package_success
+      if (.not. ok) failures = failures + 1
+
+      deallocate (del_z_case)
+   end subroutine check_official_route_census
 
 end program test_retained_core_qn_route_contract
