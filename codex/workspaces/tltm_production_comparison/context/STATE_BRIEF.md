@@ -7,6 +7,7 @@ Updated: 2026-05-12 JST
 - `PCB-001` is resolved as of 2026-05-12 JST.
 - `src/apps/probe_hmc_volume.f90` was moved out of the canonical modernization source root to `codex/workspaces/tltm_production_comparison/diagnostics/probe_hmc_volume.f90`.
 - Production-comparison diagnostics may continue from their own boundary, but must not be promoted into modernization source/build roots without a separate reviewed task.
+- `PCB-002` is resolved as of 2026-05-12 JST: exact accepted-QN replay, local metric-volume replay, reverse replay, window/block diagnostics, and counter-correlation readback completed before the modernization-head pre-redo gate.
 
 ## Current Position
 
@@ -23,6 +24,7 @@ Updated: 2026-05-12 JST
 - On 2026-05-12, `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb` had no active PBS jobs remaining and had a merged `REPORT.md` plus `combined_summary_table.csv`. It was generated under production-comparison commit `c0e4021`; treat it as completed provisional production-comparison evidence, not a rerun after the latest modernization HEAD and not final publication data.
 - On 2026-05-12, the active official DFO-LS provisional outputs were frozen as pre-redo / old-code evidence. Read `runbooks/OUTPUT_NAMESPACE_FREEZE_20260512.md` and `state/OUTPUT_INVENTORY_20260512.tsv` before creating any new production-comparison output.
 - New modernization-head redo outputs must not reuse or extend the old `output/production_comparison/provisional/official_dfols_*` roots. Use `output/production_comparison/pre_redo/<campaign>` and mirror logs under `output/logs/production_comparison/pre_redo/<campaign>`.
+- On 2026-05-12, modernization-head pre-redo campaign `official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_t035_L2_nstep20_rg_nofb_withfb` was submitted from production worktree commit `a22de1c19633793cf9c3ff7037b7cbc399e1b568` with solver assist off. At the 18:32 JST refresh, jobs `14951` and `14952` were running and merge job `14953` was held.
 
 ## Important Correction
 
@@ -44,20 +46,14 @@ Updated: 2026-05-12 JST
 
 Current live campaign:
 
-0. Boundary blocker `PCB-001` is resolved; continue QN route-bias diagnostics from production-comparison-only paths.
-1. `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb` completed with report available.
-2. Report target: `output/production_comparison/provisional/official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb/REPORT.md`.
-3. Readback: `nofb` Zmean Re `1.0466`, Zmean Im `-0.6680`; `withfb` Zmean Re `1.9730`, Zmean Im `-0.6780`.
-4. Solver counters favor `withfb`: unresolved failures `618706` vs `3846795`; RG rejects `510906` vs `607777`.
-5. Interpretation: `withfb` strongly improves failure counters but has larger positive Re Zmean than `nofb`, so discuss whether to extend statistics or diagnose residual systematic shift before calling this final production.
-6. User correction: this is not an official-DFO-LS-only issue; the old in-house p28 line already showed the same qualitative problem. Diagnose QN/fallback route correctness before more production.
-7. New event-level diagnostic exists: `TLTM_LOCAL_TRANSITION_AUDIT_FILE` / `TLTM_LOCAL_TRANSITION_AUDIT_BASE_DIR`. It now records optional chart coordinates `q_initial,c_initial,q_proposal,c_proposal,q_after` for exact accepted-QN replay. Read `runbooks/QN_ROUTE_BIAS_DIAGNOSTICS_20260512.md`.
-8. Current production-codex work is QN route-bias/event-capture diagnostics, not modernization ODEX or final production regeneration.
-9. Exact accepted-QN replay completed locally: REVCHK passed, local metric-volume replay passed, and reverse replay returned to original chart coordinates at `~1e-11`. This lowers the priority of a direct QN/RATTLE detailed-balance bug.
-10. 256seed/200k paired method comparison is now quantified: `fb_norefine - no_fb = +0.001507680595551813 +/- 0.002768615480051937` (paired SE), t=`0.5446`, positive/negative seed differences `131/125`. The apparent `withfb` worse Zmean is not significant in direct paired comparison.
-11. Window/block diagnostic completed at `codex/workspaces/tltm_production_comparison/diagnostics/window_bias_256seed_200k_20260512`. Recomputed ratios match per-seed summaries to `O(1e-15)`. Four 50k windows show `fb_norefine` Re Zmean concentrated in middle windows (`1.76`, `1.37`) and near zero in the final window (`-0.035`); paired fb-nofb 50k differences are not significant.
-12. Twenty 10k windows: `fb_norefine` positive mean Re in `12/20`, `no_fb` in `9/20`, paired mean differences positive/negative `10/10`. This does not support a stable one-way fb degradation.
-13. Counter correlations are strong for both methods, not only fb: `fb_norefine` Re vs fallback trigger `r=0.6600`, but `no_fb` Re vs unresolved failures `r=0.7251`. Treat counters as hard-region/slow-mixing indicators unless a more direct route-causality test contradicts this.
-14. Current diagnosis: long-autocorrelation/hard-region finite-window sampling is more plausible than direct QN detailed-balance or volume failure. Next production-scale decision should focus on longer-cycle/windowed continuation, not just more seeds.
-15. Output namespace freeze is active: existing 2026-05-11 official DFO-LS outputs are frozen pre-redo provisional evidence. The next modernization-head run must use a new `pre_redo/` campaign root with short commit SHA in the name.
-16. Before any new production submission, confirm no active pinned jobs depend on `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.
+1. Production prework is complete for this step: `PCB-001` and `PCB-002` are resolved.
+2. Submitted campaign: `official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_t035_L2_nstep20_rg_nofb_withfb`.
+3. Dataset id: `prodcomp_preredo_a22de1c_10seed_10k_20260512`.
+4. Config: `docs/production_comparison_official_dfols_preredo_10seed_10k_nofb_withfb.json`.
+5. Output root: `output/production_comparison/pre_redo/official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_t035_L2_nstep20_rg_nofb_withfb`.
+6. Log root: `output/logs/production_comparison/pre_redo/official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_t035_L2_nstep20_rg_nofb_withfb`.
+7. Production worktree commit: `a22de1c19633793cf9c3ff7037b7cbc399e1b568`.
+8. Assist policy: solver assist default off, `INTODE_SOLVER_ASSIST_ENABLED=0`.
+9. Jobs: preflight `14950` completed before the 18:32 JST refresh; `14951` and `14952` are running; merge `14953` is held.
+10. The production worktree has active pinned jobs and `safe_to_fast_forward=no`; do not sync or fast-forward it until the pre-redo readback finishes.
+11. Next action: monitor jobs `14951/14952/14953`, merge/read back the report, then decide the next production scale-up from the pre_redo result.

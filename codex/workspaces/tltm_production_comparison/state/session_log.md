@@ -218,6 +218,21 @@ Use this file to append per-session notes.
   - only then submit full 1024-seed production.
 
 ## 2026-05-08 JST
+
+## 2026-05-12 18:27 JST
+- Goal: sync production-comparison worktree to current modernization-head official DFO-LS code and submit the first pre-redo production gate.
+- Campaign: `official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_t035_L2_nstep20_rg_nofb_withfb`.
+- Dataset id: `prodcomp_preredo_a22de1c_10seed_10k_20260512`.
+- Config: `docs/production_comparison_official_dfols_preredo_10seed_10k_nofb_withfb.json`.
+- Remote worktree: `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.
+- Branch/commit: `codex/tltm-production-comparison-official-dfols` at `a22de1c19633793cf9c3ff7037b7cbc399e1b568`.
+- Methods: matched `no_fb` canonical `nofb` and `fb_norefine` canonical `withfb`.
+- Env vars: official DFO-LS backend, `stable_gate77`, RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`, `INTODE_SOLVER_ASSIST_ENABLED=0`.
+- Output dir: `output/production_comparison/pre_redo/official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_t035_L2_nstep20_rg_nofb_withfb`.
+- Logs dir: `output/logs/production_comparison/pre_redo/official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_t035_L2_nstep20_rg_nofb_withfb`.
+- Submission: preflight `14950`, nofb method job `14951`, withfb method job `14952`, merge/report job `14953`.
+- Status at 18:32 JST refresh: preflight no longer live in queue; `14951` and `14952` running on `C8`; `14953` held for dependencies.
+- Next action: monitor `14951/14952/14953`, read back merged report, and do not sync/fast-forward the production worktree while these active pinned jobs remain.
 - Pre-production validation completed and inspected.
 - Report:
   - `output/tests/stage3_4/preprod_validation_20260507_10seed_10k_p28_rg/s34_preprod_validation_20260507_p28_rg_report.md`

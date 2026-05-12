@@ -1,7 +1,7 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-12T18:01:21+09:00
-Remote refreshed: 2026-05-12T18:00:06+09:00
+Generated: 2026-05-12T18:33:42+09:00
+Remote refreshed: 2026-05-12T18:32:26+09:00
 
 ## Canonical Entry
 
@@ -23,7 +23,7 @@ Remote refreshed: 2026-05-12T18:00:06+09:00
 
 ## Active Remote Risk
 
-- No unsafe worktree recorded in the latest registry. If cache is stale, refresh before acting.
+- `tltm_production_comparison_provisional`: branch `codex/tltm-production-comparison-official-dfols`, commit `a22de1c19633793cf9c3ff7037b7cbc399e1b568`, 3 active jobs, examples: 14951.anode01,14952.anode01,14953.anode01, pinned `a22de1c19633793cf9c3ff7037b7cbc399e1b568`. Do not fast-forward.
 
 ## Active Local Risk
 
@@ -31,7 +31,9 @@ Remote refreshed: 2026-05-12T18:00:06+09:00
 
 ## Active/Pending Jobs
 
-- No active jobs in `codex/state/JOBS.tsv`.
+- `14951.anode01` `pc_pre10_m` queue `C8` state `R` dataset `prodcomp_preredo_a22de1c_10seed_10k_20260512`.
+- `14952.anode01` `pc_pre10_m` queue `C8` state `R` dataset `prodcomp_preredo_a22de1c_10seed_10k_20260512`.
+- `14953.anode01` `pc_pre10_mg` queue `C8` state `H` dataset `prodcomp_preredo_a22de1c_10seed_10k_20260512`.
 
 ## Active/Decision Caveats
 
@@ -52,6 +54,7 @@ Remote refreshed: 2026-05-12T18:00:06+09:00
 - `CP-010` status `active` control_plane: Keep material caveats in the caveat register before changing work scope Next: Run the caveat audit steps, update CAVEATS.tsv, and add blocking caveats to OPEN_ITEMS.tsv before major workflow continuation
 - `CP-011` status `active` kernel_correctness_audit: Decide the official-DFO-LS-line kernel correctness gate before final publication production Next: Current official DFO-LS gates may continue as provisional, but final publication production needs the CV-001 correctness gate or explicit accepted limitation
 - `CP-012` status `active` tltm_production_comparison: Maintain provisional-vs-final production boundary Next: Official DFO-LS c0e4021 256seed/200k production-comparison artifact has completed and merged, but it is not a rerun after the latest modernization HEAD and remains provisional until final wrapper/schema/naming/counter conventions are frozen or final regeneration is scheduled
+- `CP-015` status `active` tltm_production_comparison: Monitor modernization-head production pre-redo gate Next: Campaign prodcomp_preredo_a22de1c_10seed_10k_20260512 is submitted from production worktree commit a22de1c with assist off; monitor jobs 14951/14952/14953 and read back the pre_redo report before any further production sync
 - `FM-001` status `active` fortran_modernization: Reset modernization around foundation completeness Next: Treat M6 as a behavior baseline, not completed foundation; use FOUNDATION_COMPLETENESS_RESET_20260511 before any source modernization step
 - `FM-002` status `active` fortran_modernization: Fix DFO-LS evidence and implementation boundary Next: Separate historical in-house/DFO-LS-style evidence from official-package evidence, then finish official solver integration/preset work before final claims
 - `FM-003` status `active` fortran_modernization: Complete the ODEX assist-off observable decision Next: CV-007 package work is implemented locally: standalone endpoint backend, Hairer IWORK(3)=3 package contract, conservative stability-control surface, and wrapper guardrails pass. Remaining action is the larger official DFO-LS assist-on/off observable gate before F14 production regeneration. Dense output is out of scope.

@@ -1,1 +1,4 @@
 refreshed_at_jst	job_id	name	queue	state	worktree	expected_commit	dataset	action_needed	notes
+2026-05-12T18:32:26+09:00	14951.anode01	pc_pre10_m	C8	R	/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison	a22de1c19633793cf9c3ff7037b7cbc399e1b568	prodcomp_preredo_a22de1c_10seed_10k_20260512	monitor	cnode17/0*10
+2026-05-12T18:32:26+09:00	14952.anode01	pc_pre10_m	C8	R	/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison	a22de1c19633793cf9c3ff7037b7cbc399e1b568	prodcomp_preredo_a22de1c_10seed_10k_20260512	monitor	cnode17/1*10
+2026-05-12T18:32:26+09:00	14953.anode01	pc_pre10_mg	C8	H	/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison	a22de1c19633793cf9c3ff7037b7cbc399e1b568	prodcomp_preredo_a22de1c_10seed_10k_20260512	monitor	1:ncpus=1:mpiprocs=1:mem=4gb

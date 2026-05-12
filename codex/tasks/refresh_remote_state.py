@@ -190,15 +190,25 @@ def same_or_truncated_path(lhs: str, rhs: str) -> bool:
     return len(lhs) >= 16 and rhs.startswith(lhs)
 
 
+def normalize_worktree_path(path: str, candidates: List[str]) -> str:
+    for candidate in sorted(candidates, key=len, reverse=True):
+        if same_or_truncated_path(path, candidate):
+            return candidate
+    return path
+
+
 def main() -> int:
     root = repo_root()
     codex = root / "codex"
     targets_path = codex / "state" / "REMOTE_TARGETS.tsv"
+    datasets_path = codex / "state" / "DATASETS.tsv"
     live_path = codex / "state" / "REMOTE_LIVE_CACHE.json"
     worktrees_path = codex / "state" / "WORKTREES.tsv"
     jobs_path = codex / "state" / "JOBS.tsv"
     events_path = codex / "logs" / "REMOTE_EVENTS.tsv"
     targets = read_tsv(targets_path)
+    datasets = read_tsv(datasets_path)
+    dataset_commits = {row["dataset_id"]: row.get("commit", "NA") for row in datasets}
     now = jst_now()
 
     grouped: Dict[Tuple[str, str], List[Dict[str, str]]] = defaultdict(list)
@@ -224,9 +234,17 @@ def main() -> int:
 
         jobs = parsed.get("jobs", [])
         if isinstance(jobs, list):
+            target_paths = [row["worktree_path"] for row in host_targets]
             for job in jobs:
                 if isinstance(job, dict):
                     job["host"] = host
+                    job["worktree"] = normalize_worktree_path(clean(job.get("worktree")), target_paths)
+                    dataset_id = infer_dataset(clean(job.get("Job_Name")))
+                    job["dataset"] = dataset_id
+                    if clean(job.get("expected_commit")) == "NA":
+                        commit = dataset_commits.get(dataset_id, "NA")
+                        if commit not in {"", "NA", "unknown"}:
+                            job["expected_commit"] = commit
                     all_jobs.append(job)
 
         parsed_worktrees = parsed.get("worktrees", {})
@@ -288,7 +306,7 @@ def main() -> int:
                 "state": clean(job.get("job_state")),
                 "worktree": clean(job.get("worktree")),
                 "expected_commit": clean(job.get("expected_commit")),
-                "dataset": infer_dataset(clean(job.get("Job_Name"))),
+                "dataset": clean(job.get("dataset") or infer_dataset(clean(job.get("Job_Name")))),
                 "action_needed": infer_action(clean(job.get("job_state"))),
                 "notes": clean(job.get("exec_host") or job.get("Exit_status") or job.get("Resource_List.select")),
             }
@@ -353,6 +371,8 @@ def main() -> int:
 
 
 def infer_dataset(name: str) -> str:
+    if name in {"dfols_preflight", "pc_pre10_m", "pc_pre10_mg"}:
+        return "prodcomp_preredo_a22de1c_10seed_10k_20260512"
     if name.startswith("pc32_"):
         return "official_dfols_gate_20260511_32seed_50k"
     if name.startswith("m6R1"):
