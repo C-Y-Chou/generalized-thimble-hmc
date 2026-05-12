@@ -63,16 +63,18 @@ module tltm_stage2_driver
       integer(int64) :: reverse_gate_reject_total = 0_int64
    end type solver_counter_snapshot_t
 
-   logical, save :: rg_reject_audit_loaded = .false.
-   logical, save :: rg_reject_audit_enabled = .false.
-   integer, save :: rg_reject_audit_unit = -1
-   character(len=512), save :: rg_reject_audit_file = ""
-   logical, save :: local_transition_audit_loaded = .false.
-   logical, save :: local_transition_audit_enabled = .false.
-   integer, save :: local_transition_audit_unit = -1
-   integer, save :: local_transition_audit_max_rows = 200000
-   integer(int64), save :: local_transition_audit_rows = 0_int64
-   character(len=512), save :: local_transition_audit_file = ""
+   type :: stage2_audit_context_t
+      logical :: rg_reject_audit_loaded = .false.
+      logical :: rg_reject_audit_enabled = .false.
+      integer :: rg_reject_audit_unit = -1
+      character(len=512) :: rg_reject_audit_file = ""
+      logical :: local_transition_audit_loaded = .false.
+      logical :: local_transition_audit_enabled = .false.
+      integer :: local_transition_audit_unit = -1
+      integer :: local_transition_audit_max_rows = 200000
+      integer(int64) :: local_transition_audit_rows = 0_int64
+      character(len=512) :: local_transition_audit_file = ""
+   end type stage2_audit_context_t
 
    type :: local_accept_census_t
       integer(int64) :: accepted_total = 0_int64
@@ -100,6 +102,7 @@ contains
       type(tltm_label_track_t), allocatable :: label_tracks(:)
       type(local_accept_census_t), allocatable :: local_accept_census(:)
       type(tltm_run_context_t), allocatable :: run_contexts(:)
+      type(stage2_audit_context_t) :: audit_context
       type(mt95_state_t) :: swap_rng_state
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file, label_trace_file
@@ -308,7 +311,7 @@ contains
       do cycle_idx = 1, cycle_count
          do i = 1, n_slots
             slot_t0 = wall_time_seconds()
-            call run_local_updates(slots(i), local_updates, local_accept_census(i), cycle_idx, run_contexts(i))
+            call run_local_updates(slots(i), local_updates, local_accept_census(i), cycle_idx, run_contexts(i), audit_context)
             slots(i)%local_runtime = slots(i)%local_runtime + (wall_time_seconds() - slot_t0)
          end do
 
@@ -329,6 +332,7 @@ contains
                close (unit_cold_z)
                close (unit_cold_phi)
                if (write_all_history) call close_all_replica_history_files(all_z_units, all_phi_units)
+               call close_stage2_audit_context(audit_context)
                call release_all_run_contexts(run_contexts)
                call release_all_slots(slots)
                if (allocated(flow_ladder)) deallocate (flow_ladder)
@@ -346,6 +350,7 @@ contains
                   close (unit_cold_phi)
                end if
                call close_all_replica_history_files(all_z_units, all_phi_units)
+               call close_stage2_audit_context(audit_context)
                call release_all_run_contexts(run_contexts)
                call release_all_slots(slots)
                if (allocated(flow_ladder)) deallocate (flow_ladder)
@@ -439,8 +444,7 @@ contains
       if (write_v1_package) then
          write (*, '(A,1X,A)') "[DONE][TLTM-S2] v1alpha diagnostics package written under", trim(v1_output_dir)
       end if
-      call close_rg_reject_audit()
-      call close_local_transition_audit()
+      call close_stage2_audit_context(audit_context)
    end subroutine execute_tltm_stage2
 
    subroutine initialize_slot(slot, init_sigma, max_attempts, init_mode, ok)
@@ -497,12 +501,13 @@ contains
       if (allocated(x_seed)) deallocate (x_seed)
    end subroutine initialize_slot
 
-   subroutine run_local_updates(slot, local_updates, accept_census, cycle_idx, run_context)
+   subroutine run_local_updates(slot, local_updates, accept_census, cycle_idx, run_context, audit_context)
       type(tltm_slot_t), intent(inout) :: slot
       integer, intent(in) :: local_updates
       type(local_accept_census_t), intent(inout) :: accept_census
       integer, intent(in) :: cycle_idx
       type(tltm_run_context_t), intent(inout) :: run_context
+      type(stage2_audit_context_t), intent(inout) :: audit_context
 
       integer :: update_idx, z_size
       real(dp), allocatable :: x_new(:), x_before(:), initial_momentum(:), final_momentum(:)
@@ -536,10 +541,10 @@ contains
             call accumulate_accepted_local_census(accept_census, solver_before, solver_after)
          end if
          call record_tltm_local_transition(slot, accepted, proposal_failed, transition_status)
-         call record_rg_reject_audit(cycle_idx, slot%slot_id, update_idx, x_before, z_before, j_before, &
+         call record_rg_reject_audit(audit_context, cycle_idx, slot%slot_id, update_idx, x_before, z_before, j_before, &
                                      slot%x, slot%z, slot%jac, x_new, z_new, j_new, accepted, proposal_failed, &
                                      transition_status, solver_before, solver_after)
-         call record_local_transition_audit(cycle_idx, slot%slot_id, update_idx, accepted, proposal_failed, transition_status, &
+         call record_local_transition_audit(audit_context, cycle_idx, slot%slot_id, update_idx, accepted, proposal_failed, transition_status, &
                                             h_initial, h_final, delta_h, accept_probability, x_before, x_new, slot%x, &
                                             j_before, j_new, initial_momentum, final_momentum, solver_before, solver_after)
       end do
@@ -555,9 +560,10 @@ contains
       if (allocated(j_before)) deallocate (j_before)
    end subroutine run_local_updates
 
-   subroutine record_rg_reject_audit(cycle_idx, slot_id, update_idx, x_before, z_before, j_before, &
+   subroutine record_rg_reject_audit(audit_context, cycle_idx, slot_id, update_idx, x_before, z_before, j_before, &
                                      x_after, z_after, j_after, x_proposal, z_proposal, j_proposal, &
                                      accepted, proposal_failed, transition_status, solver_before, solver_after)
+      type(stage2_audit_context_t), intent(inout) :: audit_context
       integer, intent(in) :: cycle_idx, slot_id, update_idx
       real(dp), intent(in) :: x_before(:), x_after(:), x_proposal(:)
       complex(dp), intent(in) :: z_before(:), z_after(:), z_proposal(:)
@@ -570,8 +576,8 @@ contains
       real(dp) :: slot_dx, slot_dz, slot_dj
       real(dp) :: proposal_dx, proposal_dz, proposal_dj
 
-      call load_rg_reject_audit_config()
-      if (.not. rg_reject_audit_enabled) return
+      call load_rg_reject_audit_config(audit_context)
+      if (.not. audit_context%rg_reject_audit_enabled) return
 
       rg_candidate_delta = solver_after%reverse_gate_candidate_total - solver_before%reverse_gate_candidate_total
       rg_pass_delta = solver_after%reverse_gate_pass_total - solver_before%reverse_gate_pass_total
@@ -585,53 +591,57 @@ contains
       proposal_dz = maxabs_complex_vec_stage2(z_proposal - z_before)
       proposal_dj = maxabs_complex_mat_stage2(j_proposal - j_before)
 
-      write (rg_reject_audit_unit, &
+      write (audit_context%rg_reject_audit_unit, &
              '(I0,",",I0,",",I0,",",L1,",",L1,",",I0,",",I0,",",I0,",",I0,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16,",",ES24.16)') &
          cycle_idx, slot_id, update_idx, accepted, proposal_failed, transition_status, rg_candidate_delta, rg_pass_delta, rg_reject_delta, &
          slot_dx, slot_dz, slot_dj, proposal_dx, proposal_dz, proposal_dj
-      flush (rg_reject_audit_unit)
+      flush (audit_context%rg_reject_audit_unit)
    end subroutine record_rg_reject_audit
 
-   subroutine load_rg_reject_audit_config()
+   subroutine load_rg_reject_audit_config(audit_context)
+      type(stage2_audit_context_t), intent(inout) :: audit_context
       character(len=512) :: env_value
       integer :: io_status
       logical :: has_audit_file
 
-      if (rg_reject_audit_loaded) return
-      rg_reject_audit_loaded = .true.
+      if (audit_context%rg_reject_audit_loaded) return
+      audit_context%rg_reject_audit_loaded = .true.
 
       env_value = ""
       call read_string_env("TLTM_RG_REJECT_AUDIT_FILE", env_value, has_audit_file)
       if (.not. has_audit_file) return
 
-      rg_reject_audit_file = trim(env_value)
-      open (newunit=rg_reject_audit_unit, file=trim(rg_reject_audit_file), status='replace', action='write', iostat=io_status)
+      audit_context%rg_reject_audit_file = trim(env_value)
+      open (newunit=audit_context%rg_reject_audit_unit, file=trim(audit_context%rg_reject_audit_file), status='replace', action='write', iostat=io_status)
       if (io_status /= 0) then
-         write (*, '(A,1X,A)') "[WARN][TLTM-S2] Cannot open RG reject audit file:", trim(rg_reject_audit_file)
-         rg_reject_audit_enabled = .false.
-         rg_reject_audit_unit = -1
+         write (*, '(A,1X,A)') "[WARN][TLTM-S2] Cannot open RG reject audit file:", trim(audit_context%rg_reject_audit_file)
+         audit_context%rg_reject_audit_enabled = .false.
+         audit_context%rg_reject_audit_unit = -1
          return
       end if
 
-      rg_reject_audit_enabled = .true.
-      write (rg_reject_audit_unit, '(A)') &
+      audit_context%rg_reject_audit_enabled = .true.
+      write (audit_context%rg_reject_audit_unit, '(A)') &
          "cycle,slot_id,update_idx,accepted,proposal_failed,transition_status,rg_candidate_delta,rg_pass_delta,rg_reject_delta,"// &
          "slot_dx,slot_dz,slot_dj,proposal_dx,proposal_dz,proposal_dj"
-      flush (rg_reject_audit_unit)
-      write (*, '(A,1X,A)') "[INFO][TLTM-S2] RG reject audit file:", trim(rg_reject_audit_file)
+      flush (audit_context%rg_reject_audit_unit)
+      write (*, '(A,1X,A)') "[INFO][TLTM-S2] RG reject audit file:", trim(audit_context%rg_reject_audit_file)
    end subroutine load_rg_reject_audit_config
 
-   subroutine close_rg_reject_audit()
-      if (rg_reject_audit_enabled .and. rg_reject_audit_unit > 0) then
-         close (rg_reject_audit_unit)
+   subroutine close_rg_reject_audit(audit_context)
+      type(stage2_audit_context_t), intent(inout) :: audit_context
+
+      if (audit_context%rg_reject_audit_enabled .and. audit_context%rg_reject_audit_unit > 0) then
+         close (audit_context%rg_reject_audit_unit)
       end if
-      rg_reject_audit_enabled = .false.
-      rg_reject_audit_unit = -1
+      audit_context%rg_reject_audit_enabled = .false.
+      audit_context%rg_reject_audit_unit = -1
    end subroutine close_rg_reject_audit
 
-   subroutine record_local_transition_audit(cycle_idx, slot_id, update_idx, accepted, proposal_failed, transition_status, &
+   subroutine record_local_transition_audit(audit_context, cycle_idx, slot_id, update_idx, accepted, proposal_failed, transition_status, &
                                            h_initial, h_final, delta_h, accept_probability, x_before, x_proposal, x_after, &
                                            j_before, j_proposal, initial_momentum, final_momentum, solver_before, solver_after)
+      type(stage2_audit_context_t), intent(inout) :: audit_context
       integer, intent(in) :: cycle_idx, slot_id, update_idx
       logical, intent(in) :: accepted, proposal_failed
       integer, intent(in) :: transition_status
@@ -642,10 +652,10 @@ contains
       type(solver_counter_snapshot_t), intent(in) :: solver_before, solver_after
       real(dp) :: q_initial, q_proposal, q_after, c_initial, c_proposal
 
-      call load_local_transition_audit_config()
-      if (.not. local_transition_audit_enabled) return
-      if (local_transition_audit_max_rows >= 0) then
-         if (local_transition_audit_rows >= int(local_transition_audit_max_rows, int64)) return
+      call load_local_transition_audit_config(audit_context)
+      if (.not. audit_context%local_transition_audit_enabled) return
+      if (audit_context%local_transition_audit_max_rows >= 0) then
+         if (audit_context%local_transition_audit_rows >= int(audit_context%local_transition_audit_max_rows, int64)) return
       end if
 
       q_initial = seed_coord_stage2(x_before)
@@ -654,8 +664,8 @@ contains
       c_initial = tangent_coeff_stage2(initial_momentum, j_before)
       c_proposal = tangent_coeff_stage2(final_momentum, j_proposal)
 
-      local_transition_audit_rows = local_transition_audit_rows + 1_int64
-      write (local_transition_audit_unit, &
+      audit_context%local_transition_audit_rows = audit_context%local_transition_audit_rows + 1_int64
+      write (audit_context%local_transition_audit_unit, &
              '(I0,",",I0,",",I0,",",L1,",",L1,",",I0,9(",",ES24.16),18(",",I0))') &
          cycle_idx, slot_id, update_idx, accepted, proposal_failed, transition_status, &
          h_initial, h_final, delta_h, accept_probability, q_initial, c_initial, q_proposal, c_proposal, q_after, &
@@ -676,52 +686,62 @@ contains
          solver_after%reverse_gate_candidate_total - solver_before%reverse_gate_candidate_total, &
          solver_after%reverse_gate_pass_total - solver_before%reverse_gate_pass_total, &
          solver_after%reverse_gate_reject_total - solver_before%reverse_gate_reject_total, &
-         local_transition_audit_rows
-      flush (local_transition_audit_unit)
+         audit_context%local_transition_audit_rows
+      flush (audit_context%local_transition_audit_unit)
    end subroutine record_local_transition_audit
 
-   subroutine load_local_transition_audit_config()
+   subroutine load_local_transition_audit_config(audit_context)
+      type(stage2_audit_context_t), intent(inout) :: audit_context
       character(len=512) :: env_value
       integer :: io_status
       logical :: has_audit_file
 
-      if (local_transition_audit_loaded) return
-      local_transition_audit_loaded = .true.
+      if (audit_context%local_transition_audit_loaded) return
+      audit_context%local_transition_audit_loaded = .true.
 
       env_value = ""
       call read_string_env("TLTM_LOCAL_TRANSITION_AUDIT_FILE", env_value, has_audit_file)
       if (.not. has_audit_file) return
 
-      call parse_int_env("TLTM_LOCAL_TRANSITION_AUDIT_MAX_ROWS", local_transition_audit_max_rows)
-      local_transition_audit_file = trim(env_value)
-      open (newunit=local_transition_audit_unit, file=trim(local_transition_audit_file), status='replace', action='write', iostat=io_status)
+      call parse_int_env("TLTM_LOCAL_TRANSITION_AUDIT_MAX_ROWS", audit_context%local_transition_audit_max_rows)
+      audit_context%local_transition_audit_file = trim(env_value)
+      open (newunit=audit_context%local_transition_audit_unit, file=trim(audit_context%local_transition_audit_file), status='replace', action='write', iostat=io_status)
       if (io_status /= 0) then
-         write (*, '(A,1X,A)') "[WARN][TLTM-S2] Cannot open local transition audit file:", trim(local_transition_audit_file)
-         local_transition_audit_enabled = .false.
-         local_transition_audit_unit = -1
+         write (*, '(A,1X,A)') "[WARN][TLTM-S2] Cannot open local transition audit file:", trim(audit_context%local_transition_audit_file)
+         audit_context%local_transition_audit_enabled = .false.
+         audit_context%local_transition_audit_unit = -1
          return
       end if
 
-      local_transition_audit_enabled = .true.
-      local_transition_audit_rows = 0_int64
-      write (local_transition_audit_unit, '(A)') &
+      audit_context%local_transition_audit_enabled = .true.
+      audit_context%local_transition_audit_rows = 0_int64
+      write (audit_context%local_transition_audit_unit, '(A)') &
          "cycle,slot_id,update_idx,accepted,proposal_failed,transition_status,h_initial,h_final,delta_h,accept_probability,"// &
          "q_initial,c_initial,q_proposal,c_proposal,q_after,"// &
          "newton_delta,quasi_delta,probe_attempt_delta,probe_success_delta,full_attempt_delta,full_success_delta,"// &
          "class_local_delta,class_mid_delta,class_global_delta,far_skip_delta,far_light_delta,far_anchor_delta,"// &
          "near_attempt_delta,near_success_delta,rg_candidate_delta,rg_pass_delta,rg_reject_delta,row_index"
-      flush (local_transition_audit_unit)
-      write (*, '(A,1X,A,A,I0)') "[INFO][TLTM-S2] Local transition audit file:", trim(local_transition_audit_file), &
-         " max_rows=", local_transition_audit_max_rows
+      flush (audit_context%local_transition_audit_unit)
+      write (*, '(A,1X,A,A,I0)') "[INFO][TLTM-S2] Local transition audit file:", trim(audit_context%local_transition_audit_file), &
+         " max_rows=", audit_context%local_transition_audit_max_rows
    end subroutine load_local_transition_audit_config
 
-   subroutine close_local_transition_audit()
-      if (local_transition_audit_enabled .and. local_transition_audit_unit > 0) then
-         close (local_transition_audit_unit)
+   subroutine close_local_transition_audit(audit_context)
+      type(stage2_audit_context_t), intent(inout) :: audit_context
+
+      if (audit_context%local_transition_audit_enabled .and. audit_context%local_transition_audit_unit > 0) then
+         close (audit_context%local_transition_audit_unit)
       end if
-      local_transition_audit_enabled = .false.
-      local_transition_audit_unit = -1
+      audit_context%local_transition_audit_enabled = .false.
+      audit_context%local_transition_audit_unit = -1
    end subroutine close_local_transition_audit
+
+   subroutine close_stage2_audit_context(audit_context)
+      type(stage2_audit_context_t), intent(inout) :: audit_context
+
+      call close_rg_reject_audit(audit_context)
+      call close_local_transition_audit(audit_context)
+   end subroutine close_stage2_audit_context
 
    pure real(dp) function seed_coord_stage2(x_val) result(q_val)
       real(dp), intent(in) :: x_val(:)

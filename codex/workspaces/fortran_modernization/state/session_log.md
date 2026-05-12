@@ -816,3 +816,15 @@
   - `make -C build ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`
   - `make -C build FC=gfortran LDFLAGS= test_retained_core_rattle_rg_contract test_retained_core_rg_reject_identity post_b_rng_reference_anchor`
   - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+
+## 2026-05-12 JST - CV-011 Stage2 audit context slice
+
+- Migrated Stage2 audit file state out of module-level `save` storage.
+- Added `stage2_audit_context_t` for RG-reject audit and local-transition audit loaded/enabled flags, file units, file paths, max-row setting, and row counter.
+- `execute_tltm_stage2` owns the audit context and passes it through local updates to the audit writers.
+- Behavior boundary: diagnostics state ownership only; no physics, Metropolis, solver route, output summary, or RNG contract change intended.
+- Verification passed:
+  - `make -C build ../bin/run_tltm_stage2`
+  - tiny Stage2 run with `TLTM_RG_REJECT_AUDIT_FILE` and `TLTM_LOCAL_TRANSITION_AUDIT_FILE` enabled; local-transition audit wrote header plus two rows, RG-reject audit wrote header-only for no reject.
+  - `make -C build FC=gfortran LDFLAGS= post_b_rng_reference_anchor`
+  - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`

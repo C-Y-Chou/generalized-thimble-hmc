@@ -41,6 +41,9 @@ Updated: 2026-05-12 JST
 - CV-011 top-level run context first slice added on 2026-05-12 JST:
   - `runbooks/CV011_TOP_LEVEL_RUN_CONTEXT_SLICE_20260512.md`
   - Stage1 and Stage2 now own per-replica/per-slot run contexts for HMC proposal, reverse-probe, and warmup workspace ownership.
+- CV-011 Stage2 audit context slice added on 2026-05-12 JST:
+  - `runbooks/CV011_STAGE2_AUDIT_CONTEXT_SLICE_20260512.md`
+  - RG-reject and local-transition audit file state now lives in a Stage2-owned context rather than module-level SAVE state.
 - Algorithm reference bundle is collected under `references/`, including TLTM HMC, simplified Newton/RATTLE/HMC, DFO-GN/DFO-LS, Hairer ODEX, and the user original quasi-Newton projection formulation.
 - Low-level algorithm review set is complete and has already driven the first source canonicalization wave:
   - `runbooks/ODEX_FLOW_REVIEW_NOTES.md`
