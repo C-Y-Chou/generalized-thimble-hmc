@@ -29,6 +29,9 @@ Updated: 2026-05-12 JST
 - First non-RNG CV-011 workspace slice added on 2026-05-12 JST:
   - `runbooks/CV011_DECOMPOSE2_WORKSPACE_SLICE_20260512.md`
   - `hmc_kernels:decompose2` now supports explicit workspace ownership and the RATTLE core path stores that workspace inside `rattle_step_workspace_t`.
+- QN linear workspace slice added on 2026-05-12 JST:
+  - `runbooks/CV011_QN_LINEAR_WORKSPACE_SLICE_20260512.md`
+  - `quasi_newton_linear_solver_mod` now supports optional `qn_linear_workspace_t` and no longer uses module SAVE scratch arrays.
 - Algorithm reference bundle is collected under `references/`, including TLTM HMC, simplified Newton/RATTLE/HMC, DFO-GN/DFO-LS, Hairer ODEX, and the user original quasi-Newton projection formulation.
 - Low-level algorithm review set is complete and has already driven the first source canonicalization wave:
   - `runbooks/ODEX_FLOW_REVIEW_NOTES.md`

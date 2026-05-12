@@ -776,3 +776,13 @@
 - Verification passed:
   - `make -C build FC=gfortran LDFLAGS= test_retained_core_rattle_rg_contract test_retained_core_rg_reject_identity post_b_rng_reference_anchor`
   - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+
+## 2026-05-12 JST - CV-011 QN linear workspace slice
+
+- Migrated `quasi_newton_linear_solver_mod` away from module-level `save` scratch arrays.
+- Added `qn_linear_workspace_t`; public helper calls accept optional explicit workspace and otherwise use automatic local workspace.
+- Behavior boundary: no official DFO-LS preset, QN residual definition, RNG, or output schema change intended.
+- A direct make run without `TLTM_OFFICIAL_DFOLS_PYTHONPATH` failed as expected with `ModuleNotFoundError: No module named 'dfols'`; reran with the same official DFO-LS env that M4 injects.
+- Verification passed with official DFO-LS Python env loaded:
+  - `PYTHON="$PWD/.venv-dfols/bin/python" TLTM_OFFICIAL_DFOLS_PYTHONPATH="$(.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" make -C build FC=gfortran LDFLAGS= test_retained_core_qn_route_contract post_b_rng_reference_anchor`
+  - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`

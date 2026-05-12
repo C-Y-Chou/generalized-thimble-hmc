@@ -7,7 +7,7 @@ Scope: foundation-gap-gated forward queue for continuing TLTM Fortran modernizat
 ## Current Position
 
 ```text
-Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> first non-RNG workspace slice -> full OpenMP/thread-safe productization remains
+Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> non-RNG workspace slices underway -> full OpenMP/thread-safe productization remains
 ```
 
 This queue supersedes any interpretation that M2/M6 means the numerical/software foundation is complete. M6 is a behavior-protection and degeneracy-observation anchor, not official DFO-LS certification; `FOUNDATION_COMPLETENESS_RESET_20260511.md` is the reset map for the unfinished foundation.
@@ -44,7 +44,7 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 | F10 | typed status/result propagation | gated | after-F14-redo-scope | explicit flow/solver/RATTLE/HMC/reverse-gate result objects | route/counter equality checks pass |
 | F11 | diagnostics accounting implementation | gated | after-F14-redo-scope | broader structured forward/replay/probe/reject accounting beyond local-transition event source | schema versioning and compatibility readers exist |
 | F12 | unified wrapper/product interface | gated | after-F14-redo-scope | wrapper runs same Stage2/Stage3 protocol with v1 sidecars | no public behavior replacement without compatibility layer |
-| F13 | RNG/reentrancy/module workspace migration | active | yes | route-B per-replica/per-slot RNG streams and post-B deterministic reference anchor are implemented; `decompose2` hidden scratch workspace is migrated; continue full OpenMP/thread-safe productization | deterministic serial/reentrant comparisons exist |
+| F13 | RNG/reentrancy/module workspace migration | active | yes | route-B per-replica/per-slot RNG streams and post-B deterministic reference anchor are implemented; `decompose2` and QN linear-solver hidden scratch workspaces are migrated; continue full OpenMP/thread-safe productization | deterministic serial/reentrant comparisons exist |
 | F14 | publication-grade production regeneration | external_redo_tree | no, outside modernization | F3/F4/F7/F8 pre-redo gates pass, CV-001 kernel correctness is closed, CV-006 claim policy is closed, and modernization can provide a frozen commit/contract | production redo scope/scale, target commit/worktree, and CV-002 promotion boundary stay in `tltm_production_comparison` |
 
 ## What Can Continue Before Pre-Redo
