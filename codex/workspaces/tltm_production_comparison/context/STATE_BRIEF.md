@@ -35,9 +35,9 @@ Updated: 2026-05-11 JST
 
 Current live campaign:
 
-1. Monitor `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`.
-2. PBS IDs: preflight `14814.anode01`, chunks `14815..14878`, merge `14879.anode01`.
-3. Report target: `output/production_comparison/provisional/official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb/REPORT.md`.
-4. First release check after preflight: `58` chunks running, `6` chunks queued, merge held.
-5. Expected report window: roughly `2026-05-12 05:30-08:30 JST`, assuming no walltime overruns or queue interruptions.
+1. `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb` completed with report available.
+2. Report target: `output/production_comparison/provisional/official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb/REPORT.md`.
+3. Readback: `nofb` Zmean Re `1.0466`, Zmean Im `-0.6680`; `withfb` Zmean Re `1.9730`, Zmean Im `-0.6780`.
+4. Solver counters favor `withfb`: unresolved failures `618706` vs `3846795`; RG rejects `510906` vs `607777`.
+5. Interpretation: `withfb` strongly improves failure counters but has larger positive Re Zmean than `nofb`, so discuss whether to extend statistics or diagnose residual systematic shift before calling this final production.
 6. Before any new production submission, confirm no active pinned jobs depend on `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.

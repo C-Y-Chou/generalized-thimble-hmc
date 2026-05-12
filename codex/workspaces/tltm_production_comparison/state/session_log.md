@@ -536,3 +536,20 @@ Use this file to append per-session notes.
   - Initial submission check: preflight was running and all chunk/merge jobs were in dependency hold.
   - First release check after preflight `Exit_status=0`: `58` chunks running, `6` chunks queued, merge held.
   - Expected report window tightened to roughly `2026-05-12 05:30-08:30 JST`, assuming no walltime overruns or queue interruptions.
+
+## 2026-05-12 JST - Official DFO-LS 256seed/200k readback
+
+- Status:
+  - `qstat -u cychou` showed no active jobs at readback.
+  - `REPORT.md` and `combined_summary_table.csv` are available.
+  - Per-seed row counts: `nofb=256`, `withfb=256`.
+- Result:
+  - `nofb/no_fb`: mean Re `0.0025128804602197745`, mean Im `-0.0008980638575030018`, std Re `0.03841767179759089`, std Im `0.021510884583892855`, Zmean Re `1.0465518987029727`, Zmean Im `-0.6679884160043988`, failures `3846795`, RG rejects `607777`, runtime `14588.093013816413`.
+  - `withfb/fb_norefine`: mean Re `0.004020561055771586`, mean Im `-0.0008372428375762778`, std Re `0.032605416058066425`, std Im `0.01975828896374589`, Zmean Re `1.9729537196453188`, Zmean Im `-0.6779881307435225`, failures `618706`, RG rejects `510906`, runtime `22284.544315070314`.
+- Direct comparison:
+  - `withfb - nofb`: mean Re `+0.0015076805955518115`, mean Im `+0.000060821019926724`, Zmean Re `+0.9264018209423461`, Zmean Im `-0.0099997147391237`.
+  - `withfb` reduces unresolved failures by `3228089` and RG rejects by `96871`.
+  - `withfb` mean runtime is higher by about `7696.45s`.
+- Interpretation:
+  - This gate confirms the expected solver-quality improvement in unresolved failures and RG rejects.
+  - The Re observable is not clearly better: `withfb` has a larger positive Re Zmean than `nofb` at this 256seed/200k scale, so this result needs discussion before declaring the current scale a final production endpoint.
