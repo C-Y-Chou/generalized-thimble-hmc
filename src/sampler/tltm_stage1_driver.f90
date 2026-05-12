@@ -5,7 +5,7 @@ module tltm_stage1_driver
    use utils, only: dp, wall_time_seconds, x_set_flow_time, x_set_seed_real
    use solve_flow, only: flow, intode_status_unknown, intode_status_is_strict_success
    use model, only: grand
-   use mt95, only: getseed, sgrnd
+   use mt95, only: getseed, mt95_get_state, mt95_seed_state, mt95_set_state
    use markovchain_metropolis, only: metropolis_step
    use markovchain_phase, only: compute_phase_factor
    use hmc_constraints, only: reset_newton_eval_flow_status_counts, get_newton_eval_flow_status_counts
@@ -46,6 +46,7 @@ contains
          " init_sigma=", init_sigma
       write (*, '(A,F8.4,A,I0,A,F8.4)') "[TLTM-S1] local params: L=", config%integrator%trajectory_length, &
          " nstep=", config%integrator%integration_steps, " max_flow(test)=", max_flow_time
+      write (*, '(A)') "[TLTM-S1] rng_stream_contract=per_replica_rng_v1"
 
       allocate (replicas(n_replicas))
       do i = 1, n_replicas
@@ -62,7 +63,6 @@ contains
          end if
       end do
 
-      call sgrnd(base_seed)
       run_t0 = wall_time_seconds()
       do cycle_idx = 1, cycle_count
          do i = 1, n_replicas
@@ -78,7 +78,7 @@ contains
       end do
       elapsed = wall_time_seconds() - run_t0
 
-      call write_stage1_summary(summary_file, replicas, cycle_count, local_updates, elapsed)
+      call write_stage1_summary(summary_file, replicas, cycle_count, local_updates, elapsed, base_seed)
       call release_all_replicas(replicas)
       if (allocated(flow_ladder)) deallocate (flow_ladder)
 
@@ -97,7 +97,8 @@ contains
 
       ok = .false.
       allocate (x_seed(max(1, size(replica%x) - 1)))
-      call sgrnd(replica%rng_seed)
+      call mt95_seed_state(replica%rng_state, replica%rng_seed)
+      call mt95_set_state(replica%rng_state)
 
       do attempt = 1, max_attempts
          call grand(x_seed)
@@ -113,6 +114,7 @@ contains
       end do
 
       if (ok) then
+         call mt95_get_state(replica%rng_state)
          call measure_replica(replica)
       end if
       if (allocated(x_seed)) deallocate (x_seed)
@@ -132,6 +134,7 @@ contains
       allocate (x_new(size(replica%x)))
       allocate (z_new(z_size), j_new(z_size, z_size))
 
+      call mt95_set_state(replica%rng_state)
       do update_idx = 1, local_updates
          call metropolis_step(replica%x, replica%z, replica%jac, config%integrator%trajectory_length, &
                               config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status)
@@ -142,6 +145,7 @@ contains
          end if
          call record_tltm_local_transition(replica, accepted, proposal_failed, transition_status)
       end do
+      call mt95_get_state(replica%rng_state)
 
       if (allocated(x_new)) deallocate (x_new)
       if (allocated(z_new)) deallocate (z_new)
@@ -252,10 +256,10 @@ contains
       call read_string_env("TLTM_STAGE1_SUMMARY_FILE", path)
    end subroutine resolve_summary_file
 
-   subroutine write_stage1_summary(summary_file, replicas, cycle_count, local_updates, elapsed)
+   subroutine write_stage1_summary(summary_file, replicas, cycle_count, local_updates, elapsed, base_seed)
       character(len=*), intent(in) :: summary_file
       type(tltm_replica_t), intent(in) :: replicas(:)
-      integer, intent(in) :: cycle_count, local_updates
+      integer, intent(in) :: cycle_count, local_updates, base_seed
       real(dp), intent(in) :: elapsed
 
       integer, parameter :: unit_summary = 77
@@ -285,6 +289,9 @@ contains
       write (unit_summary, '(A,I0)') "# replicas=", size(replicas)
       write (unit_summary, '(A,I0)') "# cycles=", cycle_count
       write (unit_summary, '(A,I0)') "# local_updates=", local_updates
+      write (unit_summary, '(A)') "# rng_stream_contract=per_replica_rng_v1"
+      write (unit_summary, '(A)') "# seed_policy=CHAIN_RNG_SEED base seed plus deterministic per-replica local-update streams"
+      write (unit_summary, '(A,I0)') "# base_seed=", base_seed
       write (unit_summary, '(A,F12.6)') "# elapsed_sec=", elapsed
       call get_newton_eval_flow_status_counts(newton_flow_success_count, newton_flow_zero_time_count, newton_flow_stiff_rescue_count, &
                                               newton_flow_solver_assist_count, newton_flow_failure_max_steps_count, &

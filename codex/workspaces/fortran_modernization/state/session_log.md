@@ -681,3 +681,71 @@
   - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
 - F14 manifest path: `output/tests/m4_guardrails/f14_complete_pre_redo_gate/F14_complete_pre_redo_gate_manifest.json`; status `pass`, `reduced_scope_accepted=false`.
 - F3/CV-009, F4/CV-010, F7, and F8 are closed for the pre-redo gate. F14 now needs exact redo scope/scale, target commit/worktree, and production promotion-boundary decisions.
+
+## 2026-05-12 JST - Foundation closure decisions and CV-001 gate
+
+- User selected strict closure policy for remaining modernization foundation caveats:
+  - CV-007 closes by endpoint-only ODEX product boundary; dense output and general-purpose Hairer ODEX library claims are non-goals.
+  - CV-001 closes by formal official-line kernel correctness gate in the modernization tree.
+  - CV-006 closes by strict DFO-LS claim/provenance policy.
+  - CV-005 closes only after deep-auditing every relevant tracked script.
+  - CV-004 closes as permanent F8/M4 behavior-preservation governance.
+  - CV-011 closes only after full RNG/workspace/reentrancy migration and deterministic serial/parallel tests.
+- Added `FOUNDATION_CLOSURE_DECISIONS_20260512.md`, `DFOLS_CLAIM_PROVENANCE_POLICY_20260512.md`, `DFOLS_CLAIM_PROVENANCE_POLICY_V1.json`, and `OFFICIAL_LINE_KERNEL_CORRECTNESS_GATE_20260512.md`.
+- Implemented `official_line_kernel_correctness_gate.py` and wired it into M4 plus `make official_line_kernel_correctness_gate`.
+- Verification passed:
+  - `python3 -m py_compile codex/workspaces/fortran_modernization/tasks/scripts/official_line_kernel_correctness_gate.py scripts/run_m4_guardrails.py codex/workspaces/fortran_modernization/tasks/scripts/f14_complete_pre_redo_gate.py`
+  - `python3 codex/workspaces/fortran_modernization/tasks/scripts/official_line_kernel_correctness_gate.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+  - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+  - `make -C build FC=gfortran LDFLAGS= official_line_kernel_correctness_gate`
+- CV-001 manifest path: `output/tests/official_line_kernel_correctness_gate/CV001_official_line_kernel_correctness_manifest.json`; status `pass`, package `DFO-LS==1.6.5`, license `GPL-3.0-or-later`, preset `stable_gate77`, solver assist `default_off`.
+- Updated caveat/open-item state: CV-001 `closed_kernel_gate`, CV-004 `closed_governed`, CV-006 `closed_claim_policy`, CV-007 `closed_product_boundary`; CV-005 and CV-011 remained open at this point.
+
+## 2026-05-12 JST - CV-005 script evidence audit
+
+- Deep-audited tracked files under `scripts/`, `codex/tasks/`, and `codex/workspaces/fortran_modernization/tasks/`.
+- Added `codex/workspaces/fortran_modernization/state/SCRIPT_EVIDENCE_AUDIT_20260512.tsv` with per-file evidence role, execution surface, Python floor, claim boundary, and audit verdict.
+- Added `codex/workspaces/fortran_modernization/runbooks/SCRIPT_EVIDENCE_AUDIT_20260512.md`.
+- Implemented `codex/workspaces/fortran_modernization/tasks/scripts/validate_script_evidence_audit.py` and wired it into M4 plus `make script_evidence_audit_gate`.
+- Audit policy:
+  - current evidence scripts are explicitly labeled;
+  - historical ODEX/M6/qn-error-handling PBS scripts are quarantined;
+  - historical multichain/rescue-tuning helpers cannot support current official DFO-LS, current ODEX product, or publication-production claims;
+  - new tracked script/task files under audited roots must receive a registry row before M4 evidence passes.
+- Verification passed:
+  - `python3 -m py_compile codex/workspaces/fortran_modernization/tasks/scripts/validate_script_evidence_audit.py codex/workspaces/fortran_modernization/tasks/scripts/official_line_kernel_correctness_gate.py scripts/run_m4_guardrails.py`
+  - `python3 codex/workspaces/fortran_modernization/tasks/scripts/validate_script_evidence_audit.py --repo-root .`
+  - `make -C build FC=gfortran LDFLAGS= script_evidence_audit_gate`
+  - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+- CV-005 manifest path: `output/tests/script_evidence_audit/CV005_script_evidence_audit_manifest.json`; status `pass`, tracked_count `99`, audited_count `99`.
+- CV-005 status is now `closed_script_audit`.
+
+## 2026-05-12 JST - CV-011 RNG product-contract decision point
+
+- Audited Stage1/Stage2 RNG ownership before implementation.
+- Source-backed finding: Stage1 and Stage2 initialize replicas/slots with derived seeds, then reset `mt95` to `base_seed` and consume a shared global serial RNG stream for local updates; Stage2 swaps also draw from global `grnd()`.
+- `mt95:gaussrnd` keeps hidden Box-Muller spare state (`gset`, `iset`) that is not captured by the existing `mtsave`/`mtget` state API.
+- Added `codex/workspaces/fortran_modernization/runbooks/CV011_RNG_WORKSPACE_DECISION_PACKET_20260512.md`.
+- Updated `CAVEATS.tsv`, `OPEN_ITEMS.tsv`, and `STATE_BRIEF.md` so CV-011 is marked `decision_needed`.
+- Stop condition: choose A strict legacy serial first, B per-replica/per-slot RNG now, or C dual-mode legacy default plus opt-in per-replica mode before any CV-011 source change.
+
+## 2026-05-12 JST - CV-011 route-B per-replica RNG implementation
+
+- User selected route B: per-replica/per-slot RNG now.
+- Implemented `mt95_state_t`, `mt95_seed_state`, `mt95_get_state`, and `mt95_set_state`; explicit state includes MT vector/index plus `gaussrnd` Box-Muller spare state.
+- `sgrnd` now resets Gaussian spare state when reseeding.
+- Stage1 replicas and Stage2 slots now own local-update RNG state; initialization seeds/saves the stream, local updates load/save it around Metropolis updates.
+- Stage2 swap acceptance now uses a separate deterministic swap RNG stream derived from `CHAIN_RNG_SEED`.
+- Stage1/Stage2 summaries and Stage2 v1 manifests label `rng_stream_contract=per_replica_rng_v1`; same-seed finite trajectories can differ from old shared-serial-RNG outputs by design.
+- Added and passed `test_mt95_state_contract`; updated `test_tltm_swap_kernel_contract` for explicit swap RNG state; wired the RNG state test into M4.
+- Smoke verification passed for tiny Stage1 and Stage2 runs with `CHAIN_RNG_SEED=12345`.
+- CV-011 remains open for remaining non-RNG module workspace/state ownership and deterministic serial/reentrant checks.
+
+## 2026-05-12 JST - Modernization finish and redo boundary
+
+- User confirmed the final modernization target must include full OpenMP/thread-safe productization.
+- Route-B RNG stream migration is only the first CV-011 implementation slice; remaining behavior-bearing module state, counters, diagnostics, policy state, and deterministic serial/reentrant checks remain modernization work.
+- User also confirmed production redo should be completely separated from modernization.
+- Redo now belongs to `tltm_production_comparison` and consumes only a frozen modernization commit plus declared contracts; redo queueing/readback/promotion must not be run from the modernization tree.
+- Modernization can be called finished by source/product readiness gates even before final production-output redo completion, as long as redo can consume the frozen commit and contracts cleanly.
+- Next execution order: checkpoint the verified foundation/RNG work, add a post-B deterministic reference anchor for `per_replica_rng_v1`, then continue CV-011 OpenMP/thread-safe productization.

@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-11 JST
+Updated: 2026-05-12 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -11,7 +11,17 @@ Updated: 2026-05-11 JST
 - User-confirmed alias: "code refine" means this `fortran_modernization` task, not a separate workspace.
 - Current position is now tracked by workstream matrix, not by treating M0-M6 as a linear completion ladder:
   - `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`
-  - Position: completed foundation -> accepted M6 reference baseline -> remaining modernization blocks.
+  - Position: reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> full OpenMP/thread-safe productization -> broader modernization blocks.
+- Foundation closure decisions recorded on 2026-05-12 JST:
+  - `CV-007` is closed by endpoint-only ODEX product boundary;
+  - `CV-001` is closed by `official_line_kernel_correctness_gate.py`;
+  - `CV-006` is closed by `DFOLS_CLAIM_PROVENANCE_POLICY_V1`;
+  - `CV-004` is closed as permanent F8/M4 behavior-preservation governance;
+  - `CV-005` is closed by machine-checked script/evidence audit;
+  - `CV-011` route-B RNG stream ownership is implemented and remains open for full OpenMP/thread-safe productization: remaining behavior-bearing module state/workspaces, counters, diagnostics, policy state, and deterministic serial/reentrant tests.
+- Modernization finish decisions recorded on 2026-05-12 JST:
+  - `runbooks/MODERNIZATION_FINISH_DECISIONS_20260512.md`
+  - Production redo is completely separated into `tltm_production_comparison`; modernization provides frozen commits/contracts but does not own redo queueing, readback, or final production-output promotion.
 - Algorithm reference bundle is collected under `references/`, including TLTM HMC, simplified Newton/RATTLE/HMC, DFO-GN/DFO-LS, Hairer ODEX, and the user original quasi-Newton projection formulation.
 - Low-level algorithm review set is complete and has already driven the first source canonicalization wave:
   - `runbooks/ODEX_FLOW_REVIEW_NOTES.md`
@@ -22,7 +32,7 @@ Updated: 2026-05-11 JST
   - `runbooks/PLANNING_DISCUSSION_BRIEF.md`
 - Current flow policy is ODEX primary integration with solver-internal ODE assist for NT/QN residual evaluation and strict final proposal/live-state flow.
 - Current p28 route is Newton -> p28 QN BTN/backflow rescue residual solved by embedded official DFO-LS -> reverse gate -> Metropolis, without post-refine or non-p28 QN families.
-- ODEX completeness follow-up is explicitly tracked: full-Hairer-style explicit stability checks are not currently a separate implemented control surface, so a future ODEX pass must either implement an equivalent stability guard or document the endpoint solver as a reduced ODEX-like integrator with validation evidence.
+- ODEX completeness is closed by explicit TLTM endpoint-only product boundary: dense output and a general-purpose Hairer ODEX library claim are non-goals, solver assist is default-off diagnostic-only pending later deletion, and broader ODEX claims require reopening CV-007.
 
 ## Current architecture understanding
 - `solve_flow.f90` is flow mapping plus ODEX-like integration plus solver-internal residual-assist policy plus diagnostics.

@@ -1,0 +1,39 @@
+{
+  "schema_name": "dfols_claim_provenance_policy",
+  "schema_version": "DFOLS_CLAIM_PROVENANCE_POLICY_V1",
+  "updated_jst": "2026-05-12",
+  "canonical_backend_labels": {
+    "official_package_dfols": {
+      "backend_label": "official_dfols",
+      "package_distribution": "DFO-LS",
+      "package_version": "1.6.5",
+      "package_license": "GPL-3.0-or-later",
+      "required_runtime_fields": [
+        "ENABLE_OFFICIAL_DFOLS",
+        "TLTM_OFFICIAL_DFOLS_PYTHONPATH",
+        "QN_SOLVER_BACKEND",
+        "QN_OFFICIAL_DFOLS_PRESET"
+      ],
+      "allowed_claim": "Evidence generated through the embedded official DFO-LS package bridge under the recorded package/runtime provenance."
+    },
+    "historical_internal_dfols_style": {
+      "backend_label": "internal_or_historical_dfols_style",
+      "package_distribution": "",
+      "package_version": "",
+      "package_license": "",
+      "required_runtime_fields": [],
+      "allowed_claim": "Historical or in-house DFO-LS-style evidence. It must not be described as official-package DFO-LS evidence."
+    }
+  },
+  "reporting_rules": [
+    "Public reports must say official_dfols only when the run records embedded official package provenance.",
+    "Historical in-house DFO-LS-style evidence may be retained as background or comparison evidence but must not certify the official package line.",
+    "M6 reference packages are historical/internal behavior anchors unless their provenance explicitly records official_dfols.",
+    "Production-comparison artifacts remain provisional until their commit, package, preset, method aliases, counters, and promotion boundary are recorded."
+  ],
+  "forbidden_claims": [
+    "Do not call historical internal solver evidence official DFO-LS package evidence.",
+    "Do not use M6 historical/internal reference packages as official DFO-LS certification.",
+    "Do not omit package version and runtime path when making official package claims."
+  ]
+}

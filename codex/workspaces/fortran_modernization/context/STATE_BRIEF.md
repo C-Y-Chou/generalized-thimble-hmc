@@ -4,7 +4,7 @@ Updated: 2026-05-12 JST
 
 ## Current Position
 
-- Current position is `Reference-audited core + accepted M6 behavior baseline -> foundation gaps still active -> source modernization remains gated`.
+- Current position is `Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> full OpenMP/thread-safe productization remains`.
 - M6 is not "modernization complete" and is not proof that the numerical/software foundation is complete; it is the accepted behavior baseline before larger source refactors resume.
 - The compact source of truth for this positioning is `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`; the reset source of truth for foundation gaps is `runbooks/FOUNDATION_COMPLETENESS_RESET_20260511.md`.
 - M3/M4/M5 modernization infrastructure work is treated as completed, partial, or explicitly deferred by workstream in that matrix.
@@ -15,7 +15,13 @@ Updated: 2026-05-12 JST
 - Embedded official DFO-LS is now the default QN backend. `QN_SOLVER_BACKEND=internal` is only for controlled legacy comparison.
 - Official DFO-LS backend replacement F2 is accepted for the current representative scope: representative embedded 10seed x 10k gate passed with 1000 captured attempts, 923 embedded-converged attempts, 0 float64 failures, 0 missing replay rows, and 0 embedded-converged regressions.
 - Official DFO-LS production-comparison evidence exists as a completed provisional artifact: `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`, 256 seeds x 200000 cycles for both `nofb` and `withfb`, generated under production-comparison commit `c0e4021`. This artifact predates the latest modernization HEAD and must not be interpreted as a rerun after updating production to the current modernization state.
-- F1/CV-007 is accepted reduced scope for pre-redo: standalone endpoint ODEX package exists, dense output is explicitly out of scope, `INTODE_SOLVER_ASSIST_ENABLED` now defaults off, and assist-on is diagnostic opt-in only pending later deletion.
+- F1/CV-007 is closed by explicit product boundary: TLTM modernization targets an endpoint-only ODEX backend for TLTM flow endpoint evaluation; dense output and a general-purpose Hairer ODEX library claim are non-goals. `INTODE_SOLVER_ASSIST_ENABLED` defaults off and assist-on is diagnostic opt-in only pending later deletion.
+- CV-001 is closed for modernization-tree official-line kernel correctness. `official_line_kernel_correctness_gate.py` passed under embedded official `DFO-LS==1.6.5`, `stable_gate77`, solver assist default-off, and the canonical Newton -> p28 QN BTN residual -> reverse gate -> Metropolis route. Manifest: `output/tests/official_line_kernel_correctness_gate/CV001_official_line_kernel_correctness_manifest.json`.
+- CV-006 is closed by strict DFO-LS claim/provenance policy. `DFOLS_CLAIM_PROVENANCE_POLICY_V1` separates embedded official package evidence from historical/internal DFO-LS-style evidence, and M4 validates it through the CV-001 gate.
+- CV-004 is closed as permanent governance: every behavior-relevant source patch requires F8, M4, and an affected-baseline comparison or explicitly approved narrower baseline.
+- CV-005 is closed by the script/evidence audit registry and gate. Every tracked file under `scripts/`, `codex/tasks/`, and `codex/workspaces/fortran_modernization/tasks/` has a row in `SCRIPT_EVIDENCE_AUDIT_20260512.tsv`; M4 validates coverage and quarantines historical/legacy-route scripts.
+- CV-011 route B is implemented for RNG streams: Stage1 replicas and Stage2 slots own local-update RNG state, Stage2 swaps use a separate deterministic swap stream, and summaries/manifests label `rng_stream_contract=per_replica_rng_v1`. This intentionally changes finite same-seed trajectories relative to the old shared serial RNG stream.
+- Modernization finish decisions are recorded in `MODERNIZATION_FINISH_DECISIONS_20260512.md`: full OpenMP/thread-safe productization remains in scope, a post-B deterministic reference anchor is the next source-facing gate, and production redo is fully separated into `tltm_production_comparison`.
 - Modernization is not at automatic production-regeneration approval, but the user-selected conservative F3/F4/F7/F8 pre-redo gates are now implemented without reduced-scope acceptance.
 - F3/CV-009 is closed for the pre-redo gate: retained-core tests cover Newton replay, successful one-step RATTLE/RG pass replay, BTN residual reconstruction, official package-success route census, stub no-fallback route behavior, RG reject/live-state identity, and failure-as-rejection accounting; `f14_complete_pre_redo_gate.py` records the branch/measure harness.
 - F4/CV-010 is closed for the pre-redo gate: `tltm_local_transition_event_t` is the typed local-transition event source, counters are derived from that event, `F4_LOCAL_TRANSITION_AUDIT_V1` freezes the audit context, and M4 validates audit row invariants.
@@ -40,7 +46,14 @@ Updated: 2026-05-12 JST
 - `runbooks/F14_PRODUCTION_REGENERATION_DECISION_PACKET_20260512.md`: current F14 decision/gate packet.
 - `runbooks/DIAGNOSTICS_STATUS_ACCOUNTING_F4_DECISION_20260512.md`: F4 diagnostics/accounting completion packet.
 - `runbooks/SCHEMA_REFERENCE_F7_F8_DECISION_20260512.md`: F7/F8 schema/naming and reference-comparison completion packet.
-- `runbooks/FULL_HAIRER_ODEX_REOPEN_PLAN_20260512.md`: F1/CV-007 standalone endpoint package and solver-assist default-off pre-redo policy.
+- `runbooks/FOUNDATION_CLOSURE_DECISIONS_20260512.md`: user decisions for closing/reclassifying CV-001/CV-004/CV-005/CV-006/CV-007/CV-011.
+- `runbooks/OFFICIAL_LINE_KERNEL_CORRECTNESS_GATE_20260512.md`: CV-001 official-line kernel correctness gate.
+- `runbooks/DFOLS_CLAIM_PROVENANCE_POLICY_20260512.md`: CV-006 official-vs-historical DFO-LS claim policy.
+- `runbooks/SCRIPT_EVIDENCE_AUDIT_20260512.md`: CV-005 script/evidence audit and quarantine policy.
+- `runbooks/CV011_RNG_WORKSPACE_DECISION_PACKET_20260512.md`: CV-011 RNG/workspace/reentrancy decision packet; user selected route B.
+- `runbooks/CV011_PER_REPLICA_RNG_IMPLEMENTATION_20260512.md`: route-B RNG implementation record and verification.
+- `runbooks/MODERNIZATION_FINISH_DECISIONS_20260512.md`: final modernization/redo boundary and full OpenMP/thread-safe productization decisions.
+- `runbooks/FULL_HAIRER_ODEX_REOPEN_PLAN_20260512.md`: historical F1/CV-007 endpoint package and solver-assist default-off implementation notes.
 - `runbooks/OFFICIAL_DFOLS_PRODUCTION_REDO_READBACK_20260512.md`: official DFO-LS 256seed/200k production-comparison redo readback.
 - `state/RETAINED_CORE_EVIDENCE.tsv`: retained-core evidence registry.
 - `state/M6_REFERENCE_PACKAGES.tsv`: package registry template.
@@ -48,4 +61,4 @@ Updated: 2026-05-12 JST
 
 ## Next Action
 
-Record the exact F14 production redo scope/scale and promotion boundary: matched `nofb` + `withfb` versus a narrower run, seed/cycle count, target commit/worktree, and final wording around remaining CV-001/CV-002/CV-006 production/provenance limits. Solver assist is default-off for the eventual redo.
+Commit the verified foundation/RNG checkpoint, then add a post-B deterministic reference anchor for `per_replica_rng_v1` before continuing CV-011 full OpenMP/thread-safe productization. Production redo remains owned by the separate `tltm_production_comparison` tree and is not part of the modernization-finished condition.

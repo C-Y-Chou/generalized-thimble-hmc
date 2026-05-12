@@ -6,7 +6,7 @@ module tltm_stage2_driver
    use solve_flow, only: flow, reset_intode_fallback_stats, get_intode_fallback_stats, &
                          intode_status_unknown, intode_status_is_strict_success
    use model, only: grand, calculate_action
-   use mt95, only: getseed, sgrnd, grnd
+   use mt95, only: getseed, grnd, mt95_get_state, mt95_seed_state, mt95_set_state, mt95_state_t
    use markovchain_mod, only: adaptive_preflow_to_target
    use markovchain_metropolis, only: metropolis_step
    use markovchain_phase, only: compute_phase_factor
@@ -98,13 +98,14 @@ contains
       type(tltm_pair_stats_t), allocatable :: pair_stats(:)
       type(tltm_label_track_t), allocatable :: label_tracks(:)
       type(local_accept_census_t), allocatable :: local_accept_census(:)
+      type(mt95_state_t) :: swap_rng_state
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file, label_trace_file
       character(len=512) :: cold_z_history_file, cold_phi_history_file
       character(len=512) :: all_history_dir
       character(len=512) :: v1_output_dir, v1_manifest_file, v1_protocol_file
       character(len=32) :: init_mode
-      integer :: n_slots, base_seed, cycle_count, local_updates, x_size
+      integer :: n_slots, base_seed, swap_rng_seed, cycle_count, local_updates, x_size
       real(dp) :: max_flow_time, init_sigma
       logical :: swap_enabled, ok
       integer :: i, cycle_idx, hot_slot, history_slot_index
@@ -156,6 +157,8 @@ contains
       call resolve_stage2_all_history_dir(all_history_dir, write_all_history)
       call resolve_stage2_v1_sidecar_paths(v1_output_dir, v1_manifest_file, v1_protocol_file, &
                                            write_v1_manifest, write_v1_protocol, write_v1_package)
+      swap_rng_seed = derive_swap_seed(base_seed)
+      call mt95_seed_state(swap_rng_state, swap_rng_seed)
 
       write (*, '(A,I0,A,F8.4,A,I0,A,I0,A,F8.4,A,L1)') "[TLTM-S2] slots=", n_slots, &
          " max_flow=", max_flow_time, " cycles=", cycle_count, " local_updates=", local_updates, &
@@ -163,6 +166,7 @@ contains
       write (*, '(A,A)') "[TLTM-S2] init_mode=", trim(init_mode)
       write (*, '(A,F8.4,A,I0,A,F8.4)') "[TLTM-S2] local params: L=", config%integrator%trajectory_length, &
          " nstep=", config%integrator%integration_steps, " max_flow(test)=", max_flow_time
+      write (*, '(A,I0)') "[TLTM-S2] rng_stream_contract=per_replica_rng_v1 swap_rng_seed=", swap_rng_seed
 
       hot_slot = n_slots - 1
 
@@ -297,7 +301,6 @@ contains
       call update_round_trip_bookkeeping(label_tracks, 0, hot_slot)
       call write_label_trace(unit_trace, 0, label_tracks)
 
-      call sgrnd(base_seed)
       run_t0 = wall_time_seconds()
       do cycle_idx = 1, cycle_count
          do i = 1, n_slots
@@ -307,7 +310,7 @@ contains
          end do
 
          if (swap_enabled .and. n_slots > 1) then
-            call perform_swap_sweep(slots, pair_stats, cycle_idx)
+            call perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state)
          end if
 
          call refresh_label_positions(slots, label_tracks)
@@ -383,7 +386,8 @@ contains
                                          global_filter_reject_count)
       call get_constraint_solver_reverse_gate_stats(reverse_gate_candidate_counts, reverse_gate_pass_counts, &
                                                     reverse_gate_reject_counts)
-      call write_stage2_summary(summary_file, slots, pair_stats, label_tracks, local_accept_census, cycle_count, local_updates, elapsed, swap_enabled, &
+      call write_stage2_summary(summary_file, slots, pair_stats, label_tracks, local_accept_census, cycle_count, local_updates, elapsed, &
+                                swap_enabled, base_seed, swap_rng_seed, &
                                 calls_total, calls_integrating, fallback_attempts, fallback_success, fallback_failure, &
                                 fallback_max_steps, fallback_invalid, fallback_h_min, &
                                 solver_total_count, solver_newton_count, solver_quasi_count, solver_failed_count, &
@@ -403,7 +407,7 @@ contains
       call write_stage2_v1_sidecars(v1_manifest_file, v1_protocol_file, write_v1_manifest, write_v1_protocol, &
                                     v1_output_dir, write_v1_package, &
                                     summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
-                                    write_cold_history, write_all_history, base_seed, flow_ladder, max_flow_time, cycle_count, &
+                                    write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
                                     local_updates, init_sigma, init_mode, swap_enabled, elapsed, slots, pair_stats, label_tracks)
       call release_all_slots(slots)
       if (allocated(flow_ladder)) deallocate (flow_ladder)
@@ -447,7 +451,8 @@ contains
 
       ok = .false.
       allocate (x_seed(max(1, size(slot%x) - 1)))
-      call sgrnd(slot%rng_seed)
+      call mt95_seed_state(slot%rng_state, slot%rng_seed)
+      call mt95_set_state(slot%rng_state)
 
       do attempt = 1, max_attempts
          call grand(x_seed)
@@ -479,7 +484,10 @@ contains
          end if
       end do
 
-      if (ok) call measure_slot(slot)
+      if (ok) then
+         call mt95_get_state(slot%rng_state)
+         call measure_slot(slot)
+      end if
       if (allocated(x_seed)) deallocate (x_seed)
    end subroutine initialize_slot
 
@@ -502,6 +510,7 @@ contains
       allocate (initial_momentum(2*z_size), final_momentum(2*z_size))
       allocate (z_new(z_size), z_before(z_size), j_new(z_size, z_size), j_before(z_size, z_size))
 
+      call mt95_set_state(slot%rng_state)
       do update_idx = 1, local_updates
          x_before = slot%x
          z_before = slot%z
@@ -527,6 +536,7 @@ contains
                                             h_initial, h_final, delta_h, accept_probability, x_before, x_new, slot%x, &
                                             j_before, j_new, initial_momentum, final_momentum, solver_before, solver_after)
       end do
+      call mt95_get_state(slot%rng_state)
 
       if (allocated(x_new)) deallocate (x_new)
       if (allocated(x_before)) deallocate (x_before)
@@ -829,10 +839,11 @@ contains
       end if
    end subroutine measure_slot
 
-   subroutine perform_swap_sweep(slots, pair_stats, cycle_idx)
+   subroutine perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state)
       type(tltm_slot_t), intent(inout) :: slots(:)
       type(tltm_pair_stats_t), intent(inout) :: pair_stats(:)
       integer, intent(in) :: cycle_idx
+      type(mt95_state_t), intent(inout) :: swap_rng_state
       integer :: start_idx, idx
 
       if (size(slots) <= 1) return
@@ -844,13 +855,14 @@ contains
       end if
 
       do idx = start_idx, size(slots) - 1, 2
-         call attempt_adjacent_swap(slots(idx), slots(idx + 1), pair_stats(idx))
+         call attempt_adjacent_swap(slots(idx), slots(idx + 1), pair_stats(idx), swap_rng_state)
       end do
    end subroutine perform_swap_sweep
 
-   subroutine attempt_adjacent_swap(slot_a, slot_b, stats)
+   subroutine attempt_adjacent_swap(slot_a, slot_b, stats, swap_rng_state)
       type(tltm_slot_t), intent(inout) :: slot_a, slot_b
       type(tltm_pair_stats_t), intent(inout) :: stats
+      type(mt95_state_t), intent(inout) :: swap_rng_state
 
       real(dp) :: e_a, e_b, e_ap, e_bp, delta, acc_prob
       logical :: ok_a, ok_b, ok_ap, ok_bp, accept
@@ -902,7 +914,9 @@ contains
       end if
       stats%last_accept_probability = acc_prob
 
+      call mt95_set_state(swap_rng_state)
       accept = (grnd() <= acc_prob)
+      call mt95_get_state(swap_rng_state)
       if (accept) then
          label_tmp = slot_a%label_id
          slot_a%x = x_ap
@@ -1088,7 +1102,8 @@ contains
       end if
    end function reverse_gate_count_at
 
-   subroutine write_stage2_summary(summary_file, slots, pair_stats, label_tracks, local_accept_census, cycle_count, local_updates, elapsed, swap_enabled, &
+   subroutine write_stage2_summary(summary_file, slots, pair_stats, label_tracks, local_accept_census, cycle_count, local_updates, elapsed, &
+                                   swap_enabled, base_seed, swap_rng_seed, &
                                    calls_total, calls_integrating, fallback_attempts, fallback_success, fallback_failure, &
                                    fallback_max_steps, fallback_invalid, fallback_h_min, &
                                    solver_total_count, solver_newton_count, solver_quasi_count, solver_failed_count, &
@@ -1110,7 +1125,7 @@ contains
       type(tltm_pair_stats_t), intent(in) :: pair_stats(:)
       type(tltm_label_track_t), intent(in) :: label_tracks(:)
       type(local_accept_census_t), intent(in) :: local_accept_census(:)
-      integer, intent(in) :: cycle_count, local_updates
+      integer, intent(in) :: cycle_count, local_updates, base_seed, swap_rng_seed
       real(dp), intent(in) :: elapsed
       logical, intent(in) :: swap_enabled
       integer, intent(in) :: calls_total, calls_integrating
@@ -1165,6 +1180,11 @@ contains
       write (unit_summary, '(A,I0)') "# cycles=", cycle_count
       write (unit_summary, '(A,I0)') "# local_updates=", local_updates
       write (unit_summary, '(A,L1)') "# swap_enabled=", swap_enabled
+      write (unit_summary, '(A)') "# rng_stream_contract=per_replica_rng_v1"
+      write (unit_summary, '(A)') &
+         "# seed_policy=CHAIN_RNG_SEED base seed plus deterministic per-slot local-update streams and one swap stream"
+      write (unit_summary, '(A,I0)') "# base_seed=", base_seed
+      write (unit_summary, '(A,I0)') "# swap_rng_seed=", swap_rng_seed
       write (unit_summary, '(A,F12.6)') "# elapsed_sec=", elapsed
       write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
          "# fallback_stats calls_total=", calls_total, " calls_integrating=", calls_integrating, &
@@ -1534,7 +1554,7 @@ contains
 
    subroutine write_stage2_v1_sidecars(manifest_file, protocol_file, write_manifest, write_protocol, output_dir, write_package, &
                                        summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
-                                       write_cold_history, write_all_history, base_seed, flow_ladder, max_flow_time, cycle_count, &
+                                       write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
                                        local_updates, init_sigma, init_mode, swap_enabled, elapsed, slots, pair_stats, label_tracks)
       character(len=*), intent(in) :: manifest_file, protocol_file
       logical, intent(in) :: write_manifest, write_protocol
@@ -1543,7 +1563,7 @@ contains
       character(len=*), intent(in) :: summary_file, label_trace_file
       character(len=*), intent(in) :: cold_z_history_file, cold_phi_history_file, all_history_dir
       logical, intent(in) :: write_cold_history, write_all_history
-      integer, intent(in) :: base_seed, cycle_count, local_updates
+      integer, intent(in) :: base_seed, swap_rng_seed, cycle_count, local_updates
       real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma, elapsed
       character(len=*), intent(in) :: init_mode
       logical, intent(in) :: swap_enabled
@@ -1555,21 +1575,21 @@ contains
       if (write_package) call write_stage2_v1_diagnostics_package(output_dir, slots, pair_stats, label_tracks)
       if (write_manifest) call write_stage2_v1_manifest(manifest_file, protocol_file, write_protocol, &
                                                         summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, &
-                                                        all_history_dir, write_cold_history, write_all_history, base_seed, flow_ladder, &
+                                                        all_history_dir, write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, &
                                                         max_flow_time, cycle_count, local_updates, init_sigma, init_mode, swap_enabled, &
                                                         elapsed, output_dir, write_package)
    end subroutine write_stage2_v1_sidecars
 
    subroutine write_stage2_v1_manifest(manifest_file, protocol_file, write_protocol, &
                                        summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
-                                       write_cold_history, write_all_history, base_seed, flow_ladder, max_flow_time, cycle_count, &
+                                       write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
                                        local_updates, init_sigma, init_mode, swap_enabled, elapsed, output_dir, write_package)
       character(len=*), intent(in) :: manifest_file, protocol_file
       logical, intent(in) :: write_protocol
       character(len=*), intent(in) :: summary_file, label_trace_file
       character(len=*), intent(in) :: cold_z_history_file, cold_phi_history_file, all_history_dir
       logical, intent(in) :: write_cold_history, write_all_history
-      integer, intent(in) :: base_seed, cycle_count, local_updates
+      integer, intent(in) :: base_seed, swap_rng_seed, cycle_count, local_updates
       real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma, elapsed
       character(len=*), intent(in) :: init_mode
       logical, intent(in) :: swap_enabled
@@ -1609,10 +1629,13 @@ contains
       call write_json_string_field(unit_manifest, "history_boundary", "post_swap", .true.)
       call write_json_string_field(unit_manifest, "label_trace_boundary", "post_swap", .true.)
       call write_json_real_array_field(unit_manifest, "flow_ladder", flow_ladder, .true.)
-      call write_json_string_field(unit_manifest, "seed_policy", "CHAIN_RNG_SEED base seed plus deterministic per-slot derived seeds", .true.)
+      call write_json_string_field(unit_manifest, "rng_stream_contract", "per_replica_rng_v1", .true.)
+      call write_json_string_field(unit_manifest, "seed_policy", &
+                                   "CHAIN_RNG_SEED base seed plus deterministic per-slot local-update streams and one swap stream", .true.)
 
       write (unit_manifest, '(A)') '  "resolved_stage2_controls": {'
       call write_json_int_field(unit_manifest, "base_seed", base_seed, .true., 4)
+      call write_json_int_field(unit_manifest, "swap_rng_seed", swap_rng_seed, .true., 4)
       call write_json_int_field(unit_manifest, "num_replicas", size(flow_ladder), .true., 4)
       call write_json_real_field(unit_manifest, "max_flow_time", max_flow_time, .true., 4)
       call write_json_int_field(unit_manifest, "cycles", cycle_count, .true., 4)
@@ -1897,6 +1920,7 @@ contains
 
       write (unit_protocol, '(A)') '  "local_kernel": {'
       call write_json_string_field(unit_protocol, "kernel", "HMC/RATTLE on each fixed flowed surface", .true., 4)
+      call write_json_string_field(unit_protocol, "rng_stream", "owned by slot; stream continues from slot initialization into local updates", .true., 4)
       call write_json_string_field(unit_protocol, "proposal_failure_semantics", "legal rejection; live slot state unchanged", .true., 4)
       call write_json_string_field(unit_protocol, "reverse_gate", "required for canonical p28 proposal validity", .true., 4)
       call write_json_string_field(unit_protocol, "final_flow_policy", "strict final flow constructs accepted proposal states", .false., 4)
@@ -1906,7 +1930,8 @@ contains
       call write_json_string_field(unit_protocol, "proposal", "exchange base configurations between adjacent fixed flow-time slots", .true., 4)
       call write_json_string_field(unit_protocol, "acceptance_probability", "min(1, exp(-[(E_a(y)+E_b(x))-(E_a(x)+E_b(y))]))", .true., 4)
       call write_json_string_field(unit_protocol, "invalid_reflow_semantics", "reject swap; live slot states and labels unchanged", .true., 4)
-      call write_json_string_field(unit_protocol, "rng_draw_boundary", "draw only after finite current and proposed swap energies are available", .false., 4)
+      call write_json_string_field(unit_protocol, "rng_stream", "separate deterministic swap stream", .true., 4)
+      call write_json_string_field(unit_protocol, "rng_draw_boundary", "draw from swap stream only after finite current and proposed swap energies are available", .false., 4)
       write (unit_protocol, '(A)') '  },'
 
       write (unit_protocol, '(A)') '  "sweep_schedule": {'
@@ -2260,6 +2285,12 @@ contains
       temp_seed = int(abs(base_seed), int64) + 130363_int64*int(offset, int64)
       seed_value = int(modulo(temp_seed, 2147483646_int64) + 1_int64)
    end function derive_seed
+
+   integer function derive_swap_seed(base_seed) result(seed_value)
+      integer, intent(in) :: base_seed
+
+      seed_value = derive_seed(base_seed, 1000003)
+   end function derive_swap_seed
 
    subroutine build_linear_ladder(n_slots, max_flow_time, flow_ladder)
       integer, intent(in) :: n_slots

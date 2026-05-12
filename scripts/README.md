@@ -1,6 +1,10 @@
 # Scripts Guide
 
-This directory currently contains both active utility scripts and historical experiment scripts.
+This directory currently contains both active utility scripts and historical
+experiment scripts. The machine-checked evidence boundary lives in
+`codex/workspaces/fortran_modernization/state/SCRIPT_EVIDENCE_AUDIT_20260512.tsv`;
+run `make -C build script_evidence_audit_gate` before using any newly added or
+reclassified helper as modernization evidence.
 
 ## Active scripts (current baseline support)
 

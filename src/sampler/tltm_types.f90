@@ -1,4 +1,5 @@
 module tltm_types_mod
+   use mt95, only: mt95_state_t
    use utils, only: dp
    use markovchain_transition_status, only: metropolis_status_rejected, &
                                             metropolis_status_accepted, &
@@ -25,6 +26,7 @@ module tltm_types_mod
    type :: tltm_replica_t
       integer :: replica_id = -1
       integer :: rng_seed = 0
+      type(mt95_state_t) :: rng_state
       real(dp) :: flow_time = 0.0_dp
       real(dp) :: local_runtime = 0.0_dp
       real(dp), allocatable :: x(:)
@@ -47,6 +49,7 @@ module tltm_types_mod
       integer :: slot_id = -1
       integer :: label_id = -1
       integer :: rng_seed = 0
+      type(mt95_state_t) :: rng_state
       real(dp) :: flow_time = 0.0_dp
       real(dp) :: local_runtime = 0.0_dp
       real(dp), allocatable :: x(:)

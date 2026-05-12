@@ -13,6 +13,12 @@
 !                 function)                                       !
 ! igrnd(l,h)      integer RN in [l,h] (limits included)           !
 !                 (integer function)                              !
+! mt95_state_t    explicit RNG stream state, including Gaussian   !
+!                 spare state                                     !
+! mt95_seed_state initialize explicit RNG stream state             !
+! mt95_get_state  copy module-global RNG state into explicit state !
+! mt95_set_state  restore module-global RNG state from explicit    !
+!                 state                                           !
 !                                                                 !
 ! mtsave(f,forma) save RNG state                                  !
 ! mtget(f,forma)  restore RNG state                               !
@@ -126,6 +132,15 @@ module mt95
    integer, parameter, private :: N = 624, N1 = N + 1 ! Period parameters
    integer, dimension(0:N - 1), private :: mt      ! Array for the state vector
    integer, private :: mti = N1
+   real(rk_mt95), private :: gaussian_spare = 0.0_rk_mt95
+   integer, private :: gaussian_spare_valid = 0
+
+   type :: mt95_state_t
+      integer :: mti = N1
+      integer :: mt(0:N - 1) = 0
+      real(rk_mt95) :: gaussian_spare = 0.0_rk_mt95
+      integer :: gaussian_spare_valid = 0
+   end type mt95_state_t
 
    ! Overload procedures for saving and getting mt state
    interface mtsave
@@ -150,12 +165,61 @@ contains
       ! Setting initial seeds to mt[N] using the generator Line 25 of Table 1 in
       ! [KNUTH 1981, The Art of Computer Programming Vol. 2 (2nd Ed.), pp102]
       integer, intent(in) :: seed
-      mt(0) = iand(seed, -1)
-      do mti = 1, N - 1
-         mt(mti) = iand(69069*mt(mti - 1), -1)
-      end do
+      call seed_state_vector(seed, mt, mti)
+      call reset_gaussian_spare()
       return
    end subroutine sgrnd
+
+   subroutine mt95_seed_state(state, seed)
+      implicit none
+      type(mt95_state_t), intent(out) :: state
+      integer, intent(in) :: seed
+
+      call seed_state_vector(seed, state%mt, state%mti)
+      state%gaussian_spare = 0.0_rk_mt95
+      state%gaussian_spare_valid = 0
+   end subroutine mt95_seed_state
+
+   subroutine mt95_get_state(state)
+      implicit none
+      type(mt95_state_t), intent(out) :: state
+
+      state%mti = mti
+      state%mt = mt
+      state%gaussian_spare = gaussian_spare
+      state%gaussian_spare_valid = gaussian_spare_valid
+   end subroutine mt95_get_state
+
+   subroutine mt95_set_state(state)
+      implicit none
+      type(mt95_state_t), intent(in) :: state
+
+      mti = state%mti
+      mt = state%mt
+      gaussian_spare = state%gaussian_spare
+      gaussian_spare_valid = state%gaussian_spare_valid
+   end subroutine mt95_set_state
+
+   subroutine seed_state_vector(seed, state_mt, state_mti)
+      implicit none
+      integer, intent(in) :: seed
+      integer, intent(out) :: state_mt(0:N - 1)
+      integer, intent(out) :: state_mti
+      integer :: idx
+
+      state_mt(0) = iand(seed, -1)
+      do idx = 1, N - 1
+         state_mt(idx) = iand(69069*state_mt(idx - 1), -1)
+      end do
+      state_mti = N
+   end subroutine seed_state_vector
+
+   subroutine reset_gaussian_spare()
+      implicit none
+
+      gaussian_spare = 0.0_rk_mt95
+      gaussian_spare_valid = 0
+   end subroutine reset_gaussian_spare
 
    !---------------------------------------------------------------!
    !                                                               !
@@ -267,10 +331,8 @@ contains
       implicit none
       real(rk_mt95) :: gaussrnd
       real(rk_mt95) :: fac, v1, v2, r
-      real(rk_mt95), save :: gset
-      integer, save :: iset = 0
 
-      if (iset == 0) then ! Create a new RN
+      if (gaussian_spare_valid == 0) then ! Create a new RN
          r = 100.0
          do while (r > 1.0)
             v1 = 2.0*grnd() - 1.0
@@ -278,12 +340,12 @@ contains
             r = v1*v1 + v2*v2
          end do
          fac = sqrt(-2.0*log(r)/r)
-         gset = v1*fac
+         gaussian_spare = v1*fac
          gaussrnd = v2*fac
-         iset = 1
+         gaussian_spare_valid = 1
       else ! Use the 2nd NR from the previous call
-         gaussrnd = gset
-         iset = 0
+         gaussrnd = gaussian_spare
+         gaussian_spare_valid = 0
       end if
       return
    end function gaussrnd
@@ -364,10 +426,12 @@ contains
          open (unit=10, file=trim(fname), status='OLD', form='UNFORMATTED')
          read (10) mti
          read (10) mt
+         call reset_gaussian_spare()
       case default
          open (unit=10, file=trim(fname), status='OLD', form='FORMATTED')
          read (10, *) mti
          read (10, *) mt
+         call reset_gaussian_spare()
       end select
 
       close (10)
@@ -385,9 +449,11 @@ contains
       case ('u', 'U')
          read (unum) mti
          read (unum) mt
+         call reset_gaussian_spare()
       case default
          read (unum, *) mti
          read (unum, *) mt
+         call reset_gaussian_spare()
       end select
 
       return
