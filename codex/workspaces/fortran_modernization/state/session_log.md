@@ -593,3 +593,9 @@
 - Aggregate readback: nofb unresolved failures `3846795`, reverse-gate rejects `607777`, Zmean Re/Im `1.0465518987029727/-0.6679884160043988`; withfb unresolved failures `618706`, reverse-gate rejects `510906`, Zmean Re/Im `1.9729537196453188/-0.6779881307435225`.
 - Direct comparison: `withfb - nofb` unresolved failures `-3228089`, reverse-gate rejects `-96871`, mean runtime `+7696.45` seconds.
 - Recorded `OFFICIAL_DFOLS_PRODUCTION_REDO_READBACK_20260512.md` and `OFFICIAL_DFOLS_PRODUCTION_REDO_SUMMARY.tsv`. This closes the ambiguity that production redo had not been run, but does not convert the result into final publication regeneration.
+
+## 2026-05-12 JST - Production artifact versus modernization-release correction
+- Corrected the production readback wording after user clarification.
+- The `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb` artifact was generated under production-comparison commit `c0e40218e6abe2706f4b9b4c66067dbcea74eeff`.
+- It is not a rerun after the latest modernization HEAD, and it does not mean modernization is ready to update production and formally rerun final production.
+- Current answer to that readiness question is no: F3/CV-009, F4/CV-010, CV-001/CV-002, and final schema/wrapper/naming decisions still block F14 unless explicitly accepted.

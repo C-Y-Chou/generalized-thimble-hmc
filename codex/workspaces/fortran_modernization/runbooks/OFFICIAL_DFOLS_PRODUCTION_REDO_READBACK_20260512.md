@@ -1,11 +1,18 @@
-# Official DFO-LS Production Redo Readback
+# Official DFO-LS Provisional Production-Comparison Readback
 
 Updated: 2026-05-12 JST
 
-Scope: readback of the provisional production-comparison redo generated in
+Scope: readback of the provisional production-comparison artifact generated in
 `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison` for the
 official DFO-LS backend line. This is real official-DFO-LS production-comparison
 evidence. It is not the final publication regeneration gate.
+
+Important boundary: this artifact was generated under production-comparison
+commit `c0e40218e6abe2706f4b9b4c66067dbcea74eeff`. It is not a rerun after the
+latest modernization HEAD, and it does not mean modernization has reached the
+stage where production can be updated and formally redone. That gate remains
+blocked by F3/CV-009, F4/CV-010, CV-001/CV-002, and final schema/wrapper/naming
+decisions unless those limits are explicitly accepted.
 
 ## Provenance
 
@@ -41,8 +48,10 @@ Direct comparison `withfb - nofb`:
 
 ## Interpretation
 
-The production-comparison redo has been run and merged. It should no longer be
-described as "not submitted" or "still waiting on active PBS jobs".
+This production-comparison artifact has been run and merged. It should no
+longer be described as "not submitted" or "still waiting on active PBS jobs".
+It also should not be described as "current modernization is ready for production
+update and rerun".
 
 At the official DFO-LS 256seed/200k scale, `withfb` remains the more robust
 official-line production route by a large unresolved-failure margin, while
