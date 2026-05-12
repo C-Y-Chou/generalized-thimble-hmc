@@ -32,6 +32,9 @@ Updated: 2026-05-12 JST
 - QN linear workspace slice added on 2026-05-12 JST:
   - `runbooks/CV011_QN_LINEAR_WORKSPACE_SLICE_20260512.md`
   - `quasi_newton_linear_solver_mod` now supports optional `qn_linear_workspace_t` and no longer uses module SAVE scratch arrays.
+- Newton workspace slice added on 2026-05-12 JST:
+  - `runbooks/CV011_NEWTON_WORKSPACE_SLICE_20260512.md`
+  - `hmc_constraints:solve_constraint_newton` now supports optional `newton_constraint_workspace_t` and the RATTLE core path owns that workspace explicitly.
 - Algorithm reference bundle is collected under `references/`, including TLTM HMC, simplified Newton/RATTLE/HMC, DFO-GN/DFO-LS, Hairer ODEX, and the user original quasi-Newton projection formulation.
 - Low-level algorithm review set is complete and has already driven the first source canonicalization wave:
   - `runbooks/ODEX_FLOW_REVIEW_NOTES.md`

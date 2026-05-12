@@ -302,7 +302,8 @@ contains
       call set_intode_stage_trace(intode_stage_newton)
       call set_intode_newton_iter_trace(0)
       call set_intode_quasi_iter_trace(0)
-      call solve_constraint_newton(cttol, 100, ws%temp_x, ws%temp_z, ws%del_z, step_size, has_error, ws%Jl, final_x, ws%temp_jac)
+      call solve_constraint_newton(cttol, 100, ws%temp_x, ws%temp_z, ws%del_z, step_size, has_error, ws%Jl, final_x, &
+                                   ws%temp_jac, workspace=ws%newton_ws)
       if (.not. has_error) then
          call record_constraint_solver_newton_success()
       else

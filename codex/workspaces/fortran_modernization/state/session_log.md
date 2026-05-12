@@ -786,3 +786,13 @@
 - Verification passed with official DFO-LS Python env loaded:
   - `PYTHON="$PWD/.venv-dfols/bin/python" TLTM_OFFICIAL_DFOLS_PYTHONPATH="$(.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" make -C build FC=gfortran LDFLAGS= test_retained_core_qn_route_contract post_b_rng_reference_anchor`
   - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+
+## 2026-05-12 JST - CV-011 Newton workspace slice
+
+- Migrated `hmc_constraints:solve_constraint_newton` away from subroutine-local `save` scratch arrays.
+- Added `newton_constraint_workspace_t`; public solve call accepts optional explicit workspace and otherwise uses automatic local workspace.
+- Added `newton_constraint_workspace_t` to `rattle_step_workspace_t` so the active RATTLE core path owns Newton scratch state explicitly.
+- Behavior boundary: no Newton formula, ODEX policy, QN fallback policy, RNG, or output schema change intended.
+- Verification passed:
+  - `make -C build FC=gfortran LDFLAGS= test_retained_core_newton_contract test_retained_core_rattle_rg_contract post_b_rng_reference_anchor`
+  - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`

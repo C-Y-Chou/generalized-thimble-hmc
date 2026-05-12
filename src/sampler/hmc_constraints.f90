@@ -18,6 +18,14 @@ module hmc_constraints
    integer(int64), save :: newton_eval_flow_status_failure_h_min = 0_int64
    integer(int64), save :: newton_eval_flow_status_unknown = 0_int64
 
+   type :: newton_constraint_workspace_t
+      real(dp), allocatable :: B(:), jacr(:, :), jacr_lu(:, :)
+      real(dp), allocatable :: xtu(:), u(:), dxi(:), au(:), av(:)
+      real(dp), allocatable :: u_seed(:), x_trial(:)
+      complex(dp), allocatable :: ld(:), ld_seed(:)
+      integer, allocatable :: ipiv(:)
+   end type newton_constraint_workspace_t
+
 contains
 
    subroutine reset_newton_eval_flow_status_counts()
@@ -78,7 +86,7 @@ contains
       ! Zero-start mode: retained for interface compatibility.
    end subroutine reset_constraint_newton_warm_start
 
-   subroutine solve_constraint_newton(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, x_seed, Jl_seed)
+   subroutine solve_constraint_newton(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, x_seed, Jl_seed, workspace)
       implicit none
 
       integer, intent(in)          :: max_iter
@@ -91,12 +99,35 @@ contains
       real(dp), intent(out) :: Jl(:)
       complex(dp), intent(in) :: jac(:, :)
       real(dp), intent(in), optional :: x_seed(:), Jl_seed(:)
+      type(newton_constraint_workspace_t), intent(inout), optional :: workspace
 
-      real(dp), allocatable, save :: B(:), jacr(:, :), jacr_lu(:, :)
-      real(dp), allocatable, save :: xtu(:), u(:), dxi(:), au(:), av(:)
-      real(dp), allocatable, save :: u_seed(:), x_trial(:)
-      complex(dp), allocatable, save :: ld(:), ld_seed(:)
-      integer, allocatable, save :: ipiv(:)
+      type(newton_constraint_workspace_t) :: local_workspace
+
+      if (present(workspace)) then
+         call solve_constraint_newton_with_workspace(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, &
+                                                     x_seed, Jl_seed, workspace)
+      else
+         call solve_constraint_newton_with_workspace(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, &
+                                                     x_seed, Jl_seed, local_workspace)
+      end if
+   end subroutine solve_constraint_newton
+
+   subroutine solve_constraint_newton_with_workspace(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, &
+                                                     x_seed, Jl_seed, workspace)
+      implicit none
+
+      integer, intent(in)          :: max_iter
+      real(dp), intent(in)         :: tol
+      real(dp), intent(in)         :: step_size
+      logical, intent(out)         :: ierr
+      real(dp), intent(in) :: xt(:), del_z(:)
+      complex(dp), intent(in) :: z(:)
+      real(dp), intent(out) :: x_new(:)
+      real(dp), intent(out) :: Jl(:)
+      complex(dp), intent(in) :: jac(:, :)
+      real(dp), intent(in), optional :: x_seed(:), Jl_seed(:)
+      type(newton_constraint_workspace_t), intent(inout) :: workspace
+
       integer :: n, n2, info
       logical :: attempt_ok
       external :: dgetrf
@@ -118,23 +149,23 @@ contains
          return
       end if
 
-      call ensure_real_vec(B, n2)
-      call ensure_real_mat(jacr, n2, n2)
-      call ensure_real_mat(jacr_lu, n2, n2)
-      call ensure_int_vec(ipiv, n2)
-      call ensure_real_vec(xtu, 1 + n)
-      call ensure_complex_vec(ld, n)
-      call ensure_real_vec(u, n)
-      call ensure_real_vec(dxi, n2)
-      call ensure_real_vec(au, n2)
-      call ensure_real_vec(av, n2)
-      call ensure_real_vec(u_seed, n)
-      call ensure_complex_vec(ld_seed, n)
-      call ensure_real_vec(x_trial, n + 1)
+      call ensure_real_vec(workspace%B, n2)
+      call ensure_real_mat(workspace%jacr, n2, n2)
+      call ensure_real_mat(workspace%jacr_lu, n2, n2)
+      call ensure_int_vec(workspace%ipiv, n2)
+      call ensure_real_vec(workspace%xtu, 1 + n)
+      call ensure_complex_vec(workspace%ld, n)
+      call ensure_real_vec(workspace%u, n)
+      call ensure_real_vec(workspace%dxi, n2)
+      call ensure_real_vec(workspace%au, n2)
+      call ensure_real_vec(workspace%av, n2)
+      call ensure_real_vec(workspace%u_seed, n)
+      call ensure_complex_vec(workspace%ld_seed, n)
+      call ensure_real_vec(workspace%x_trial, n + 1)
 
-      call map_to_real_mat(jac, jacr)
-      jacr_lu = jacr
-      call dgetrf(n2, n2, jacr_lu, n2, ipiv, info)
+      call map_to_real_mat(jac, workspace%jacr)
+      workspace%jacr_lu = workspace%jacr
+      call dgetrf(n2, n2, workspace%jacr_lu, n2, workspace%ipiv, info)
       if (info /= 0) then
          ierr = .true.
          call perf_toc(PERF_NEWTON, t_prof)
@@ -145,31 +176,33 @@ contains
          call perf_toc(PERF_NEWTON, t_prof)
          return
       end if
-      u_seed = 0.0_dp
-      ld_seed = cmplx(0.0_dp, 0.0_dp, dp)
+      workspace%u_seed = 0.0_dp
+      workspace%ld_seed = cmplx(0.0_dp, 0.0_dp, dp)
       if (present(x_seed)) then
          if (size(x_seed) == size(xt)) then
-            u_seed = x_seed(2:) - xt(2:)
-            if (.not. all(ieee_is_finite(u_seed))) u_seed = 0.0_dp
+            workspace%u_seed = x_seed(2:) - xt(2:)
+            if (.not. all(ieee_is_finite(workspace%u_seed))) workspace%u_seed = 0.0_dp
          end if
       end if
       if (present(Jl_seed)) then
          if (size(Jl_seed) == n2) then
-            call real_to_complex(Jl_seed, ld_seed)
+            call real_to_complex(Jl_seed, workspace%ld_seed)
          end if
       end if
-      call solve_constraint_newton_seeded(tol, max_iter, xt, z, del_z, jacr, jacr_lu, ipiv, &
-                                          u_seed, ld_seed, B, xtu, u, ld, dxi, au, av, attempt_ok, x_trial)
+      call solve_constraint_newton_seeded(tol, max_iter, xt, z, del_z, workspace%jacr, workspace%jacr_lu, workspace%ipiv, &
+                                          workspace%u_seed, workspace%ld_seed, workspace%B, workspace%xtu, workspace%u, &
+                                          workspace%ld, workspace%dxi, workspace%au, workspace%av, attempt_ok, &
+                                          workspace%x_trial)
 
       if (attempt_ok) then
-         x_new = x_trial
-         call complex_to_real(ld, Jl)
+         x_new = workspace%x_trial
+         call complex_to_real(workspace%ld, Jl)
          ierr = .false.
       else
          ierr = .true.
       end if
       call perf_toc(PERF_NEWTON, t_prof)
-   end subroutine solve_constraint_newton
+   end subroutine solve_constraint_newton_with_workspace
 
    subroutine solve_constraint_newton_seeded(tol, max_iter, xt, z, del_z, jacr, jacr_lu, ipiv, &
                                              u_seed, ld_seed, B, xtu, u, ld, dxi, au, av, converged, x_new)
@@ -414,5 +447,24 @@ contains
          allocate (buf(nr, nc))
       end if
    end subroutine ensure_real_mat
+
+   subroutine release_newton_constraint_workspace(workspace)
+      implicit none
+      type(newton_constraint_workspace_t), intent(inout) :: workspace
+
+      if (allocated(workspace%B)) deallocate (workspace%B)
+      if (allocated(workspace%jacr)) deallocate (workspace%jacr)
+      if (allocated(workspace%jacr_lu)) deallocate (workspace%jacr_lu)
+      if (allocated(workspace%xtu)) deallocate (workspace%xtu)
+      if (allocated(workspace%u)) deallocate (workspace%u)
+      if (allocated(workspace%dxi)) deallocate (workspace%dxi)
+      if (allocated(workspace%au)) deallocate (workspace%au)
+      if (allocated(workspace%av)) deallocate (workspace%av)
+      if (allocated(workspace%u_seed)) deallocate (workspace%u_seed)
+      if (allocated(workspace%x_trial)) deallocate (workspace%x_trial)
+      if (allocated(workspace%ld)) deallocate (workspace%ld)
+      if (allocated(workspace%ld_seed)) deallocate (workspace%ld_seed)
+      if (allocated(workspace%ipiv)) deallocate (workspace%ipiv)
+   end subroutine release_newton_constraint_workspace
 
 end module hmc_constraints
