@@ -828,3 +828,11 @@
   - tiny Stage2 run with `TLTM_RG_REJECT_AUDIT_FILE` and `TLTM_LOCAL_TRANSITION_AUDIT_FILE` enabled; local-transition audit wrote header plus two rows, RG-reject audit wrote header-only for no reject.
   - `make -C build FC=gfortran LDFLAGS= post_b_rng_reference_anchor`
   - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+
+## 2026-05-12 JST - CV-011 flow context decision point
+
+- Inspected `solve_flow.f90` and `odex_backend.f90` after the Stage2 audit context slice.
+- Found that flow/Jacobian RHS scratch state is coupled to the callback interface `ode_rhs(y)`, which has no explicit user/context argument.
+- Recorded options in `CV011_FLOW_CONTEXT_DECISION_POINT_20260512.md`.
+- Recommendation: choose option A, redesign the local ODEX callback context path, then migrate flow/Jacobian RHS scratch into the top-level run context.
+- Stop condition: user decision required before changing the ODEX callback interface.
