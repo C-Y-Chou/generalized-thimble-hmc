@@ -36,6 +36,7 @@ module tltm_stage2_driver
                                           constraint_reverse_gate_path_far_anchor
    use tltm_types_mod, only: tltm_slot_t, tltm_pair_stats_t, tltm_label_track_t, allocate_tltm_slot, release_tltm_slot, &
                              record_tltm_local_transition
+   use tltm_run_context_mod, only: tltm_run_context_t, release_tltm_run_context
    implicit none
 
    integer, parameter :: stage2_cycle_cap_default = 200
@@ -98,6 +99,7 @@ contains
       type(tltm_pair_stats_t), allocatable :: pair_stats(:)
       type(tltm_label_track_t), allocatable :: label_tracks(:)
       type(local_accept_census_t), allocatable :: local_accept_census(:)
+      type(tltm_run_context_t), allocatable :: run_contexts(:)
       type(mt95_state_t) :: swap_rng_state
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file, label_trace_file
@@ -301,11 +303,12 @@ contains
       call update_round_trip_bookkeeping(label_tracks, 0, hot_slot)
       call write_label_trace(unit_trace, 0, label_tracks)
 
+      allocate (run_contexts(n_slots))
       run_t0 = wall_time_seconds()
       do cycle_idx = 1, cycle_count
          do i = 1, n_slots
             slot_t0 = wall_time_seconds()
-            call run_local_updates(slots(i), local_updates, local_accept_census(i), cycle_idx)
+            call run_local_updates(slots(i), local_updates, local_accept_census(i), cycle_idx, run_contexts(i))
             slots(i)%local_runtime = slots(i)%local_runtime + (wall_time_seconds() - slot_t0)
          end do
 
@@ -326,6 +329,7 @@ contains
                close (unit_cold_z)
                close (unit_cold_phi)
                if (write_all_history) call close_all_replica_history_files(all_z_units, all_phi_units)
+               call release_all_run_contexts(run_contexts)
                call release_all_slots(slots)
                if (allocated(flow_ladder)) deallocate (flow_ladder)
                if (allocated(pair_stats)) deallocate (pair_stats)
@@ -342,6 +346,7 @@ contains
                   close (unit_cold_phi)
                end if
                call close_all_replica_history_files(all_z_units, all_phi_units)
+               call release_all_run_contexts(run_contexts)
                call release_all_slots(slots)
                if (allocated(flow_ladder)) deallocate (flow_ladder)
                if (allocated(pair_stats)) deallocate (pair_stats)
@@ -409,6 +414,7 @@ contains
                                     summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
                                     write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
                                     local_updates, init_sigma, init_mode, swap_enabled, elapsed, slots, pair_stats, label_tracks)
+      call release_all_run_contexts(run_contexts)
       call release_all_slots(slots)
       if (allocated(flow_ladder)) deallocate (flow_ladder)
       if (allocated(pair_stats)) deallocate (pair_stats)
@@ -491,11 +497,12 @@ contains
       if (allocated(x_seed)) deallocate (x_seed)
    end subroutine initialize_slot
 
-   subroutine run_local_updates(slot, local_updates, accept_census, cycle_idx)
+   subroutine run_local_updates(slot, local_updates, accept_census, cycle_idx, run_context)
       type(tltm_slot_t), intent(inout) :: slot
       integer, intent(in) :: local_updates
       type(local_accept_census_t), intent(inout) :: accept_census
       integer, intent(in) :: cycle_idx
+      type(tltm_run_context_t), intent(inout) :: run_context
 
       integer :: update_idx, z_size
       real(dp), allocatable :: x_new(:), x_before(:), initial_momentum(:), final_momentum(:)
@@ -520,7 +527,7 @@ contains
                               config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
                               h_initial_out=h_initial, h_final_out=h_final, delta_h_out=delta_h, &
                               accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
-                              final_momentum_out=final_momentum)
+                              final_momentum_out=final_momentum, context=run_context%hmc)
          call snapshot_solver_counters(solver_after)
          if (accepted) then
             slot%x = x_new
@@ -2318,5 +2325,16 @@ contains
       end do
       deallocate (slots)
    end subroutine release_all_slots
+
+   subroutine release_all_run_contexts(run_contexts)
+      type(tltm_run_context_t), allocatable, intent(inout) :: run_contexts(:)
+      integer :: i
+
+      if (.not. allocated(run_contexts)) return
+      do i = 1, size(run_contexts)
+         call release_tltm_run_context(run_contexts(i))
+      end do
+      deallocate (run_contexts)
+   end subroutine release_all_run_contexts
 
 end module tltm_stage2_driver

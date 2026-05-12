@@ -7,6 +7,7 @@ module hmc
    use hmc_kernels, only: decompose2, calculate_hamiltonian
    use hmc_constraints, only: reset_constraint_newton_warm_start
    use hmc_state_buffers, only: rattle_step_workspace_t, release_rattle_step_workspace
+   use tltm_run_context_mod, only: tltm_hmc_context_t
    use hmc_integrator_core, only: rattle_step_core, &
                                   hmc_step_status_output_size_mismatch, &
                                   hmc_step_status_momentum_size_mismatch, &
@@ -38,7 +39,7 @@ contains
 
    subroutine integrate_hmc_proposal(state_x, state_z, step_size, num_steps, &
                                      final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok, &
-                                     proposal_status, initial_momentum_out, final_momentum_out)
+                                     proposal_status, initial_momentum_out, final_momentum_out, context)
       implicit none
       real(dp), intent(in) :: state_x(:)
       complex(dp), intent(in) :: state_z(:)
@@ -53,17 +54,18 @@ contains
       logical, intent(out), optional :: proposal_ok
       integer, intent(out), optional :: proposal_status
       real(dp), intent(out), optional :: initial_momentum_out(:), final_momentum_out(:)
+      type(tltm_hmc_context_t), intent(inout), optional :: context
       logical :: local_ok
       integer :: local_status
 
       call rattle(state_x, state_z, step_size, num_steps, final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, &
-                  local_ok, local_status, initial_momentum_out, final_momentum_out)
+                  local_ok, local_status, initial_momentum_out, final_momentum_out, context)
       if (present(proposal_ok)) proposal_ok = local_ok
       if (present(proposal_status)) proposal_status = local_status
    end subroutine integrate_hmc_proposal
 
    subroutine integrate_hmc_warmup(state_x, state_z, step_size, num_steps, &
-                                   final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf)
+                                   final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, context)
       implicit none
       real(dp), intent(in) :: state_x(:)
       complex(dp), intent(in) :: state_z(:)
@@ -75,13 +77,14 @@ contains
       complex(dp), intent(out) :: final_z(:)
       real(dp), intent(out) :: initial_hamiltonian
       real(dp), intent(out) :: final_hamiltonian
+      type(tltm_hmc_context_t), intent(inout), optional :: context
 
-      call rattle2(state_x, state_z, step_size, num_steps, final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf)
+      call rattle2(state_x, state_z, step_size, num_steps, final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, context)
    end subroutine integrate_hmc_warmup
 
    subroutine rattle(state_x, state_z, step_size, num_steps, &
                      final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok, proposal_status, &
-                     initial_momentum_out, final_momentum_out)
+                     initial_momentum_out, final_momentum_out, context)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -98,6 +101,7 @@ contains
       logical, intent(out) :: proposal_ok
       integer, intent(out) :: proposal_status
       real(dp), intent(out), optional :: initial_momentum_out(:), final_momentum_out(:)
+      type(tltm_hmc_context_t), intent(inout), optional :: context
 
       integer :: step, state_size
       real(dp) :: integration_step_size
@@ -150,7 +154,11 @@ contains
 
       call grand(momentum)
       if (istest) momentum = testmom
-      call decompose2(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error)
+      if (present(context)) then
+         call decompose2(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, context%proposal_ws%decompose_ws)
+      else
+         call decompose2(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, ws%decompose_ws)
+      end if
       if (has_error) then
          proposal_status = hmc_proposal_status_initial_projection_failed
          call abort_with_failure()
@@ -171,8 +179,13 @@ contains
          temp_z = final_z
 
          call set_intode_rattle_trace(step, 1)
-         call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, method_converged, ws, &
-                               step_status)
+         if (present(context)) then
+            call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
+                                  method_converged, context%proposal_ws, step_status)
+         else
+            call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
+                                  method_converged, ws, step_status)
+         end if
          if (.not. method_converged) then
             proposal_status = proposal_status_from_step_status(step_status)
             call abort_with_failure()
@@ -183,7 +196,11 @@ contains
 
       call report_state_progress_diagnostic("proposal", temp_x, final_x)
 
-      call decompose2(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error)
+      if (present(context)) then
+         call decompose2(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, context%proposal_ws%decompose_ws)
+      else
+         call decompose2(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, ws%decompose_ws)
+      end if
       if (has_error) then
          proposal_status = hmc_proposal_status_final_projection_failed
          call abort_with_failure()
@@ -271,8 +288,13 @@ contains
             local_prev_x = out_x
             local_prev_z = out_z
             call set_intode_rattle_trace(local_step, 1)
-            call rattle_step_core(local_prev_x, local_prev_z, local_step_size, out_x, out_z, local_jac, out_jac, local_momentum, &
-                                  local_method_converged, local_ws, local_step_status)
+            if (present(context)) then
+               call rattle_step_core(local_prev_x, local_prev_z, local_step_size, out_x, out_z, local_jac, out_jac, &
+                                     local_momentum, local_method_converged, context%reverse_probe_ws, local_step_status)
+            else
+               call rattle_step_core(local_prev_x, local_prev_z, local_step_size, out_x, out_z, local_jac, out_jac, &
+                                     local_momentum, local_method_converged, local_ws, local_step_status)
+            end if
             if (.not. local_method_converged) then
                local_proposal_status = proposal_status_from_step_status(local_step_status)
                out_x = start_x
@@ -296,7 +318,13 @@ contains
 
          call report_state_progress_diagnostic("reverse_probe", local_prev_x, out_x)
 
-         call decompose2(local_momentum, local_momentumuv, local_momentumu, local_momentumv, local_jac, local_error)
+         if (present(context)) then
+            call decompose2(local_momentum, local_momentumuv, local_momentumu, local_momentumv, local_jac, local_error, &
+                            context%reverse_probe_ws%decompose_ws)
+         else
+            call decompose2(local_momentum, local_momentumuv, local_momentumu, local_momentumv, local_jac, local_error, &
+                            local_ws%decompose_ws)
+         end if
          if (local_error) then
             local_proposal_status = hmc_proposal_status_final_projection_failed
             out_x = start_x
@@ -410,7 +438,7 @@ contains
          if (allocated(reverse_momentum)) deallocate (reverse_momentum)
          if (allocated(reverse_z)) deallocate (reverse_z)
          if (allocated(reverse_jac)) deallocate (reverse_jac)
-         call release_rattle_step_workspace(ws)
+         if (.not. present(context)) call release_rattle_step_workspace(ws)
          call clear_intode_runtime_trace()
       end subroutine deallocate_all
 
@@ -425,7 +453,7 @@ contains
    end subroutine rattle
 
    subroutine rattle2(state_x, state_z, step_size, num_steps, &
-                      final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf)
+                      final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, context)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -439,6 +467,7 @@ contains
       complex(dp), intent(out) :: final_z(:)
       real(dp), intent(out) :: initial_hamiltonian
       real(dp), intent(out) :: final_hamiltonian
+      type(tltm_hmc_context_t), intent(inout), optional :: context
 
       integer :: step, state_size, wi, substep
       real(dp) :: integration_step_size
@@ -481,7 +510,13 @@ contains
                integration_step_size = w_rattle(size(w_rattle) - wi)*step_size/real(num_steps, dp)
                substep = wi + 1
                call set_intode_rattle_trace(step, substep)
-               call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, method_converged, ws)
+               if (present(context)) then
+                  call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
+                                        method_converged, context%warmup_ws)
+               else
+                  call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
+                                        method_converged, ws)
+               end if
                if (.not. method_converged) then
                   call abort_with_failure()
                   return
@@ -494,7 +529,13 @@ contains
             integration_step_size = (1.0_dp - 2.0_dp*sum(w_rattle))*step_size/real(num_steps, dp)
             substep = size(w_rattle) + 1
             call set_intode_rattle_trace(step, substep)
-            call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, method_converged, ws)
+            if (present(context)) then
+               call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
+                                     method_converged, context%warmup_ws)
+            else
+               call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
+                                     method_converged, ws)
+            end if
             if (.not. method_converged) then
                call abort_with_failure()
                return
@@ -507,7 +548,13 @@ contains
                integration_step_size = w_rattle(wi)*step_size/real(num_steps, dp)
                substep = size(w_rattle) + 1 + wi
                call set_intode_rattle_trace(step, substep)
-               call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, method_converged, ws)
+               if (present(context)) then
+                  call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
+                                        method_converged, context%warmup_ws)
+               else
+                  call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
+                                        method_converged, ws)
+               end if
                if (.not. method_converged) then
                   call abort_with_failure()
                   return
@@ -519,7 +566,13 @@ contains
             temp_x = final_x
             temp_z = final_z
             call set_intode_rattle_trace(step, 1)
-            call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, method_converged, ws)
+            if (present(context)) then
+               call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
+                                     method_converged, context%warmup_ws)
+            else
+               call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
+                                     method_converged, ws)
+            end if
             if (.not. method_converged) then
                call abort_with_failure()
                return
@@ -543,7 +596,7 @@ contains
          if (allocated(temp_x)) deallocate (temp_x)
          if (allocated(temp_z)) deallocate (temp_z)
          if (allocated(temp_jac)) deallocate (temp_jac)
-         call release_rattle_step_workspace(ws)
+         if (.not. present(context)) call release_rattle_step_workspace(ws)
          call clear_intode_runtime_trace()
       end subroutine deallocate_all
 

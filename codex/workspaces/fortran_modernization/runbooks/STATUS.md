@@ -11,14 +11,14 @@ Updated: 2026-05-12 JST
 - User-confirmed alias: "code refine" means this `fortran_modernization` task, not a separate workspace.
 - Current position is now tracked by workstream matrix, not by treating M0-M6 as a linear completion ladder:
   - `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`
-  - Position: reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> first non-RNG workspace slice -> full OpenMP/thread-safe productization -> broader modernization blocks.
+  - Position: reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected and first HMC slice implemented -> full OpenMP/thread-safe productization -> broader modernization blocks.
 - Foundation closure decisions recorded on 2026-05-12 JST:
   - `CV-007` is closed by endpoint-only ODEX product boundary;
   - `CV-001` is closed by `official_line_kernel_correctness_gate.py`;
   - `CV-006` is closed by `DFOLS_CLAIM_PROVENANCE_POLICY_V1`;
   - `CV-004` is closed as permanent F8/M4 behavior-preservation governance;
   - `CV-005` is closed by machine-checked script/evidence audit;
-  - `CV-011` route-B RNG stream ownership is implemented and remains open for full OpenMP/thread-safe productization: remaining behavior-bearing module state/workspaces, counters, diagnostics, policy state, and deterministic serial/reentrant tests.
+  - `CV-011` route-B RNG stream ownership and the first top-level HMC context slice are implemented. CV-011 remains open for full OpenMP/thread-safe productization: remaining behavior-bearing module state/workspaces, counters, diagnostics, policy state, and deterministic serial/reentrant tests.
 - Modernization finish decisions recorded on 2026-05-12 JST:
   - `runbooks/MODERNIZATION_FINISH_DECISIONS_20260512.md`
   - Production redo is completely separated into `tltm_production_comparison`; modernization provides frozen commits/contracts but does not own redo queueing, readback, or final production-output promotion.
@@ -37,7 +37,10 @@ Updated: 2026-05-12 JST
   - `hmc_constraints:solve_constraint_newton` now supports optional `newton_constraint_workspace_t` and the RATTLE core path owns that workspace explicitly.
 - CV-011 remaining state decision point recorded on 2026-05-12 JST:
   - `runbooks/CV011_REMAINING_STATE_DECISION_POINT_20260512.md`
-  - Remaining hidden state now needs a product-context ownership decision before wider flow/QN/diagnostics/model/config/profiling API migration.
+  - User selected top-level TLTM run context route A before wider flow/QN/diagnostics/model/config/profiling API migration.
+- CV-011 top-level run context first slice added on 2026-05-12 JST:
+  - `runbooks/CV011_TOP_LEVEL_RUN_CONTEXT_SLICE_20260512.md`
+  - Stage1 and Stage2 now own per-replica/per-slot run contexts for HMC proposal, reverse-probe, and warmup workspace ownership.
 - Algorithm reference bundle is collected under `references/`, including TLTM HMC, simplified Newton/RATTLE/HMC, DFO-GN/DFO-LS, Hairer ODEX, and the user original quasi-Newton projection formulation.
 - Low-level algorithm review set is complete and has already driven the first source canonicalization wave:
   - `runbooks/ODEX_FLOW_REVIEW_NOTES.md`

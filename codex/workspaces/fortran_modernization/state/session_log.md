@@ -803,3 +803,16 @@
 - Remaining classes are flow/ODEX workspaces and counters, QN residual/trace/capture/backend state, constraint/reverse-gate counters and capture files, Stage2 diagnostic file handles, model tape/cache state, config mirror, and profiling state.
 - This is now a product-context decision rather than another isolated scratch migration.
 - Recommendation recorded: introduce a top-level TLTM run context as the product direction, then incrementally thread sub-contexts through Stage1/Stage2 paths while retaining compatibility wrappers.
+
+## 2026-05-12 JST - CV-011 top-level run context first slice
+
+- User selected route A: top-level TLTM run context first, then continue until the next required decision.
+- Added `tltm_run_context_mod` with `tltm_run_context_t` and `tltm_hmc_context_t`.
+- Threaded HMC context through `metropolis_step`, `integrate_hmc_proposal`, `integrate_hmc_warmup`, and Stage1/Stage2 local-update paths.
+- Stage1 owns one run context per replica; Stage2 owns one run context per slot.
+- Behavior boundary: workspace ownership only; no physics equation, solver policy, reverse-gate policy, Metropolis acceptance, output schema, or post-B RNG-stream change intended.
+- Production redo remains fully isolated in `tltm_production_comparison`; modernization work did not sync, stage, or modify the production tree.
+- Verification passed:
+  - `make -C build ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`
+  - `make -C build FC=gfortran LDFLAGS= test_retained_core_rattle_rg_contract test_retained_core_rg_reject_identity post_b_rng_reference_anchor`
+  - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`

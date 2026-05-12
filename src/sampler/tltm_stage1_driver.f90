@@ -12,6 +12,7 @@ module tltm_stage1_driver
    use hmc_integrator_core, only: reset_reverse_gate_replay_status_counts, get_reverse_gate_replay_status_counts
    use quasi_newton_solver_mod, only: reset_quasi_eval_flow_status_counts, get_quasi_eval_flow_status_counts
    use tltm_types_mod, only: tltm_replica_t, allocate_tltm_replica, release_tltm_replica, record_tltm_local_transition
+   use tltm_run_context_mod, only: tltm_run_context_t, release_tltm_run_context
    implicit none
 
    integer, parameter :: stage1_cycle_cap_default = 200
@@ -22,6 +23,7 @@ contains
 
    subroutine execute_tltm_stage1()
       type(tltm_replica_t), allocatable :: replicas(:)
+      type(tltm_run_context_t), allocatable :: run_contexts(:)
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file
       integer :: n_replicas, base_seed, cycle_count, local_updates, x_size
@@ -48,7 +50,7 @@ contains
          " nstep=", config%integrator%integration_steps, " max_flow(test)=", max_flow_time
       write (*, '(A)') "[TLTM-S1] rng_stream_contract=per_replica_rng_v1"
 
-      allocate (replicas(n_replicas))
+      allocate (replicas(n_replicas), run_contexts(n_replicas))
       do i = 1, n_replicas
          replicas(i)%replica_id = i - 1
          replicas(i)%flow_time = flow_ladder(i)
@@ -58,6 +60,7 @@ contains
          if (.not. ok) then
             write (*, '(A,I0,A,F8.4,A)') "[ERROR][TLTM-S1] Replica ", replicas(i)%replica_id, &
                " initialization failed at flow_time=", replicas(i)%flow_time, "."
+            call release_all_run_contexts(run_contexts)
             call release_all_replicas(replicas)
             error stop 1
          end if
@@ -67,7 +70,7 @@ contains
       do cycle_idx = 1, cycle_count
          do i = 1, n_replicas
             replica_t0 = wall_time_seconds()
-            call run_local_updates(replicas(i), local_updates)
+            call run_local_updates(replicas(i), local_updates, run_contexts(i))
             replicas(i)%local_runtime = replicas(i)%local_runtime + (wall_time_seconds() - replica_t0)
             call measure_replica(replicas(i))
          end do
@@ -79,6 +82,7 @@ contains
       elapsed = wall_time_seconds() - run_t0
 
       call write_stage1_summary(summary_file, replicas, cycle_count, local_updates, elapsed, base_seed)
+      call release_all_run_contexts(run_contexts)
       call release_all_replicas(replicas)
       if (allocated(flow_ladder)) deallocate (flow_ladder)
 
@@ -120,9 +124,10 @@ contains
       if (allocated(x_seed)) deallocate (x_seed)
    end subroutine initialize_replica
 
-   subroutine run_local_updates(replica, local_updates)
+   subroutine run_local_updates(replica, local_updates, run_context)
       type(tltm_replica_t), intent(inout) :: replica
       integer, intent(in) :: local_updates
+      type(tltm_run_context_t), intent(inout) :: run_context
 
       integer :: update_idx, z_size
       real(dp), allocatable :: x_new(:)
@@ -137,7 +142,8 @@ contains
       call mt95_set_state(replica%rng_state)
       do update_idx = 1, local_updates
          call metropolis_step(replica%x, replica%z, replica%jac, config%integrator%trajectory_length, &
-                              config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status)
+                              config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
+                              context=run_context%hmc)
          if (accepted) then
             replica%x = x_new
             replica%z = z_new
@@ -385,6 +391,17 @@ contains
       end do
       deallocate (replicas)
    end subroutine release_all_replicas
+
+   subroutine release_all_run_contexts(run_contexts)
+      type(tltm_run_context_t), allocatable, intent(inout) :: run_contexts(:)
+      integer :: i
+
+      if (.not. allocated(run_contexts)) return
+      do i = 1, size(run_contexts)
+         call release_tltm_run_context(run_contexts(i))
+      end do
+      deallocate (run_contexts)
+   end subroutine release_all_run_contexts
 
    integer function derive_replica_seed(base_seed, replica_index) result(seed_value)
       integer, intent(in) :: base_seed, replica_index

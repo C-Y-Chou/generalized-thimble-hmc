@@ -1,7 +1,7 @@
 # Progress Tracker: fortran_modernization
 
 ## Current milestone
-- CV-011 OpenMP/thread-safe productization active: CV-001/CV-004/CV-005/CV-006/CV-007 are closed for modernization scope, CV-011 route-B RNG streams, post-B reference anchor, and early non-RNG workspace slices are implemented. Remaining modernization work is full OpenMP/thread-safe productization. Production redo is external to modernization and belongs to `tltm_production_comparison`.
+- CV-011 OpenMP/thread-safe productization active: CV-001/CV-004/CV-005/CV-006/CV-007 are closed for modernization scope, CV-011 route-B RNG streams, post-B reference anchor, early non-RNG workspace slices, and the first top-level TLTM run-context/HMC slice are implemented. Remaining modernization work is full OpenMP/thread-safe productization. Production redo is external to modernization and belongs to `tltm_production_comparison`.
 
 ## Milestones
 - M0: planning and governance established
@@ -93,6 +93,7 @@
 - 2026-05-12 JST: Implemented the QN linear workspace slice. `quasi_newton_linear_solver_mod` now exposes optional `qn_linear_workspace_t` for linear direction solves and QN initial guesses; legacy callers use automatic local workspace instead of module SAVE scratch arrays. With official DFO-LS Python env loaded, `make -C build FC=gfortran LDFLAGS= test_retained_core_qn_route_contract post_b_rng_reference_anchor` passed; full M4 also passed.
 - 2026-05-12 JST: Implemented the Newton workspace slice. `solve_constraint_newton` now accepts optional `newton_constraint_workspace_t`; the RATTLE core path stores it in `rattle_step_workspace_t`, and legacy callers use automatic local workspace instead of subroutine-local SAVE scratch arrays. `make -C build FC=gfortran LDFLAGS= test_retained_core_newton_contract test_retained_core_rattle_rg_contract post_b_rng_reference_anchor` and full M4 passed.
 - 2026-05-12 JST: Recorded CV-011 remaining-state decision point. Scratch workspace migration can continue locally, but the remaining flow/QN/diagnostics/model/config/profiling SAVE state needs a product-context strategy before wider API migration. Recommended route is a top-level TLTM run context with incremental sub-context threading.
+- 2026-05-12 JST: User selected the top-level TLTM run-context route. Added `tltm_run_context_t` and first HMC context slice: proposal, reverse-probe, and warmup workspaces are now owned by per-replica/per-slot run contexts in Stage1/Stage2 local updates, while legacy callers retain automatic local workspaces. Production redo remains isolated in `tltm_production_comparison`.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit

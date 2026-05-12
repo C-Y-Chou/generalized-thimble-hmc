@@ -7,7 +7,7 @@ Scope: foundation-gap-gated forward queue for continuing TLTM Fortran modernizat
 ## Current Position
 
 ```text
-Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> non-RNG workspace slices underway -> full OpenMP/thread-safe productization remains
+Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected and first HMC slice implemented -> full OpenMP/thread-safe productization remains
 ```
 
 This queue supersedes any interpretation that M2/M6 means the numerical/software foundation is complete. M6 is a behavior-protection and degeneracy-observation anchor, not official DFO-LS certification; `FOUNDATION_COMPLETENESS_RESET_20260511.md` is the reset map for the unfinished foundation.
@@ -24,7 +24,7 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 - `CV-008`: official DFO-LS backend replacement is accepted for the representative scope: package provenance, preset/source contract, sidecar provenance guardrails, small embedded gate, imported official assist calibration, and representative embedded 10seed x 10k readback all pass. Reopen only on package/preset/callback/runtime/QN-route changes or broader final-production claims.
 - `CV-009`: closed for the pre-redo gate. Retained Newton/RATTLE/QN/HMC/RG cores now have deterministic guardrails for Newton replay, successful RATTLE/RG pass replay, BTN residual reconstruction, official package-success route census, stub no-fallback behavior, RG reject stay-put identity, failure-as-rejection accounting, and a branch/measure harness recorded by `f14_complete_pre_redo_gate.py`.
 - `CV-010`: closed for the pre-redo gate. Local transition accounting now uses `tltm_local_transition_event_t`, `F4_LOCAL_TRANSITION_AUDIT_V1` freezes the typed audit context, and M4 validates audit row invariants plus reverse-gate counter identities.
-- `CV-011`: route-B RNG streams are implemented; full OpenMP/thread-safe productization is still unfinished productization foundation.
+- `CV-011`: route-B RNG streams and the first top-level HMC context slice are implemented; full OpenMP/thread-safe productization is still unfinished productization foundation.
 
 ## Forward Queue
 
@@ -44,7 +44,7 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 | F10 | typed status/result propagation | gated | after-F14-redo-scope | explicit flow/solver/RATTLE/HMC/reverse-gate result objects | route/counter equality checks pass |
 | F11 | diagnostics accounting implementation | gated | after-F14-redo-scope | broader structured forward/replay/probe/reject accounting beyond local-transition event source | schema versioning and compatibility readers exist |
 | F12 | unified wrapper/product interface | gated | after-F14-redo-scope | wrapper runs same Stage2/Stage3 protocol with v1 sidecars | no public behavior replacement without compatibility layer |
-| F13 | RNG/reentrancy/module workspace migration | decision_needed | after-context-decision | route-B per-replica/per-slot RNG streams and post-B deterministic reference anchor are implemented; `decompose2`, QN linear-solver, and Newton hidden scratch workspaces are migrated; remaining flow/QN/diagnostics/model/config/profiling state needs a product-context ownership decision | deterministic serial/reentrant comparisons exist |
+| F13 | RNG/reentrancy/module workspace migration | active | yes | route-B per-replica/per-slot RNG streams and post-B deterministic reference anchor are implemented; `decompose2`, QN linear-solver, and Newton hidden scratch workspaces are migrated; user selected top-level TLTM run context route A; first HMC context slice is threaded through Stage1/Stage2 local updates | deterministic serial/reentrant comparisons exist |
 | F14 | publication-grade production regeneration | external_redo_tree | no, outside modernization | F3/F4/F7/F8 pre-redo gates pass, CV-001 kernel correctness is closed, CV-006 claim policy is closed, and modernization can provide a frozen commit/contract | production redo scope/scale, target commit/worktree, and CV-002 promotion boundary stay in `tltm_production_comparison` |
 
 ## What Can Continue Before Pre-Redo

@@ -31,10 +31,10 @@ first explicit scratch-workspace migrations.
 | Model tape/cache state | `model_generated.f90`, `model_tape_ad.f90` tape/cache arrays and current point | Needs either per-thread/per-context tape ownership or a product decision to avoid sharing this cache across OpenMP workers. |
 | Runtime config mirror and profiling | `param_mod.f90` global config mirror, `perf_profile.f90` profiler accumulators | Config should move toward explicit immutable run config; profiler can be per-run or explicitly non-product/global diagnostic. |
 
-## Decision Needed
+## Decision Result
 
-The next implementation is no longer just replacing scratch arrays. It defines
-the product contract for diagnostics and context ownership. The key decision is:
+The next implementation was no longer just replacing scratch arrays. It defined
+the product contract for diagnostics and context ownership. The key decision was:
 
 ```text
 Should CV-011 proceed by introducing one top-level TLTM run context that owns
@@ -42,7 +42,22 @@ flow/QN/diagnostic/model/config/profiling state, or should we first migrate
 module-by-module contexts and stitch them into the wrapper later?
 ```
 
-## Recommendation
+User selected A: introduce one top-level TLTM run context as the product
+direction, then migrate sub-contexts incrementally.
+
+## Implemented First A Slice
+
+- `tltm_run_context_mod` now defines `tltm_run_context_t`.
+- `tltm_hmc_context_t` owns HMC proposal, reverse-probe, and warmup
+  `rattle_step_workspace_t` instances.
+- Stage1 owns one run context per replica.
+- Stage2 owns one run context per slot.
+- `metropolis_step`, `integrate_hmc_proposal`, and `integrate_hmc_warmup` accept
+  optional HMC contexts while preserving legacy automatic-workspace callers.
+
+See `CV011_TOP_LEVEL_RUN_CONTEXT_SLICE_20260512.md`.
+
+## Recommendation Rationale
 
 Use one top-level TLTM run context as the product direction, but implement it
 incrementally:
@@ -58,8 +73,8 @@ incrementally:
 This is the cleanest route to real OpenMP/thread-safe productization, but it is
 a wider API migration than the completed scratch-workspace slices.
 
-## Stop Condition
+## Stop Condition Closed
 
-Stop here for user confirmation before changing the public shape of run context
-ownership. Continuing without that decision risks producing piecemeal module
-contexts that later need another API migration.
+The decision stop is closed by user confirmation. Continue source migration
+inside the modernization tree until a slice would change physics, output schema
+semantics, public run controls, or the production/modernization tree boundary.
