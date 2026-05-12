@@ -1,6 +1,6 @@
 # Fortran Modernization State Brief
 
-Updated: 2026-05-11 JST
+Updated: 2026-05-12 JST
 
 ## Current Position
 
@@ -14,6 +14,7 @@ Updated: 2026-05-11 JST
 - Latest refresh shows no active pinned M6 jobs.
 - Embedded official DFO-LS is now the default QN backend. `QN_SOLVER_BACKEND=internal` is only for controlled legacy comparison.
 - Official DFO-LS backend replacement F2 is accepted for the current representative scope: representative embedded 10seed x 10k gate passed with 1000 captured attempts, 923 embedded-converged attempts, 0 float64 failures, 0 missing replay rows, and 0 embedded-converged regressions.
+- Official DFO-LS production-comparison redo has also completed as a provisional evidence run: `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`, 256 seeds x 200000 cycles for both `nofb` and `withfb`, merged under production-comparison commit `c0e4021`. It supports `withfb` as the more robust official-line production route, but it is not the final publication regeneration gate.
 - F3 retained-core deterministic evidence has passing guardrails for Newton replay, successful one-step RATTLE/RG pass replay, BTN residual reconstruction, and official-route no-fallback surface. F3 remains active for fixed-seed official-line route census, package-success route coverage, RG reject/live-state identity, and local-volume/branch-measure coverage.
 - The default local source of truth is `/Users/ccy/Documents/TLTM_qn_error_handling`, not `/Users/ccy/Documents/New project/TLTM_repo`.
 
@@ -32,6 +33,7 @@ Updated: 2026-05-11 JST
 - `runbooks/M6_REFERENCE_DATASET_READBACK_PLAN.md`: readback gate.
 - `runbooks/M6_REFERENCE_DATASET_READBACK_20260510.md`: accepted M6 R1-R4 readback.
 - `runbooks/RETAINED_CORE_DETERMINISTIC_EVIDENCE_20260511.md`: first Newton and successful RATTLE/RG pass replay evidence.
+- `runbooks/OFFICIAL_DFOLS_PRODUCTION_REDO_READBACK_20260512.md`: official DFO-LS 256seed/200k production-comparison redo readback.
 - `state/RETAINED_CORE_EVIDENCE.tsv`: retained-core evidence registry.
 - `state/M6_REFERENCE_PACKAGES.tsv`: package registry template.
 - `state/CLUSTER02_SCHEDULER_KNOWLEDGE.json`: scheduler memory.

@@ -584,3 +584,12 @@
 - Current official-line route surface passed: `QN_SOLVER_BACKEND=official_dfols`, `QN_OFFICIAL_DFOLS_PRESET=stable_gate77`, `npt=4`, `maxfun=250`, `noise=T`, route code `10`, and no internal fallback when the stub bridge fails.
 - Focused retained-core tests passed together: `make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract`.
 - Full local M4 guardrail passed with the QN route contract included.
+
+## 2026-05-12 JST - Official DFO-LS production redo readback
+- Refreshed remote state: no active PBS jobs remained, and `tltm_production_comparison` was clean at pinned commit `c0e40218e6abe2706f4b9b4c66067dbcea74eeff`.
+- Read back merged production-comparison campaign `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`.
+- Scale: 256 seeds x 200000 cycles per method, official DFO-LS backend, `stable_gate77`, RG on, p28, `cttol=1e-13`, `QN_QUASI_TOL_OVERRIDE=1e-13`.
+- Per-seed row counts passed: `nofb=256`, `withfb=256`.
+- Aggregate readback: nofb unresolved failures `3846795`, reverse-gate rejects `607777`, Zmean Re/Im `1.0465518987029727/-0.6679884160043988`; withfb unresolved failures `618706`, reverse-gate rejects `510906`, Zmean Re/Im `1.9729537196453188/-0.6779881307435225`.
+- Direct comparison: `withfb - nofb` unresolved failures `-3228089`, reverse-gate rejects `-96871`, mean runtime `+7696.45` seconds.
+- Recorded `OFFICIAL_DFOLS_PRODUCTION_REDO_READBACK_20260512.md` and `OFFICIAL_DFOLS_PRODUCTION_REDO_SUMMARY.tsv`. This closes the ambiguity that production redo had not been run, but does not convert the result into final publication regeneration.

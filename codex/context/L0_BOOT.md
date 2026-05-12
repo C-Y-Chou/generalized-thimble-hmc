@@ -1,7 +1,7 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-11T22:34:25+09:00
-Remote refreshed: 2026-05-11T22:28:07+09:00
+Generated: 2026-05-12T13:37:26+09:00
+Remote refreshed: 2026-05-12T13:33:28+09:00
 
 ## Canonical Entry
 
@@ -50,7 +50,7 @@ Remote refreshed: 2026-05-11T22:28:07+09:00
 - `CP-008` tltm_production_comparison: Read M6 R1-R4 as production-calibration aliases Next: Build a read-only production-calibration report from accepted M6 packages, then decide the next seed/cycle grid
 - `CP-010` control_plane: Keep material caveats in the caveat register before changing work scope Next: Run the caveat audit steps, update CAVEATS.tsv, and add blocking caveats to OPEN_ITEMS.tsv before major workflow continuation
 - `CP-011` kernel_correctness_audit: Decide the official-DFO-LS-line kernel correctness gate before final publication production Next: Current official DFO-LS gates may continue as provisional, but final publication production needs the CV-001 correctness gate or explicit accepted limitation
-- `CP-012` tltm_production_comparison: Maintain provisional-vs-final production boundary Next: Treat official DFO-LS production-comparison gates as provisional until final wrapper/schema/naming/counter conventions are frozen or final regeneration is scheduled
+- `CP-012` tltm_production_comparison: Maintain provisional-vs-final production boundary Next: Official DFO-LS 256seed/200k production-comparison redo has completed and merged, but remains provisional until final wrapper/schema/naming/counter conventions are frozen or final regeneration is scheduled
 - `FM-001` fortran_modernization: Reset modernization around foundation completeness Next: Treat M6 as a behavior baseline, not completed foundation; use FOUNDATION_COMPLETENESS_RESET_20260511 before any source modernization step
 - `FM-002` fortran_modernization: Fix DFO-LS evidence and implementation boundary Next: Separate historical in-house/DFO-LS-style evidence from official-package evidence, then finish official solver integration/preset work before final claims
 - `FM-005` fortran_modernization: Build retained-core deterministic evidence pack Next: Newton replay, successful RATTLE/RG pass replay, BTN residual reconstruction, and official-route no-fallback guardrails now pass; next cover fixed-seed official-line route census, package-success route coverage, RG reject/live-state identity, and local-volume/branch-measure checks before treating the numerical foundation as complete
