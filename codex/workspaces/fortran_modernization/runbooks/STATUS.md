@@ -35,6 +35,9 @@ Updated: 2026-05-12 JST
 - Newton workspace slice added on 2026-05-12 JST:
   - `runbooks/CV011_NEWTON_WORKSPACE_SLICE_20260512.md`
   - `hmc_constraints:solve_constraint_newton` now supports optional `newton_constraint_workspace_t` and the RATTLE core path owns that workspace explicitly.
+- CV-011 remaining state decision point recorded on 2026-05-12 JST:
+  - `runbooks/CV011_REMAINING_STATE_DECISION_POINT_20260512.md`
+  - Remaining hidden state now needs a product-context ownership decision before wider flow/QN/diagnostics/model/config/profiling API migration.
 - Algorithm reference bundle is collected under `references/`, including TLTM HMC, simplified Newton/RATTLE/HMC, DFO-GN/DFO-LS, Hairer ODEX, and the user original quasi-Newton projection formulation.
 - Low-level algorithm review set is complete and has already driven the first source canonicalization wave:
   - `runbooks/ODEX_FLOW_REVIEW_NOTES.md`

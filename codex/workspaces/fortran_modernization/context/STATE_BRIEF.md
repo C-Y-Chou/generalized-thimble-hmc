@@ -26,6 +26,7 @@ Updated: 2026-05-12 JST
 - First non-RNG CV-011 workspace slice is implemented: `hmc_kernels:decompose2` no longer uses shared `save` scratch arrays, and the RATTLE core path carries an explicit `decompose2_workspace_t` through `rattle_step_workspace_t`.
 - Second non-RNG CV-011 workspace slice is implemented: `quasi_newton_linear_solver_mod` no longer uses module-level `save` scratch arrays for linear direction solves and QN initial guesses.
 - Third non-RNG CV-011 workspace slice is implemented: `hmc_constraints:solve_constraint_newton` now uses explicit `newton_constraint_workspace_t`, held by the active RATTLE workspace.
+- CV-011 is now at a product-context decision point. Remaining state is not just scratch storage: flow/ODEX context, QN traces/capture/backend callback state, diagnostics counters/file handles, model tape cache, config mirror, and profiling need a top-level context strategy before further API migration.
 - Modernization is not at automatic production-regeneration approval, but the user-selected conservative F3/F4/F7/F8 pre-redo gates are now implemented without reduced-scope acceptance.
 - F3/CV-009 is closed for the pre-redo gate: retained-core tests cover Newton replay, successful one-step RATTLE/RG pass replay, BTN residual reconstruction, official package-success route census, stub no-fallback route behavior, RG reject/live-state identity, and failure-as-rejection accounting; `f14_complete_pre_redo_gate.py` records the branch/measure harness.
 - F4/CV-010 is closed for the pre-redo gate: `tltm_local_transition_event_t` is the typed local-transition event source, counters are derived from that event, `F4_LOCAL_TRANSITION_AUDIT_V1` freezes the audit context, and M4 validates audit row invariants.
@@ -61,6 +62,7 @@ Updated: 2026-05-12 JST
 - `runbooks/CV011_DECOMPOSE2_WORKSPACE_SLICE_20260512.md`: first non-RNG hidden-workspace migration after route-B RNG streams.
 - `runbooks/CV011_QN_LINEAR_WORKSPACE_SLICE_20260512.md`: QN linear solver scratch workspace migration.
 - `runbooks/CV011_NEWTON_WORKSPACE_SLICE_20260512.md`: Newton constraint solver scratch workspace migration.
+- `runbooks/CV011_REMAINING_STATE_DECISION_POINT_20260512.md`: remaining hidden-state categories and the top-level-context decision point.
 - `runbooks/FULL_HAIRER_ODEX_REOPEN_PLAN_20260512.md`: historical F1/CV-007 endpoint package and solver-assist default-off implementation notes.
 - `runbooks/OFFICIAL_DFOLS_PRODUCTION_REDO_READBACK_20260512.md`: official DFO-LS 256seed/200k production-comparison redo readback.
 - `state/RETAINED_CORE_EVIDENCE.tsv`: retained-core evidence registry.
@@ -69,4 +71,4 @@ Updated: 2026-05-12 JST
 
 ## Next Action
 
-Run M4 after the `decompose2` workspace slice, then continue CV-011 full OpenMP/thread-safe productization by auditing/migrating remaining behavior-bearing module state. Production redo remains owned by the separate `tltm_production_comparison` tree and is not part of the modernization-finished condition.
+Ask for the CV-011 product-context decision: top-level TLTM run context first, or module-by-module contexts first. Production redo remains owned by the separate `tltm_production_comparison` tree and is not part of the modernization-finished condition.

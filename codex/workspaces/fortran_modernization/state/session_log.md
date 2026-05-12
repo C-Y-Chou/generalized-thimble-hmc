@@ -796,3 +796,10 @@
 - Verification passed:
   - `make -C build FC=gfortran LDFLAGS= test_retained_core_newton_contract test_retained_core_rattle_rg_contract post_b_rng_reference_anchor`
   - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+
+## 2026-05-12 JST - CV-011 remaining-state decision point
+
+- Scanned remaining `save` state after route-B RNG streams and three scratch-workspace migrations.
+- Remaining classes are flow/ODEX workspaces and counters, QN residual/trace/capture/backend state, constraint/reverse-gate counters and capture files, Stage2 diagnostic file handles, model tape/cache state, config mirror, and profiling state.
+- This is now a product-context decision rather than another isolated scratch migration.
+- Recommendation recorded: introduce a top-level TLTM run context as the product direction, then incrementally thread sub-contexts through Stage1/Stage2 paths while retaining compatibility wrappers.
