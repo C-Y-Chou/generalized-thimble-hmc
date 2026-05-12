@@ -252,9 +252,15 @@ def main() -> int:
                 }
             )
             dirty_count = clean(wt.get("dirty_count"))
+            target_purpose = clean(target.get("purpose"))
+            target_policy = clean(target.get("fast_forward_policy"))
             safe_to_ff = "no" if active_jobs else "check_required"
             if target.get("fast_forward_policy") == "do_not_fast_forward_if_active_pinned_jobs" and active_jobs:
                 safe_to_ff = "no"
+            if target_policy == "read_only_inventory_until_delete" or "quarantined" in target_purpose:
+                safe_to_ff = "no_fast_forward_quarantined"
+            if target_policy == "deleted_tombstone" or "retired_deleted" in target_purpose:
+                safe_to_ff = "deleted"
             worktree_rows.append(
                 {
                     "refreshed_at_jst": now,

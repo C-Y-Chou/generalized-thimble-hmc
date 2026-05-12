@@ -4,7 +4,10 @@ program test_retained_core_rg_reject_identity
    use markovchain_transition_status, only: metropolis_status_reverse_gate_rejected
    use param_mod, only: istest, read_parameters, state_seed_size_cfg, testmom
    use solve_flow, only: flow, intode_status_is_strict_success, intode_status_unknown
-   use tltm_types_mod, only: allocate_tltm_slot, release_tltm_slot, record_tltm_local_transition, tltm_slot_t
+   use tltm_types_mod, only: allocate_tltm_slot, make_tltm_local_transition_event, release_tltm_slot, &
+                              record_tltm_local_transition, tltm_counter_denominator_local_transition, &
+                              tltm_diag_schema_version_local_transition, tltm_event_context_local_transition, &
+                              tltm_local_transition_event_t, tltm_slot_t
    use utils, only: dp, x_set_flow_time, x_set_seed_real
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    implicit none
@@ -129,9 +132,11 @@ contains
       integer, intent(inout) :: failures
 
       type(tltm_slot_t) :: slot
+      type(tltm_local_transition_event_t) :: event
       logical :: ok
       real(dp) :: dx, dz, dj
 
+      event = make_tltm_local_transition_event(accepted, proposal_failed, transition_status)
       call allocate_tltm_slot(slot, size(x))
       slot%x = x
       slot%z = z
@@ -140,7 +145,12 @@ contains
       dx = maxabs_real(slot%x - x)
       dz = maxabs_complex(slot%z - z)
       dj = maxabs_complex_mat(slot%jac - jac)
-      ok = slot%local_accept_count == 0 .and. slot%local_reject_count == 1 .and. &
+      ok = event%schema_version == tltm_diag_schema_version_local_transition .and. &
+           event%context_id == tltm_event_context_local_transition .and. &
+           event%counter_denominator == tltm_counter_denominator_local_transition .and. &
+           (.not. event%accepted) .and. event%proposal_failed .and. &
+           event%transition_status == metropolis_status_reverse_gate_rejected .and. &
+           slot%local_accept_count == 0 .and. slot%local_reject_count == 1 .and. &
            slot%projection_failure_count == 1 .and. slot%reverse_gate_reject_count == 1 .and. &
            slot%metropolis_reject_count == 0 .and. slot%proposal_failure_count == 0 .and. &
            slot%hamiltonian_invalid_count == 0 .and. slot%delta_h_invalid_count == 0 .and. &

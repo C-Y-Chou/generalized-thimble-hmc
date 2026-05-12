@@ -274,7 +274,7 @@ EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 .DEFAULT_GOAL := all
 override FFLAGS := $(FFLAGS_OPT) $(FFLAGS_INC)
 
-.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_official_dfols_preset_contract evaluate_btn_residual_case test_tltm_swap_kernel_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails FORCE \
+.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_official_dfols_preset_contract evaluate_btn_residual_case test_tltm_swap_kernel_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails f14_pre_redo_complete_gate FORCE \
         test1_fb_on test1_fb_off test2_fb_on test2_fb_off test_fb_matrix \
         prepare_outputs clean_outputs clean veryclean
 all: regen_model_derivatives $(EXECUTABLES)
@@ -405,6 +405,7 @@ help:
 	@echo "  make evaluate_btn_residual_case - build offline BTN residual bridge for external DFO-LS comparison"
 	@echo "  make test_tltm_swap_kernel_contract - run TLTM swap-kernel contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make modernization_guardrails - run M4 local compile/build/audit/smoke guardrails"
+	@echo "  make f14_pre_redo_complete_gate - run complete F3/F4/F7/F8 pre-redo gate"
 	@echo "  make test1_fb_on / test1_fb_off - run test1 with fallback forced on/off"
 	@echo "  make test2_fb_on / test2_fb_off - run test2 with fallback forced on/off"
 	@echo "  make test_fb_matrix - run (test1,test2) x (fallback on,off)"
@@ -505,6 +506,13 @@ modernization_guardrails: prepare_outputs
 	$(PYTHON) ../scripts/run_m4_guardrails.py --repo-root .. --fc "$(M4_GUARDRAIL_FC)" --ldflags "$(M4_GUARDRAIL_LDFLAGS)" \
 	2>&1 | tee $(OUT_LOG_DIR)/modernization_guardrails.log
 
+F14_PREREDO_FC ?= $(FC)
+F14_PREREDO_LDFLAGS ?= $(LDFLAGS)
+f14_pre_redo_complete_gate: prepare_outputs
+	@set -o pipefail; \
+	$(PYTHON) ../codex/workspaces/fortran_modernization/tasks/scripts/f14_complete_pre_redo_gate.py --repo-root .. --fc "$(F14_PREREDO_FC)" --ldflags "$(F14_PREREDO_LDFLAGS)" \
+	2>&1 | tee $(OUT_LOG_DIR)/f14_pre_redo_complete_gate.log
+
 test1: $(BIN_DIR)/test_program prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_program 2>&1 | tee $(OUT_LOG_DIR)/test_hamiltonian_conservation.log
 	@for f in hamiltonian_conservation.dat hamiltonian_conservation_loglog.gp hamiltonian_conservation_loglog.png; do \
@@ -522,7 +530,8 @@ test_odex_foundation_contract: $(BIN_DIR)/test_odex_foundation_contract prepare_
 	@set -o pipefail; $(BIN_DIR)/test_odex_foundation_contract 2>&1 | tee $(OUT_LOG_DIR)/test_odex_foundation_contract.log
 
 test_odex_assist_policy: $(BIN_DIR)/test_odex_assist_policy prepare_outputs
-	@set -o pipefail; $(BIN_DIR)/test_odex_assist_policy enabled 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_enabled.log
+	@set -o pipefail; $(BIN_DIR)/test_odex_assist_policy disabled 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_default_disabled.log
+	@set -o pipefail; INTODE_SOLVER_ASSIST_ENABLED=1 $(BIN_DIR)/test_odex_assist_policy enabled 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_enabled.log
 	@set -o pipefail; INTODE_SOLVER_ASSIST_ENABLED=0 $(BIN_DIR)/test_odex_assist_policy disabled 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_disabled.log
 
 test_odex_result_contract: $(BIN_DIR)/test_odex_result_contract prepare_outputs

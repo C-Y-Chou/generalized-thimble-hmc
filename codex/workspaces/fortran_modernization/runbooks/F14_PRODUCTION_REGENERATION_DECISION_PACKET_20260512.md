@@ -4,84 +4,77 @@ Updated: 2026-05-12 JST
 
 ## Position
 
-F14 has reached a real decision point. The current modernization branch is still
-not automatically cleared for final publication-grade production regeneration,
-but the remaining blockers are now explicit decisions rather than hidden caveats.
+The user rejected reduced-scope F3/F4/F7/F8 acceptance. The conservative
+pre-redo gates are now implemented and M4 passed them.
+
+This does not automatically approve final publication regeneration. It means
+the previous reduced-scope blockers for F3/F4/F7/F8 have been replaced by
+machine-checkable gates, and those gates currently pass.
 
 Do not treat the provisional production-comparison artifact
 `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb` as the final
 modernization-head production redo. It was generated under the
 production-comparison worktree at commit `c0e4021`.
 
-## What Is Now Covered
+## Covered Before Redo
 
-- F1 ODEX is accepted reduced scope: endpoint extrapolation backend,
-  Hairer `IWORK(3)=3` sequence, no dense output, `stability_control=none`,
-  solver-internal assist only for residual evaluation, and strict final
-  proposal flow.
+- F1 ODEX endpoint backend is accepted reduced scope for pre-redo: standalone
+  endpoint package, Hairer `IWORK(3)=3` sequence, endpoint-only API, strict
+  final proposal flow, dense output out of scope, solver assist default-off,
+  and assist-on diagnostic opt-in only.
 - F2 official DFO-LS backend replacement is accepted representative scope under
   `DFO-LS==1.6.5`, `stable_gate77`, and TLTM residual-gate acceptance.
-- F3 retained-core guardrails now cover Newton replay, successful RATTLE and
-  reverse-gate pass replay, BTN residual reconstruction, official package
-  success on route code `10`, a fixed-step route census at `0.002/0.003/0.004`,
-  stub no-fallback behavior, reverse-gate reject stay-put identity, and
-  failure-as-rejection local-transition accounting.
-- The build/test workflow now prevents silent official/stub bridge reuse by
-  relinking when `ENABLE_OFFICIAL_DFOLS` changes.
-- M4 guardrails now load `.venv-dfols` and `TLTM_OFFICIAL_DFOLS_PYTHONPATH` so
-  the official package-success branch is tested locally.
+- F3 retained-core branch/measure harness is complete for pre-redo: Newton
+  replay, successful RATTLE/reverse-gate pass replay, BTN residual
+  reconstruction, official package-success route census, stub no-fallback
+  behavior, reverse-gate reject stay-put identity, and failure-as-rejection
+  accounting.
+- F4 diagnostics/accounting is complete for pre-redo: local transition
+  accounting now constructs `tltm_local_transition_event_t`, derives counters
+  from that event, and validates typed audit rows through
+  `F4_LOCAL_TRANSITION_AUDIT_V1`.
+- F7 schema/naming is complete for pre-redo:
+  `F7_METHOD_ALIASES_V1` freezes public `nofb` and `withfb`, while keeping
+  `no_fb` and `fb_norefine` as compatibility aliases.
+- F8 reference-comparison harness is complete for pre-redo:
+  `F8_PATCH_REFERENCE_STATEMENT_V1` plus
+  `f14_complete_pre_redo_gate.py` writes and validates the patch-local
+  reference statement against the M6 summary/report anchors.
 
-## Still Not Fully Closed
+## Verification
 
-`CV-009` remaining scope:
+Commands:
 
-- A full formal local-volume/branch-measure proof or exhaustive harness for all
-  official DFO-LS piecewise branches is not implemented.
-- The deterministic branch coverage now tests the important success and reject
-  boundaries, but it is still narrower than a mathematical proof over every
-  possible solver branch.
+```bash
+make -C build FC=gfortran LDFLAGS= test_retained_core_rg_reject_identity
+python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going
+```
 
-`CV-010` remaining scope:
+Readback:
 
-- Status/counter slices and compatibility sidecars exist, but diagnostics are
-  not yet represented by one typed proposal/replay/residual/probe/reject event
-  context.
-- Public counters are still compatibility-first. `projection_failure_count`
-  remains a legacy coarse counter, while typed details such as
-  `reverse_gate_rejected_count` are appended/sidecar diagnostics.
+- focused reverse-gate reject identity/accounting test passed;
+- M4 passed all guardrails;
+- M4 passed `F14 complete pre-redo gate validates F3/F4/F7/F8`;
+- F14 manifest:
+  `output/tests/m4_guardrails/f14_complete_pre_redo_gate/F14_complete_pre_redo_gate_manifest.json`
+  reports `status=pass` and `reduced_scope_accepted=false`;
+- current F8 patch statement classifies the patch as behavior-relevant only
+  because solver assist was explicitly changed to default-off:
+  `allowed_drift=explicitly_accepted_assist_default_off`.
 
-Schema/wrapper boundary:
+## Still Not Decided
 
-- The v1alpha sidecars and method/provenance labels are useful, but the final
-  public method naming, schema version, wrapper behavior, and compatibility
-  reader policy are not frozen.
-- The F7/F8 schema/reference boundary is recorded in
-  `SCHEMA_REFERENCE_F7_F8_DECISION_20260512.md`.
+The remaining F14 decisions are production-execution decisions, not reduced
+foundation caveats:
 
-## Decision Required
+1. Redo scope: matched `nofb` + `withfb`, or a narrower canonical run.
+2. Redo scale: seed count and cycle count.
+3. Target: exact local/remote worktree and commit to promote.
+4. Promotion boundary: what the next redo can claim while CV-001/CV-002/CV-006
+   remain explicit production/provenance caveats.
 
-Option A: finish conservative foundation before production.
+## Gate Statement
 
-- Implement F4 typed diagnostics/accounting context.
-- Add the formal local-volume/branch-measure proof or a stronger branch harness.
-- Freeze F7 public method names/schema roles and F8 reference-comparison
-  commands for behavior-relevant source patches.
-- Then update production and regenerate final datasets.
-
-Option B: accept reduced-scope production redo now.
-
-- Explicitly accept deterministic branch coverage in place of a full
-  local-volume/branch-measure proof.
-- Explicitly accept the current compatibility counter/schema policy for this
-  production redo.
-- Run the production update/regeneration with reduced-scope wording and keep the
-  result out of "full publication-ready foundation" language.
-
-Recommendation: choose Option A for publication-grade production. Choose Option B
-only if the immediate goal is an operational production rerun with clearly
-reduced claims.
-
-## F14 Gate Statement
-
-F14 is blocked until the user chooses Option A or Option B. No final production
-regeneration should start from modernization HEAD without that decision.
+F3/F4/F7/F8 no longer block F14 as reduced-scope caveats. F14 remains blocked
+only until the exact production redo scope/scale, target commit/worktree, and
+promotion boundary are recorded.

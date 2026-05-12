@@ -2,7 +2,7 @@
 
 Date: 2026-05-12 JST
 Scope: `fortran_modernization`
-Status: active blocker for F14 production regeneration until larger assist-on/off observable gate readback
+Status: accepted reduced-scope for pre-redo; solver assist default-off and scheduled for later deletion
 
 ## Why This Is Reopened
 
@@ -24,6 +24,7 @@ Dense output is explicitly out of scope by user decision on 2026-05-12 JST. Do n
 
 - `src/physics/odex_backend.f90` now owns the standalone endpoint backend boundary: explicit `odex_options`, `odex_workspace`, `odex_result`, status/failure mapping, Hairer `IWORK(3)=3` sequence, endpoint-only API, and conservative stability-control surface.
 - `src/physics/solve_flow.f90` is now the TLTM wrapper layer. It injects TLTM tolerances and keeps final-flow, solver assist, diagnostics, counters, trace state, and failure-capture policy outside the package backend.
+- 2026-05-12 user decision: solver assist is not part of the pre-redo canonical line. `INTODE_SOLVER_ASSIST_ENABLED` now defaults off; `=1` is an explicit diagnostic/historical comparison override only.
 - `tests/test_odex_backend_package_contract.f90` directly links the backend package and checks sequence, endpoint accuracy, forward/backward consistency, conservative stability-control behavior, and invalid-option failure.
 - Existing TLTM ODEX guardrails still cover wrapper result/status behavior and flow/Jacobian preservation.
 
@@ -57,8 +58,8 @@ The 10seed x 10k assist-on/off readback shows assist-off increases unresolved fa
    - Re-read current 10seed x 10k official DFO-LS assist-on/off evidence as provisional diagnostics only.
    - Add a readback that separates solver health degeneration from actual observable degeneration.
    - If the 10seed evidence is too weak, run a larger official DFO-LS assist-on/off gate before F14.
-   - Status: 10seed readback done; it proves solver-health degradation but not observable degeneracy. A 32seed x 50k official DFO-LS paired gate is prepared as the next evidence step.
+   - Status: pre-redo scope explicitly reduced by user decision. The 10seed and 16seed x 10k readbacks are retained as diagnostics; a larger observable gate is no longer required before the pre-redo because assist is default-off and scheduled for deletion.
 
 ## Production Rule
 
-Do not start final production regeneration from modernization while this row is active unless the user explicitly re-scopes ODEX back to reduced scope.
+Pre-redo production may proceed with solver assist default-off once the exact F14 production redo scope/scale, target commit/worktree, and promotion boundary are recorded. F3/F4/F7/F8 are now complete for the pre-redo gate without reduced-scope acceptance.

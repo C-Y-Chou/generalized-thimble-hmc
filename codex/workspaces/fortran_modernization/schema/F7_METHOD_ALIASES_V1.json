@@ -1,0 +1,23 @@
+{
+  "schema_name": "tltm_method_aliases",
+  "schema_version": "F7_METHOD_ALIASES_V1",
+  "updated_jst": "2026-05-12",
+  "canonical_methods": {
+    "nofb": {
+      "public_name": "nofb",
+      "raw_aliases": ["no_fb", "nofb"],
+      "meaning": "No fallback/rescue assistance in the production-comparison method role."
+    },
+    "withfb": {
+      "public_name": "withfb",
+      "raw_aliases": ["fb_norefine", "withfb"],
+      "meaning": "Fallback-enabled production-comparison method role without post-refine."
+    }
+  },
+  "compatibility_policy": {
+    "raw_names_remain_accepted": true,
+    "public_reports_use_canonical_names": true,
+    "raw_name_columns_must_not_be_removed_before_v2": true
+  },
+  "required_public_pair": ["nofb", "withfb"]
+}

@@ -11,10 +11,10 @@ program test_odex_assist_policy
    logical :: expected_enabled
 
    failures = 0
-   expected_enabled = .true.
-   mode = "enabled"
+   expected_enabled = .false.
+   mode = "disabled"
    if (command_argument_count() >= 1) call get_command_argument(1, mode)
-   if (trim(mode) == "disabled") expected_enabled = .false.
+   if (trim(mode) == "enabled") expected_enabled = .true.
 
    write (*, '(A,A,A,L1)') "[INIT] ODEX assist policy test mode=", trim(mode), " expected_enabled=", expected_enabled
 

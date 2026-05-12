@@ -2,25 +2,28 @@
 
 Updated: 2026-05-11 JST
 
-Scope: current-code deterministic gate for the `intode` solver-internal assist
-policy. This is a source-level policy boundary test, not a production-scale
-ODEX assist-on/off validation.
+Scope: historical current-code deterministic gate for the `intode`
+solver-internal assist policy. This is a source-level policy boundary test, not
+a production-scale ODEX assist-on/off validation.
 
 Supersession note: this file was one intermediate ODEX policy slice. Later
-result/workspace/status, flow/Jacobian, and representative assist-on/off
-readbacks accepted `CV-007`/`F1` as reduced scope; this file should not be read
-as the current ODEX final-status row by itself.
+result/workspace/status, flow/Jacobian, standalone endpoint package, and
+representative assist-on/off readbacks accepted `CV-007`/`F1` as reduced scope.
+On 2026-05-12, user policy changed the pre-redo default to
+`INTODE_SOLVER_ASSIST_ENABLED=0`; this file should not be read as the current
+default-policy row by itself.
 
 ## Source Change
 
-Added comparison-only environment control:
+At the time, this added comparison-only environment control:
 
 ```bash
 INTODE_SOLVER_ASSIST_ENABLED=0
 ```
 
-Default behavior is unchanged: when the variable is absent or invalid,
-solver-internal assist remains enabled.
+Current behavior after the 2026-05-12 pre-redo policy decision is the opposite:
+when the variable is absent or invalid, solver-internal assist remains disabled.
+Assist-on requires explicit `INTODE_SOLVER_ASSIST_ENABLED=1`.
 
 The policy remains:
 
@@ -37,10 +40,12 @@ The policy remains:
 make -C build FC=gfortran ENABLE_OFFICIAL_DFOLS=0 LDFLAGS= test_odex_assist_policy
 ```
 
-The make target runs both:
+The make target now runs default-disabled, explicit enabled, and explicit
+disabled modes:
 
 ```bash
-../bin/test_odex_assist_policy enabled
+../bin/test_odex_assist_policy disabled
+INTODE_SOLVER_ASSIST_ENABLED=1 ../bin/test_odex_assist_policy enabled
 INTODE_SOLVER_ASSIST_ENABLED=0 ../bin/test_odex_assist_policy disabled
 ```
 
@@ -50,9 +55,10 @@ Pass.
 
 Readback highlights:
 
-- default mode: policy visibility reports `enabled=T`, `fast_hmin=T`,
+- current default mode: policy visibility reports `enabled=F`, `fast_hmin=T`,
   `max_uses=0`;
-- default mode: h-min in Newton/QN/QN-retry residual contexts is allowed;
+- explicit enabled mode: h-min in Newton/QN/QN-retry residual contexts is
+  allowed;
 - disabled mode: policy visibility reports `enabled=F`;
 - disabled mode: the same h-min residual contexts are rejected;
 - wrong reason, unknown context, final-flow context, unknown stage,
@@ -82,11 +88,6 @@ measurement.
 
 ## Boundary
 
-This closes the current-code deterministic policy-gate gap only. It does not
-close `CV-007`/`FG-001`, because the following are still missing:
-
-- source-level ODEX result/workspace/status split;
-- endpoint-only/stability-control decision;
-- flow-wrapper/Jacobian deterministic tests;
-- representative current-code assist-on/off Stage/TLTM validation before a
-  production policy conclusion.
+This historical file closes the deterministic policy-gate gap only. Current
+`CV-007` status is tracked in `FULL_HAIRER_ODEX_REOPEN_PLAN_20260512.md` and
+`CAVEATS.tsv`.

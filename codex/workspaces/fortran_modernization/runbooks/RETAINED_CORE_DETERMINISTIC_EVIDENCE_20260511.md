@@ -1,8 +1,13 @@
 # Retained-Core Deterministic Evidence Readback
 
-Updated: 2026-05-11 JST
+Updated: 2026-05-12 JST
 
-Scope: retained-core deterministic evidence slice for `CV-009` / `F3`. This is local guardrail evidence for the Newton constraint solve, one successful RATTLE/reverse-gate replay, BTN residual paper-variable reconstruction, and current official-line QN route surface. It does not close the full retained-core caveat because fixed-seed route census, RG reject identity, and local-volume/branch-measure coverage remain open.
+Scope: retained-core deterministic evidence for `CV-009` / `F3`. The original
+2026-05-11 slice established Newton, successful RATTLE/RG, BTN residual, and
+official-line QN route evidence. The 2026-05-12 F14 completion addendum closes
+the pre-redo retained-core caveat with official package-success route census,
+stub no-fallback behavior, RG reject stay-put identity, and branch/measure
+harness validation.
 
 ## Commands
 
@@ -67,4 +72,45 @@ Implementation notes:
 - `scripts/run_m4_guardrails.py` detects `.venv-dfols`, exports `PYTHON` and `TLTM_OFFICIAL_DFOLS_PYTHONPATH`, and therefore runs the official package-success branch during local M4 guardrails.
 - Failed HMC proposal paths and Metropolis invalid/proposal-failed paths now publish stay-put output buffers, which makes the failure-as-rejection boundary explicit rather than relying only on caller discipline.
 
-`CV-009` is now at a decision boundary rather than an undiscovered implementation gap. The deterministic guardrails cover Newton replay, successful RATTLE/reverse-gate pass replay, BTN residual reconstruction, official package-success route census, stub no-fallback behavior, reverse-gate reject stay-put identity, and failure-as-rejection accounting. The remaining question is whether final publication production requires a formal local-volume/branch-measure proof/harness beyond this deterministic branch coverage, or whether that limitation is explicitly accepted for the next production redo.
+`CV-009` was then promoted to the conservative F14 completion path after the user rejected reduced-scope acceptance for F3/F4/F7/F8.
+
+## 2026-05-12 F14 Completion Addendum
+
+The F3 pre-redo branch/measure harness is now implemented and wired into M4
+through:
+
+```text
+codex/workspaces/fortran_modernization/tasks/scripts/f14_complete_pre_redo_gate.py
+```
+
+This gate treats the retained-core coverage as one complete engineering
+harness, not as a reduced-scope caveat:
+
+- Newton replay for accepted constraint solutions;
+- successful RATTLE endpoint/Jacobian replay and tangent final momentum;
+- reverse-gate pass replay status accounting;
+- BTN paper-variable residual reconstruction;
+- official DFO-LS route-code `10` package-success census;
+- stub official bridge no-internal-fallback behavior;
+- reverse-gate reject stay-put identity for HMC and Metropolis outputs;
+- failure-as-rejection local-transition accounting.
+
+Verification:
+
+```bash
+make -C build FC=gfortran LDFLAGS= test_retained_core_rg_reject_identity
+python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going
+```
+
+Readback:
+
+- focused reverse-gate reject identity/accounting test passed after adding the
+  typed local-transition event source;
+- M4 passed `F14 complete pre-redo gate validates F3/F4/F7/F8`;
+- F14 gate manifest:
+  `output/tests/m4_guardrails/f14_complete_pre_redo_gate/F14_complete_pre_redo_gate_manifest.json`
+  reports `reduced_scope_accepted=false` and `status=pass`.
+
+`CV-009` is closed for the pre-redo gate. Reopen only if retained Newton,
+RATTLE, QN route, HMC/Metropolis, reverse-gate, official DFO-LS acceptance, or
+tolerance policy changes.

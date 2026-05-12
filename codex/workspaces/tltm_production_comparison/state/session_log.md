@@ -626,3 +626,41 @@ Use this file to append per-session notes.
 - Current conclusion:
   - direct QN/RATTLE detailed-balance bug is lower priority;
   - next work should inspect block/window stability and autocorrelation/effective-sample behavior before deciding whether more production statistics are needed.
+
+## 2026-05-12 Window/Block Bias Diagnostic
+
+- Added `codex/workspaces/tltm_production_comparison/diagnostics/window_bias_analysis.py`.
+- Ran it remotely against `output/production_comparison/provisional/official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`.
+- Output synced locally under `codex/workspaces/tltm_production_comparison/diagnostics/window_bias_256seed_200k_20260512`.
+- Recomputed per-seed full-run ratios from `sum(O*phi)/sum(phi)` agree with existing summaries to `O(1e-15)`.
+- Four 50k windows:
+  - `fb_norefine` Re means/Zmeans: `0.00138/0.343`, `0.00737/1.762`, `0.00560/1.375`, `-0.000143/-0.035`.
+  - `no_fb` Re means/Zmeans: `0.00290/0.576`, `0.00190/0.371`, `-0.000457/-0.091`, `0.00387/0.797`.
+  - paired fb-nofb Re differences by window: `-0.00152`, `+0.00546`, `+0.00606`, `-0.00402`; none significant.
+- Twenty 10k-window sign check:
+  - `fb_norefine` positive mean Re in `12/20`;
+  - `no_fb` positive mean Re in `9/20`;
+  - paired mean differences positive/negative `10/10`.
+- Counter stratification:
+  - `fb_norefine` Re correlates with fallback trigger count (`r=0.6600`) and unresolved failures (`r=0.5398`).
+  - `no_fb` Re also correlates strongly with unresolved failures (`r=0.7251`).
+  - Quartiles show a hard-region ladder in both methods, so counters are not direct proof of QN route bias.
+- Current interpretation:
+  - The apparent large-ensemble issue is better explained as hard-region/long-autocorrelation finite-window sampling than as a clean fb-only route bug.
+  - More seeds alone may shrink SE around the same finite-window offset; the next decisive test should use longer-cycle/windowed continuation.
+
+## 2026-05-12 Output Namespace Freeze Before Modernization-Head Redo
+
+- User paused further old-code production diagnostics because modernization reached the pre-redo decision point.
+- Added `runbooks/OUTPUT_NAMESPACE_FREEZE_20260512.md` and `state/OUTPUT_INVENTORY_20260512.tsv`.
+- Registered current remote official DFO-LS provisional roots as `frozen_pre_redo_provisional`:
+  - `official_dfols_small_20260511_10seed_10k_p28_rg_nofb_withfb`
+  - `official_dfols_gate_20260511_32seed_50k_p28_rg_nofb_withfb`
+  - `official_dfols_gate_20260511_128seed_100k_p28_rg_withfb_r4`
+  - `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`
+- Updated `codex/state/DATASETS.tsv` with the frozen pre-redo provisional rows.
+- Naming rule for next modernization-head redo:
+  - campaign pattern `official_dfols_preredo_YYYYMMDD_<shortsha>_<N>seed_<C>cyc_t035_L2_nstep20_rg_nofb_withfb`
+  - output root `output/production_comparison/pre_redo/<campaign>`
+  - log root `output/logs/production_comparison/pre_redo/<campaign>`
+- Do not extend old `provisional/official_dfols_*` roots in place and do not combine frozen pre-redo data with modernization-head redo data in one estimator.

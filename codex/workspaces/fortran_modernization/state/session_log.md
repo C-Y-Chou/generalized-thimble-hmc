@@ -620,3 +620,64 @@
 - Reopened `CV-007` and `F1`; previous reduced-scope endpoint backend acceptance is now only historical evidence, not completion of the requested target.
 - Added `runbooks/FULL_HAIRER_ODEX_REOPEN_PLAN_20260512.md`.
 - F14 production regeneration is blocked until full ODEX endpoint package evidence and assist-off observable evidence exist, unless the user explicitly re-scopes ODEX back to reduced scope.
+
+## 2026-05-12 JST - Standalone ODEX endpoint package and assist-off gate submission
+
+- Implemented standalone endpoint backend in `src/physics/odex_backend.f90` with explicit options/workspace/result/status contracts, Hairer `IWORK(3)=3` sequence, endpoint-only API, and conservative stability-control surface.
+- `solve_flow.f90` now wraps the package backend and keeps TLTM final-flow, solver-assist, diagnostics, counters, trace state, and failure-capture policy outside the package.
+- M4 local guardrails passed after source-boundary cleanup: `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags ''`.
+- Committed and pushed modernization commit `709a7de721b2d03b10be0a87bd60c223124301fd`.
+- Synced remote worktree `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization` to `709a7de721b2d03b10be0a87bd60c223124301fd`.
+- Bad submit `14943.anode01` exited before evidence because `TLTM_EXPECTED_GIT_COMMIT` was not passed through PBS.
+- Corrected submit `14944.anode01` is running on C12 with `qsub -v TLTM_EXPECTED_GIT_COMMIT=709a7de721b2d03b10be0a87bd60c223124301fd`.
+- Gate label: `odex_official_dfols_assist_onoff_32seed_50k_20260512`; purpose: official DFO-LS assist-on/off observable degeneracy readback at 32 seeds x 50000 cycles.
+
+## 2026-05-12 JST - Smaller parallel ODEX assist-off probe
+
+- User requested a smaller first test with more resources instead of waiting on the 32seed x 50000 run.
+- Cancelled `14944.anode01` after about 14 minutes walltime; it is excluded from evidence.
+- Submitted first 16seed x 10000 parallel pair as `14945.anode01` and `14946.anode01`, then cancelled both immediately after boot logs exposed a generated PBS-script defect that left `TLTM_OFFICIAL_DFOLS_PYTHONPATH` empty.
+- Submitted corrected v2 pair:
+  - `14947.anode01`: assist_on, queue `C12`, `ncpus=12`, `jobs=12`.
+  - `14948.anode01`: assist_off, queue `C8`, `ncpus=8`, `jobs=8`.
+- Corrected v2 label: `odex_official_dfols_assist_onoff_16seed_10k_parallel_v2_20260512`.
+- v2 boot readback passed: remote commit `709a7de721b2d03b10be0a87bd60c223124301fd`, `DFO-LS==1.6.5`, `numpy==2.4.4`, explicit `TLTM_OFFICIAL_DFOLS_PYTHONPATH`, and generated config with 16 seeds x 10000 cycles plus 1000 thermalization cycles.
+
+## 2026-05-12 JST - 16seed ODEX assist-off readback
+
+- `qstat -x` readback shows `14947.anode01` and `14948.anode01` finished with `Exit_status=0`; no active `cychou` PBS jobs remained in live `qstat`.
+- Read back `odex_official_dfols_assist_onoff_16seed_10k_parallel_v2_20260512` from the remote `fortran_modernization` worktree at commit `709a7de721b2d03b10be0a87bd60c223124301fd`.
+- Assist-on aggregate: mean Re/Im `0.0705266428994/0.0502919233894`, Zmean Re/Im `2.27748019368/2.08317626392`, unresolved failures `24273`, reverse-gate rejects `1558`.
+- Assist-off aggregate: mean Re/Im `0.0997527533318/0.00220511583664`, Zmean Re/Im `2.12852982665/0.115668137187`, unresolved failures `26787`, reverse-gate rejects `1497`.
+- Paired off-on deltas using `mean/SE`: `Ohat_Re` Z `0.856012123074`, `Ohat_Im` Z `-1.73299773805`, unresolved-failure Z `9.3044425516`, projection-failure Z `8.7725719855`, runtime Z `8.66834111461`.
+- Conclusion: solver-health degradation remains decisive at 16seed x 10k, but observable degeneracy is still not proven. F14 remains blocked unless a larger observable gate is read back or the scope is explicitly reduced to solver-health evidence.
+
+## 2026-05-12 JST - Solver assist default-off pre-redo decision
+
+- User decided solver assist should default off for the pre-redo because assist is too close to a rescue/cheat path for the canonical physical route.
+- Changed `INTODE_SOLVER_ASSIST_ENABLED` default to off in `src/physics/solve_flow.f90`; assist-on now requires explicit `INTODE_SOLVER_ASSIST_ENABLED=1`.
+- Updated assist-policy tests so the default-disabled policy and explicit enabled/disabled env overrides are covered.
+- `CV-007`/`F1` are now accepted reduced scope for pre-redo: standalone endpoint package remains, dense output is out of scope, assist-on/off observable evidence is diagnostic only, and solver assist deletion is scheduled after pre-redo.
+- Remaining pre-redo decisions are F3 deterministic branch coverage, F4 compatibility diagnostics, F7 schema/naming policy, F8 reference-comparison boundary, and the exact production redo scope/scale.
+
+## 2026-05-12 JST - No reduced-scope F3/F4/F7/F8 decision
+
+- User rejected leaving F3/F4/F7/F8 as reduced-scope caveats.
+- F14 now follows conservative completion: implement F3 formal local-volume/branch-measure proof or harness, F4 typed diagnostics context, F7 final schema/naming with compatibility aliases, and F8 patch-local reference comparison harness before production redo.
+- Production simulation should not get ad hoc runtime intervention from these gates; they should be preflight, readback, schema, and diagnostics infrastructure unless explicitly recorded as behavior-changing physics policy.
+
+## 2026-05-12 JST - Complete no-reduced F3/F4/F7/F8 pre-redo gate
+
+- Implemented `codex/workspaces/fortran_modernization/tasks/scripts/f14_complete_pre_redo_gate.py` and wired it into M4.
+- Added frozen schema files:
+  - `codex/workspaces/fortran_modernization/schema/F4_LOCAL_TRANSITION_AUDIT_V1.json`
+  - `codex/workspaces/fortran_modernization/schema/F7_METHOD_ALIASES_V1.json`
+  - `codex/workspaces/fortran_modernization/schema/F8_PATCH_REFERENCE_STATEMENT_V1.json`
+- Added `tltm_local_transition_event_t` in `src/sampler/tltm_types.f90`; `record_tltm_local_transition(...)` now derives local counters from this typed event while preserving the old caller API.
+- Updated `test_retained_core_rg_reject_identity` to assert the typed event schema/context/denominator on reverse-gate rejection.
+- M4 now enables a tiny Stage3 local-transition audit sidecar and validates the F4 audit schema/invariants, F7 aliases, F8 reference anchors, and F14 manifest.
+- Verification passed:
+  - `make -C build FC=gfortran LDFLAGS= test_retained_core_rg_reject_identity`
+  - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+- F14 manifest path: `output/tests/m4_guardrails/f14_complete_pre_redo_gate/F14_complete_pre_redo_gate_manifest.json`; status `pass`, `reduced_scope_accepted=false`.
+- F3/CV-009, F4/CV-010, F7, and F8 are closed for the pre-redo gate. F14 now needs exact redo scope/scale, target commit/worktree, and production promotion-boundary decisions.

@@ -240,8 +240,13 @@ def run_stage3_smoke(repo_root, config_path, output_root, logs_root, label, side
     ]
     if sidecars_enabled:
         cmd.extend(["--stage2-v1-sidecars", "on", "--stage2-protocol-audit", "auto"])
+    stage_env = env
+    if sidecars_enabled:
+        stage_env = (env or os.environ).copy()
+        stage_env["TLTM_LOCAL_TRANSITION_AUDIT_BASE_DIR"] = str(out_subdir / "local_transition_audit")
+        stage_env["TLTM_LOCAL_TRANSITION_AUDIT_MAX_ROWS"] = "200"
 
-    run_step("Stage3 tiny smoke {0}".format(label), cmd, repo_root, failures, keep_going, env)
+    run_step("Stage3 tiny smoke {0}".format(label), cmd, repo_root, failures, keep_going, stage_env)
     return out_subdir
 
 
@@ -293,6 +298,7 @@ def run_guardrails(args):
             "codex/workspaces/fortran_modernization/tasks/scripts/odex_official_assist_observable_degeneracy.py",
             "codex/workspaces/fortran_modernization/tasks/scripts/official_dfols_small_assist_degeneracy.py",
             "codex/workspaces/fortran_modernization/tasks/scripts/official_dfols_provenance_readback.py",
+            "codex/workspaces/fortran_modernization/tasks/scripts/f14_complete_pre_redo_gate.py",
         ],
         repo_root,
         failures,
@@ -440,6 +446,27 @@ def run_guardrails(args):
         ),
         failures,
         args.keep_going,
+    )
+
+    run_step(
+        "F14 complete pre-redo gate validates F3/F4/F7/F8",
+        [
+            sys.executable,
+            "codex/workspaces/fortran_modernization/tasks/scripts/f14_complete_pre_redo_gate.py",
+            "--repo-root",
+            ".",
+            "--skip-build",
+            "--existing-stage3-output",
+            str(sidecar_out),
+            "--output-root",
+            str(output_root / "f14_complete_pre_redo_gate"),
+            "--logs-root",
+            str(logs_root / "f14_complete_pre_redo_gate"),
+        ],
+        repo_root,
+        failures,
+        args.keep_going,
+        guardrail_env,
     )
 
     no_sidecar_out = run_stage3_smoke(

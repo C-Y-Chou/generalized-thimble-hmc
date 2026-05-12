@@ -9,10 +9,12 @@ evidence. It is not the final publication regeneration gate.
 
 Important boundary: this artifact was generated under production-comparison
 commit `c0e40218e6abe2706f4b9b4c66067dbcea74eeff`. It is not a rerun after the
-latest modernization HEAD, and it does not mean modernization has reached the
-stage where production can be updated and formally redone. That gate remains
-blocked by F3/CV-009, F4/CV-010, CV-001/CV-002, and final schema/wrapper/naming
-decisions unless those limits are explicitly accepted.
+latest modernization HEAD, and it does not mean modernization has already
+updated production and formally redone final publication output. After the
+2026-05-12 F14 completion pass, F3/CV-009, F4/CV-010, F7, and F8 are closed for
+the pre-redo gate; the remaining F14 blocker is exact redo scope/scale, target
+commit/worktree, and the CV-001/CV-002/CV-006 production/provenance promotion
+boundary.
 
 ## Provenance
 
@@ -59,6 +61,6 @@ costing additional runtime. The physical mean/Zmean shifts are not a final
 publication claim; they are provisional production-comparison evidence under
 the current method/schema/counter conventions.
 
-Final publication regeneration remains a later gate because CV-001/CV-002,
-CV-009, CV-010, and final wrapper/schema/naming decisions still control what
-counts as the frozen production artifact.
+Final publication regeneration remains a later gate because CV-001/CV-002/CV-006
+and the exact F14 redo scope/scale plus target commit/worktree still control
+what counts as the frozen production artifact.

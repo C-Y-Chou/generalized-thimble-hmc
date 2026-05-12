@@ -1,12 +1,26 @@
 module tltm_types_mod
    use utils, only: dp
    use markovchain_transition_status, only: metropolis_status_rejected, &
+                                            metropolis_status_accepted, &
                                             metropolis_status_proposal_failed, &
                                             metropolis_status_reverse_gate_rejected, &
                                             metropolis_status_hamiltonian_invalid, &
                                             metropolis_status_delta_h_invalid, &
                                             metropolis_status_output_size_mismatch
    implicit none
+
+   integer, parameter :: tltm_diag_schema_version_local_transition = 1
+   integer, parameter :: tltm_event_context_local_transition = 1
+   integer, parameter :: tltm_counter_denominator_local_transition = 1
+
+   type :: tltm_local_transition_event_t
+      integer :: schema_version = tltm_diag_schema_version_local_transition
+      integer :: context_id = tltm_event_context_local_transition
+      integer :: counter_denominator = tltm_counter_denominator_local_transition
+      integer :: transition_status = metropolis_status_rejected
+      logical :: accepted = .false.
+      logical :: proposal_failed = .false.
+   end type tltm_local_transition_event_t
 
    type :: tltm_replica_t
       integer :: replica_id = -1
@@ -79,42 +93,73 @@ module tltm_types_mod
 
 contains
 
+   pure function make_tltm_local_transition_event(accepted, proposal_failed, transition_status) result(event)
+      logical, intent(in) :: accepted, proposal_failed
+      integer, intent(in) :: transition_status
+      type(tltm_local_transition_event_t) :: event
+
+      event%schema_version = tltm_diag_schema_version_local_transition
+      event%context_id = tltm_event_context_local_transition
+      event%counter_denominator = tltm_counter_denominator_local_transition
+      event%accepted = accepted
+      event%proposal_failed = proposal_failed
+      event%transition_status = transition_status
+      if (accepted) event%transition_status = metropolis_status_accepted
+   end function make_tltm_local_transition_event
+
    subroutine record_replica_local_transition(replica, accepted, proposal_failed, transition_status)
       type(tltm_replica_t), intent(inout) :: replica
       logical, intent(in) :: accepted, proposal_failed
       integer, intent(in) :: transition_status
+      type(tltm_local_transition_event_t) :: event
 
-      if (accepted) then
-         replica%local_accept_count = replica%local_accept_count + 1
-      else
-         replica%local_reject_count = replica%local_reject_count + 1
-      end if
-      if (proposal_failed) replica%projection_failure_count = replica%projection_failure_count + 1
-      call record_replica_transition_detail(replica, accepted, transition_status)
+      event = make_tltm_local_transition_event(accepted, proposal_failed, transition_status)
+      call record_replica_local_transition_event(replica, event)
    end subroutine record_replica_local_transition
 
    subroutine record_slot_local_transition(slot, accepted, proposal_failed, transition_status)
       type(tltm_slot_t), intent(inout) :: slot
       logical, intent(in) :: accepted, proposal_failed
       integer, intent(in) :: transition_status
+      type(tltm_local_transition_event_t) :: event
 
-      if (accepted) then
+      event = make_tltm_local_transition_event(accepted, proposal_failed, transition_status)
+      call record_slot_local_transition_event(slot, event)
+   end subroutine record_slot_local_transition
+
+   subroutine record_replica_local_transition_event(replica, event)
+      type(tltm_replica_t), intent(inout) :: replica
+      type(tltm_local_transition_event_t), intent(in) :: event
+
+      if (event%accepted) then
+         replica%local_accept_count = replica%local_accept_count + 1
+      else
+         replica%local_reject_count = replica%local_reject_count + 1
+      end if
+      if (event%proposal_failed) replica%projection_failure_count = replica%projection_failure_count + 1
+      call record_replica_transition_detail(replica, event)
+   end subroutine record_replica_local_transition_event
+
+   subroutine record_slot_local_transition_event(slot, event)
+      type(tltm_slot_t), intent(inout) :: slot
+      type(tltm_local_transition_event_t), intent(in) :: event
+
+      if (event%accepted) then
          slot%local_accept_count = slot%local_accept_count + 1
       else
          slot%local_reject_count = slot%local_reject_count + 1
       end if
-      if (proposal_failed) slot%projection_failure_count = slot%projection_failure_count + 1
-      call record_slot_transition_detail(slot, accepted, transition_status)
-   end subroutine record_slot_local_transition
+      if (event%proposal_failed) slot%projection_failure_count = slot%projection_failure_count + 1
+      call record_slot_transition_detail(slot, event)
+   end subroutine record_slot_local_transition_event
 
-   subroutine record_replica_transition_detail(replica, accepted, transition_status)
+   subroutine record_replica_transition_detail(replica, event)
       type(tltm_replica_t), intent(inout) :: replica
-      logical, intent(in) :: accepted
-      integer, intent(in) :: transition_status
+      type(tltm_local_transition_event_t), intent(in) :: event
 
-      select case (transition_status)
+      select case (event%transition_status)
       case (metropolis_status_rejected)
-         if (.not. accepted) replica%metropolis_reject_count = replica%metropolis_reject_count + 1
+         if (.not. event%accepted) replica%metropolis_reject_count = replica%metropolis_reject_count + 1
       case (metropolis_status_reverse_gate_rejected)
          replica%reverse_gate_reject_count = replica%reverse_gate_reject_count + 1
       case (metropolis_status_proposal_failed)
@@ -128,14 +173,13 @@ contains
       end select
    end subroutine record_replica_transition_detail
 
-   subroutine record_slot_transition_detail(slot, accepted, transition_status)
+   subroutine record_slot_transition_detail(slot, event)
       type(tltm_slot_t), intent(inout) :: slot
-      logical, intent(in) :: accepted
-      integer, intent(in) :: transition_status
+      type(tltm_local_transition_event_t), intent(in) :: event
 
-      select case (transition_status)
+      select case (event%transition_status)
       case (metropolis_status_rejected)
-         if (.not. accepted) slot%metropolis_reject_count = slot%metropolis_reject_count + 1
+         if (.not. event%accepted) slot%metropolis_reject_count = slot%metropolis_reject_count + 1
       case (metropolis_status_reverse_gate_rejected)
          slot%reverse_gate_reject_count = slot%reverse_gate_reject_count + 1
       case (metropolis_status_proposal_failed)

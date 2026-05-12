@@ -1,44 +1,77 @@
-# Schema And Reference F7/F8 Decision
+# Schema And Reference F7/F8 Completion
 
 Updated: 2026-05-12 JST
 
+## Status
+
+F7/F8 are implemented for the conservative pre-redo gate. They are not being
+left as reduced-scope caveats.
+
+M4 now runs `f14_complete_pre_redo_gate.py`, which validates the F7 schema and
+F8 patch-local reference statement before F14 can proceed.
+
 ## F7 Public Naming And Schema Boundary
 
-Before final production regeneration, choose one of these schema policies:
+The pre-redo public method names are frozen in:
 
-- Freeze a final schema version and canonical public method names now, with
-  current raw names retained as compatibility aliases.
-- Keep the current v0/v1alpha compatibility schema for the next production redo
-  and explicitly label the output as reduced-scope rather than final public
-  schema.
+```text
+codex/workspaces/fortran_modernization/schema/F7_METHOD_ALIASES_V1.json
+```
 
-Until that choice is made:
+Canonical public names:
 
-- do not remove or rename existing v0 fields;
-- do not claim current method labels are the final publication taxonomy;
-- keep official DFO-LS provenance and assist policy explicit in manifests and
-  reports.
+| Canonical | Raw compatibility aliases |
+| --- | --- |
+| `nofb` | `no_fb`, `nofb` |
+| `withfb` | `fb_norefine`, `withfb` |
+
+Policy:
+
+- public reports use canonical `nofb` and `withfb`;
+- raw names remain accepted as compatibility aliases;
+- no v0/raw-name field removal is allowed before a future v2 schema decision.
 
 ## F8 Reference Comparison Boundary
 
-Before behavior-relevant source patches resume after F14, require a patch-local
-comparison statement:
+Patch-local reference statements are frozen in:
 
 ```text
-behavior_level: no_physics_change | diagnostic_only | behavior_relevant
-affected_surfaces: solver_route | reverse_gate | flow_policy | rng | counters | schema | wrapper
-baseline: M6 historical/internal | official_DFO-LS representative | narrower accepted local guardrail
-commands: <exact commands run>
-allowed_drift: exact | tolerance_bound | explicitly accepted
-decision: pass | reduced_scope_accepted | blocked
+codex/workspaces/fortran_modernization/schema/F8_PATCH_REFERENCE_STATEMENT_V1.json
 ```
 
-For final production regeneration, either complete this F8 harness and schema
-freeze first, or explicitly accept that the next production redo is operating on
-the current compatibility layer.
+The current gate wrote:
 
-## F14 Link
+```text
+output/tests/m4_guardrails/f14_complete_pre_redo_gate/F8_patch_reference_statement.json
+```
 
-F7/F8 do not need more hidden audit before the next step. They need the same F14
-decision as F3/F4: conservative completion first, or reduced-scope production
-redo acceptance.
+Current patch classification:
+
+- `behavior_level`: `behavior_relevant`
+- `affected_surfaces`: `counters`, `flow_policy`, `guardrail`,
+  `reverse_gate`, `schema`, `solver_route`, `wrapper`
+- `allowed_drift`: `explicitly_accepted_assist_default_off`
+- `decision`: `pass`
+
+Reference anchors:
+
+- `codex/workspaces/fortran_modernization/state/M6_REFERENCE_COMPARISON_SUMMARY.tsv`
+- `codex/workspaces/fortran_modernization/runbooks/M6_REFERENCE_COMPARISON_REPORT_20260511.md`
+
+## Verification
+
+```bash
+python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going
+```
+
+Readback:
+
+- F14 complete gate passed inside M4.
+- M6 reference summary contains both `nofb` and `withfb` for R1-R4.
+- The current patch-local F8 statement passed without reduced-scope wording.
+
+## Reopen Conditions
+
+Reopen F7/F8 only if public method taxonomy, schema compatibility policy,
+reference baselines, behavior-drift policy, or production wrapper semantics
+change.

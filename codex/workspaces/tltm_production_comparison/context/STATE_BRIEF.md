@@ -21,6 +21,8 @@ Updated: 2026-05-12 JST
 - Accepted M6 reference datasets are also production-calibration aliases for the same `t=0.35,L=2,nstep=20` `nofb`/`withfb` point. Read `runbooks/M6_REFERENCE_AS_PRODUCTION_CALIBRATION_PLAN.md` before choosing the next seed/cycle scale.
 - On 2026-05-11, the non-official legacy production output `gate_20260511_128seed_200k_p28_rg_nofb_fbnorefine` was archived out of active `provisional/` to avoid confusion with the current official DFO-LS comparison line. Its output/logs now live under `output/production_comparison/archive/non_official_legacy_20260511/` and `output/logs/production_comparison/archive/non_official_legacy_20260511/`.
 - On 2026-05-12, `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb` had no active PBS jobs remaining and had a merged `REPORT.md` plus `combined_summary_table.csv`. It was generated under production-comparison commit `c0e4021`; treat it as completed provisional production-comparison evidence, not a rerun after the latest modernization HEAD and not final publication data.
+- On 2026-05-12, the active official DFO-LS provisional outputs were frozen as pre-redo / old-code evidence. Read `runbooks/OUTPUT_NAMESPACE_FREEZE_20260512.md` and `state/OUTPUT_INVENTORY_20260512.tsv` before creating any new production-comparison output.
+- New modernization-head redo outputs must not reuse or extend the old `output/production_comparison/provisional/official_dfols_*` roots. Use `output/production_comparison/pre_redo/<campaign>` and mirror logs under `output/logs/production_comparison/pre_redo/<campaign>`.
 
 ## Important Correction
 
@@ -53,5 +55,9 @@ Current live campaign:
 8. Current production-codex work is QN route-bias/event-capture diagnostics, not modernization ODEX or final production regeneration.
 9. Exact accepted-QN replay completed locally: REVCHK passed, local metric-volume replay passed, and reverse replay returned to original chart coordinates at `~1e-11`. This lowers the priority of a direct QN/RATTLE detailed-balance bug.
 10. 256seed/200k paired method comparison is now quantified: `fb_norefine - no_fb = +0.001507680595551813 +/- 0.002768615480051937` (paired SE), t=`0.5446`, positive/negative seed differences `131/125`. The apparent `withfb` worse Zmean is not significant in direct paired comparison.
-11. Next priority before more production: inspect block/window stability and decide whether larger statistics are needed. Do not leave `probe_hmc_volume` promoted in the modernization build graph.
-12. Before any new production submission, confirm no active pinned jobs depend on `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.
+11. Window/block diagnostic completed at `codex/workspaces/tltm_production_comparison/diagnostics/window_bias_256seed_200k_20260512`. Recomputed ratios match per-seed summaries to `O(1e-15)`. Four 50k windows show `fb_norefine` Re Zmean concentrated in middle windows (`1.76`, `1.37`) and near zero in the final window (`-0.035`); paired fb-nofb 50k differences are not significant.
+12. Twenty 10k windows: `fb_norefine` positive mean Re in `12/20`, `no_fb` in `9/20`, paired mean differences positive/negative `10/10`. This does not support a stable one-way fb degradation.
+13. Counter correlations are strong for both methods, not only fb: `fb_norefine` Re vs fallback trigger `r=0.6600`, but `no_fb` Re vs unresolved failures `r=0.7251`. Treat counters as hard-region/slow-mixing indicators unless a more direct route-causality test contradicts this.
+14. Current diagnosis: long-autocorrelation/hard-region finite-window sampling is more plausible than direct QN detailed-balance or volume failure. Next production-scale decision should focus on longer-cycle/windowed continuation, not just more seeds.
+15. Output namespace freeze is active: existing 2026-05-11 official DFO-LS outputs are frozen pre-redo provisional evidence. The next modernization-head run must use a new `pre_redo/` campaign root with short commit SHA in the name.
+16. Before any new production submission, confirm no active pinned jobs depend on `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.

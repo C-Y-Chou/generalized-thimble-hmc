@@ -62,7 +62,7 @@ module solve_flow
    integer, save :: intode_fallback_failures_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
    integer, save :: intode_rescue_success_solver_assist = 0
    integer, save :: intode_solver_assist_fail = 0
-   logical, parameter :: intode_solver_assist_enabled_default = .true.
+   logical, parameter :: intode_solver_assist_enabled_default = .false.
    logical, save :: intode_enable_solver_assist = intode_solver_assist_enabled_default
    logical, save :: intode_solver_assist_policy_loaded = .false.
    logical, parameter :: intode_fast_hmin_assist = .true.

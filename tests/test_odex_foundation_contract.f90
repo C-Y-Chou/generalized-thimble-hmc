@@ -168,7 +168,7 @@ contains
       integer :: max_uses
 
       call get_intode_solver_assist_policy(enabled, max_uses, fast_hmin_assist)
-      ok = enabled .and. fast_hmin_assist .and. max_uses <= 0
+      ok = (.not. enabled) .and. fast_hmin_assist .and. max_uses <= 0
       write (*, '(A,L1,A,L1,A,I0,A,L1)') "[CHECK] solver_assist_policy enabled=", enabled, &
          " fast_hmin=", fast_hmin_assist, " max_uses=", max_uses, " ok=", ok
       if (.not. ok) then

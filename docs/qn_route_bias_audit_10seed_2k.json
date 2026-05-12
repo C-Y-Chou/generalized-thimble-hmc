@@ -1,0 +1,68 @@
+{
+  "stage_3_4_todo": {
+    "version": "qn-route-bias-audit-10seed-2k-20260512",
+    "name": "qn_route_bias_audit_10seed_2k",
+    "goal": "Short route-conditioned DeltaH audit for nofb vs fb_norefine at the t=0.35 production-comparison point.",
+    "frozen_setup": {
+      "model": "1d_toy_model",
+      "flow_time_ladder": [0.05, 0.35],
+      "max_flow_time": 0.35,
+      "trajectory_length_L": 2,
+      "nstep": 20,
+      "local_updates_per_cycle": 1,
+      "swap_scheme": "adjacent_pair",
+      "swap_schedule": "odd_even_alternating",
+      "exchange_frequency": "once_per_global_cycle",
+      "stage2_init_mode": "adaptive",
+      "write_all_replica_history": true,
+      "all_replicas_share_same_local_parameters": true
+    },
+    "comparison_policy": {
+      "matched_controls": true,
+      "same_seed_set_for_all_methods": true,
+      "same_initialization_policy": true,
+      "same_cycle_count": true,
+      "same_measurement_protocol": true,
+      "judgment_sets": ["no_fb", "fb_norefine"]
+    },
+    "observable_definition": {
+      "observable_name": "virial",
+      "exact_re": 0.0,
+      "exact_im": 0.0,
+      "error_source": "error_robust_virial_re_im",
+      "Z_mean_definition": "(mean_Ohat - O_exact) / standard_error_across_seeds"
+    },
+    "sampling_plan": {
+      "independent_runs_unit": "seed",
+      "n_seeds": 10,
+      "seed_list": [
+        20260421,
+        20260518,
+        20260615,
+        20260712,
+        20260809,
+        20260906,
+        20261003,
+        20261100,
+        20261197,
+        20261294
+      ],
+      "cycles_per_seed": 2000,
+      "warmup_cycles_optional": 0,
+      "measurement_stride": 1,
+      "diagnostic_stride": 1
+    },
+    "solver_and_gate_policy": {
+      "cttol": "1e-13",
+      "reverse_gate_enabled": true,
+      "reverse_gate_tol": "1e-8",
+      "p": 28,
+      "quasi_tol": "1e-13",
+      "near_rescue_enabled": false,
+      "nonnear_rescue_enabled": false,
+      "global_fallback_enabled": false,
+      "post_newton_refine_for_withfb": false,
+      "backend": "internal"
+    }
+  }
+}

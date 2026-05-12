@@ -111,6 +111,7 @@ current scoped contract:
 Reopen this row if the DFO-LS package version, preset, residual callback,
 acceptance gate, bridge/runtime policy, or QN route changes.
 
-This does not make final publication production complete. Final production redo
-still needs the remaining open rows, especially `CV-001`, `CV-002`, `CV-009`,
-and `CV-010`, to be resolved or explicitly accepted.
+This does not make final publication production complete. After the 2026-05-12
+F14 completion pass, `CV-009` and `CV-010` are closed for the pre-redo gate, but
+final production redo still needs the remaining `CV-001`/`CV-002`/`CV-006`
+promotion boundary plus exact redo scope/scale and target commit/worktree.
