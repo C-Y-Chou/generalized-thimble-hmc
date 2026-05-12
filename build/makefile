@@ -278,7 +278,7 @@ EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 .DEFAULT_GOAL := all
 override FFLAGS := $(FFLAGS_OPT) $(FFLAGS_INC)
 
-.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_official_dfols_preset_contract evaluate_btn_residual_case test_tltm_swap_kernel_contract test_mt95_state_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails f14_pre_redo_complete_gate official_line_kernel_correctness_gate script_evidence_audit_gate FORCE \
+.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_official_dfols_preset_contract evaluate_btn_residual_case test_tltm_swap_kernel_contract test_mt95_state_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails f14_pre_redo_complete_gate official_line_kernel_correctness_gate post_b_rng_reference_anchor script_evidence_audit_gate FORCE \
         test1_fb_on test1_fb_off test2_fb_on test2_fb_off test_fb_matrix \
         prepare_outputs clean_outputs clean veryclean
 all: regen_model_derivatives $(EXECUTABLES)
@@ -414,6 +414,7 @@ help:
 	@echo "  make test_mt95_state_contract - run explicit mt95 RNG-state contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make modernization_guardrails - run M4 local compile/build/audit/smoke guardrails"
 	@echo "  make f14_pre_redo_complete_gate - run complete F3/F4/F7/F8 pre-redo gate"
+	@echo "  make post_b_rng_reference_anchor - run post-B per-replica RNG reference anchor"
 	@echo "  make script_evidence_audit_gate - run CV-005 script/evidence audit coverage gate"
 	@echo "  make test1_fb_on / test1_fb_off - run test1 with fallback forced on/off"
 	@echo "  make test2_fb_on / test2_fb_off - run test2 with fallback forced on/off"
@@ -528,6 +529,13 @@ official_line_kernel_correctness_gate: prepare_outputs
 	@set -o pipefail; \
 	$(PYTHON) ../codex/workspaces/fortran_modernization/tasks/scripts/official_line_kernel_correctness_gate.py --repo-root .. --fc "$(OFFICIAL_LINE_KERNEL_FC)" --ldflags "$(OFFICIAL_LINE_KERNEL_LDFLAGS)" \
 	2>&1 | tee $(OUT_LOG_DIR)/official_line_kernel_correctness_gate.log
+
+POST_B_RNG_FC ?= $(FC)
+POST_B_RNG_LDFLAGS ?= $(LDFLAGS)
+post_b_rng_reference_anchor: prepare_outputs
+	@set -o pipefail; \
+	$(PYTHON) ../codex/workspaces/fortran_modernization/tasks/scripts/post_b_rng_reference_anchor.py --repo-root .. --fc "$(POST_B_RNG_FC)" --ldflags "$(POST_B_RNG_LDFLAGS)" \
+	2>&1 | tee $(OUT_LOG_DIR)/post_b_rng_reference_anchor.log
 
 script_evidence_audit_gate: prepare_outputs
 	@set -o pipefail; \

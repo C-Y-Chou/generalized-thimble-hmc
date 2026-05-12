@@ -523,7 +523,7 @@ contains
       end if
 
       momentum = momentum - step_size*ws%dV
-      call decompose2(momentum, ws%E0_perp, ws%del_z, ws%Jl, ws%temp_jac, has_error)
+      call decompose2(momentum, ws%E0_perp, ws%del_z, ws%Jl, ws%temp_jac, has_error, ws%decompose_ws)
       if (has_error) then
          if (present(step_status)) step_status = hmc_step_status_final_projection_failed
          if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)

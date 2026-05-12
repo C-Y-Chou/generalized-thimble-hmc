@@ -11,7 +11,7 @@ CV-011 route-B RNG streams and the production-redo split discussion.
 | --- | --- | --- |
 | D1 | Commit the current foundation/RNG work as a checkpoint before starting the next slice. | The checkpoint must include CV-001/CV-004/CV-005/CV-006/CV-007 foundation closure, CV-011 route-B RNG streams, and their guardrail evidence. |
 | D2 | Full OpenMP/thread-safe productization remains inside modernization scope. | CV-011 cannot close at RNG stream migration. Remaining module `save` workspaces, counters, diagnostics, policy state, and deterministic serial/reentrant checks must be migrated or explicitly scoped before modernization is finished. |
-| D3 | Build a small deterministic post-B reference anchor before larger refactors. | The accepted route-B RNG contract intentionally changes finite same-seed trajectories versus the old shared serial RNG stream, so future patches need a post-B anchor for the new contract. |
+| D3 | Build a small deterministic post-B reference anchor before larger refactors. | Done in `POST_B_RNG_REFERENCE_ANCHOR_V1`: the accepted route-B RNG contract intentionally changes finite same-seed trajectories versus the old shared serial RNG stream, so future patches use the post-B anchor for the new contract. |
 | D4 | Migrate behavior-bearing state; scope out only non-behavior caches/logging/perf state when justified. | Workspace migration must prioritize physics/control-flow state. Any non-product state left behind needs an explicit caveat or nonblocking rationale. |
 | D5 | Keep v0 outputs mostly compatible; put new semantics in v1 sidecars/manifests. | Existing Stage outputs remain compatibility surfaces while `rng_stream_contract` and future product semantics live in sidecar/provenance records. |
 | D6 | Remove or move solver assist out of the production path before final production freeze. | Solver assist remains default-off and diagnostic opt-in for now; final product readiness must not rely on assist-on production policy. |
@@ -28,7 +28,7 @@ are closed or explicitly scoped:
    ownership, no behavior-bearing hidden module state, and deterministic
    serial/reentrant checks for the selected route-B RNG contract.
 2. Post-B deterministic reference anchor for the new per-replica/per-slot RNG
-   stream contract.
+   stream contract. This is now implemented and must stay in M4.
 3. Unified product interface and schema/manifest policy sufficient for redo to
    consume a frozen commit without relying on modernization working-tree state.
 4. Solver-assist production-path cleanup or an explicit final release boundary

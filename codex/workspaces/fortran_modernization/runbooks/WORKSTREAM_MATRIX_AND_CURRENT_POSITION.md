@@ -9,7 +9,7 @@ Scope: replace the misleading impression that M0-M6 is a linear "modernization c
 Current position:
 
 ```text
-Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> full OpenMP/thread-safe productization remains
+Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> first non-RNG workspace slice -> full OpenMP/thread-safe productization remains
 ```
 
 Interpretation:
@@ -42,7 +42,7 @@ Interpretation:
 | W6 | State/status/information propagation | partial | `H==0` sentinel replaced in first slice; proposal status surface added; state-propagation audit/refactor docs exist | typed result/status objects across flow, solver, RATTLE, HMC, reverse gate, Metropolis; eliminate ambiguous logical/error plumbing | reference package |
 | W7 | Diagnostics/counter/accounting taxonomy | partial | local-transition typed event source, event-derived local counters, F4 audit schema, reverse-gate replay/counter suppression preserved, current output compatibility protected | broader status/result object propagation beyond the local-transition event and final product docs | post-redo architecture gate |
 | W8 | Architecture, module boundaries, and subroutine APIs | planned | master plan and subroutine/API redesign guide exist; high-risk modules identified | target architecture spec, module dependency map, split mechanism/policy/diagnostics, slim large procedures | after W3 acceptance |
-| W9 | RNG, workspace ownership, and reentrancy | active | route-B per-replica/per-slot RNG streams implemented; explicit mt95 state includes Gaussian spare state; Stage2 has a separate swap stream | full OpenMP/thread-safe productization: remaining explicit workspaces, behavior-bearing module `save` migration or scoping, counters/diagnostics/policy state, deterministic serial/reentrant tests, and post-B RNG reference anchor | do not claim full OpenMP-ready productization yet |
+| W9 | RNG, workspace ownership, and reentrancy | active | route-B per-replica/per-slot RNG streams implemented; explicit mt95 state includes Gaussian spare state; Stage2 has a separate swap stream; post-B reference anchor is in M4; `decompose2` scratch workspace is explicit on the RATTLE core path | full OpenMP/thread-safe productization: remaining explicit workspaces, behavior-bearing module `save` migration or scoping, counters/diagnostics/policy state, and deterministic serial/reentrant tests | do not claim full OpenMP-ready productization yet |
 | W10 | I/O, output schema, and wrapper/product interface | partial | Stage2 v1alpha sidecars, Stage3 propagation, protocol audit, M6 package design docs, F7 `nofb`/`withfb` aliases, and F8 patch-local reference statement schema | unified TLTM runner, full product schema, Stage script compatibility layer/deprecation | F14 scope/scale then wrapper productization |
 | W11 | Repo-wide code hygiene and Fortran cleanup | partial | explicit `only:` imports for `param_mod`/`utils`, duplicated env helpers removed, stale root Fortran artifacts deleted, build deps improved | long subroutine decomposition, naming cleanup, duplicate helper cleanup, allocation/workspace style cleanup, comments/equation notes | affected baseline row |
 | W12 | Scripts, PBS orchestration, and cluster operations | partial | cluster02 scheduler agent, dynamic M6 launcher, probe-first queue optimization, shared-cluster model, soft-decoupled production-comparison workspace | mature production/reference launch interface and future archive cleanup | after explicit run/readback scope |
@@ -70,7 +70,7 @@ These should not be reopened unless new evidence appears:
 
 Active focus:
 
-- Follow `FOUNDATION_CLOSURE_DECISIONS_20260512.md` and `MODERNIZATION_FINISH_DECISIONS_20260512.md` for the current closure queue. The immediate modernization-tree technical work is a post-B deterministic reference anchor followed by remaining CV-011 OpenMP/thread-safe productization. Production redo scope/scale remains in the separate `tltm_production_comparison` tree.
+- Follow `FOUNDATION_CLOSURE_DECISIONS_20260512.md`, `MODERNIZATION_FINISH_DECISIONS_20260512.md`, and `POST_B_RNG_REFERENCE_ANCHOR_20260512.md` for the current closure queue. The immediate modernization-tree technical work is now remaining CV-011 OpenMP/thread-safe productization, with the post-B RNG reference anchor protecting the accepted route-B stream contract. Production redo scope/scale remains in the separate `tltm_production_comparison` tree.
 - Do not start high-risk source refactors without an explicit reference-comparison plan against the accepted M6 packages or a narrower affected baseline.
 - Remote cleanup, fast-forward, or rename is now possible only after a fresh refresh and explicit scope check.
 
@@ -91,7 +91,7 @@ Recommended order after accepted M6 reference package, now refined by the founda
 3. Keep production redo scope/scale in the production-comparison tree.
 4. Deep-audit relevant tracked scripts before using them as modernization evidence.
 5. Use the completed F8 harness for any behavior-relevant source patch.
-6. Add the post-B route-B RNG reference anchor.
+6. Keep the post-B route-B RNG reference anchor in M4.
 7. Continue RNG/reentrancy/module-workspace migration through full OpenMP/thread-safe productization, with deterministic serial/reentrant checks.
 8. Only then start broader architecture/API and wrapper productization slices.
 

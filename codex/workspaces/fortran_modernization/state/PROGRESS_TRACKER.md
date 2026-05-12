@@ -1,7 +1,7 @@
 # Progress Tracker: fortran_modernization
 
 ## Current milestone
-- Foundation/RNG checkpoint active: CV-001/CV-004/CV-005/CV-006/CV-007 are closed for modernization scope, CV-011 route-B RNG streams are implemented, and remaining modernization work is post-B reference anchoring plus full OpenMP/thread-safe productization. Production redo is external to modernization and belongs to `tltm_production_comparison`.
+- CV-011 OpenMP/thread-safe productization active: CV-001/CV-004/CV-005/CV-006/CV-007 are closed for modernization scope, CV-011 route-B RNG streams, post-B reference anchor, and first non-RNG workspace slice are implemented. Remaining modernization work is full OpenMP/thread-safe productization. Production redo is external to modernization and belongs to `tltm_production_comparison`.
 
 ## Milestones
 - M0: planning and governance established
@@ -88,6 +88,8 @@
 - 2026-05-12 JST: User selected CV-011 route B. Implemented per-replica/per-slot RNG streams, separate Stage2 swap RNG stream, explicit `mt95_state_t` including Gaussian spare state, and `rng_stream_contract=per_replica_rng_v1` provenance in Stage1/Stage2 outputs. CV-011 remains open for remaining non-RNG workspace/reentrancy migration and deterministic serial/reentrant checks.
 - 2026-05-12 JST: Completed CV-005 script evidence audit. Added `SCRIPT_EVIDENCE_AUDIT_20260512.tsv`, `SCRIPT_EVIDENCE_AUDIT_20260512.md`, and `validate_script_evidence_audit.py`; wired the gate into M4 and `make script_evidence_audit_gate`. Historical ODEX/M6/qn-error-handling/multichain helpers are quarantined and cannot support current official or publication claims without rerun/reclassification. `make -C build FC=gfortran LDFLAGS= script_evidence_audit_gate` and `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going` passed.
 - 2026-05-12 JST: Recorded modernization finish decisions. Final modernization scope includes full OpenMP/thread-safe productization, not only route-B RNG stream migration; a small deterministic post-B reference anchor is the next source-facing gate; production redo is fully separated into `tltm_production_comparison` and is not required for modernization source/product readiness.
+- 2026-05-12 JST: Added POST_B_RNG_REFERENCE_ANCHOR_V1. The gate runs tiny Stage1/Stage2 twice with `CHAIN_RNG_SEED=12345`, normalizes elapsed/runtime fields, verifies repeat hashes, and compares Stage1 summary, Stage2 summary, and Stage2 label trace hashes against `POST_B_RNG_REFERENCE_ANCHOR_V1.json`. `make -C build FC=gfortran LDFLAGS= post_b_rng_reference_anchor` and full M4 passed with the new anchor included.
+- 2026-05-12 JST: Implemented the first non-RNG CV-011 workspace slice. `decompose2` now accepts an explicit `decompose2_workspace_t`; the RATTLE core path stores it inside `rattle_step_workspace_t`, and legacy callers use automatic local workspace instead of shared `save` scratch arrays. `make -C build FC=gfortran LDFLAGS= test_retained_core_rattle_rg_contract test_retained_core_rg_reject_identity post_b_rng_reference_anchor` and full M4 passed.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit

@@ -11,7 +11,7 @@ Updated: 2026-05-12 JST
 - User-confirmed alias: "code refine" means this `fortran_modernization` task, not a separate workspace.
 - Current position is now tracked by workstream matrix, not by treating M0-M6 as a linear completion ladder:
   - `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`
-  - Position: reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> full OpenMP/thread-safe productization -> broader modernization blocks.
+  - Position: reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> first non-RNG workspace slice -> full OpenMP/thread-safe productization -> broader modernization blocks.
 - Foundation closure decisions recorded on 2026-05-12 JST:
   - `CV-007` is closed by endpoint-only ODEX product boundary;
   - `CV-001` is closed by `official_line_kernel_correctness_gate.py`;
@@ -22,6 +22,13 @@ Updated: 2026-05-12 JST
 - Modernization finish decisions recorded on 2026-05-12 JST:
   - `runbooks/MODERNIZATION_FINISH_DECISIONS_20260512.md`
   - Production redo is completely separated into `tltm_production_comparison`; modernization provides frozen commits/contracts but does not own redo queueing, readback, or final production-output promotion.
+- Post-B RNG reference anchor added on 2026-05-12 JST:
+  - `runbooks/POST_B_RNG_REFERENCE_ANCHOR_20260512.md`
+  - `state/POST_B_RNG_REFERENCE_ANCHOR_V1.json`
+  - `post_b_rng_reference_anchor.py` runs tiny Stage1/Stage2 twice and checks normalized hashes for `per_replica_rng_v1`.
+- First non-RNG CV-011 workspace slice added on 2026-05-12 JST:
+  - `runbooks/CV011_DECOMPOSE2_WORKSPACE_SLICE_20260512.md`
+  - `hmc_kernels:decompose2` now supports explicit workspace ownership and the RATTLE core path stores that workspace inside `rattle_step_workspace_t`.
 - Algorithm reference bundle is collected under `references/`, including TLTM HMC, simplified Newton/RATTLE/HMC, DFO-GN/DFO-LS, Hairer ODEX, and the user original quasi-Newton projection formulation.
 - Low-level algorithm review set is complete and has already driven the first source canonicalization wave:
   - `runbooks/ODEX_FLOW_REVIEW_NOTES.md`

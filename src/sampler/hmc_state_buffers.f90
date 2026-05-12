@@ -1,10 +1,12 @@
 module hmc_state_buffers
    use utils, only: dp
+   use hmc_kernels, only: decompose2_workspace_t, release_decompose2_workspace
    implicit none
 
    type :: rattle_step_workspace_t
       real(dp), allocatable :: dV(:), del_z(:), E0_real(:), E0_perp(:), temp_x(:), Jl(:)
       complex(dp), allocatable :: ds_val(:), E0(:), temp_z(:), temp_jac(:, :)
+      type(decompose2_workspace_t) :: decompose_ws
    end type rattle_step_workspace_t
 
 contains
@@ -40,6 +42,7 @@ contains
       if (allocated(ws%E0)) deallocate (ws%E0)
       if (allocated(ws%temp_z)) deallocate (ws%temp_z)
       if (allocated(ws%temp_jac)) deallocate (ws%temp_jac)
+      call release_decompose2_workspace(ws%decompose_ws)
    end subroutine release_rattle_step_workspace
 
    subroutine ensure_real_1d(vec, n)

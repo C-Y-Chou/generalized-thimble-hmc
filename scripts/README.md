@@ -6,6 +6,11 @@ experiment scripts. The machine-checked evidence boundary lives in
 run `make -C build script_evidence_audit_gate` before using any newly added or
 reclassified helper as modernization evidence.
 
+Modernization task-local guardrails live under
+`codex/workspaces/fortran_modernization/tasks/scripts/`; current M4 includes
+the CV-001 official-line kernel gate, CV-005 script/evidence audit, F14
+pre-redo gate, and post-B route-B RNG reference anchor.
+
 ## Active scripts (current baseline support)
 
 - `generate_model_generated.py`

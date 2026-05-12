@@ -749,3 +749,30 @@
 - Redo now belongs to `tltm_production_comparison` and consumes only a frozen modernization commit plus declared contracts; redo queueing/readback/promotion must not be run from the modernization tree.
 - Modernization can be called finished by source/product readiness gates even before final production-output redo completion, as long as redo can consume the frozen commit and contracts cleanly.
 - Next execution order: checkpoint the verified foundation/RNG work, add a post-B deterministic reference anchor for `per_replica_rng_v1`, then continue CV-011 OpenMP/thread-safe productization.
+
+## 2026-05-12 JST - Post-B RNG reference anchor
+
+- Added `post_b_rng_reference_anchor.py` and `POST_B_RNG_REFERENCE_ANCHOR_V1.json`.
+- The gate runs tiny Stage1 and Stage2 jobs twice with `CHAIN_RNG_SEED=12345`, normalizes `elapsed_sec` and `runtime_sec`, verifies repeat hashes, and compares the result against the frozen reference JSON.
+- Frozen normalized hashes:
+  - Stage1 summary: `bafe7ce2089cfc2af646f4d216f3b7ec915e0f329b44e96a4becaf723236ab79`
+  - Stage2 summary: `b3c3b9192018337e633b9183e5ed74c62358109058b75d8484d589d682f70dfd`
+  - Stage2 label trace: `7a6a9b82a0e7c78fed27357ff95649ad0c467c220f29a46db91d6042303bf299`
+- Verification passed:
+  - `python3 -m py_compile codex/workspaces/fortran_modernization/tasks/scripts/post_b_rng_reference_anchor.py scripts/run_m4_guardrails.py`
+  - `python3 codex/workspaces/fortran_modernization/tasks/scripts/post_b_rng_reference_anchor.py --repo-root . --fc gfortran --ldflags '' --update-reference`
+  - `python3 codex/workspaces/fortran_modernization/tasks/scripts/post_b_rng_reference_anchor.py --repo-root . --fc gfortran --ldflags ''`
+  - `python3 -m py_compile codex/workspaces/fortran_modernization/tasks/scripts/post_b_rng_reference_anchor.py scripts/run_m4_guardrails.py codex/workspaces/fortran_modernization/tasks/scripts/validate_script_evidence_audit.py`
+  - `python3 codex/workspaces/fortran_modernization/tasks/scripts/validate_script_evidence_audit.py --repo-root .`
+  - `make -C build FC=gfortran LDFLAGS= post_b_rng_reference_anchor`
+  - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+
+## 2026-05-12 JST - CV-011 decompose2 workspace slice
+
+- Migrated `hmc_kernels:decompose2` away from subroutine-local `save` scratch arrays.
+- Added `decompose2_workspace_t`; callers may pass explicit workspace, and legacy no-workspace callers fall back to automatic local workspace instead of shared hidden state.
+- Added `decompose2_workspace_t` to `rattle_step_workspace_t` so the active RATTLE core path owns the final projection workspace explicitly.
+- Behavior boundary: no RNG, solver policy, reverse-gate/Metropolis acceptance, or output schema change intended.
+- Verification passed:
+  - `make -C build FC=gfortran LDFLAGS= test_retained_core_rattle_rg_contract test_retained_core_rg_reject_identity post_b_rng_reference_anchor`
+  - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`

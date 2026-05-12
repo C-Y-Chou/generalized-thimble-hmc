@@ -4,7 +4,7 @@ Updated: 2026-05-12 JST
 
 ## Current Position
 
-- Current position is `Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> full OpenMP/thread-safe productization remains`.
+- Current position is `Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> full OpenMP/thread-safe productization remains`.
 - M6 is not "modernization complete" and is not proof that the numerical/software foundation is complete; it is the accepted behavior baseline before larger source refactors resume.
 - The compact source of truth for this positioning is `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`; the reset source of truth for foundation gaps is `runbooks/FOUNDATION_COMPLETENESS_RESET_20260511.md`.
 - M3/M4/M5 modernization infrastructure work is treated as completed, partial, or explicitly deferred by workstream in that matrix.
@@ -21,7 +21,9 @@ Updated: 2026-05-12 JST
 - CV-004 is closed as permanent governance: every behavior-relevant source patch requires F8, M4, and an affected-baseline comparison or explicitly approved narrower baseline.
 - CV-005 is closed by the script/evidence audit registry and gate. Every tracked file under `scripts/`, `codex/tasks/`, and `codex/workspaces/fortran_modernization/tasks/` has a row in `SCRIPT_EVIDENCE_AUDIT_20260512.tsv`; M4 validates coverage and quarantines historical/legacy-route scripts.
 - CV-011 route B is implemented for RNG streams: Stage1 replicas and Stage2 slots own local-update RNG state, Stage2 swaps use a separate deterministic swap stream, and summaries/manifests label `rng_stream_contract=per_replica_rng_v1`. This intentionally changes finite same-seed trajectories relative to the old shared serial RNG stream.
-- Modernization finish decisions are recorded in `MODERNIZATION_FINISH_DECISIONS_20260512.md`: full OpenMP/thread-safe productization remains in scope, a post-B deterministic reference anchor is the next source-facing gate, and production redo is fully separated into `tltm_production_comparison`.
+- Modernization finish decisions are recorded in `MODERNIZATION_FINISH_DECISIONS_20260512.md`: full OpenMP/thread-safe productization remains in scope and production redo is fully separated into `tltm_production_comparison`.
+- Post-B deterministic reference anchor is added for `per_replica_rng_v1`: `post_b_rng_reference_anchor.py` runs tiny Stage1/Stage2 twice, normalizes elapsed/runtime fields, and compares against `POST_B_RNG_REFERENCE_ANCHOR_V1.json`.
+- First non-RNG CV-011 workspace slice is implemented: `hmc_kernels:decompose2` no longer uses shared `save` scratch arrays, and the RATTLE core path carries an explicit `decompose2_workspace_t` through `rattle_step_workspace_t`.
 - Modernization is not at automatic production-regeneration approval, but the user-selected conservative F3/F4/F7/F8 pre-redo gates are now implemented without reduced-scope acceptance.
 - F3/CV-009 is closed for the pre-redo gate: retained-core tests cover Newton replay, successful one-step RATTLE/RG pass replay, BTN residual reconstruction, official package-success route census, stub no-fallback route behavior, RG reject/live-state identity, and failure-as-rejection accounting; `f14_complete_pre_redo_gate.py` records the branch/measure harness.
 - F4/CV-010 is closed for the pre-redo gate: `tltm_local_transition_event_t` is the typed local-transition event source, counters are derived from that event, `F4_LOCAL_TRANSITION_AUDIT_V1` freezes the audit context, and M4 validates audit row invariants.
@@ -53,6 +55,8 @@ Updated: 2026-05-12 JST
 - `runbooks/CV011_RNG_WORKSPACE_DECISION_PACKET_20260512.md`: CV-011 RNG/workspace/reentrancy decision packet; user selected route B.
 - `runbooks/CV011_PER_REPLICA_RNG_IMPLEMENTATION_20260512.md`: route-B RNG implementation record and verification.
 - `runbooks/MODERNIZATION_FINISH_DECISIONS_20260512.md`: final modernization/redo boundary and full OpenMP/thread-safe productization decisions.
+- `runbooks/POST_B_RNG_REFERENCE_ANCHOR_20260512.md`: post-B route-B RNG reference anchor, frozen hashes, and verification.
+- `runbooks/CV011_DECOMPOSE2_WORKSPACE_SLICE_20260512.md`: first non-RNG hidden-workspace migration after route-B RNG streams.
 - `runbooks/FULL_HAIRER_ODEX_REOPEN_PLAN_20260512.md`: historical F1/CV-007 endpoint package and solver-assist default-off implementation notes.
 - `runbooks/OFFICIAL_DFOLS_PRODUCTION_REDO_READBACK_20260512.md`: official DFO-LS 256seed/200k production-comparison redo readback.
 - `state/RETAINED_CORE_EVIDENCE.tsv`: retained-core evidence registry.
@@ -61,4 +65,4 @@ Updated: 2026-05-12 JST
 
 ## Next Action
 
-Commit the verified foundation/RNG checkpoint, then add a post-B deterministic reference anchor for `per_replica_rng_v1` before continuing CV-011 full OpenMP/thread-safe productization. Production redo remains owned by the separate `tltm_production_comparison` tree and is not part of the modernization-finished condition.
+Run M4 after the `decompose2` workspace slice, then continue CV-011 full OpenMP/thread-safe productization by auditing/migrating remaining behavior-bearing module state. Production redo remains owned by the separate `tltm_production_comparison` tree and is not part of the modernization-finished condition.
