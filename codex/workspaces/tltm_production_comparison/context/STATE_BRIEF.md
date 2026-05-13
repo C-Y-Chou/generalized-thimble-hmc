@@ -31,6 +31,7 @@ Updated: 2026-05-13 JST
 - On 2026-05-12, Phase C embedded Stage3 holdout job `15005.anode01` completed for candidate `rho050_m500`.
 - On 2026-05-13, Phase D 32seed/50k confirmation jobs `15006`-`15014` completed with `Exit_status=0`.  Under the corrected hard gate, the candidate is improved but not sufficient: assist-off tuned failures are `33872`, while same-scale assist-on `fb_norefine` is `19579`.
 - On 2026-05-13, Phase E focused full replay job `15095.anode01` completed on `C12`.  Best candidate `rho050_m1000` reached `1726/1994` replay successes, only `+20` over `rho050_m500`; parameter-only assist-off DFO-LS tuning is not plausibly enough to reach assist-on failure parity.
+- On 2026-05-13, after the user synced the production worktree to commit `6f98b5bfce60678293c163764e1cefe8307736ba`, remote production outputs/logs were cleaned for the next rerun.  The remote `output` tree now only has empty containers: `output/production_comparison`, `output/tests`, `output/logs/production_comparison`, and `output/logs/dfols_assist_off_tuning`; disk usage was `24K`.
 
 ## Important Correction
 
@@ -67,3 +68,4 @@ Current assist-off tuning campaign:
 13. Phase D readback: `no_fb` is an exact solver/observable control match; `fb_norefine` unresolved failures improve `67061 -> 33872`, and mean Re/Im improves `0.0607926/0.0112710 -> 0.0434491/0.00824623`.
 14. Corrected verdict: reverse-gate rejects and P68/P95 are diagnostics, not blockers.  The no-assist problem is not solved unless tuned assist-off failures reach the assist-on scale or lower while `mean_Ohat_re` and `mean_Ohat_im` do not regress.
 15. Phase E completed: `15095.anode01`, output root `output/tests/dfols_assist_off_tuning/dfols_assist_off_tuning_20260513_a22de1c_phaseE_fullreplay_focus`.  Clear negative for continuing parameter-only assist-off tuning; next work is assist/proposal semantics and audit.
+16. Remote output cleanup completed on 2026-05-13 before rerun preparation.  Historical readbacks remain in runbooks/state, but raw output/log roots under production comparison and DFO-LS assist-off tuning were removed from `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison/output`.

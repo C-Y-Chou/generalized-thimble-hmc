@@ -808,3 +808,24 @@ Use this file to append per-session notes.
 - Anchor `rho050_m500`: `1706/1994` successes.
 - Best focused candidate `rho050_m1000`: `1726/1994` successes, only `+20` over `rho050_m500`.
 - Conclusion: parameter-only official DFO-LS tuning has saturated before assist-on failure parity.  Do not submit another embedded Stage3 candidate from this focused family; shift to assist/proposal-semantics design and audit.
+
+## 2026-05-13 JST - Production Output Cleanup Before Rerun
+
+- User synced the production worktree before cleanup.
+- Verified remote execution worktree:
+  `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.
+- Branch: `codex/tltm-production-comparison-official-dfols`.
+- Commit: `6f98b5bfce60678293c163764e1cefe8307736ba`.
+- `qstat -u cychou` returned no active jobs before cleanup.
+- Removed raw output/log roots:
+  - `output/production_comparison`;
+  - `output/tests/dfols_assist_off_tuning`;
+  - `output/logs/production_comparison`;
+  - `output/logs/dfols_assist_off_tuning`.
+- Recreated empty containers:
+  - `output/production_comparison`;
+  - `output/tests`;
+  - `output/logs/production_comparison`;
+  - `output/logs/dfols_assist_off_tuning`.
+- Post-cleanup `du -sh output`: `24K`.
+- Historical readbacks remain in runbooks/state, but the raw production-comparison and DFO-LS tuning artifacts are no longer present in the remote production output tree.
