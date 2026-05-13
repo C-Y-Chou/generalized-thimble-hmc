@@ -32,6 +32,7 @@ Updated: 2026-05-13 JST
 - On 2026-05-13, Phase D 32seed/50k confirmation jobs `15006`-`15014` completed with `Exit_status=0`.  Under the corrected hard gate, the candidate is improved but not sufficient: assist-off tuned failures are `33872`, while same-scale assist-on `fb_norefine` is `19579`.
 - On 2026-05-13, Phase E focused full replay job `15095.anode01` completed on `C12`.  Best candidate `rho050_m1000` reached `1726/1994` replay successes, only `+20` over `rho050_m500`; parameter-only assist-off DFO-LS tuning is not plausibly enough to reach assist-on failure parity.
 - On 2026-05-13, after the user synced the production worktree to commit `6f98b5bfce60678293c163764e1cefe8307736ba`, remote production outputs/logs were cleaned for the next rerun.  The remote `output` tree now only has empty containers: `output/production_comparison`, `output/tests`, `output/logs/production_comparison`, and `output/logs/dfols_assist_off_tuning`; disk usage was `24K`.
+- On 2026-05-13, the formalized assist bridge 32seed/50k gate was submitted from commit `6f98b5bfce60678293c163764e1cefe8307736ba` on `C8`.  Job chain: preflight `15097` completed with `Exit_status=0`, chunks `15098`-`15105` are running, and merge `15106` is held on chunk completion.  Dataset id: `prodcomp_formalized_assist_bridge_6f98b5b_32seed_50k_20260513`; campaign root: `output/production_comparison/formalized_assist_bridge/formalized_assist_bridge_20260513_6f98b5b_32seed_50000cyc_t035_L2_nstep20_rg_nofb_withfb`.
 
 ## Important Correction
 
@@ -50,6 +51,14 @@ Updated: 2026-05-13 JST
 - Modernization remote worktree: `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`.
 
 ## Next Action
+
+Active formalized assist bridge:
+
+1. Monitor PBS jobs `15098`-`15106`.
+2. Chunks `15098`-`15105` are running after preflight `15097` completed with `Exit_status=0`; wait for all chunks to complete.
+3. After merge `15106`, read `output/production_comparison/formalized_assist_bridge/formalized_assist_bridge_20260513_6f98b5b_32seed_50000cyc_t035_L2_nstep20_rg_nofb_withfb/REPORT.md`.
+4. Primary readback: `mean_Ohat_re`, `mean_Ohat_im`, and unresolved failures.  Same-scale references: assist-on `fb_norefine` failures `19579`; assist-off tuned Phase D failures `33872`.
+5. Diagnostic readback: reverse-gate rejects and P68/P95.  These are not hard blockers for this bridge unless the observable means or exact-gate contract regress.
 
 Current assist-off tuning campaign:
 

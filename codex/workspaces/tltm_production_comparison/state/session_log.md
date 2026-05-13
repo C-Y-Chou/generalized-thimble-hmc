@@ -829,3 +829,21 @@ Use this file to append per-session notes.
   - `output/logs/dfols_assist_off_tuning`.
 - Post-cleanup `du -sh output`: `24K`.
 - Historical readbacks remain in runbooks/state, but the raw production-comparison and DFO-LS tuning artifacts are no longer present in the remote production output tree.
+
+## 2026-05-13 JST - Formalized Assist Bridge 32seed/50k Submit
+
+- Added formalized assist bridge run config: `docs/production_comparison_formalized_assist_bridge_32seed_50k_nofb_withfb.json`.
+- Added PBS runtime templates:
+  - `tasks/pbs/formalized_assist_bridge_32seed_50k_chunk.pbs`;
+  - `tasks/pbs/formalized_assist_bridge_32seed_50k_merge.pbs`.
+- Remote staging path: `output/pbs_scripts/formalized_assist_bridge_20260513_6f98b5b_32seed_50000cyc_t035_L2_nstep20_rg_nofb_withfb`.
+- Remote worktree stayed clean after staging because `output/` is git-ignored.
+- Submitted C8 dependency chain:
+  - preflight `15097.anode01`;
+  - `no_fb` chunks `15098`-`15101`;
+  - `fb_norefine` chunks `15102`-`15105`;
+  - merge/report `15106`.
+- Follow-up qstat/readback: preflight `15097.anode01` completed with `Exit_status=0`; chunk jobs `15098`-`15105` left dependency hold and are running on `C8`; merge `15106` remains held until all chunks finish.
+- Policy: `INTODE_SOLVER_ASSIST_POLICY=nt_strict_qn_navassist_cert_strict_rg_metropolis_v1`; legacy `INTODE_SOLVER_ASSIST_ENABLED` is unset in the chunk jobs.
+- Exact-gate contract: QN navigation assist may help find guesses, but certification residual, final flow, reverse gate, and Metropolis acceptance remain unassisted/exact.
+- Primary readback after merge: mean Re/Im and unresolved failures, with assist-on failure reference `19579` and assist-off tuned Phase D reference `33872`.
