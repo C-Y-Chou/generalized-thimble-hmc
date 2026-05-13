@@ -65,6 +65,7 @@ Updated: 2026-05-13 JST
   - QN navigation assist may only support residual navigation; best-state rescue is re-certified through an unassisted residual before acceptance.
   - Final proposal flow, reverse-gate acceptance, and Metropolis remain strict.
   - Local verification passed: assist policy gate, foundation contract, retained-core QN/RG/RNG gates, and full M4 guardrails.
+  - Modernization commit `2d8f1c1dccc67dff23480b2893cbd61f81f96238` was pushed and the production-comparison branch/worktree was fast-forwarded after remote/job refresh confirmed no active pinned jobs.
 - Algorithm reference bundle is collected under `references/`, including TLTM HMC, simplified Newton/RATTLE/HMC, DFO-GN/DFO-LS, Hairer ODEX, and the user original quasi-Newton projection formulation.
 - Low-level algorithm review set is complete and has already driven the first source canonicalization wave:
   - `runbooks/ODEX_FLOW_REVIEW_NOTES.md`

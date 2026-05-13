@@ -1,6 +1,6 @@
 # Navigation Assist With Strict Certification Policy
 
-Status: implemented and modernization-local gated
+Status: implemented, modernization-local gated, and production-comparison synchronized
 
 Date: 2026-05-13 JST
 
@@ -12,8 +12,9 @@ modernization source tree.  `qn_navigation` is the canonical default, legacy
 `INTODE_SOLVER_ASSIST_ENABLED=0/1` maps to `off` /
 `all_navigation_diagnostic`, and Stage3 method env manifests now distinguish
 `nofb` assist-off control from fallback-on navigation assist.  The
-modernization-local M4 guardrail suite passed; production-tree sync is allowed
-after refreshing remote/job state.
+modernization-local M4 guardrail suite passed; the production-comparison
+branch/worktree was fast-forwarded to the pushed F15 node after refreshing
+remote/job state.
 
 ## Decision
 
@@ -233,5 +234,5 @@ Production-tree handoff rule:
 
 - Sync the production tree only after the above local M4 gate is green and
   remote state confirms no active pinned production jobs.  This implementation
-  has met the local gate; the remaining step is the production-tree
-  fast-forward/readback.
+  met that gate, and the production-comparison branch/worktree was
+  fast-forwarded to the pushed F15 node.

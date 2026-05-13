@@ -1,6 +1,6 @@
 # F15 Navigation-Assist Strict-Certification Implementation
 
-Status: modernization-local implementation passed; production-tree sync gate open
+Status: implemented, pushed, and synchronized to production-comparison tree
 
 Date: 2026-05-13 JST
 
@@ -87,6 +87,8 @@ Production tree sync is allowed only after:
 - no active pinned production jobs are present;
 - the modernization branch is pushed.
 
-At this checkpoint, the local gate is green.  The next action is to push the
-modernization commit and fast-forward the production tree/branch to the pushed
-F15 node.
+This checkpoint passed.  Modernization commit
+`2d8f1c1dccc67dff23480b2893cbd61f81f96238` was pushed to
+`origin/codex/fortran-modernization`, and the production-comparison
+worktree/branch was fast-forwarded to that F15 node after confirming no active
+pinned jobs.

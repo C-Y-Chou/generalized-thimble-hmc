@@ -71,7 +71,7 @@ These should not be reopened unless new evidence appears:
 Active focus:
 
 - Follow `FOUNDATION_CLOSURE_DECISIONS_20260512.md`, `MODERNIZATION_FINISH_DECISIONS_20260512.md`, `POST_B_RNG_REFERENCE_ANCHOR_20260512.md`, `CV011_TOP_LEVEL_RUN_CONTEXT_SLICE_20260512.md`, `CV011_FLOW_CONTEXT_SLICE_20260513.md`, `CV011_HMC_QN_FLOW_CONTEXT_SLICE_20260513.md`, `CV011_QN_OFFICIAL_CALLBACK_CONTEXT_SLICE_20260513.md`, `CV011_QN_TRACE_EVAL_CONTEXT_SLICE_20260513.md`, `CV011_QN_DIAGNOSTICS_CONTEXT_SLICE_20260513.md`, `CV011_QN_POLICY_CONTEXT_SLICE_20260513.md`, and `CV011_HMC_POLICY_REVERSE_GATE_CONTEXT_SLICE_20260513.md` for the current closure queue. The immediate modernization-tree technical work is now triaging the next remaining behavior-bearing state boundary, with the post-B RNG reference anchor protecting the accepted route-B stream contract. Production redo scope/scale remains in the separate `tltm_production_comparison` tree.
-- F15 fallback-on canonical solver policy is implemented and locally M4-gated.  Production-tree sync may proceed only after remote/job state refresh confirms no active pinned production jobs.
+- F15 fallback-on canonical solver policy is implemented, locally M4-gated, pushed, and synchronized to the production-comparison branch/worktree after remote/job state refresh confirmed no active pinned production jobs.
 - Do not start high-risk source refactors without an explicit reference-comparison plan against the accepted M6 packages or a narrower affected baseline.
 - Remote cleanup, fast-forward, or rename is now possible only after a fresh refresh and explicit scope check.
 
