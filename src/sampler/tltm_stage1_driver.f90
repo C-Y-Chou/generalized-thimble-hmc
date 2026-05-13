@@ -164,7 +164,8 @@ contains
                               config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
                               context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
                               qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
-                              hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context)
+                              hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
+                              hmc_reversibility=run_context%diagnostics%hmc_reversibility)
          if (accepted) then
             replica%x = x_new
             replica%z = z_new

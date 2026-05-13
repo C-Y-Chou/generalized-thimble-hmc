@@ -24,7 +24,8 @@ module hmc
                                   hmc_step_status_final_flow_invalid, &
                                   hmc_step_status_final_flow_h_min, &
                                   hmc_step_status_final_flow_non_strict_success
-   use hmc_reversibility_checks, only: report_state_progress_diagnostic, reversibility_probe_should_run, report_reversibility_probe
+   use hmc_reversibility_checks, only: hmc_reversibility_context_t, report_state_progress_diagnostic, &
+                                      reversibility_probe_should_run, report_reversibility_probe
    implicit none
 
    integer, parameter :: hmc_proposal_status_success = 0
@@ -43,7 +44,7 @@ contains
    subroutine integrate_hmc_proposal(state_x, state_z, step_size, num_steps, &
                                      final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok, &
                                      proposal_status, initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, &
-                                     qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics)
+                                     qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility)
       implicit none
       real(dp), intent(in) :: state_x(:)
       complex(dp), intent(in) :: state_z(:)
@@ -65,19 +66,20 @@ contains
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
       type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
       type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
+      type(hmc_reversibility_context_t), intent(inout), optional, target :: hmc_reversibility
       logical :: local_ok
       integer :: local_status
 
       call rattle(state_x, state_z, step_size, num_steps, final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, &
                   local_ok, local_status, initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, qn_diagnostics, &
-                  qn_policy, hmc_policy, hmc_replay_diagnostics)
+                  qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility)
       if (present(proposal_ok)) proposal_ok = local_ok
       if (present(proposal_status)) proposal_status = local_status
    end subroutine integrate_hmc_proposal
 
    subroutine integrate_hmc_warmup(state_x, state_z, step_size, num_steps, &
                                    final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, context, flow_workspace, qn_context, &
-                                   qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics)
+                                   qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility)
       implicit none
       real(dp), intent(in) :: state_x(:)
       complex(dp), intent(in) :: state_z(:)
@@ -96,15 +98,16 @@ contains
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
       type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
       type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
+      type(hmc_reversibility_context_t), intent(inout), optional, target :: hmc_reversibility
 
       call rattle2(state_x, state_z, step_size, num_steps, final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, &
-                   context, flow_workspace, qn_context, qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics)
+                   context, flow_workspace, qn_context, qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility)
    end subroutine integrate_hmc_warmup
 
    subroutine rattle(state_x, state_z, step_size, num_steps, &
                      final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok, proposal_status, &
                      initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
-                     hmc_policy, hmc_replay_diagnostics)
+                     hmc_policy, hmc_replay_diagnostics, hmc_reversibility)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -128,6 +131,7 @@ contains
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
       type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
       type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
+      type(hmc_reversibility_context_t), intent(inout), optional, target :: hmc_reversibility
 
       integer :: step, state_size
       real(dp) :: integration_step_size
@@ -222,7 +226,7 @@ contains
          temp_jac = jacf
       end do
 
-      call report_state_progress_diagnostic("proposal", temp_x, final_x)
+      call report_state_progress_diagnostic("proposal", temp_x, final_x, hmc_reversibility)
 
       if (present(context)) then
          call decompose2(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, context%proposal_ws%decompose_ws)
@@ -241,7 +245,7 @@ contains
       call get_intode_fallback_stats(fb_calls_after, fb_calls_integrating_after, fb_attempts_after, fb_success_after, fb_failure_after, &
                                      fb_max_steps_after, fb_invalid_after, fb_h_min_after)
       fallback_used = (fb_attempts_after > fb_attempts_before)
-      if (reversibility_probe_should_run(fallback_used)) then
+      if (reversibility_probe_should_run(fallback_used, hmc_reversibility)) then
          reverse_momentum = -momentum
          call get_intode_fallback_stats(rev_calls_before, rev_calls_integrating_before, rev_attempts_before, rev_success_before, rev_failure_before, &
                                         rev_max_steps_before, rev_invalid_before, rev_h_min_before)
@@ -265,7 +269,7 @@ contains
                                          fb_failure_after - fb_failure_before, rev_attempts_after - rev_attempts_before, &
                                          rev_success_after - rev_success_before, rev_failure_after - rev_failure_before, &
                                          final_hamiltonian - initial_hamiltonian, reverse_final_hamiltonian - reverse_initial_hamiltonian, &
-                                         dx_inf, dz_inf, dj_inf, dp_inf)
+                                         dx_inf, dz_inf, dj_inf, dp_inf, hmc_reversibility)
       end if
       proposal_ok = .true.
       proposal_status = hmc_proposal_status_success
@@ -347,7 +351,7 @@ contains
             local_jac = out_jac
          end do
 
-         call report_state_progress_diagnostic("reverse_probe", local_prev_x, out_x)
+         call report_state_progress_diagnostic("reverse_probe", local_prev_x, out_x, hmc_reversibility)
 
          if (present(context)) then
             call decompose2(local_momentum, local_momentumuv, local_momentumu, local_momentumv, local_jac, local_error, &
@@ -485,7 +489,7 @@ contains
 
    subroutine rattle2(state_x, state_z, step_size, num_steps, &
                       final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, context, flow_workspace, qn_context, &
-                      qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics)
+                      qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -506,6 +510,7 @@ contains
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
       type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
       type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
+      type(hmc_reversibility_context_t), intent(inout), optional, target :: hmc_reversibility
 
       integer :: step, state_size, wi, substep
       real(dp) :: integration_step_size
@@ -635,7 +640,7 @@ contains
          end if
       end do
 
-      call report_state_progress_diagnostic("warmup", temp_x, final_x)
+      call report_state_progress_diagnostic("warmup", temp_x, final_x, hmc_reversibility)
 
       momentum = 0.0_dp
       call calculate_hamiltonian(final_z, momentum, final_hamiltonian)

@@ -959,3 +959,31 @@
   production-comparison commit `6f98b5b`.
 - Stop condition: continue CV-011 with solver/flow/reversibility diagnostics,
   model tape/cache, config mirror, or deterministic serial/reentrant checks.
+
+## 2026-05-13 JST - CV-011 HMC reversibility diagnostics context slice
+
+- Chose the HMC reversibility/progress diagnostic boundary as the next
+  behavior-adjacent CV-011 state slice.
+- Added `hmc_reversibility_context_t` in `hmc_reversibility_checks`.
+- Moved reversibility-probe loaded/enabled/fallback-only/limit/count state and
+  state-progress diagnostic loaded/enabled/limit/count state behind the
+  context.
+- Preserved legacy/direct-call compatibility through a module fallback context.
+- Added optional context arguments to reversibility/progress diagnostic APIs
+  plus `release_hmc_reversibility_context`.
+- Replaced the placeholder diagnostics field with
+  `tltm_run_context_t%diagnostics%hmc_reversibility`.
+- Threaded the context through Stage1/Stage2 local updates,
+  `metropolis_step`, HMC proposal/warmup, RATTLE, and reverse-probe reporting.
+- Added `test_hmc_reversibility_context_contract` and wired it into the build
+  and M4 target list.
+- Verification passed:
+  - `git diff --check`
+  - `make -C build test_hmc_reversibility_context_contract`
+  - `make -C build ../bin/run_tltm_stage2`
+  - `make -C build test_retained_core_rattle_rg_contract test_retained_core_rg_reject_identity`
+  - `PYTHON="$PWD/.venv-dfols/bin/python" TLTM_OFFICIAL_DFOLS_PYTHONPATH="$($PWD/.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+- Production-comparison tree was not synchronized because formalized assist
+  bridge jobs remain pinned to production-comparison commit `6f98b5b`.
+- Stop condition: continue CV-011 with solver/flow diagnostics, model
+  tape/cache, config mirror, or deterministic serial/reentrant checks.

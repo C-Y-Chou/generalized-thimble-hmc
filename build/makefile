@@ -190,6 +190,7 @@ SOURCES_TEST_OFFICIAL_DFOLS_PRESET := $(SOURCES_COMMON) $(TEST_DIR)/test_officia
 SOURCES_TEST_TLTM_SWAP := $(SOURCES_COMMON) $(TEST_DIR)/test_tltm_swap_kernel_contract.f90
 SOURCES_TEST_MT95_STATE := $(call mk_src,core/mtdefs core/mt95) $(TEST_DIR)/test_mt95_state_contract.f90
 SOURCES_TEST_PERF_PROFILE := $(call mk_src,core/lapack_fallback core/utils config/runtime_env_mod core/perf_profile) $(TEST_DIR)/test_perf_profile_context_contract.f90
+SOURCES_TEST_HMC_REVERSIBILITY := $(call mk_src,core/lapack_fallback core/utils config/runtime_env_mod sampler/hmc_reversibility_checks) $(TEST_DIR)/test_hmc_reversibility_context_contract.f90
 SOURCES_TEST_RETAINED_NEWTON := $(SOURCES_COMMON) $(TEST_DIR)/test_retained_core_newton_contract.f90
 SOURCES_TEST_RETAINED_RATTLE_RG := $(SOURCES_COMMON) $(TEST_DIR)/test_retained_core_rattle_rg_contract.f90
 SOURCES_TEST_RETAINED_QN_ROUTE := $(SOURCES_COMMON) $(TEST_DIR)/test_retained_core_qn_route_contract.f90
@@ -234,6 +235,8 @@ OBJECTS_TEST_MT95_STATE := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES
                            $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_MT95_STATE)))
 OBJECTS_TEST_PERF_PROFILE := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_PERF_PROFILE))) \
                              $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_PERF_PROFILE)))
+OBJECTS_TEST_HMC_REVERSIBILITY := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_HMC_REVERSIBILITY))) \
+                                  $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_HMC_REVERSIBILITY)))
 OBJECTS_TEST_RETAINED_NEWTON := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_RETAINED_NEWTON))) \
                                 $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_RETAINED_NEWTON))) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_TEST_RETAINED_RATTLE_RG := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_RETAINED_RATTLE_RG))) \
@@ -249,7 +252,7 @@ SOURCES_DEP := $(sort $(SOURCES_STEP2) $(SOURCES_STEP3) $(SOURCES_STEP9) $(SOURC
                 $(SOURCES_TEST_ODEX_RESULT) $(SOURCES_TEST_ODEX_FLOW_JAC) \
                 $(SOURCES_TEST_ODEX_BACKEND_PACKAGE) \
                 $(SOURCES_TEST_OFFICIAL_DFOLS_PRESET) $(SOURCES_TEST_TLTM_SWAP) $(SOURCES_TEST_MT95_STATE) \
-                $(SOURCES_TEST_PERF_PROFILE) \
+                $(SOURCES_TEST_PERF_PROFILE) $(SOURCES_TEST_HMC_REVERSIBILITY) \
                 $(SOURCES_TEST_RETAINED_NEWTON) $(SOURCES_TEST_RETAINED_RATTLE_RG) \
                 $(SOURCES_TEST_RETAINED_QN_ROUTE) $(SOURCES_TEST_RETAINED_RG_REJECT))
 
@@ -271,7 +274,7 @@ BINARIES     = generate_markov_chain evaluate_expectations \
                test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract \
                test_odex_backend_package_contract \
                test_official_dfols_preset_contract test_tltm_swap_kernel_contract \
-               test_mt95_state_contract test_perf_profile_context_contract \
+               test_mt95_state_contract test_perf_profile_context_contract test_hmc_reversibility_context_contract \
                test_retained_core_newton_contract test_retained_core_rattle_rg_contract \
                test_retained_core_qn_route_contract test_retained_core_rg_reject_identity
 EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
@@ -282,7 +285,7 @@ EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 .DEFAULT_GOAL := all
 override FFLAGS := $(FFLAGS_OPT) $(FFLAGS_INC)
 
-.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_official_dfols_preset_contract evaluate_btn_residual_case test_tltm_swap_kernel_contract test_mt95_state_contract test_perf_profile_context_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails f14_pre_redo_complete_gate official_line_kernel_correctness_gate post_b_rng_reference_anchor script_evidence_audit_gate FORCE \
+.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_official_dfols_preset_contract evaluate_btn_residual_case test_tltm_swap_kernel_contract test_mt95_state_contract test_perf_profile_context_contract test_hmc_reversibility_context_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails f14_pre_redo_complete_gate official_line_kernel_correctness_gate post_b_rng_reference_anchor script_evidence_audit_gate FORCE \
         test1_fb_on test1_fb_off test2_fb_on test2_fb_off test_fb_matrix \
         prepare_outputs clean_outputs clean veryclean
 all: regen_model_derivatives $(EXECUTABLES)
@@ -366,6 +369,9 @@ $(BIN_DIR)/test_mt95_state_contract: $(OBJECTS_TEST_MT95_STATE) | $(BIN_DIR)
 $(BIN_DIR)/test_perf_profile_context_contract: $(OBJECTS_TEST_PERF_PROFILE) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
 
+$(BIN_DIR)/test_hmc_reversibility_context_contract: $(OBJECTS_TEST_HMC_REVERSIBILITY) | $(BIN_DIR)
+	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
+
 $(BIN_DIR)/test_retained_core_newton_contract: $(OBJECTS_TEST_RETAINED_NEWTON) $(OFFICIAL_DFOLS_MODE_STAMP) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
 
@@ -420,6 +426,7 @@ help:
 	@echo "  make test_tltm_swap_kernel_contract - run TLTM swap-kernel contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_mt95_state_contract - run explicit mt95 RNG-state contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_perf_profile_context_contract - run explicit profiler-context contract test (log -> $(OUT_LOG_DIR))"
+	@echo "  make test_hmc_reversibility_context_contract - run HMC reversibility/progress context contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make modernization_guardrails - run M4 local compile/build/audit/smoke guardrails"
 	@echo "  make f14_pre_redo_complete_gate - run complete F3/F4/F7/F8 pre-redo gate"
 	@echo "  make post_b_rng_reference_anchor - run post-B per-replica RNG reference anchor"
@@ -593,6 +600,9 @@ test_mt95_state_contract: $(BIN_DIR)/test_mt95_state_contract prepare_outputs
 
 test_perf_profile_context_contract: $(BIN_DIR)/test_perf_profile_context_contract prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_perf_profile_context_contract 2>&1 | tee $(OUT_LOG_DIR)/test_perf_profile_context_contract.log
+
+test_hmc_reversibility_context_contract: $(BIN_DIR)/test_hmc_reversibility_context_contract prepare_outputs
+	@set -o pipefail; $(BIN_DIR)/test_hmc_reversibility_context_contract 2>&1 | tee $(OUT_LOG_DIR)/test_hmc_reversibility_context_contract.log
 
 test_retained_core_newton_contract: $(BIN_DIR)/test_retained_core_newton_contract prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_retained_core_newton_contract 2>&1 | tee $(OUT_LOG_DIR)/test_retained_core_newton_contract.log

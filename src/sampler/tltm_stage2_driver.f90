@@ -554,7 +554,8 @@ contains
                               accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
                               final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
                               qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
-                              hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context)
+                              hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
+                              hmc_reversibility=run_context%diagnostics%hmc_reversibility)
          call snapshot_solver_counters(solver_after)
          if (accepted) then
             slot%x = x_new
