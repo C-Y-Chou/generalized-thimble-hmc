@@ -679,3 +679,132 @@ Use this file to append per-session notes.
   - output root `output/production_comparison/pre_redo/<campaign>`
   - log root `output/logs/production_comparison/pre_redo/<campaign>`
 - Do not extend old `provisional/official_dfols_*` roots in place and do not combine frozen pre-redo data with modernization-head redo data in one estimator.
+
+## 2026-05-12 Modernization-Head Pre-Redo 10seed/10k Readback
+
+- Checked remote PBS at 18:45 JST for campaign `official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_t035_L2_nstep20_rg_nofb_withfb`.
+- Production worktree: `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.
+- Branch/commit: `codex/tltm-production-comparison-official-dfols`, `a22de1c19633793cf9c3ff7037b7cbc399e1b568`.
+- Jobs:
+  - method job `14951`: `Exit_status=0`;
+  - method job `14952`: `Exit_status=0`;
+  - merge job `14953`: `Exit_status=0`.
+- Output root exists with `REPORT.md`, `combined_summary_table.csv`, per-method reports, per-method aggregate tables, and per-method per-seed tables.
+- Readback:
+  - `nofb/no_fb`: 10 rows, Zmean Re/Im `1.5006/1.2686`, unresolved failures `16821`, RG rejects `889`, mean runtime `651.569s`.
+  - `withfb/fb_norefine`: 10 rows, Zmean Re/Im `1.2826/2.5434`, unresolved failures `4004`, RG rejects `909`, mean runtime `1052.808s`.
+  - `withfb - nofb`: mean shift Re `-0.0398467`, Im `+0.056344`; Zmean shift Re `-0.2180`, Im `+1.2747`; unresolved failures `-12817`; RG rejects `+20`; mean runtime `+401.239s`.
+- Current interpretation: this is a completed pre_redo smoke-scale production readback, not final production evidence. Choose the next scale deliberately before further production sync or extension.
+
+## 2026-05-12 Modernization-Head Pre-Redo 32seed/50k Submission
+
+- Submitted next scaling gate after user approval.
+- Campaign: `official_dfols_preredo_20260512_a22de1c_32seed_50000cyc_t035_L2_nstep20_rg_nofb_withfb`.
+- Dataset id: `prodcomp_preredo_a22de1c_32seed_50k_20260512`.
+- Production worktree: `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.
+- Branch/commit: `codex/tltm-production-comparison-official-dfols`, `a22de1c19633793cf9c3ff7037b7cbc399e1b568`.
+- Config: `docs/production_comparison_official_dfols_20260511_32seed_50k_nofb_withfb.json`; same-scale config reused, with output/log roots overridden to `pre_redo`.
+- Output root: `output/production_comparison/pre_redo/official_dfols_preredo_20260512_a22de1c_32seed_50000cyc_t035_L2_nstep20_rg_nofb_withfb`.
+- Log root: `output/logs/production_comparison/pre_redo/official_dfols_preredo_20260512_a22de1c_32seed_50000cyc_t035_L2_nstep20_rg_nofb_withfb`.
+- Queue plan: `C8` for preflight, eight 8-core method chunks, and merge. `qstat -Qf` showed `C8` empty/enabled/started before submission.
+- Jobs:
+  - preflight `14954`;
+  - nofb chunks `14955`, `14956`, `14957`, `14958`;
+  - withfb chunks `14959`, `14960`, `14961`, `14962`;
+  - merge `14963`.
+- Submission check: preflight entered `E` with `Exit_status=0`; chunk and merge jobs remained dependency-held at the 19:02 JST refresh.
+- Follow-up at 19:06 JST: preflight `14954` finished with `Exit_status=0`; all eight chunks `14955`-`14962` were running on `C8`; merge `14963` remained held on chunk dependencies.
+
+## 2026-05-12 Modernization-Head Pre-Redo 32seed/50k Readback
+
+- Jobs `14954`-`14963` all exited with `Exit_status=0`; merged `REPORT.md` and `combined_summary_table.csv` are present.
+- Per-seed rows: `nofb=32`, `withfb=32`.
+- Aggregate readback:
+  - `nofb/no_fb`: mean Re/Im `0.09549068827299285/-0.0017842285424940483`, Zmean Re/Im `5.990283893906403/-0.17601025889394464`, failures `265127`, RG rejects `15086`, mean runtime `3389.99086840625`.
+  - `withfb/fb_norefine`: mean Re/Im `0.060792566742816925/0.0112710435756147`, Zmean Re/Im `4.946849130584964/1.794977218111019`, failures `67061`, RG rejects `14991`, mean runtime `5271.5809374375`.
+- Direct paired method comparison:
+  - Re `withfb - nofb = -0.0346981215301759 +/- 0.0173612518833185`, paired t `-1.9986`, positive/negative seeds `11/21`.
+  - Im `withfb - nofb = +0.0130552721181087 +/- 0.0104624431584951`, paired t `1.24782`, positive/negative seeds `17/15`.
+- Same-seed comparison to frozen 2026-05-11 32seed/50k:
+  - `nofb` Re new-minus-frozen `+0.0753018961385964 +/- 0.0168897541897311`, paired t `4.45844`.
+  - `withfb` Re new-minus-frozen `+0.0627863381730859 +/- 0.0142766343346361`, paired t `4.39784`.
+- Attribution check:
+  - frozen 2026-05-11 commit `d3f133d1fd7de2ec6a5b7ac27840c01287be5be7` had solver assist enabled by default in `src/physics/solve_flow.f90`;
+  - frozen 32seed/50k PBS did not export `INTODE_SOLVER_ASSIST_ENABLED=0`;
+  - a22de1c introduced runtime assist-policy parsing with default off;
+  - this pre_redo campaign explicitly recorded `ASSIST_POLICY=INTODE_SOLVER_ASSIST_ENABLED=0`.
+- Interpretation: the gate completed cleanly and withfb still reduces unresolved failures. The large positive Re shift in both methods is best attributed to assist-on frozen line vs assist-off pre_redo line, so the next scale-up decision is an assist-policy decision rather than an unexplained production drift.
+
+## 2026-05-12 JST - Assist-Off DFO-LS Tuning Campaign Start
+
+- Wrote `runbooks/DFOLS_ASSIST_OFF_TUNING_CAMPAIGN_20260512.md`.
+- Added PBS worker `tasks/pbs/dfols_assist_off_tuning_phase_ab_20260512.pbs`.
+- Submitted Phase A/B job `14984.anode01` from production worktree commit `a22de1c19633793cf9c3ff7037b7cbc399e1b568`.
+- Job label: `dfols_assist_off_tuning_20260512_a22de1c_phaseAB_10s10k_c200s10_m5`.
+- Output root: `output/tests/dfols_assist_off_tuning/dfols_assist_off_tuning_20260512_a22de1c_phaseAB_10s10k_c200s10_m5`.
+- Log root: `output/logs/dfols_assist_off_tuning/dfols_assist_off_tuning_20260512_a22de1c_phaseAB_10s10k_c200s10_m5`.
+- Protocol: assist off, current commit, capture 10 seeds x 10k for `no_fb` and `fb_norefine`, then replay a coarse official DFO-LS parameter matrix. No solver assist, no external rescue wrapper.
+
+## 2026-05-12 JST - Assist-Off DFO-LS Tuning Phase A/B Readback
+
+- Phase A/B job `14984.anode01` exited `1` because the first aggregate parser did not handle blank `dfols_nf` rows from replay errors.
+- Stage3 capture and all 100 replay CSVs were complete; robust aggregate recovery wrote `REPORT.md` and `coarse_summary.csv`.
+- Captured QN attempt dirs materialized for `fb_norefine` only; `no_fb` produced no QN attempt case dirs in this campaign.
+- Stable baseline replay: `stable_gate77` success `40/50`, embedded-converged regressions `0`, error rows `3`, nf mean/p95/max `91.2128/250/250`.
+- Best coarse candidate: `rho050_m500` success `45/50`, embedded-converged regressions `0`, error rows `4`, hard successes `5`, nf mean/p95/max `85.5/262.75/500`.
+- Submitted Phase C embedded Stage3 holdout job `15005.anode01` for `rho050_m500` at 10 seeds x 10k, assist off, same nofb/withfb protocol.
+
+## 2026-05-12 JST - Assist-Off DFO-LS Tuning Phase C Readback and Phase D Submit
+
+- Phase C job `15005.anode01` completed with `Exit_status=0`.
+- Candidate: `rho050_m500` (`npt=4`, `maxfun=500`, `noise=true`, `rhobeg=0.050`, `rhoend=1e-16`, `model.abs_tol=1e-30`, `model.rel_tol=0`).
+- Output root: `output/tests/dfols_assist_off_tuning/dfols_assist_off_tuning_20260512_a22de1c_phaseC_rho050_m500_10s10k`.
+- `no_fb` was an exact control match vs `stable_gate77`: failures `16821 -> 16821`, RG rejects `889 -> 889`, Zmean unchanged.
+- `fb_norefine` improved unresolved failures `4004 -> 2171`, with every seed improved.
+- `fb_norefine` costs/caveats: RG rejects `909 -> 1550`, mean runtime `1018.32s -> 1040.68s`, Zmean Re `1.2826 -> -0.5002`, Zmean Im `2.5434 -> 3.9564`.
+- Decision: promote to 32seed/50k confirmation because the solver-local improvement transfers to embedded Stage3, but do not call it verified until the larger-scale observable check resolves the Im Zmean caveat.
+- Submitted Phase D label `dfols_assist_off_tuning_20260512_a22de1c_phaseD_rho050_m500_32s50k`.
+- Phase D jobs: chunks `15006`-`15013` running on `C8`; merge `15014` held on afterok.
+
+## 2026-05-13 JST - Assist-Off DFO-LS Tuning Phase D Readback
+
+- Phase D jobs `15006`-`15014` all completed with `Exit_status=0`.
+- Output root: `output/tests/dfols_assist_off_tuning/dfols_assist_off_tuning_20260512_a22de1c_phaseD_rho050_m500_32s50k`.
+- `REPORT.md` and `combined_summary_table.csv` are present; per-method seed rows are `32/32`.
+- `no_fb` is an exact control match versus stable assist-off baseline for counters and observables: failures `265127 -> 265127`, RG rejects `15086 -> 15086`, Zmean Re/Im unchanged `5.9903/-0.1760`.
+- `fb_norefine` solver-local tail improves strongly: unresolved failures `67061 -> 33872`, with all `32/32` seeds improved.
+- Observable means also improve: `fb_norefine` mean Re/Im `0.0607926/0.0112710 -> 0.0434491/0.00824623`; Zmean Re/Im `4.9468/1.7950 -> 3.3284/1.2868`.
+- Reverse-gate rejects worsen `14991 -> 24280`, all `32/32` seeds increased; P68/P95 worsen; runtime increases `5271.58s -> 5425.29s`.  Per user correction, RG rejects and P68/P95 are diagnostics, not blockers for this campaign.
+- Corrected verdict: `rho050_m500` verifies real assist-off official DFO-LS solver-local improvement and is positive under the observable-mean criterion.  The remaining issue is whether the improved mean Re/Im, especially Re with `Zmean_re=3.3284`, persists at the next scale.
+
+## 2026-05-13 JST - Assist-Off Tuning Hard Gate Correction
+
+- User correction: solving the no-assist problem likely requires tuned assist-off failures to reach the same scale as assist-on, ideally equal or lower.
+- Same-scale 32seed/50k `fb_norefine` failure references:
+  - assist-on/default frozen: `19579`;
+  - assist-off stable: `67061`;
+  - assist-off `rho050_m500`: `33872`.
+- Updated interpretation: `rho050_m500` is a real improvement, but it has not solved the no-assist problem because it remains above assist-on failure parity.
+- Next tuning gates should target assist-on-scale failures while preserving the mean Re/Im improvement; RG rejects and P68/P95 remain diagnostics.
+
+## 2026-05-13 JST - Assist-Off Tuning Phase E Focused Replay Submit
+
+- Added PBS script `tasks/pbs/dfols_assist_off_focused_replay_phase_e_20260513.pbs`.
+- Submitted job `15095.anode01` to `C12`; it started running on `cnode28`.
+- Label: `dfols_assist_off_tuning_20260513_a22de1c_phaseE_fullreplay_focus`.
+- Output root: `output/tests/dfols_assist_off_tuning/dfols_assist_off_tuning_20260513_a22de1c_phaseE_fullreplay_focus`.
+- Log root: `output/logs/dfols_assist_off_tuning/dfols_assist_off_tuning_20260513_a22de1c_phaseE_fullreplay_focus`.
+- Scope: reuse all captured Phase A/B `fb_norefine` QN attempts instead of the previous 5-case-per-seed coarse screen.
+- Candidate family: focused `rho050_m500` neighborhood over `rhobeg`, `maxfun`, and `npt`; no solver assist, no external wrapper/rescue/backtracking.
+- Hard target: find whether a candidate can plausibly reach same-scale assist-on failure parity (`19579`) while preserving mean Re/Im improvement.
+
+## 2026-05-13 JST - Assist-Off Tuning Phase E Readback
+
+- Job `15095.anode01` completed with `Exit_status=0`.
+- Output root: `output/tests/dfols_assist_off_tuning/dfols_assist_off_tuning_20260513_a22de1c_phaseE_fullreplay_focus`.
+- Report artifacts: `REPORT.md` and `focused_summary.csv`.
+- Replay scope: all captured Phase A/B `fb_norefine` QN attempts, `1994` attempts across 10 seed directories.
+- Stable baseline replay: `1593/1994` successes.
+- Anchor `rho050_m500`: `1706/1994` successes.
+- Best focused candidate `rho050_m1000`: `1726/1994` successes, only `+20` over `rho050_m500`.
+- Conclusion: parameter-only official DFO-LS tuning has saturated before assist-on failure parity.  Do not submit another embedded Stage3 candidate from this focused family; shift to assist/proposal-semantics design and audit.

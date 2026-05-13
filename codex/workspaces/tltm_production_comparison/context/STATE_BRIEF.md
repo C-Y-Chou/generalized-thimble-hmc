@@ -1,6 +1,6 @@
 # TLTM Production Comparison State Brief
 
-Updated: 2026-05-12 JST
+Updated: 2026-05-13 JST
 
 ## Boundary Status
 
@@ -24,7 +24,13 @@ Updated: 2026-05-12 JST
 - On 2026-05-12, `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb` had no active PBS jobs remaining and had a merged `REPORT.md` plus `combined_summary_table.csv`. It was generated under production-comparison commit `c0e4021`; treat it as completed provisional production-comparison evidence, not a rerun after the latest modernization HEAD and not final publication data.
 - On 2026-05-12, the active official DFO-LS provisional outputs were frozen as pre-redo / old-code evidence. Read `runbooks/OUTPUT_NAMESPACE_FREEZE_20260512.md` and `state/OUTPUT_INVENTORY_20260512.tsv` before creating any new production-comparison output.
 - New modernization-head redo outputs must not reuse or extend the old `output/production_comparison/provisional/official_dfols_*` roots. Use `output/production_comparison/pre_redo/<campaign>` and mirror logs under `output/logs/production_comparison/pre_redo/<campaign>`.
-- On 2026-05-12, modernization-head pre-redo campaign `official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_t035_L2_nstep20_rg_nofb_withfb` was submitted from production worktree commit `a22de1c19633793cf9c3ff7037b7cbc399e1b568` with solver assist off. At the 18:32 JST refresh, jobs `14951` and `14952` were running and merge job `14953` was held.
+- On 2026-05-12, modernization-head pre-redo campaign `official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_t035_L2_nstep20_rg_nofb_withfb` completed from production worktree commit `a22de1c19633793cf9c3ff7037b7cbc399e1b568` with solver assist off. Jobs `14951`, `14952`, and `14953` all exited `0`; `REPORT.md` and `combined_summary_table.csv` are present.
+- On 2026-05-12, modernization-head pre-redo scaling campaign `official_dfols_preredo_20260512_a22de1c_32seed_50000cyc_t035_L2_nstep20_rg_nofb_withfb` completed from the same production worktree commit with solver assist off. Jobs `14954`-`14963` all exited `0`; `REPORT.md` and `combined_summary_table.csv` are present.
+- On 2026-05-12, DFO-LS assist-off tuning Phase A/B job `14984.anode01` completed Stage3 capture and all 100 coarse replay CSVs. PBS exit was `1` only because the first aggregate parser did not handle blank `dfols_nf` error rows; robust aggregate recovery wrote `REPORT.md` and `coarse_summary.csv`.
+- Phase A/B selected `rho050_m500` as the best coarse candidate: `45/50` residual successes versus baseline `stable_gate77` `40/50`, with no embedded-converged regressions and `4` error rows versus baseline `3`.
+- On 2026-05-12, Phase C embedded Stage3 holdout job `15005.anode01` completed for candidate `rho050_m500`.
+- On 2026-05-13, Phase D 32seed/50k confirmation jobs `15006`-`15014` completed with `Exit_status=0`.  Under the corrected hard gate, the candidate is improved but not sufficient: assist-off tuned failures are `33872`, while same-scale assist-on `fb_norefine` is `19579`.
+- On 2026-05-13, Phase E focused full replay job `15095.anode01` completed on `C12`.  Best candidate `rho050_m1000` reached `1726/1994` replay successes, only `+20` over `rho050_m500`; parameter-only assist-off DFO-LS tuning is not plausibly enough to reach assist-on failure parity.
 
 ## Important Correction
 
@@ -44,16 +50,20 @@ Updated: 2026-05-12 JST
 
 ## Next Action
 
-Current live campaign:
+Current assist-off tuning campaign:
 
-1. Production prework is complete for this step: `PCB-001` and `PCB-002` are resolved.
-2. Submitted campaign: `official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_t035_L2_nstep20_rg_nofb_withfb`.
-3. Dataset id: `prodcomp_preredo_a22de1c_10seed_10k_20260512`.
-4. Config: `docs/production_comparison_official_dfols_preredo_10seed_10k_nofb_withfb.json`.
-5. Output root: `output/production_comparison/pre_redo/official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_t035_L2_nstep20_rg_nofb_withfb`.
-6. Log root: `output/logs/production_comparison/pre_redo/official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_t035_L2_nstep20_rg_nofb_withfb`.
-7. Production worktree commit: `a22de1c19633793cf9c3ff7037b7cbc399e1b568`.
-8. Assist policy: solver assist default off, `INTODE_SOLVER_ASSIST_ENABLED=0`.
-9. Jobs: preflight `14950` completed before the 18:32 JST refresh; `14951` and `14952` are running; merge `14953` is held.
-10. The production worktree has active pinned jobs and `safe_to_fast_forward=no`; do not sync or fast-forward it until the pre-redo readback finishes.
-11. Next action: monitor jobs `14951/14952/14953`, merge/read back the report, then decide the next production scale-up from the pre_redo result.
+1. Campaign plan: `runbooks/DFOLS_ASSIST_OFF_TUNING_CAMPAIGN_20260512.md`.
+2. Completed Phase A/B dataset id: `dfols_assist_off_tuning_phaseAB_20260512`.
+3. Completed Phase A/B output root: `output/tests/dfols_assist_off_tuning/dfols_assist_off_tuning_20260512_a22de1c_phaseAB_10s10k_c200s10_m5`.
+4. Coarse result: `rho050_m500` (`npt=4,maxfun=500,noise=true,rhobeg=0.050,rhoend=1e-16,model.abs_tol=1e-30,model.rel_tol=0`) had `45/50` replay successes, `0` embedded-converged regressions, `5` hard successes, and nf mean/p95/max `85.5/262.75/500`.
+5. Baseline replay: `stable_gate77` had `40/50` successes, `0` embedded-converged regressions, `0` hard successes, and nf mean/p95/max `91.2128/250/250`.
+6. Phase C job `15005.anode01` completed with `Exit_status=0`.
+7. Phase C output root: `output/tests/dfols_assist_off_tuning/dfols_assist_off_tuning_20260512_a22de1c_phaseC_rho050_m500_10s10k`.
+8. Phase C readback: `no_fb` control unchanged; `fb_norefine` unresolved failures `4004 -> 2171`, reverse-gate rejects `909 -> 1550`, mean runtime `+22.35s`, Zmean Re `1.2826 -> -0.5002`, Zmean Im `2.5434 -> 3.9564`.
+9. Phase C decision: promote to scale confirmation because embedded solver-local improvement is real but the observable shift needs larger-scale adjudication.
+10. Completed Phase D dataset id: `dfols_assist_off_tuning_phaseD_rho050_m500_32s50k_20260512`.
+11. Completed Phase D output root: `output/tests/dfols_assist_off_tuning/dfols_assist_off_tuning_20260512_a22de1c_phaseD_rho050_m500_32s50k`.
+12. Phase D jobs `15006`-`15014` all exited `0`; rows are `32/32` for both methods.
+13. Phase D readback: `no_fb` is an exact solver/observable control match; `fb_norefine` unresolved failures improve `67061 -> 33872`, and mean Re/Im improves `0.0607926/0.0112710 -> 0.0434491/0.00824623`.
+14. Corrected verdict: reverse-gate rejects and P68/P95 are diagnostics, not blockers.  The no-assist problem is not solved unless tuned assist-off failures reach the assist-on scale or lower while `mean_Ohat_re` and `mean_Ohat_im` do not regress.
+15. Phase E completed: `15095.anode01`, output root `output/tests/dfols_assist_off_tuning/dfols_assist_off_tuning_20260513_a22de1c_phaseE_fullreplay_focus`.  Clear negative for continuing parameter-only assist-off tuning; next work is assist/proposal semantics and audit.

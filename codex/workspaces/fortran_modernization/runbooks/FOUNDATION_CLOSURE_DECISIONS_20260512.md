@@ -11,7 +11,7 @@ open caveats.
 
 | Caveat | Decision | Closure rule |
 | --- | --- | --- |
-| CV-007 ODEX backend completeness | Close by explicit product boundary | TLTM modernization targets an endpoint-only ODEX backend for TLTM flow endpoint evaluation. Dense output and a general-purpose Hairer ODEX library claim are non-goals. Solver assist remains default-off, diagnostic opt-in only, and later deletion work. |
+| CV-007 ODEX backend completeness | Endpoint product boundary closed; solver policy reopened | TLTM modernization targets an endpoint-only ODEX backend for TLTM flow endpoint evaluation. Dense output and a general-purpose Hairer ODEX library claim are non-goals. The earlier solver-assist default-off/later-deletion direction is superseded for the next solver-policy slice by `NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md`. |
 | CV-001 official DFO-LS line kernel correctness | Close by formal gate | Add and pass a modernization-tree official-line kernel correctness gate under embedded official `DFO-LS==1.6.5`, `stable_gate77`, solver assist default-off, and the canonical p28 route. This is a kernel correctness gate, not a production-statistics redo. |
 | CV-006 DFO-LS claim boundary | Close by strict claim/provenance policy | Add a claim dictionary and provenance policy that separates embedded official package evidence from historical in-house or DFO-LS-style evidence in reports, schemas, manifests, and readbacks. |
 | CV-005 auxiliary-script evidence boundary | Closed by deep audit and gate | Every tracked file under audited script/task roots now has a registry row with evidence role, execution surface, Python floor, claim boundary, and verdict. M4 validates coverage and legacy-route quarantine through `validate_script_evidence_audit.py`. |

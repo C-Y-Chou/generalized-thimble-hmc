@@ -3,46 +3,7 @@
   "hosts": {
     "cychou@ithems_fe02.intra.riken.jp": {
       "parsed": {
-        "jobs": [
-          {
-            "Job_Name": "pc_pre10_m",
-            "Resource_List.select": "1:ncpus=10:mpiprocs=10:mem=16gb",
-            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_WORKTREE=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_BRANCH=codex/tltm-production-comparison-official-dfo,TLTM_CAMPAIGN=official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_,TLTM_CONFIG_JSON=docs/production_comparison_official_dfols_preredo_10s,TLTM_RUN_JOBS=10,TLTM_ALLOW_OVERWRITE=0,TLTM_METHOD=no_fb,,TLTM_CANONICAL_METHOD=nofb,PBS_O_QUEUE=C8,,PBS_O_HOST=ithems_fe02.intra.riken.jp,TLTM_EXPECTED_GIT_BRANCH=codex/tltm-production-comparison-official-dfo,TLTM_CAMPAIGN=official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_,TLTM_CONFIG_JSON=docs/production_comparison_official_dfols_preredo_10s,TLTM_RUN_JOBS=10,TLTM_ALLOW_OVERWRITE=0,TLTM_METHOD=no_fb,,TLTM_CANONICAL_METHOD=nofb -o output/logs/production_comparison/pre_re",
-            "dataset": "prodcomp_preredo_a22de1c_10seed_10k_20260512",
-            "exec_host": "cnode17/0*10",
-            "expected_commit": "a22de1c19633793cf9c3ff7037b7cbc399e1b568",
-            "host": "ithems_fe02.intra.riken.jp",
-            "job_id": "14951.anode01",
-            "job_state": "R",
-            "queue": "C8",
-            "worktree": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison"
-          },
-          {
-            "Job_Name": "pc_pre10_m",
-            "Resource_List.select": "1:ncpus=10:mpiprocs=10:mem=16gb",
-            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_WORKTREE=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_BRANCH=codex/tltm-production-comparison-official-dfo,TLTM_CAMPAIGN=official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_,TLTM_CONFIG_JSON=docs/production_comparison_official_dfols_preredo_10s,TLTM_RUN_JOBS=10,TLTM_ALLOW_OVERWRITE=0,TLTM_METHOD=fb_norefine,,TLTM_CANONICAL_METHOD=withfb,PBS_O_QUEUE=C8,,PBS_O_HOST=ithems_fe02.intra.riken.jp,TLTM_EXPECTED_GIT_BRANCH=codex/tltm-production-comparison-official-dfo,TLTM_CAMPAIGN=official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_,TLTM_CONFIG_JSON=docs/production_comparison_official_dfols_preredo_10s,TLTM_RUN_JOBS=10,TLTM_ALLOW_OVERWRITE=0,TLTM_METHOD=fb_norefine,,TLTM_CANONICAL_METHOD=withfb -o output/logs/production_comparison/pre_",
-            "dataset": "prodcomp_preredo_a22de1c_10seed_10k_20260512",
-            "exec_host": "cnode17/1*10",
-            "expected_commit": "a22de1c19633793cf9c3ff7037b7cbc399e1b568",
-            "host": "ithems_fe02.intra.riken.jp",
-            "job_id": "14952.anode01",
-            "job_state": "R",
-            "queue": "C8",
-            "worktree": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison"
-          },
-          {
-            "Job_Name": "pc_pre10_mg",
-            "Resource_List.select": "1:ncpus=1:mpiprocs=1:mem=4gb",
-            "Variable_List": "PBS_O_HOME=/home/cychou,PBS_O_LANG=C.UTF-8,,PBS_O_LOGNAME=cychou,,PBS_O_PATH=/home/cychou/.local/bin:/home/cychou/bin:/usr/share/Modules,PBS_O_SHELL=/bin/bash,,PBS_O_WORKDIR=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_WORKTREE=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comp,TLTM_EXPECTED_GIT_BRANCH=codex/tltm-production-comparison-official-dfo,TLTM_CAMPAIGN=official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_,TLTM_CONFIG_JSON=docs/production_comparison_official_dfols_preredo_10s,TLTM_RUN_JOBS=10,TLTM_ALLOW_OVERWRITE=0,PBS_O_QUEUE=C8,,PBS_O_HOST=ithems_fe02.intra.riken.jp,RKTREE=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison,,TLTM_EXPECTED_GIT_BRANCH=codex/tltm-production-comparison-official-dfo,TLTM_CAMPAIGN=official_dfols_preredo_20260512_a22de1c_10seed_10000cyc_,TLTM_CONFIG_JSON=docs/production_comparison_official_dfols_preredo_10s,TLTM_RUN_JOBS=10,,TLTM_ALLOW_OVERWRITE=0 -o output/logs/production_comparison/pre_redo/o",
-            "dataset": "prodcomp_preredo_a22de1c_10seed_10k_20260512",
-            "expected_commit": "a22de1c19633793cf9c3ff7037b7cbc399e1b568",
-            "host": "ithems_fe02.intra.riken.jp",
-            "job_id": "14953.anode01",
-            "job_state": "H",
-            "queue": "C8",
-            "worktree": "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison"
-          }
-        ],
+        "jobs": [],
         "worktrees": {
           "/home/cychou/TLTM": {
             "branch": "codex/control-plane-official-dfols",
@@ -85,7 +46,7 @@
       "stderr": ""
     }
   },
-  "refreshed_at_jst": "2026-05-12T18:32:26+09:00",
+  "refreshed_at_jst": "2026-05-13T16:01:14+09:00",
   "targets": [
     {
       "branch": "codex/control-plane-official-dfols",

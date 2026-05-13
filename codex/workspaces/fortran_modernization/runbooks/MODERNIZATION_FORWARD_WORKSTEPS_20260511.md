@@ -2,6 +2,14 @@
 
 Updated: 2026-05-12 JST
 
+## Read Before Next Solver-Policy Step
+
+The previous solver-assist default-off / later-deletion direction is superseded
+for the next solver-policy slice.  Before changing solver assist, deleting
+assist code, changing defaults, or touching `flowz` / `flowzr`, QN residual
+evaluation, final `flow(...)`, reverse gate, or Metropolis, read
+`NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md`.
+
 Scope: foundation-gap-gated forward queue for continuing TLTM Fortran modernization after official DFO-LS became the default backend and after the M6 R1-R4 reference baseline was accepted as historical/internal behavior evidence.
 
 ## Current Position
@@ -20,7 +28,7 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 - `CV-004`: closed as permanent governance. Behavior-relevant source refactors require accepted reference comparison or an explicitly approved narrower baseline.
 - `CV-005`: closed by script/evidence audit. Every tracked helper/PBS/config/script under audited roots has a registry row, and M4 validates full coverage plus historical quarantine.
 - `CV-006`: closed by strict claim/provenance policy. DFO-LS claims must distinguish historical in-house/DFO-LS-style paths from embedded official package runs.
-- `CV-007`: closed by endpoint-only TLTM product boundary. Dense output and a general-purpose Hairer ODEX library are non-goals; solver assist defaults off and is scheduled for later deletion. Do not claim assist-on production policy.
+- `CV-007`: endpoint-only TLTM product boundary remains closed for dense-output/general-library scope, but solver-assist production policy is reopened for the next handoff.  The old default-off/later-deletion direction is superseded by `NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md`.
 - `CV-008`: official DFO-LS backend replacement is accepted for the representative scope: package provenance, preset/source contract, sidecar provenance guardrails, small embedded gate, imported official assist calibration, and representative embedded 10seed x 10k readback all pass. Reopen only on package/preset/callback/runtime/QN-route changes or broader final-production claims.
 - `CV-009`: closed for the pre-redo gate. Retained Newton/RATTLE/QN/HMC/RG cores now have deterministic guardrails for Newton replay, successful RATTLE/RG pass replay, BTN residual reconstruction, official package-success route census, stub no-fallback behavior, RG reject stay-put identity, failure-as-rejection accounting, and a branch/measure harness recorded by `f14_complete_pre_redo_gate.py`.
 - `CV-010`: closed for the pre-redo gate. Local transition accounting now uses `tltm_local_transition_event_t`, `F4_LOCAL_TRANSITION_AUDIT_V1` freezes the typed audit context, and M4 validates audit row invariants plus reverse-gate counter identities.
@@ -31,7 +39,7 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 | Step | Workstream | Status | Allowed now | Output | Gate to advance |
 | --- | --- | --- | --- | --- | --- |
 | F0 | foundation completeness reset | active | yes | `FOUNDATION_COMPLETENESS_RESET_20260511.md`, expanded `CAVEATS.tsv`/`OPEN_ITEMS.tsv` | no compact doc says foundation is complete |
-| F1 | ODEX backend completeness | closed_product_boundary | yes | standalone endpoint backend, result/workspace/status, flow/Jacobian, default-off assist-policy, and representative assist-on/off diagnostics; product boundary says dense output/general ODEX library are non-goals | delete solver assist later; reopen only for dense output, product-complete Hairer claim, or changed final-flow policy |
+| F1 | ODEX backend completeness | reopened_policy_slice | yes | endpoint-only product boundary remains closed for dense output/general ODEX library, but solver-assist production policy changed after production-comparison evidence; see `NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md` | implement fallback-on canonical semantics: strict NT, QN navigation assist, unassisted certification, strict final flow, RG, and Metropolis |
 | F2 | official DFO-LS backend completion | done | yes | representative embedded official DFO-LS 10seed x 10k gate passed; CV-001 official-line kernel correctness gate passed with package provenance and retained kernel contracts | reopen only on official DFO-LS package/preset/residual callback/acceptance gate/runtime bridge/QN-route changes or broader production-output claims |
 | F3 | retained-core deterministic evidence pack | done | yes | deterministic guardrails now cover Newton, successful RATTLE/RG, BTN residual, official package-success route census, stub no-fallback behavior, RG reject identity, failure-as-rejection accounting, and F14 branch/measure harness | reopen only if retained-core route logic, tolerances, proposal policy, or official DFO-LS acceptance changes |
 | F4 | diagnostics/status/accounting foundation | done | yes | typed local-transition event source, event-derived counters, local-transition audit schema, and M4 row-invariant validation | reopen only if status codes, local counters, sidecar schema, or audit row semantics change |
@@ -52,7 +60,7 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 - Read-only reports and comparison tooling.
 - Documentation and schema design.
 - Local guardrail/tooling additions that do not mutate production outputs or active remote worktrees.
-- Production redo planning with solver assist default-off.
+- Solver-policy planning under `NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md`.
 
 Do not fast-forward or clean `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison` while production-comparison jobs are active or pinned.
 

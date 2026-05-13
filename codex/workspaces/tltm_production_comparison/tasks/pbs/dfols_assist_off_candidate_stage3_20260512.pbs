@@ -1,0 +1,159 @@
+#!/bin/bash
+#PBS -N dfols_c
+#PBS -q C8
+#PBS -l select=1:ncpus=8:mpiprocs=8:mem=16gb
+#PBS -l walltime=04:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  # shellcheck source=/dev/null
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison}"
+: "${TLTM_EXPECTED_GIT_BRANCH:=codex/tltm-production-comparison-official-dfols}"
+: "${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
+: "${TLTM_DFOLS_STAGE3_LABEL:?TLTM_DFOLS_STAGE3_LABEL is required}"
+: "${TLTM_DFOLS_STAGE3_ALLOW_OVERWRITE:=0}"
+: "${TLTM_DFOLS_STAGE3_MAX_SEEDS:=10}"
+: "${TLTM_DFOLS_STAGE3_CONFIG:=docs/production_comparison_official_dfols_preredo_10seed_10k_nofb_withfb.json}"
+: "${TLTM_DFOLS_STAGE3_JOBS:=8}"
+: "${TLTM_DFOLS_STAGE3_CANDIDATE:=unnamed}"
+: "${TLTM_DFOLS_STAGE3_CYCLES_LABEL:=10000}"
+: "${QN_OFFICIAL_DFOLS_NPT:=4}"
+: "${QN_OFFICIAL_DFOLS_MAXFUN:=250}"
+: "${QN_OFFICIAL_DFOLS_OBJFUN_HAS_NOISE:=1}"
+: "${QN_OFFICIAL_DFOLS_RHOBEG:=0.018}"
+: "${QN_OFFICIAL_DFOLS_RHOEND:=1e-16}"
+: "${QN_OFFICIAL_DFOLS_MODEL_ABS_TOL:=1e-30}"
+: "${QN_OFFICIAL_DFOLS_MODEL_REL_TOL:=0}"
+
+cd "${TLTM_WORKTREE}"
+
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+CURRENT_COMMIT="$(git rev-parse HEAD)"
+if [ "${CURRENT_BRANCH}" != "${TLTM_EXPECTED_GIT_BRANCH}" ]; then
+  echo "[ERROR] expected branch ${TLTM_EXPECTED_GIT_BRANCH}, got ${CURRENT_BRANCH}" >&2
+  exit 2
+fi
+if [ "${CURRENT_COMMIT}" != "${TLTM_EXPECTED_GIT_COMMIT}" ]; then
+  echo "[ERROR] expected commit ${TLTM_EXPECTED_GIT_COMMIT}, got ${CURRENT_COMMIT}" >&2
+  exit 2
+fi
+if [ -n "$(git status --porcelain)" ]; then
+  echo "[ERROR] working tree is dirty; refusing DFO-LS candidate Stage3 run" >&2
+  git status --short >&2
+  exit 2
+fi
+if [ ! -x bin/run_tltm_stage2 ] || [ ! -x bin/evaluate_expectations ]; then
+  echo "[ERROR] missing production binaries; run official_dfols_preflight_build.pbs first" >&2
+  exit 4
+fi
+if [ ! -x .venv-dfols/bin/python ]; then
+  echo "[ERROR] missing .venv-dfols; run official_dfols_preflight_build.pbs first" >&2
+  exit 4
+fi
+
+OUT_ROOT="${TLTM_WORKTREE}/output/tests/dfols_assist_off_tuning/${TLTM_DFOLS_STAGE3_LABEL}"
+LOG_ROOT="${TLTM_WORKTREE}/output/logs/dfols_assist_off_tuning/${TLTM_DFOLS_STAGE3_LABEL}"
+STAGE_ROOT="${OUT_ROOT}/stage"
+STAGE_LOG_ROOT="${LOG_ROOT}/stage"
+
+if [ -e "${OUT_ROOT}" ] || [ -e "${LOG_ROOT}" ]; then
+  if [ "${TLTM_DFOLS_STAGE3_ALLOW_OVERWRITE}" != "1" ]; then
+    echo "[ERROR] output/log path exists; set TLTM_DFOLS_STAGE3_ALLOW_OVERWRITE=1 to rerun" >&2
+    echo "OUT_ROOT=${OUT_ROOT}" >&2
+    echo "LOG_ROOT=${LOG_ROOT}" >&2
+    exit 3
+  fi
+  rm -rf "${OUT_ROOT}" "${LOG_ROOT}"
+fi
+mkdir -p "${STAGE_ROOT}" "${STAGE_LOG_ROOT}" "${LOG_ROOT}"
+exec > "${LOG_ROOT}/pbs_boot.log" 2>&1
+
+DFOLS_SITE_PACKAGES="$(
+  .venv-dfols/bin/python - <<'PY'
+import sysconfig
+print(sysconfig.get_paths()["purelib"])
+PY
+)"
+export TLTM_OFFICIAL_DFOLS_PYTHONPATH="${DFOLS_SITE_PACKAGES}${TLTM_OFFICIAL_DFOLS_PYTHONPATH:+:${TLTM_OFFICIAL_DFOLS_PYTHONPATH}}"
+
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
+
+export TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-13
+export QN_REVERSE_GATE_ENABLED=1
+export QN_REVERSE_GATE_TOL=1e-8
+export QN_S1_PROBE_MAX_ITER=28
+export QN_S1_NEAR_RESCUE_ENABLED=0
+export QN_S1_NONNEAR_RESCUE_ENABLED=0
+export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
+export QN_QUASI_TOL_OVERRIDE=1e-13
+export QN_SOLVER_BACKEND=official_dfols
+export QN_OFFICIAL_DFOLS_PRESET=stable_gate77
+export QN_OFFICIAL_DFOLS_NPT
+export QN_OFFICIAL_DFOLS_MAXFUN
+export QN_OFFICIAL_DFOLS_OBJFUN_HAS_NOISE
+export QN_OFFICIAL_DFOLS_RHOBEG
+export QN_OFFICIAL_DFOLS_RHOEND
+export QN_OFFICIAL_DFOLS_MODEL_ABS_TOL
+export QN_OFFICIAL_DFOLS_MODEL_REL_TOL
+export INTODE_SOLVER_ASSIST_ENABLED=0
+
+{
+  echo "label=${TLTM_DFOLS_STAGE3_LABEL}"
+  echo "candidate=${TLTM_DFOLS_STAGE3_CANDIDATE}"
+  echo "date_start=$(date -Is)"
+  echo "hostname=$(hostname)"
+  echo "git_branch=${CURRENT_BRANCH}"
+  echo "git_commit=${CURRENT_COMMIT}"
+  echo "config=${TLTM_DFOLS_STAGE3_CONFIG}"
+  echo "methods=no_fb,fb_norefine"
+  echo "max_seeds=${TLTM_DFOLS_STAGE3_MAX_SEEDS}"
+  echo "cycles_per_seed=${TLTM_DFOLS_STAGE3_CYCLES_LABEL}"
+  echo "assist_policy=INTODE_SOLVER_ASSIST_ENABLED=0"
+  echo "QN_SOLVER_BACKEND=${QN_SOLVER_BACKEND}"
+  echo "QN_OFFICIAL_DFOLS_PRESET=${QN_OFFICIAL_DFOLS_PRESET}"
+  echo "QN_OFFICIAL_DFOLS_NPT=${QN_OFFICIAL_DFOLS_NPT}"
+  echo "QN_OFFICIAL_DFOLS_MAXFUN=${QN_OFFICIAL_DFOLS_MAXFUN}"
+  echo "QN_OFFICIAL_DFOLS_OBJFUN_HAS_NOISE=${QN_OFFICIAL_DFOLS_OBJFUN_HAS_NOISE}"
+  echo "QN_OFFICIAL_DFOLS_RHOBEG=${QN_OFFICIAL_DFOLS_RHOBEG}"
+  echo "QN_OFFICIAL_DFOLS_RHOEND=${QN_OFFICIAL_DFOLS_RHOEND}"
+  echo "QN_OFFICIAL_DFOLS_MODEL_ABS_TOL=${QN_OFFICIAL_DFOLS_MODEL_ABS_TOL}"
+  echo "QN_OFFICIAL_DFOLS_MODEL_REL_TOL=${QN_OFFICIAL_DFOLS_MODEL_REL_TOL}"
+  echo "tltm_official_dfols_pythonpath=${TLTM_OFFICIAL_DFOLS_PYTHONPATH}"
+} > "${OUT_ROOT}/run_manifest.txt"
+
+python3 scripts/run_stage3_3_multiseed.py \
+  --repo-root . \
+  --config "${TLTM_DFOLS_STAGE3_CONFIG}" \
+  --methods no_fb_fbnorefine \
+  --max-seeds "${TLTM_DFOLS_STAGE3_MAX_SEEDS}" \
+  --output-subdir "${STAGE_ROOT}" \
+  --logs-subdir "${STAGE_LOG_ROOT}" \
+  --log-prefix "dfols_assist_off_candidate_${TLTM_DFOLS_STAGE3_CANDIDATE}" \
+  --report-title "DFO-LS assist-off candidate ${TLTM_DFOLS_STAGE3_CANDIDATE} Stage3 holdout ${TLTM_DFOLS_STAGE3_MAX_SEEDS} seeds x ${TLTM_DFOLS_STAGE3_CYCLES_LABEL} cycles" \
+  --schedule paired \
+  --pair-order no_fb_first \
+  --jobs "${TLTM_DFOLS_STAGE3_JOBS}" \
+  --stage2-threads 1 \
+  --eval-threads 1 \
+  --skip-build \
+  --allow-oversubscribe
+
+date -Is
+echo "[DONE] DFO-LS assist-off candidate Stage3 complete: ${TLTM_DFOLS_STAGE3_LABEL}"

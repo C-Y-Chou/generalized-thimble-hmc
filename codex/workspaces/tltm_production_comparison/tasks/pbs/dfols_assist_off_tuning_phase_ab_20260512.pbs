@@ -1,0 +1,571 @@
+#!/bin/bash
+#PBS -N dfols_ab
+#PBS -q C8
+#PBS -l select=1:ncpus=8:mpiprocs=8:mem=24gb
+#PBS -l walltime=12:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  # shellcheck source=/dev/null
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison}"
+: "${TLTM_EXPECTED_GIT_BRANCH:=codex/tltm-production-comparison-official-dfols}"
+: "${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
+: "${TLTM_DFOLS_TUNE_LABEL:=dfols_assist_off_tuning_20260512_a22de1c_phaseAB}"
+: "${TLTM_DFOLS_TUNE_ALLOW_OVERWRITE:=0}"
+: "${TLTM_DFOLS_TUNE_MAX_SEEDS:=10}"
+: "${TLTM_DFOLS_TUNE_CONFIG:=docs/production_comparison_official_dfols_preredo_10seed_10k_nofb_withfb.json}"
+: "${TLTM_DFOLS_TUNE_STAGE3_JOBS:=8}"
+: "${TLTM_DFOLS_TUNE_CAPTURE_LIMIT:=200}"
+: "${TLTM_DFOLS_TUNE_CAPTURE_STRIDE:=10}"
+: "${TLTM_DFOLS_TUNE_COARSE_MAX_CASES:=20}"
+: "${TLTM_BUILD_JOBS:=8}"
+
+cd "${TLTM_WORKTREE}"
+
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+CURRENT_COMMIT="$(git rev-parse HEAD)"
+if [ "${CURRENT_BRANCH}" != "${TLTM_EXPECTED_GIT_BRANCH}" ]; then
+  echo "[ERROR] expected branch ${TLTM_EXPECTED_GIT_BRANCH}, got ${CURRENT_BRANCH}" >&2
+  exit 2
+fi
+if [ "${CURRENT_COMMIT}" != "${TLTM_EXPECTED_GIT_COMMIT}" ]; then
+  echo "[ERROR] expected commit ${TLTM_EXPECTED_GIT_COMMIT}, got ${CURRENT_COMMIT}" >&2
+  exit 2
+fi
+if [ -n "$(git status --porcelain)" ]; then
+  echo "[ERROR] working tree is dirty; refusing DFO-LS assist-off tuning job" >&2
+  git status --short >&2
+  exit 2
+fi
+
+OUT_ROOT="${TLTM_WORKTREE}/output/tests/dfols_assist_off_tuning/${TLTM_DFOLS_TUNE_LABEL}"
+LOG_ROOT="${TLTM_WORKTREE}/output/logs/dfols_assist_off_tuning/${TLTM_DFOLS_TUNE_LABEL}"
+ATTEMPT_DIR="${OUT_ROOT}/attempts"
+STAGE_ROOT="${OUT_ROOT}/stage"
+STAGE_LOG_ROOT="${LOG_ROOT}/stage"
+REPLAY_ROOT="${OUT_ROOT}/official_replay"
+SUMMARY_CSV="${OUT_ROOT}/coarse_summary.csv"
+REPORT_MD="${OUT_ROOT}/REPORT.md"
+
+if [ -e "${OUT_ROOT}" ] || [ -e "${LOG_ROOT}" ]; then
+  if [ "${TLTM_DFOLS_TUNE_ALLOW_OVERWRITE}" != "1" ]; then
+    echo "[ERROR] output/log path exists; set TLTM_DFOLS_TUNE_ALLOW_OVERWRITE=1 to rerun" >&2
+    echo "OUT_ROOT=${OUT_ROOT}" >&2
+    echo "LOG_ROOT=${LOG_ROOT}" >&2
+    exit 3
+  fi
+  rm -rf "${OUT_ROOT}" "${LOG_ROOT}"
+fi
+
+mkdir -p "${ATTEMPT_DIR}" "${STAGE_ROOT}" "${STAGE_LOG_ROOT}" "${REPLAY_ROOT}" "${LOG_ROOT}"
+exec > "${LOG_ROOT}/pbs_boot.log" 2>&1
+
+date -Is
+hostname
+pwd
+echo "branch=${CURRENT_BRANCH}"
+echo "commit=${CURRENT_COMMIT}"
+echo "label=${TLTM_DFOLS_TUNE_LABEL}"
+echo "out_root=${OUT_ROOT}"
+echo "log_root=${LOG_ROOT}"
+
+PYTHON_FOR_DFOLS="${TLTM_DFOLS_PYTHON:-}"
+if [ -z "${PYTHON_FOR_DFOLS}" ]; then
+  if command -v python3.11 >/dev/null 2>&1; then
+    PYTHON_FOR_DFOLS="$(command -v python3.11)"
+  elif command -v python3.10 >/dev/null 2>&1; then
+    PYTHON_FOR_DFOLS="$(command -v python3.10)"
+  elif command -v python3.9 >/dev/null 2>&1; then
+    PYTHON_FOR_DFOLS="$(command -v python3.9)"
+  else
+    echo "[ERROR] Need python3.9+ for official DFO-LS package." >&2
+    exit 4
+  fi
+fi
+
+if [ ! -x .venv-dfols/bin/python ]; then
+  "${PYTHON_FOR_DFOLS}" -m venv .venv-dfols
+fi
+.venv-dfols/bin/python -m pip install -q -r requirements/external-dfols.txt
+
+PYTHON_FOR_DFOLS="${PWD}/.venv-dfols/bin/python"
+PY_INCLUDE="$("${PYTHON_FOR_DFOLS}" - <<'PY'
+import sysconfig
+print(sysconfig.get_paths()["include"])
+PY
+)"
+PY_LIBDIR="$("${PYTHON_FOR_DFOLS}" - <<'PY'
+import sysconfig
+print(sysconfig.get_config_var("LIBDIR") or "")
+PY
+)"
+PY_LDLIBRARY="$("${PYTHON_FOR_DFOLS}" - <<'PY'
+import sysconfig
+print(sysconfig.get_config_var("LDLIBRARY") or "")
+PY
+)"
+PY_EMBED_EXTRA_LDFLAGS="$("${PYTHON_FOR_DFOLS}" - <<'PY'
+import sysconfig
+print(" ".join(str(sysconfig.get_config_var(k) or "") for k in ("LIBS", "SYSLIBS", "LINKFORSHARED")))
+PY
+)"
+
+if [ -n "${TLTM_PYTHON_INCLUDE_DIR:-}" ]; then
+  export PYTHON_EMBED_CFLAGS="-I${TLTM_PYTHON_INCLUDE_DIR}${PYTHON_EMBED_CFLAGS:+ ${PYTHON_EMBED_CFLAGS}}"
+elif [ -f "${PY_INCLUDE}/Python.h" ]; then
+  :
+elif [ -f "${PWD}/.deps/python-devel-3.11/usr/include/python3.11/Python.h" ]; then
+  PY_HEADER_CFLAGS="-I${PWD}/.deps/python-devel-3.11/usr/include/python3.11"
+  if ls "${PY_INCLUDE}"/pyconfig-*.h >/dev/null 2>&1; then
+    PY_HEADER_CFLAGS="${PY_HEADER_CFLAGS} -I${PY_INCLUDE}"
+  fi
+  export PYTHON_EMBED_CFLAGS="${PY_HEADER_CFLAGS}${PYTHON_EMBED_CFLAGS:+ ${PYTHON_EMBED_CFLAGS}}"
+else
+  echo "[ERROR] Python.h missing; run official DFO-LS preflight or set TLTM_PYTHON_INCLUDE_DIR" >&2
+  exit 4
+fi
+
+if [ -z "${PYTHON_EMBED_LDFLAGS:-}" ] && [ -n "${PY_LIBDIR}" ] && [ -n "${PY_LDLIBRARY}" ] && [ ! -f "${PY_LIBDIR}/${PY_LDLIBRARY}" ]; then
+  PY_VERSIONED_RUNTIME="${PY_LIBDIR}/${PY_LDLIBRARY}.1.0"
+  if [ -f "${PY_VERSIONED_RUNTIME}" ]; then
+    export PYTHON_EMBED_LDFLAGS="${PY_VERSIONED_RUNTIME} ${PY_EMBED_EXTRA_LDFLAGS}"
+  fi
+fi
+
+DFOLS_SITE_PACKAGES="$(
+  .venv-dfols/bin/python - <<'PY'
+import sysconfig
+print(sysconfig.get_paths()["purelib"])
+PY
+)"
+export TLTM_OFFICIAL_DFOLS_PYTHONPATH="${DFOLS_SITE_PACKAGES}${TLTM_OFFICIAL_DFOLS_PYTHONPATH:+:${TLTM_OFFICIAL_DFOLS_PYTHONPATH}}"
+.venv-dfols/bin/python - <<'PY'
+import dfols, numpy, sysconfig
+print("dfols_version={}".format(getattr(dfols, "__version__", "unknown")))
+print("numpy_version={}".format(numpy.__version__))
+print("dfols_site_packages={}".format(sysconfig.get_paths()["purelib"]))
+PY
+
+MAKE_ARGS=(
+  -C build
+  -j "${TLTM_BUILD_JOBS}"
+  ENABLE_OFFICIAL_DFOLS=1
+  PYTHON="${PYTHON_FOR_DFOLS}"
+)
+if [ -n "${PYTHON_EMBED_CFLAGS:-}" ]; then
+  MAKE_ARGS+=(PYTHON_EMBED_CFLAGS="${PYTHON_EMBED_CFLAGS}")
+fi
+if [ -n "${PYTHON_EMBED_LDFLAGS:-}" ]; then
+  MAKE_ARGS+=(PYTHON_EMBED_LDFLAGS="${PYTHON_EMBED_LDFLAGS}")
+fi
+make "${MAKE_ARGS[@]}" ../bin/run_tltm_stage2 ../bin/evaluate_expectations ../bin/evaluate_btn_residual_case
+
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
+
+export TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-13
+export QN_REVERSE_GATE_ENABLED=1
+export QN_REVERSE_GATE_TOL=1e-8
+export QN_S1_PROBE_MAX_ITER=28
+export QN_S1_NEAR_RESCUE_ENABLED=0
+export QN_S1_NONNEAR_RESCUE_ENABLED=0
+export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
+export QN_QUASI_TOL_OVERRIDE=1e-13
+export QN_SOLVER_BACKEND=official_dfols
+export QN_OFFICIAL_DFOLS_PRESET=stable_gate77
+export QN_OFFICIAL_DFOLS_NPT=4
+export QN_OFFICIAL_DFOLS_MAXFUN=250
+export QN_OFFICIAL_DFOLS_OBJFUN_HAS_NOISE=1
+export QN_OFFICIAL_DFOLS_RHOBEG=0.018
+export QN_OFFICIAL_DFOLS_RHOEND=1e-16
+export QN_OFFICIAL_DFOLS_MODEL_ABS_TOL=1e-30
+export QN_OFFICIAL_DFOLS_MODEL_REL_TOL=0
+export INTODE_SOLVER_ASSIST_ENABLED=0
+
+unset QN_ATTEMPT_CAPTURE_DIR
+export QN_ATTEMPT_CAPTURE_BASE_DIR="${ATTEMPT_DIR}"
+export QN_ATTEMPT_CAPTURE_LIMIT="${TLTM_DFOLS_TUNE_CAPTURE_LIMIT}"
+export QN_ATTEMPT_CAPTURE_STRIDE="${TLTM_DFOLS_TUNE_CAPTURE_STRIDE}"
+
+{
+  echo "label=${TLTM_DFOLS_TUNE_LABEL}"
+  echo "date_start=$(date -Is)"
+  echo "hostname=$(hostname)"
+  echo "git_branch=${CURRENT_BRANCH}"
+  echo "git_commit=${CURRENT_COMMIT}"
+  echo "config=${TLTM_DFOLS_TUNE_CONFIG}"
+  echo "methods=no_fb,fb_norefine"
+  echo "max_seeds=${TLTM_DFOLS_TUNE_MAX_SEEDS}"
+  echo "cycles_per_seed=10000"
+  echo "assist_policy=INTODE_SOLVER_ASSIST_ENABLED=0"
+  echo "capture_base_dir=${ATTEMPT_DIR}"
+  echo "capture_limit=${QN_ATTEMPT_CAPTURE_LIMIT}"
+  echo "capture_stride=${QN_ATTEMPT_CAPTURE_STRIDE}"
+  echo "coarse_max_cases_per_seed_method=${TLTM_DFOLS_TUNE_COARSE_MAX_CASES}"
+  echo "tltm_residual_success_tol=1e-13"
+  echo "baseline=stable_gate77"
+  echo "tltm_official_dfols_pythonpath=${TLTM_OFFICIAL_DFOLS_PYTHONPATH}"
+  echo "python_for_dfols=${PYTHON_FOR_DFOLS}"
+  echo "python_embed_cflags=${PYTHON_EMBED_CFLAGS:-}"
+  echo "python_embed_ldflags=${PYTHON_EMBED_LDFLAGS:-}"
+} > "${OUT_ROOT}/run_manifest.txt"
+
+python3 scripts/run_stage3_3_multiseed.py \
+  --repo-root . \
+  --config "${TLTM_DFOLS_TUNE_CONFIG}" \
+  --methods no_fb_fbnorefine \
+  --max-seeds "${TLTM_DFOLS_TUNE_MAX_SEEDS}" \
+  --output-subdir "${STAGE_ROOT}" \
+  --logs-subdir "${STAGE_LOG_ROOT}" \
+  --log-prefix "dfols_assist_off_tuning_phaseA" \
+  --report-title "DFO-LS assist-off tuning Phase A capture" \
+  --schedule paired \
+  --pair-order no_fb_first \
+  --jobs "${TLTM_DFOLS_TUNE_STAGE3_JOBS}" \
+  --stage2-threads 1 \
+  --eval-threads 1 \
+  --skip-build \
+  --allow-oversubscribe
+
+mapfile -t CASE_DIRS < <(find "${ATTEMPT_DIR}" -mindepth 3 -maxdepth 3 -type f -name qn_attempt_meta.csv -print | sort | xargs -r -n1 dirname)
+if [ "${#CASE_DIRS[@]}" -eq 0 ]; then
+  echo "[ERROR] no per-seed QN attempt capture files found under ${ATTEMPT_DIR}" >&2
+  exit 5
+fi
+
+{
+  printf 'case_key\tmethod\tseed\tcase_dir\tmeta_path\n'
+  for case_dir in "${CASE_DIRS[@]}"; do
+    rel_case="${case_dir#${ATTEMPT_DIR}/}"
+    case_key="${rel_case//\//__}"
+    method="${rel_case%%/*}"
+    seed_part="${rel_case##*/}"
+    printf '%s\t%s\t%s\t%s\t%s\n' "${case_key}" "${method}" "${seed_part#seed_}" "${case_dir}" "${case_dir}/qn_attempt_meta.csv"
+  done
+} > "${OUT_ROOT}/case_index.tsv"
+
+cat > "${OUT_ROOT}/candidates.tsv" <<'TSV'
+label	npt	maxfun	noise	rhobeg	rhoend	model_abs_tol	model_rel_tol
+stable_gate77	4	250	true	0.018	1e-16	1e-30	0
+budget500	4	500	true	0.018	1e-16	1e-30	0
+budget1000	4	1000	true	0.018	1e-16	1e-30	0
+rho010_m500	4	500	true	0.010	1e-16	1e-30	0
+rho030_m500	4	500	true	0.030	1e-16	1e-30	0
+rho050_m500	4	500	true	0.050	1e-16	1e-30	0
+npt0_rho018_m500	0	500	true	0.018	1e-16	1e-30	0
+npt6_rho018_m500	6	500	true	0.018	1e-16	1e-30	0
+no_noise_m500	4	500	false	0.018	1e-16	1e-30	0
+rho050_no_noise_m500	4	500	false	0.050	1e-16	1e-30	0
+TSV
+
+tail -n +2 "${OUT_ROOT}/candidates.tsv" | while IFS=$'\t' read -r label npt maxfun noise rhobeg rhoend abs_tol rel_tol; do
+  label_dir="${REPLAY_ROOT}/${label}"
+  mkdir -p "${label_dir}"
+  echo "[CANDIDATE] ${label}"
+  while IFS=$'\t' read -r case_key method seed case_dir meta_path; do
+    if [ "${case_key}" = "case_key" ]; then
+      continue
+    fi
+    out_csv="${label_dir}/${case_key}.csv"
+    args=(
+      .venv-dfols/bin/python scripts/run_external_dfols_btn_compare.py
+      --case-dir "${case_dir}"
+      --capture-prefix qn_attempt
+      --seed-source capture
+      --sample-ids all
+      --max-cases "${TLTM_DFOLS_TUNE_COARSE_MAX_CASES}"
+      --maxfun "${maxfun}"
+      --rhobeg "${rhobeg}"
+      --rhoend "${rhoend}"
+      --model-abs-tol "${abs_tol}"
+      --model-rel-tol "${rel_tol}"
+      --residual-success-tol 1e-13
+      --out-csv "${out_csv}"
+    )
+    if [ "${npt}" != "0" ]; then
+      args+=(--npt "${npt}")
+    fi
+    if [ "${noise}" = "true" ]; then
+      args+=(--objfun-has-noise)
+    fi
+    "${args[@]}"
+  done < "${OUT_ROOT}/case_index.tsv"
+done
+
+.venv-dfols/bin/python - "${OUT_ROOT}" "${SUMMARY_CSV}" "${REPORT_MD}" <<'PY'
+import csv
+import math
+import statistics
+import sys
+from pathlib import Path
+
+out_root = Path(sys.argv[1])
+summary_csv = Path(sys.argv[2])
+report_md = Path(sys.argv[3])
+case_index = out_root / "case_index.tsv"
+candidates_tsv = out_root / "candidates.tsv"
+replay_root = out_root / "official_replay"
+
+def read_tsv(path):
+    with path.open(newline="") as handle:
+        return list(csv.DictReader(handle, delimiter="\t"))
+
+cases = read_tsv(case_index)
+candidates = read_tsv(candidates_tsv)
+
+def quantile(values, q):
+    if not values:
+        return float("nan")
+    xs = sorted(values)
+    if len(xs) == 1:
+        return xs[0]
+    pos = (len(xs) - 1) * q
+    lo = int(math.floor(pos))
+    hi = int(math.ceil(pos))
+    if lo == hi:
+        return xs[lo]
+    return xs[lo] * (hi - pos) + xs[hi] * (pos - lo)
+
+def safe_int(value, default=0):
+    if value is None:
+        return default
+    text = str(value).strip()
+    if not text:
+        return default
+    try:
+        return int(text)
+    except ValueError:
+        try:
+            return int(float(text))
+        except ValueError:
+            return default
+
+def safe_float(value):
+    if value is None:
+        return float("nan")
+    text = str(value).strip()
+    if not text:
+        return float("nan")
+    try:
+        return float(text)
+    except ValueError:
+        return float("nan")
+
+summary_rows = []
+detail_by_label = {}
+for candidate in candidates:
+    label = candidate["label"]
+    rows_for_label = []
+    meta_total = 0
+    result_total = 0
+    success_total = 0
+    float64_fail = 0
+    error_count = 0
+    residual_eval_error_count = 0
+    missing_total = 0
+    embedded_converged = 0
+    embedded_nonconverged = 0
+    embedded_converged_regressions = 0
+    hard_success = 0
+    final_residuals = []
+    initial_residuals = []
+    nfs = []
+    by_method = {}
+    for case in cases:
+        case_key = case["case_key"]
+        method = case["method"]
+        meta_path = Path(case["meta_path"])
+        result_path = replay_root / label / (case_key + ".csv")
+        with meta_path.open(newline="") as handle:
+            meta_rows = list(csv.DictReader(handle))
+        with result_path.open(newline="") as handle:
+            result_rows = list(csv.DictReader(handle))
+        meta_by_sample = {int(row["sample_idx"]): row for row in meta_rows}
+        result_by_sample = {int(row["sample_idx"]): row for row in result_rows}
+        selected = sorted(result_by_sample)
+        missing = sorted(set(selected) - set(meta_by_sample))
+        method_bucket = by_method.setdefault(method, {"attempts": 0, "success": 0, "regressions": 0, "nf": []})
+        meta_total += len(selected)
+        result_total += len(result_rows)
+        missing_total += len(missing)
+        for sample_idx in selected:
+            result = result_by_sample[sample_idx]
+            meta = meta_by_sample.get(sample_idx, {})
+            error_text = str(result.get("error", "") or "").strip()
+            has_error = bool(error_text)
+            residual_success = safe_int(result.get("residual_success"), 0)
+            float64_contract = safe_int(result.get("float64_contract"), 0)
+            converged = safe_int(meta.get("converged"), 0)
+            nf = safe_float(result.get("dfols_nf"))
+            final_res = safe_float(result.get("final_residual_norm"))
+            initial_res = safe_float(result.get("initial_residual_norm"))
+            if has_error:
+                error_count += 1
+                if "residual_eval_failed" in error_text or "Bridge evaluation failed" in error_text:
+                    residual_eval_error_count += 1
+            success_total += residual_success
+            if not has_error and float64_contract != 1:
+                float64_fail += 1
+            if converged == 1:
+                embedded_converged += 1
+                if not has_error and residual_success != 1:
+                    embedded_converged_regressions += 1
+                    method_bucket["regressions"] += 1
+            else:
+                embedded_nonconverged += 1
+                if residual_success == 1:
+                    hard_success += 1
+            if math.isfinite(final_res):
+                final_residuals.append(final_res)
+            if math.isfinite(initial_res):
+                initial_residuals.append(initial_res)
+            if math.isfinite(nf):
+                nfs.append(nf)
+                method_bucket["nf"].append(nf)
+            method_bucket["attempts"] += 1
+            method_bucket["success"] += residual_success
+        rows_for_label.extend(result_rows)
+    attempts = meta_total
+    success_rate = success_total / attempts if attempts else float("nan")
+    nf_mean = statistics.fmean(nfs) if nfs else float("nan")
+    row = {
+        "label": label,
+        "npt": candidate["npt"],
+        "maxfun": candidate["maxfun"],
+        "noise": candidate["noise"],
+        "rhobeg": candidate["rhobeg"],
+        "rhoend": candidate["rhoend"],
+        "model_abs_tol": candidate["model_abs_tol"],
+        "model_rel_tol": candidate["model_rel_tol"],
+        "attempts": attempts,
+        "result_rows": result_total,
+        "residual_success": success_total,
+        "success_rate": "{:.8f}".format(success_rate),
+        "float64_fail": float64_fail,
+        "error_count": error_count,
+        "residual_eval_error_count": residual_eval_error_count,
+        "missing_result": missing_total,
+        "embedded_converged": embedded_converged,
+        "embedded_nonconverged": embedded_nonconverged,
+        "embedded_converged_regressions": embedded_converged_regressions,
+        "hard_success": hard_success,
+        "nf_mean": "{:.6g}".format(nf_mean),
+        "nf_p50": "{:.6g}".format(quantile(nfs, 0.50)),
+        "nf_p90": "{:.6g}".format(quantile(nfs, 0.90)),
+        "nf_p95": "{:.6g}".format(quantile(nfs, 0.95)),
+        "nf_max": "{:.6g}".format(max(nfs) if nfs else float("nan")),
+        "final_residual_p50": "{:.6e}".format(quantile(final_residuals, 0.50)),
+        "final_residual_p90": "{:.6e}".format(quantile(final_residuals, 0.90)),
+        "final_residual_p95": "{:.6e}".format(quantile(final_residuals, 0.95)),
+        "final_residual_max": "{:.6e}".format(max(final_residuals) if final_residuals else float("nan")),
+    }
+    for method, bucket in sorted(by_method.items()):
+        prefix = method.replace("_", "")
+        row[prefix + "_attempts"] = bucket["attempts"]
+        row[prefix + "_success"] = bucket["success"]
+        row[prefix + "_success_rate"] = "{:.8f}".format(bucket["success"] / bucket["attempts"]) if bucket["attempts"] else "nan"
+        row[prefix + "_regressions"] = bucket["regressions"]
+        row[prefix + "_nf_mean"] = "{:.6g}".format(statistics.fmean(bucket["nf"])) if bucket["nf"] else "nan"
+    summary_rows.append(row)
+    detail_by_label[label] = row
+
+columns = []
+for row in summary_rows:
+    for key in row:
+        if key not in columns:
+            columns.append(key)
+with summary_csv.open("w", newline="") as handle:
+    writer = csv.DictWriter(handle, fieldnames=columns)
+    writer.writeheader()
+    writer.writerows(summary_rows)
+
+baseline = detail_by_label.get("stable_gate77")
+eligible = [
+    row for row in summary_rows
+    if int(row["float64_fail"]) == 0 and int(row["missing_result"]) == 0 and int(row["embedded_converged_regressions"]) == 0
+]
+eligible.sort(key=lambda r: (-int(r["residual_success"]), int(r["error_count"]), float(r["nf_mean"]), r["label"]))
+
+lines = [
+    "# DFO-LS Assist-Off Tuning Phase A/B Report",
+    "",
+    "Readback class: `attempt_capture_plus_offline_coarse_sweep`",
+    "",
+    "Protocol:",
+    "- commit: `a22de1c19633793cf9c3ff7037b7cbc399e1b568`",
+    "- assist: `INTODE_SOLVER_ASSIST_ENABLED=0`",
+    "- capture scale: 10 seeds x 10000 cycles, methods `no_fb` and `fb_norefine`",
+    "- coarse replay cap: first selected cases per seed/method as recorded in `run_manifest.txt`",
+    "- success gate: TLTM residual norm `<= 1e-13`",
+    "",
+    "Artifacts:",
+    "- `run_manifest.txt`",
+    "- `case_index.tsv`",
+    "- `candidates.tsv`",
+    "- `coarse_summary.csv`",
+    "- `official_replay/<label>/*.csv`",
+    "",
+]
+if baseline:
+    lines.extend([
+        "Baseline stable_gate77:",
+        "- attempts: `{}`".format(baseline["attempts"]),
+        "- residual successes: `{}`".format(baseline["residual_success"]),
+        "- success rate: `{}`".format(baseline["success_rate"]),
+        "- embedded-converged regressions: `{}`".format(baseline["embedded_converged_regressions"]),
+        "- replay error rows: `{}`".format(baseline["error_count"]),
+        "- nf mean/p95/max: `{}` / `{}` / `{}`".format(baseline["nf_mean"], baseline["nf_p95"], baseline["nf_max"]),
+        "",
+    ])
+if eligible:
+    best = eligible[0]
+    lines.extend([
+        "Best no-regression candidate:",
+        "- label: `{}`".format(best["label"]),
+        "- residual successes: `{}`".format(best["residual_success"]),
+        "- success rate: `{}`".format(best["success_rate"]),
+        "- hard-success count: `{}`".format(best["hard_success"]),
+        "- replay error rows: `{}`".format(best["error_count"]),
+        "- nf mean/p95/max: `{}` / `{}` / `{}`".format(best["nf_mean"], best["nf_p95"], best["nf_max"]),
+        "- final residual p95/max: `{}` / `{}`".format(best["final_residual_p95"], best["final_residual_max"]),
+        "",
+    ])
+else:
+    lines.extend([
+        "Best no-regression candidate:",
+        "- none; all candidates had float64 failures, missing rows, or embedded-converged regressions.",
+        "",
+    ])
+
+lines.extend([
+    "| label | success | rate | regressions | errors | hard_success | nf_mean | nf_p95 | nf_max | final_res_p95 |",
+    "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+])
+for row in sorted(summary_rows, key=lambda r: (-int(r["residual_success"]), int(r["embedded_converged_regressions"]), int(r["error_count"]), float(r["nf_mean"]), r["label"])):
+    lines.append(
+        "| {label} | {residual_success} | {success_rate} | {embedded_converged_regressions} | {error_count} | {hard_success} | {nf_mean} | {nf_p95} | {nf_max} | {final_residual_p95} |".format(**row)
+    )
+lines.append("")
+report_md.write_text("\n".join(lines))
+print("[SUMMARY] wrote {}".format(summary_csv))
+print("[SUMMARY] wrote {}".format(report_md))
+PY
+
+date -Is
+echo "[DONE] DFO-LS assist-off tuning Phase A/B complete: ${TLTM_DFOLS_TUNE_LABEL}"

@@ -19,6 +19,9 @@ __pycache__/
 
 # Runtime outputs / large artifacts
 output/
+hamiltonian_conservation.dat
+hamiltonian_conservation_loglog.gp
+hamiltonian_conservation_loglog.png
 
 # Local document extraction scratch files
 docs/*.extract_head.txt
