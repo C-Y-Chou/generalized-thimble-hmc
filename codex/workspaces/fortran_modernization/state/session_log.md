@@ -1076,3 +1076,5 @@
 - Updated Stage2 summaries/manifests and Stage3 production driver provenance so production runs record `stage2_kernel_rng_v2` explicitly.
 - Verification passed: py_compile, Stage2/eval build, `test_tltm_swap_kernel_contract`, `test_mt95_state_contract`, `stage2_rng_v2_anchor`, `post_b_rng_reference_anchor`, Stage3 dry-run, and `git diff --check`.
 - Full M4 build/smoke/science checks passed on the first attempt; M4 correctly failed governance because new source/script files were still untracked and must be staged before final evidence acceptance.
+- After intentional staging, full M4 guardrails passed with the new source/script files included.
+- The production-comparison branch/worktree was synchronized to the committed Stage2 RNG v2 modernization state; production should next regenerate from a clean namespace, not from the historical assist-diagnostic outputs.
