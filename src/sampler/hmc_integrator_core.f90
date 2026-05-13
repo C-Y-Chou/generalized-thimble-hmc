@@ -13,7 +13,7 @@ module hmc_integrator_core
    use utils, only: dp, complex_to_real
    use model, only: ds
    use hmc_kernels, only: calculate_dV, decompose2
-   use hmc_constraints, only: solve_constraint_newton
+   use hmc_constraints, only: solve_constraint_newton, newton_eval_flow_status_context_t
    use hmc_state_buffers, only: rattle_step_workspace_t, ensure_rattle_step_workspace, release_rattle_step_workspace
    use quasi_newton_solver_mod, only: solve_constraint_quasi_newton, evaluate_constraint_residual, &
                                       get_quasi_newton_last_trace_r2c, get_quasi_newton_last_trace_stats, qn_context_t, &
@@ -209,7 +209,7 @@ contains
 
    subroutine rattle_step_core(state_x, state_z, step_size, final_x, final_z, jaci, jacf, momentum, &
                                method_converged, ws, step_status, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
-                               hmc_policy, hmc_replay_runtime, hmc_replay_diagnostics)
+                               hmc_policy, hmc_replay_runtime, hmc_replay_diagnostics, newton_flow_status)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -230,6 +230,7 @@ contains
       type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
       type(hmc_replay_runtime_context_t), intent(inout), optional, target :: hmc_replay_runtime
       type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
+      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
 
       integer :: n_state
       logical :: has_error
@@ -358,7 +359,8 @@ contains
       call set_intode_newton_iter_trace(0)
       call set_intode_quasi_iter_trace(0)
       call solve_constraint_newton(cttol, 100, ws%temp_x, ws%temp_z, ws%del_z, step_size, has_error, ws%Jl, final_x, &
-                                   ws%temp_jac, workspace=ws%newton_ws, flow_workspace=flow_workspace)
+                                   ws%temp_jac, workspace=ws%newton_ws, flow_workspace=flow_workspace, &
+                                   newton_flow_status=newton_flow_status)
       if (.not. has_error) then
          call record_constraint_solver_newton_success()
       else
@@ -607,7 +609,7 @@ contains
          reverse_gate_passed = qn_reverse_gate_accepts(state_x, state_z, initial_momentum_for_gate, &
                                                        final_x, final_z, jaci, ws%temp_jac, momentum, step_size, flow_workspace, &
                                                        qn_context, qn_diagnostics, qn_policy, active_hmc_policy, &
-                                                       active_hmc_replay_runtime, active_hmc_replay_diagnostics)
+                                                       active_hmc_replay_runtime, active_hmc_replay_diagnostics, newton_flow_status)
          call record_constraint_solver_reverse_gate(reverse_gate_passed, reverse_gate_used_probe_only, &
                                                     reverse_gate_used_full_stage, reverse_gate_used_near_rescue, &
                                                     reverse_gate_used_nonnear_route, reverse_gate_used_class_local, &
@@ -656,7 +658,7 @@ contains
 
    logical function qn_reverse_gate_accepts(state_x, state_z, initial_momentum, final_x, final_z, initial_jac, final_jac, &
                                             final_momentum, step_size, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
-                                            hmc_policy, hmc_replay_runtime, hmc_replay_diagnostics) result(accepts)
+                                            hmc_policy, hmc_replay_runtime, hmc_replay_diagnostics, newton_flow_status) result(accepts)
       implicit none
       real(dp), intent(in) :: state_x(:), initial_momentum(:), final_x(:), final_momentum(:), step_size
       complex(dp), intent(in) :: state_z(:), final_z(:), initial_jac(:, :), final_jac(:, :)
@@ -667,6 +669,7 @@ contains
       type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
       type(hmc_replay_runtime_context_t), intent(inout), optional, target :: hmc_replay_runtime
       type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
+      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
 
       real(dp), allocatable :: reverse_x(:), reverse_momentum(:)
       complex(dp), allocatable :: reverse_z(:), reverse_jac(:, :)
@@ -696,7 +699,7 @@ contains
       call push_constraint_solver_stats_suppression()
       call rattle_step_core(final_x, final_z, step_size, reverse_x, reverse_z, final_jac, reverse_jac, reverse_momentum, &
                             reverse_ok, reverse_ws, reverse_step_status, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
-                            active_hmc_policy, active_hmc_replay_runtime, active_hmc_replay_diagnostics)
+                            active_hmc_policy, active_hmc_replay_runtime, active_hmc_replay_diagnostics, newton_flow_status)
       call pop_constraint_solver_stats_suppression()
       active_hmc_replay_runtime%qn_reverse_gate_active = .false.
       call record_reverse_gate_replay_status(reverse_step_status, active_hmc_replay_diagnostics)

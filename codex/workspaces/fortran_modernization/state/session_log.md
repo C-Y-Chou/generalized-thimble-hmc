@@ -987,3 +987,37 @@
   bridge jobs remain pinned to production-comparison commit `6f98b5b`.
 - Stop condition: continue CV-011 with solver/flow diagnostics, model
   tape/cache, config mirror, or deterministic serial/reentrant checks.
+
+## 2026-05-13 JST - CV-011 Newton eval-flow status context slice
+
+- Chose the Newton eval-flow status counters as the next small CV-011
+  diagnostics ownership slice.
+- Added `newton_eval_flow_status_context_t` in `hmc_constraints`.
+- Moved Newton eval-flow success/zero-time/stiff-rescue/solver-assist and
+  failure/unknown status counters behind the context.
+- Preserved legacy/direct-call compatibility through a module fallback context.
+- Added optional context arguments to Newton eval-flow reset/get/record APIs,
+  `solve_constraint_newton`, and Stage2 adaptive preflow warmup.
+- Threaded a Stage/run-owned context through Stage1/Stage2 local updates,
+  Stage2 adaptive preflow, `metropolis_step`, HMC proposal/warmup, RATTLE,
+  reverse-gate replay, and the Newton constraint solve path.
+- Stage1/Stage2 summary writers now read Newton eval-flow status counters from
+  the Stage/run-owned context instead of module state.
+- Added `test_newton_eval_flow_status_context_contract` and wired it into the
+  build and M4 target list.
+- Verification passed:
+  - `git diff --check`
+  - `make -C build test_newton_eval_flow_status_context_contract`
+  - `make -C build ../bin/run_tltm_stage2`
+  - `make -C build test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_rg_reject_identity`
+  - `python3 codex/workspaces/fortran_modernization/tasks/scripts/post_b_rng_reference_anchor.py --repo-root . --fc gfortran --ldflags '' --output-root output/tests/post_b_rng_reference_anchor_newton_flow_context_check`
+  - `PYTHON="$PWD/.venv-dfols/bin/python" TLTM_OFFICIAL_DFOLS_PYTHONPATH="$($PWD/.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+- First full-M4 attempt caught an incomplete Stage2 adaptive-preflow context
+  thread as a post-B Stage2 summary hash mismatch. Stage1 summary and Stage2
+  label trace were unchanged; after threading adaptive preflow into the same
+  Stage/run context, the frozen post-B hash passed again.
+- Production-comparison tree was not synchronized because formalized assist
+  bridge jobs remain pinned to production-comparison commit `6f98b5b`.
+- Stop condition: continue CV-011 with constraint-solver aggregate/failure
+  capture diagnostics, solve-flow fallback/trace/failure state, model
+  tape/cache, config mirror, or deterministic serial/reentrant checks.

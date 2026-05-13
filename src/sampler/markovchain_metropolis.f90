@@ -10,6 +10,7 @@ module markovchain_metropolis
                   hmc_proposal_status_output_size_mismatch, &
                   hmc_proposal_status_reverse_gate_rejected
    use hmc_integrator_core, only: hmc_policy_context_t, hmc_replay_diagnostics_context_t
+   use hmc_constraints, only: newton_eval_flow_status_context_t
    use hmc_reversibility_checks, only: hmc_reversibility_context_t
    use solve_flow, only: flow_workspace_t
    use tltm_run_context_mod, only: tltm_hmc_context_t
@@ -21,7 +22,7 @@ contains
    subroutine metropolis_step(x, z, j, total_step_size, num_steps, x_new, z_new, j_new, accept, proposal_failed, transition_status, &
                               h_initial_out, h_final_out, delta_h_out, accept_probability_out, &
                               initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
-                              hmc_policy, hmc_replay_diagnostics, hmc_reversibility)
+                              hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status)
       implicit none
 
       real(dp), intent(in) :: x(:)
@@ -46,6 +47,7 @@ contains
       type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
       type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
       type(hmc_reversibility_context_t), intent(inout), optional, target :: hmc_reversibility
+      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
 
       real(dp) :: h_initial
       real(dp) :: h_final
@@ -81,7 +83,7 @@ contains
 
       call integrate_hmc_proposal(x, z, total_step_size, num_steps, x_new, z_new, h_initial, h_final, j, j_new, &
                                   proposal_ok, hmc_status, initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, &
-                                  qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility)
+                                  qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status)
       call publish_metropolis_diagnostics(h_initial, h_final, delta_h, accept_probability, &
                                           h_initial_out, h_final_out, delta_h_out, accept_probability_out)
 

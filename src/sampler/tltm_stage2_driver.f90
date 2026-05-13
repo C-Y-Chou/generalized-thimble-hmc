@@ -10,7 +10,8 @@ module tltm_stage2_driver
    use markovchain_mod, only: adaptive_preflow_to_target
    use markovchain_metropolis, only: metropolis_step
    use markovchain_phase, only: compute_phase_factor
-   use hmc_constraints, only: reset_newton_eval_flow_status_counts, get_newton_eval_flow_status_counts
+   use hmc_constraints, only: reset_newton_eval_flow_status_counts, get_newton_eval_flow_status_counts, &
+                              newton_eval_flow_status_context_t
    use hmc_integrator_core, only: reset_reverse_gate_replay_status_counts, get_reverse_gate_replay_status_counts, &
                                   hmc_policy_context_t, hmc_replay_diagnostics_context_t
    use quasi_newton_solver_mod, only: get_quasi_global_filter_stats, reset_quasi_eval_flow_status_counts, &
@@ -109,6 +110,7 @@ contains
       type(qn_policy_context_t) :: qn_policy_context
       type(hmc_policy_context_t) :: hmc_policy_context
       type(hmc_replay_diagnostics_context_t) :: hmc_replay_diagnostics_context
+      type(newton_eval_flow_status_context_t) :: newton_flow_status_context
       type(mt95_state_t) :: swap_rng_state
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file, label_trace_file
@@ -154,7 +156,7 @@ contains
       call read_parameters()
       call reset_intode_fallback_stats()
       call reset_constraint_solver_stats()
-      call reset_newton_eval_flow_status_counts()
+      call reset_newton_eval_flow_status_counts(newton_flow_status_context)
       call reset_quasi_eval_flow_status_counts(qn_diagnostics_context)
       call reset_reverse_gate_replay_status_counts(hmc_replay_diagnostics_context)
 
@@ -194,7 +196,8 @@ contains
          slots(i)%flow_time = flow_ladder(i)
          slots(i)%rng_seed = derive_seed(base_seed, i)
          call allocate_tltm_slot(slots(i), x_size)
-         call initialize_slot(slots(i), init_sigma, stage2_init_attempts_default, init_mode, ok, run_contexts(i))
+         call initialize_slot(slots(i), init_sigma, stage2_init_attempts_default, init_mode, ok, run_contexts(i), &
+                              newton_flow_status_context)
          if (.not. ok) then
             write (*, '(A,I0,A,F8.4,A)') "[ERROR][TLTM-S2] Slot ", slots(i)%slot_id, &
                " initialization failed at flow_time=", slots(i)%flow_time, "."
@@ -318,7 +321,8 @@ contains
          do i = 1, n_slots
             slot_t0 = wall_time_seconds()
             call run_local_updates(slots(i), local_updates, local_accept_census(i), cycle_idx, run_contexts(i), audit_context, &
-                                   qn_diagnostics_context, qn_policy_context, hmc_policy_context, hmc_replay_diagnostics_context)
+                                   qn_diagnostics_context, qn_policy_context, hmc_policy_context, hmc_replay_diagnostics_context, &
+                                   newton_flow_status_context)
             slots(i)%local_runtime = slots(i)%local_runtime + (wall_time_seconds() - slot_t0)
          end do
 
@@ -425,7 +429,7 @@ contains
                                 far_flowzr_used_fail_sum, far_final_resort_used_fail_sum, &
                                 global_filter_candidate_count, global_filter_pass_count, global_filter_reject_count, &
                                 reverse_gate_candidate_counts, reverse_gate_pass_counts, reverse_gate_reject_counts, &
-                                qn_diagnostics_context, hmc_replay_diagnostics_context)
+                                newton_flow_status_context, qn_diagnostics_context, hmc_replay_diagnostics_context)
       call write_stage2_v1_sidecars(v1_manifest_file, v1_protocol_file, write_v1_manifest, write_v1_protocol, &
                                     v1_output_dir, write_v1_package, &
                                     summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
@@ -461,13 +465,14 @@ contains
       call close_stage2_audit_context(audit_context)
    end subroutine execute_tltm_stage2
 
-   subroutine initialize_slot(slot, init_sigma, max_attempts, init_mode, ok, run_context)
+   subroutine initialize_slot(slot, init_sigma, max_attempts, init_mode, ok, run_context, newton_flow_status_context)
       type(tltm_slot_t), intent(inout) :: slot
       real(dp), intent(in) :: init_sigma
       integer, intent(in) :: max_attempts
       character(len=*), intent(in) :: init_mode
       logical, intent(out) :: ok
       type(tltm_run_context_t), intent(inout) :: run_context
+      type(newton_eval_flow_status_context_t), intent(inout), target :: newton_flow_status_context
 
       real(dp), allocatable :: x_seed(:)
       logical :: flow_failed
@@ -491,7 +496,8 @@ contains
 
          if (trim(init_mode) /= "direct" .and. trim(init_mode) /= "legacy") then
             call adaptive_preflow_to_target(slot%x, slot%flow_time, config%integrator%trajectory_length, &
-                                            config%integrator%integration_steps, attempt - 1, preflow_success, stage_count)
+                                            config%integrator%integration_steps, attempt - 1, preflow_success, stage_count, &
+                                            newton_flow_status_context)
             if (.not. preflow_success) cycle
             write (*, '(A,I0,A,F10.6,A,I0,A,I0)') "[TLTM-S2][INIT] slot=", slot%slot_id, &
                " adaptive preflow ready at t=", slot%flow_time, " attempt=", attempt, " stages=", stage_count
@@ -517,7 +523,7 @@ contains
    end subroutine initialize_slot
 
    subroutine run_local_updates(slot, local_updates, accept_census, cycle_idx, run_context, audit_context, qn_diagnostics_context, &
-                                qn_policy_context, hmc_policy_context, hmc_replay_diagnostics_context)
+                                qn_policy_context, hmc_policy_context, hmc_replay_diagnostics_context, newton_flow_status_context)
       type(tltm_slot_t), intent(inout) :: slot
       integer, intent(in) :: local_updates
       type(local_accept_census_t), intent(inout) :: accept_census
@@ -528,6 +534,7 @@ contains
       type(qn_policy_context_t), intent(inout), target :: qn_policy_context
       type(hmc_policy_context_t), intent(inout), target :: hmc_policy_context
       type(hmc_replay_diagnostics_context_t), intent(inout), target :: hmc_replay_diagnostics_context
+      type(newton_eval_flow_status_context_t), intent(inout), target :: newton_flow_status_context
 
       integer :: update_idx, z_size
       real(dp), allocatable :: x_new(:), x_before(:), initial_momentum(:), final_momentum(:)
@@ -555,7 +562,8 @@ contains
                               final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
                               qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
                               hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
-                              hmc_reversibility=run_context%diagnostics%hmc_reversibility)
+                              hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
+                              newton_flow_status=newton_flow_status_context)
          call snapshot_solver_counters(solver_after)
          if (accepted) then
             slot%x = x_new
@@ -1172,7 +1180,7 @@ contains
                                    far_flowzr_used_fail_sum, far_final_resort_used_fail_sum, &
                                    global_filter_candidate_count, global_filter_pass_count, global_filter_reject_count, &
                                    reverse_gate_candidate_counts, reverse_gate_pass_counts, reverse_gate_reject_counts, &
-                                   qn_diagnostics_context, hmc_replay_diagnostics_context)
+                                   newton_flow_status_context, qn_diagnostics_context, hmc_replay_diagnostics_context)
       character(len=*), intent(in) :: summary_file
       type(tltm_slot_t), intent(in) :: slots(:)
       type(tltm_pair_stats_t), intent(in) :: pair_stats(:)
@@ -1202,6 +1210,7 @@ contains
       integer(int64), intent(in) :: reverse_gate_candidate_counts(:)
       integer(int64), intent(in) :: reverse_gate_pass_counts(:)
       integer(int64), intent(in) :: reverse_gate_reject_counts(:)
+      type(newton_eval_flow_status_context_t), intent(inout), target :: newton_flow_status_context
       type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics_context
       type(hmc_replay_diagnostics_context_t), intent(inout), target :: hmc_replay_diagnostics_context
 
@@ -1277,7 +1286,8 @@ contains
          " reject=", global_filter_reject_count
       call get_newton_eval_flow_status_counts(newton_flow_success_count, newton_flow_zero_time_count, newton_flow_stiff_rescue_count, &
                                               newton_flow_solver_assist_count, newton_flow_failure_max_steps_count, &
-                                              newton_flow_failure_invalid_count, newton_flow_failure_h_min_count, newton_flow_unknown_count)
+                                              newton_flow_failure_invalid_count, newton_flow_failure_h_min_count, newton_flow_unknown_count, &
+                                              newton_flow_status_context)
       write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
          "# newton_eval_flow_status success=", newton_flow_success_count, " zero_time=", newton_flow_zero_time_count, &
          " stiff_rescue=", newton_flow_stiff_rescue_count, " solver_assist=", newton_flow_solver_assist_count, &

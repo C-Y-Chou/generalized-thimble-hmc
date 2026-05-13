@@ -354,6 +354,7 @@ def run_guardrails(args):
                     "test_mt95_state_contract",
                     "test_perf_profile_context_contract",
                     "test_hmc_reversibility_context_contract",
+                    "test_newton_eval_flow_status_context_contract",
                     "test_retained_core_newton_contract",
                     "test_retained_core_rattle_rg_contract",
                     "test_retained_core_qn_route_contract",

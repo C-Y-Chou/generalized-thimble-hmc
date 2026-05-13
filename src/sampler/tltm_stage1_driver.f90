@@ -8,7 +8,8 @@ module tltm_stage1_driver
    use mt95, only: getseed, mt95_get_state, mt95_seed_state, mt95_set_state
    use markovchain_metropolis, only: metropolis_step
    use markovchain_phase, only: compute_phase_factor
-   use hmc_constraints, only: reset_newton_eval_flow_status_counts, get_newton_eval_flow_status_counts
+   use hmc_constraints, only: reset_newton_eval_flow_status_counts, get_newton_eval_flow_status_counts, &
+                              newton_eval_flow_status_context_t
    use hmc_integrator_core, only: reset_reverse_gate_replay_status_counts, get_reverse_gate_replay_status_counts, &
                                   hmc_policy_context_t, hmc_replay_diagnostics_context_t
    use quasi_newton_solver_mod, only: reset_quasi_eval_flow_status_counts, get_quasi_eval_flow_status_counts, &
@@ -31,6 +32,7 @@ contains
       type(qn_policy_context_t) :: qn_policy_context
       type(hmc_policy_context_t) :: hmc_policy_context
       type(hmc_replay_diagnostics_context_t) :: hmc_replay_diagnostics_context
+      type(newton_eval_flow_status_context_t) :: newton_flow_status_context
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file
       integer :: n_replicas, base_seed, cycle_count, local_updates, x_size
@@ -40,7 +42,7 @@ contains
       real(dp) :: run_t0, elapsed, replica_t0
 
       call read_parameters()
-      call reset_newton_eval_flow_status_counts()
+      call reset_newton_eval_flow_status_counts(newton_flow_status_context)
       call reset_quasi_eval_flow_status_counts(qn_diagnostics_context)
       call reset_reverse_gate_replay_status_counts(hmc_replay_diagnostics_context)
 
@@ -80,7 +82,7 @@ contains
          do i = 1, n_replicas
             replica_t0 = wall_time_seconds()
             call run_local_updates(replicas(i), local_updates, run_contexts(i), qn_diagnostics_context, qn_policy_context, &
-                                   hmc_policy_context, hmc_replay_diagnostics_context)
+                                   hmc_policy_context, hmc_replay_diagnostics_context, newton_flow_status_context)
             replicas(i)%local_runtime = replicas(i)%local_runtime + (wall_time_seconds() - replica_t0)
             call measure_replica(replicas(i))
          end do
@@ -91,8 +93,8 @@ contains
       end do
       elapsed = wall_time_seconds() - run_t0
 
-      call write_stage1_summary(summary_file, replicas, cycle_count, local_updates, elapsed, base_seed, qn_diagnostics_context, &
-                                hmc_replay_diagnostics_context)
+      call write_stage1_summary(summary_file, replicas, cycle_count, local_updates, elapsed, base_seed, newton_flow_status_context, &
+                                qn_diagnostics_context, hmc_replay_diagnostics_context)
       call release_qn_diagnostics_context(qn_diagnostics_context)
       call release_qn_policy_context(qn_policy_context)
       call release_all_run_contexts(run_contexts)
@@ -139,7 +141,7 @@ contains
    end subroutine initialize_replica
 
    subroutine run_local_updates(replica, local_updates, run_context, qn_diagnostics_context, qn_policy_context, &
-                                hmc_policy_context, hmc_replay_diagnostics_context)
+                                hmc_policy_context, hmc_replay_diagnostics_context, newton_flow_status_context)
       type(tltm_replica_t), intent(inout) :: replica
       integer, intent(in) :: local_updates
       type(tltm_run_context_t), intent(inout) :: run_context
@@ -147,6 +149,7 @@ contains
       type(qn_policy_context_t), intent(inout), target :: qn_policy_context
       type(hmc_policy_context_t), intent(inout), target :: hmc_policy_context
       type(hmc_replay_diagnostics_context_t), intent(inout), target :: hmc_replay_diagnostics_context
+      type(newton_eval_flow_status_context_t), intent(inout), target :: newton_flow_status_context
 
       integer :: update_idx, z_size
       real(dp), allocatable :: x_new(:)
@@ -165,7 +168,8 @@ contains
                               context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
                               qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
                               hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
-                              hmc_reversibility=run_context%diagnostics%hmc_reversibility)
+                              hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
+                              newton_flow_status=newton_flow_status_context)
          if (accepted) then
             replica%x = x_new
             replica%z = z_new
@@ -284,12 +288,13 @@ contains
       call read_string_env("TLTM_STAGE1_SUMMARY_FILE", path)
    end subroutine resolve_summary_file
 
-   subroutine write_stage1_summary(summary_file, replicas, cycle_count, local_updates, elapsed, base_seed, qn_diagnostics_context, &
-                                   hmc_replay_diagnostics_context)
+   subroutine write_stage1_summary(summary_file, replicas, cycle_count, local_updates, elapsed, base_seed, newton_flow_status_context, &
+                                   qn_diagnostics_context, hmc_replay_diagnostics_context)
       character(len=*), intent(in) :: summary_file
       type(tltm_replica_t), intent(in) :: replicas(:)
       integer, intent(in) :: cycle_count, local_updates, base_seed
       real(dp), intent(in) :: elapsed
+      type(newton_eval_flow_status_context_t), intent(inout), target :: newton_flow_status_context
       type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics_context
       type(hmc_replay_diagnostics_context_t), intent(inout), target :: hmc_replay_diagnostics_context
 
@@ -326,7 +331,8 @@ contains
       write (unit_summary, '(A,F12.6)') "# elapsed_sec=", elapsed
       call get_newton_eval_flow_status_counts(newton_flow_success_count, newton_flow_zero_time_count, newton_flow_stiff_rescue_count, &
                                               newton_flow_solver_assist_count, newton_flow_failure_max_steps_count, &
-                                              newton_flow_failure_invalid_count, newton_flow_failure_h_min_count, newton_flow_unknown_count)
+                                              newton_flow_failure_invalid_count, newton_flow_failure_h_min_count, newton_flow_unknown_count, &
+                                              newton_flow_status_context)
       write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
          "# newton_eval_flow_status success=", newton_flow_success_count, " zero_time=", newton_flow_zero_time_count, &
          " stiff_rescue=", newton_flow_stiff_rescue_count, " solver_assist=", newton_flow_solver_assist_count, &

@@ -10,6 +10,7 @@ module markovchain_mod
                         quasi_fallback_enabled, set_initial_flow_time, state_total_size, x_history_file, z_history_file
    use, intrinsic :: iso_fortran_env, only: int64
    use hmc, only: integrate_hmc_warmup
+   use hmc_constraints, only: newton_eval_flow_status_context_t
    use model, only: grand
    use hmc_kernels, only: calculate_hamiltonian
    use markovchain_metropolis, only: metropolis_step
@@ -293,13 +294,15 @@ contains
       end do
    end subroutine initialize_random_start
 
-   subroutine adaptive_preflow_to_target(x_state, target_flow_time, trajectory_length, integration_steps, relax_level, success, stage_count)
+   subroutine adaptive_preflow_to_target(x_state, target_flow_time, trajectory_length, integration_steps, relax_level, success, stage_count, &
+                                         newton_flow_status)
       implicit none
       real(dp), intent(inout) :: x_state(:)
       real(dp), intent(in) :: target_flow_time, trajectory_length
       integer, intent(in) :: integration_steps, relax_level
       logical, intent(out) :: success
       integer, intent(out) :: stage_count
+      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
 
       real(dp), parameter :: near_zero_tol = 1.0e-12_dp
       real(dp), parameter :: min_dt_floor = 1.0e-8_dp
@@ -362,7 +365,7 @@ contains
             end if
 
             call relax_with_zero_momentum(x_candidate, z_candidate, jac_candidate, relax_step_size, relax_steps, &
-                                          action_rel_tol, max_relax_iter, relax_ok, action_delta, relax_iter)
+                                          action_rel_tol, max_relax_iter, relax_ok, action_delta, relax_iter, newton_flow_status)
             if (.not. relax_ok) then
                dt_try = dt_try*step_shrink
                cycle
@@ -390,7 +393,7 @@ contains
    end subroutine adaptive_preflow_to_target
 
    subroutine relax_with_zero_momentum(x_state, z_state, jac_state, step_size, num_steps, action_rel_tol, max_iter, &
-                                       success, action_delta, iter_used)
+                                       success, action_delta, iter_used, newton_flow_status)
       implicit none
       real(dp), intent(inout) :: x_state(:)
       complex(dp), intent(inout) :: z_state(:), jac_state(:, :)
@@ -399,6 +402,7 @@ contains
       logical, intent(out) :: success
       real(dp), intent(out) :: action_delta
       integer, intent(out) :: iter_used
+      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
 
       real(dp), allocatable :: x_trial(:)
       complex(dp), allocatable :: z_trial(:), jac_trial(:, :)
@@ -414,7 +418,8 @@ contains
       iter_used = 0
 
       do iter = 1, max_iter
-         call integrate_hmc_warmup(x_state, z_state, step_size, num_steps, x_trial, z_trial, h_initial, h_proposed, jac_state, jac_trial)
+         call integrate_hmc_warmup(x_state, z_state, step_size, num_steps, x_trial, z_trial, h_initial, h_proposed, jac_state, &
+                                   jac_trial, newton_flow_status=newton_flow_status)
          if ((.not. ieee_is_finite(h_initial)) .or. (.not. ieee_is_finite(h_proposed))) exit
 
          action_delta = abs(h_proposed - h_initial)

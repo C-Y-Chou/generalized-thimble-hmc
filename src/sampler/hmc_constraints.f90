@@ -9,14 +9,18 @@ module hmc_constraints
    use perf_profile, only: perf_tic, perf_toc, PERF_NEWTON, PERF_PROJECTED_STEP
    implicit none
 
-   integer(int64), save :: newton_eval_flow_status_success = 0_int64
-   integer(int64), save :: newton_eval_flow_status_zero_time = 0_int64
-   integer(int64), save :: newton_eval_flow_status_stiff_rescue = 0_int64
-   integer(int64), save :: newton_eval_flow_status_solver_assist = 0_int64
-   integer(int64), save :: newton_eval_flow_status_failure_max_steps = 0_int64
-   integer(int64), save :: newton_eval_flow_status_failure_invalid = 0_int64
-   integer(int64), save :: newton_eval_flow_status_failure_h_min = 0_int64
-   integer(int64), save :: newton_eval_flow_status_unknown = 0_int64
+   type :: newton_eval_flow_status_context_t
+      integer(int64) :: success = 0_int64
+      integer(int64) :: zero_time = 0_int64
+      integer(int64) :: stiff_rescue = 0_int64
+      integer(int64) :: solver_assist = 0_int64
+      integer(int64) :: failure_max_steps = 0_int64
+      integer(int64) :: failure_invalid = 0_int64
+      integer(int64) :: failure_h_min = 0_int64
+      integer(int64) :: unknown = 0_int64
+   end type newton_eval_flow_status_context_t
+
+   type(newton_eval_flow_status_context_t), target, save :: module_newton_eval_flow_status_context
 
    type :: newton_constraint_workspace_t
       real(dp), allocatable :: B(:), jacr(:, :), jacr_lu(:, :)
@@ -28,58 +32,86 @@ module hmc_constraints
 
 contains
 
-   subroutine reset_newton_eval_flow_status_counts()
+   subroutine resolve_newton_eval_flow_status_context(context, active_context)
       implicit none
+      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: context
+      type(newton_eval_flow_status_context_t), pointer :: active_context
 
-      newton_eval_flow_status_success = 0_int64
-      newton_eval_flow_status_zero_time = 0_int64
-      newton_eval_flow_status_stiff_rescue = 0_int64
-      newton_eval_flow_status_solver_assist = 0_int64
-      newton_eval_flow_status_failure_max_steps = 0_int64
-      newton_eval_flow_status_failure_invalid = 0_int64
-      newton_eval_flow_status_failure_h_min = 0_int64
-      newton_eval_flow_status_unknown = 0_int64
+      if (present(context)) then
+         active_context => context
+      else
+         active_context => module_newton_eval_flow_status_context
+      end if
+   end subroutine resolve_newton_eval_flow_status_context
+
+   subroutine reset_newton_eval_flow_status_counts(context)
+      implicit none
+      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: context
+      type(newton_eval_flow_status_context_t), pointer :: active_context
+
+      call resolve_newton_eval_flow_status_context(context, active_context)
+      active_context%success = 0_int64
+      active_context%zero_time = 0_int64
+      active_context%stiff_rescue = 0_int64
+      active_context%solver_assist = 0_int64
+      active_context%failure_max_steps = 0_int64
+      active_context%failure_invalid = 0_int64
+      active_context%failure_h_min = 0_int64
+      active_context%unknown = 0_int64
    end subroutine reset_newton_eval_flow_status_counts
 
    subroutine get_newton_eval_flow_status_counts(success, zero_time, stiff_rescue, solver_assist, &
-                                                 failure_max_steps, failure_invalid, failure_h_min, unknown)
+                                                 failure_max_steps, failure_invalid, failure_h_min, unknown, context)
       implicit none
       integer(int64), intent(out) :: success, zero_time, stiff_rescue, solver_assist
       integer(int64), intent(out) :: failure_max_steps, failure_invalid, failure_h_min, unknown
+      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: context
+      type(newton_eval_flow_status_context_t), pointer :: active_context
 
-      success = newton_eval_flow_status_success
-      zero_time = newton_eval_flow_status_zero_time
-      stiff_rescue = newton_eval_flow_status_stiff_rescue
-      solver_assist = newton_eval_flow_status_solver_assist
-      failure_max_steps = newton_eval_flow_status_failure_max_steps
-      failure_invalid = newton_eval_flow_status_failure_invalid
-      failure_h_min = newton_eval_flow_status_failure_h_min
-      unknown = newton_eval_flow_status_unknown
+      call resolve_newton_eval_flow_status_context(context, active_context)
+      success = active_context%success
+      zero_time = active_context%zero_time
+      stiff_rescue = active_context%stiff_rescue
+      solver_assist = active_context%solver_assist
+      failure_max_steps = active_context%failure_max_steps
+      failure_invalid = active_context%failure_invalid
+      failure_h_min = active_context%failure_h_min
+      unknown = active_context%unknown
    end subroutine get_newton_eval_flow_status_counts
 
-   subroutine record_newton_eval_flow_status(flow_status)
+   subroutine record_newton_eval_flow_status(flow_status, context)
       implicit none
       integer, intent(in) :: flow_status
+      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: context
+      type(newton_eval_flow_status_context_t), pointer :: active_context
 
+      call resolve_newton_eval_flow_status_context(context, active_context)
       select case (flow_status)
       case (intode_status_success)
-         newton_eval_flow_status_success = newton_eval_flow_status_success + 1_int64
+         active_context%success = active_context%success + 1_int64
       case (intode_status_success_zero_time)
-         newton_eval_flow_status_zero_time = newton_eval_flow_status_zero_time + 1_int64
+         active_context%zero_time = active_context%zero_time + 1_int64
       case (intode_status_success_stiff_rescue)
-         newton_eval_flow_status_stiff_rescue = newton_eval_flow_status_stiff_rescue + 1_int64
+         active_context%stiff_rescue = active_context%stiff_rescue + 1_int64
       case (intode_status_success_solver_assist)
-         newton_eval_flow_status_solver_assist = newton_eval_flow_status_solver_assist + 1_int64
+         active_context%solver_assist = active_context%solver_assist + 1_int64
       case (intode_status_failure_max_steps)
-         newton_eval_flow_status_failure_max_steps = newton_eval_flow_status_failure_max_steps + 1_int64
+         active_context%failure_max_steps = active_context%failure_max_steps + 1_int64
       case (intode_status_failure_invalid)
-         newton_eval_flow_status_failure_invalid = newton_eval_flow_status_failure_invalid + 1_int64
+         active_context%failure_invalid = active_context%failure_invalid + 1_int64
       case (intode_status_failure_h_min)
-         newton_eval_flow_status_failure_h_min = newton_eval_flow_status_failure_h_min + 1_int64
+         active_context%failure_h_min = active_context%failure_h_min + 1_int64
       case default
-         newton_eval_flow_status_unknown = newton_eval_flow_status_unknown + 1_int64
+         active_context%unknown = active_context%unknown + 1_int64
       end select
    end subroutine record_newton_eval_flow_status
+
+   subroutine release_newton_eval_flow_status_context(context)
+      implicit none
+      type(newton_eval_flow_status_context_t), intent(inout) :: context
+
+      call reset_newton_eval_flow_status_counts(context)
+   end subroutine release_newton_eval_flow_status_context
 
    subroutine reset_constraint_newton_warm_start()
       implicit none
@@ -87,7 +119,7 @@ contains
    end subroutine reset_constraint_newton_warm_start
 
    subroutine solve_constraint_newton(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, x_seed, Jl_seed, workspace, &
-                                      flow_workspace)
+                                      flow_workspace, newton_flow_status)
       implicit none
 
       integer, intent(in)          :: max_iter
@@ -102,20 +134,21 @@ contains
       real(dp), intent(in), optional :: x_seed(:), Jl_seed(:)
       type(newton_constraint_workspace_t), intent(inout), optional :: workspace
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
 
       type(newton_constraint_workspace_t) :: local_workspace
 
       if (present(workspace)) then
          call solve_constraint_newton_with_workspace(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, &
-                                                     x_seed, Jl_seed, workspace, flow_workspace)
+                                                     x_seed, Jl_seed, workspace, flow_workspace, newton_flow_status)
       else
          call solve_constraint_newton_with_workspace(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, &
-                                                     x_seed, Jl_seed, local_workspace, flow_workspace)
+                                                     x_seed, Jl_seed, local_workspace, flow_workspace, newton_flow_status)
       end if
    end subroutine solve_constraint_newton
 
    subroutine solve_constraint_newton_with_workspace(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, &
-                                                     x_seed, Jl_seed, workspace, flow_workspace)
+                                                     x_seed, Jl_seed, workspace, flow_workspace, newton_flow_status)
       implicit none
 
       integer, intent(in)          :: max_iter
@@ -130,6 +163,7 @@ contains
       real(dp), intent(in), optional :: x_seed(:), Jl_seed(:)
       type(newton_constraint_workspace_t), intent(inout) :: workspace
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
 
       integer :: n, n2, info
       logical :: attempt_ok
@@ -195,7 +229,7 @@ contains
       call solve_constraint_newton_seeded(tol, max_iter, xt, z, del_z, workspace%jacr, workspace%jacr_lu, workspace%ipiv, &
                                           workspace%u_seed, workspace%ld_seed, workspace%B, workspace%xtu, workspace%u, &
                                           workspace%ld, workspace%dxi, workspace%au, workspace%av, attempt_ok, &
-                                          workspace%x_trial, flow_workspace)
+                                          workspace%x_trial, flow_workspace, newton_flow_status)
 
       if (attempt_ok) then
          x_new = workspace%x_trial
@@ -208,7 +242,8 @@ contains
    end subroutine solve_constraint_newton_with_workspace
 
    subroutine solve_constraint_newton_seeded(tol, max_iter, xt, z, del_z, jacr, jacr_lu, ipiv, &
-                                             u_seed, ld_seed, B, xtu, u, ld, dxi, au, av, converged, x_new, flow_workspace)
+                                             u_seed, ld_seed, B, xtu, u, ld, dxi, au, av, converged, x_new, flow_workspace, &
+                                             newton_flow_status)
       implicit none
 
       integer, intent(in) :: max_iter
@@ -222,6 +257,7 @@ contains
       logical, intent(out) :: converged
       real(dp), intent(out) :: x_new(:)
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
 
       real(dp) :: residual, residual_prev, residual_best, rel_improvement
       real(dp) :: near_tol, stagnation_floor, diverge_floor
@@ -254,7 +290,7 @@ contains
          call set_intode_newton_iter_trace(0)
          flow_status = intode_status_unknown
          call flowz(xtu, z_new, solve_failed, flow_status, flow_workspace)
-         call record_newton_eval_flow_status(flow_status)
+         call record_newton_eval_flow_status(flow_status, newton_flow_status)
          if (solve_failed) then
             return
          end if
@@ -300,7 +336,7 @@ contains
          call set_intode_newton_iter_trace(iter)
          flow_status = intode_status_unknown
          call flowz(xtu, z_new, solve_failed, flow_status, flow_workspace)
-         call record_newton_eval_flow_status(flow_status)
+         call record_newton_eval_flow_status(flow_status, newton_flow_status)
          if (solve_failed) return
 
          z_new = z - z_new - ld
