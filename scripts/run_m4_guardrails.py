@@ -352,6 +352,7 @@ def run_guardrails(args):
                     "test_official_dfols_preset_contract",
                     "test_tltm_swap_kernel_contract",
                     "test_mt95_state_contract",
+                    "test_perf_profile_context_contract",
                     "test_retained_core_newton_contract",
                     "test_retained_core_rattle_rg_contract",
                     "test_retained_core_qn_route_contract",

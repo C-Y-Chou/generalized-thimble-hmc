@@ -934,3 +934,28 @@
   - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
 - Production-comparison tree was not synchronized, staged, or modified.
 - Stop condition: triage the next remaining behavior-bearing state boundary before migrating more module state.
+
+## 2026-05-13 JST - CV-011 profiler context slice
+
+- Chose the profiling-counter boundary as the next low-risk CV-011 state slice.
+- Added `perf_profile_context_t` in `perf_profile` and moved profiler
+  accumulators, call counters, enabled flag, and initialization flag behind the
+  context.
+- Preserved legacy/direct-call compatibility through a module fallback context,
+  so existing `perf_tic`, `perf_toc`, `perf_reset`, and `perf_report` callers
+  keep their behavior.
+- Added optional context arguments to profiler APIs plus
+  `release_perf_profile_context`.
+- Replaced the placeholder `tltm_profile_context_t%reserved` field with
+  `tltm_profile_context_t%profiler`, owned by `tltm_run_context_t`.
+- Added `test_perf_profile_context_contract` and wired it into the build and
+  M4 target list.
+- Verification passed:
+  - `make -C build test_perf_profile_context_contract`
+  - `make -C build ../bin/run_tltm_stage2`
+  - `git diff --check`
+- Production-comparison tree was not synchronized because live PBS jobs
+  `15098`-`15105` are running and merge job `15106` is held, all pinned to
+  production-comparison commit `6f98b5b`.
+- Stop condition: continue CV-011 with solver/flow/reversibility diagnostics,
+  model tape/cache, config mirror, or deterministic serial/reentrant checks.
