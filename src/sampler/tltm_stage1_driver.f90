@@ -11,7 +11,8 @@ module tltm_stage1_driver
    use hmc_constraints, only: reset_newton_eval_flow_status_counts, get_newton_eval_flow_status_counts
    use hmc_integrator_core, only: reset_reverse_gate_replay_status_counts, get_reverse_gate_replay_status_counts
    use quasi_newton_solver_mod, only: reset_quasi_eval_flow_status_counts, get_quasi_eval_flow_status_counts, &
-                                      qn_diagnostics_context_t, release_qn_diagnostics_context
+                                      qn_diagnostics_context_t, release_qn_diagnostics_context, &
+                                      qn_policy_context_t, release_qn_policy_context
    use tltm_types_mod, only: tltm_replica_t, allocate_tltm_replica, release_tltm_replica, record_tltm_local_transition
    use tltm_run_context_mod, only: tltm_run_context_t, release_tltm_run_context
    implicit none
@@ -26,6 +27,7 @@ contains
       type(tltm_replica_t), allocatable :: replicas(:)
       type(tltm_run_context_t), allocatable :: run_contexts(:)
       type(qn_diagnostics_context_t) :: qn_diagnostics_context
+      type(qn_policy_context_t) :: qn_policy_context
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file
       integer :: n_replicas, base_seed, cycle_count, local_updates, x_size
@@ -63,6 +65,7 @@ contains
             write (*, '(A,I0,A,F8.4,A)') "[ERROR][TLTM-S1] Replica ", replicas(i)%replica_id, &
                " initialization failed at flow_time=", replicas(i)%flow_time, "."
             call release_qn_diagnostics_context(qn_diagnostics_context)
+            call release_qn_policy_context(qn_policy_context)
             call release_all_run_contexts(run_contexts)
             call release_all_replicas(replicas)
             error stop 1
@@ -73,7 +76,7 @@ contains
       do cycle_idx = 1, cycle_count
          do i = 1, n_replicas
             replica_t0 = wall_time_seconds()
-            call run_local_updates(replicas(i), local_updates, run_contexts(i), qn_diagnostics_context)
+            call run_local_updates(replicas(i), local_updates, run_contexts(i), qn_diagnostics_context, qn_policy_context)
             replicas(i)%local_runtime = replicas(i)%local_runtime + (wall_time_seconds() - replica_t0)
             call measure_replica(replicas(i))
          end do
@@ -86,6 +89,7 @@ contains
 
       call write_stage1_summary(summary_file, replicas, cycle_count, local_updates, elapsed, base_seed, qn_diagnostics_context)
       call release_qn_diagnostics_context(qn_diagnostics_context)
+      call release_qn_policy_context(qn_policy_context)
       call release_all_run_contexts(run_contexts)
       call release_all_replicas(replicas)
       if (allocated(flow_ladder)) deallocate (flow_ladder)
@@ -129,11 +133,12 @@ contains
       if (allocated(x_seed)) deallocate (x_seed)
    end subroutine initialize_replica
 
-   subroutine run_local_updates(replica, local_updates, run_context, qn_diagnostics_context)
+   subroutine run_local_updates(replica, local_updates, run_context, qn_diagnostics_context, qn_policy_context)
       type(tltm_replica_t), intent(inout) :: replica
       integer, intent(in) :: local_updates
       type(tltm_run_context_t), intent(inout) :: run_context
       type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics_context
+      type(qn_policy_context_t), intent(inout), target :: qn_policy_context
 
       integer :: update_idx, z_size
       real(dp), allocatable :: x_new(:)
@@ -150,7 +155,7 @@ contains
          call metropolis_step(replica%x, replica%z, replica%jac, config%integrator%trajectory_length, &
                               config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
                               context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
-                              qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context)
+                              qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context)
          if (accepted) then
             replica%x = x_new
             replica%z = z_new

@@ -1,6 +1,6 @@
 # Task Status: fortran_modernization
 
-Updated: 2026-05-12 JST
+Updated: 2026-05-13 JST
 
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
@@ -11,14 +11,14 @@ Updated: 2026-05-12 JST
 - User-confirmed alias: "code refine" means this `fortran_modernization` task, not a separate workspace.
 - Current position is now tracked by workstream matrix, not by treating M0-M6 as a linear completion ladder:
   - `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`
-  - Position: reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected and first HMC slice implemented -> full OpenMP/thread-safe productization -> broader modernization blocks.
+  - Position: reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected -> flow/ODEX/HMC/QN flow context implemented -> official DFO-LS callback context implemented -> QN trace/eval context implemented -> QN diagnostics context implemented -> QN policy context implemented -> HMC policy/reverse-gate context decision point.
 - Foundation closure decisions recorded on 2026-05-12 JST:
   - `CV-007` is closed by endpoint-only ODEX product boundary;
   - `CV-001` is closed by `official_line_kernel_correctness_gate.py`;
   - `CV-006` is closed by `DFOLS_CLAIM_PROVENANCE_POLICY_V1`;
   - `CV-004` is closed as permanent F8/M4 behavior-preservation governance;
   - `CV-005` is closed by machine-checked script/evidence audit;
-  - `CV-011` route-B RNG stream ownership and the first top-level HMC context slice are implemented. CV-011 remains open for full OpenMP/thread-safe productization: remaining behavior-bearing module state/workspaces, counters, diagnostics, policy state, and deterministic serial/reentrant tests.
+  - `CV-011` route-B RNG stream ownership, top-level run contexts, flow/ODEX context, HMC/QN flow threading, official DFO-LS callback context, QN trace/eval context, QN diagnostics context, and QN policy context are implemented. CV-011 remains open for full OpenMP/thread-safe productization: HMC fallback/reverse-gate state, remaining behavior-bearing module state/workspaces, counters, diagnostics, policy state, and deterministic serial/reentrant tests.
 - Modernization finish decisions recorded on 2026-05-12 JST:
   - `runbooks/MODERNIZATION_FINISH_DECISIONS_20260512.md`
   - Production redo is completely separated into `tltm_production_comparison`; modernization provides frozen commits/contracts but does not own redo queueing, readback, or final production-output promotion.
@@ -44,6 +44,10 @@ Updated: 2026-05-12 JST
 - CV-011 Stage2 audit context slice added on 2026-05-12 JST:
   - `runbooks/CV011_STAGE2_AUDIT_CONTEXT_SLICE_20260512.md`
   - RG-reject and local-transition audit file state now lives in a Stage2-owned context rather than module-level SAVE state.
+- CV-011 QN policy context slice added on 2026-05-13 JST:
+  - `runbooks/CV011_QN_POLICY_CONTEXT_SLICE_20260513.md`
+  - Stage1 and Stage2 now own one run-level `qn_policy_context_t`; QN backend/watchdog policy cache and official DFO-LS preset state no longer live in active module globals.
+  - The next decision point is `runbooks/CV011_HMC_POLICY_REVERSE_GATE_CONTEXT_DECISION_POINT_20260513.md`.
 - Algorithm reference bundle is collected under `references/`, including TLTM HMC, simplified Newton/RATTLE/HMC, DFO-GN/DFO-LS, Hairer ODEX, and the user original quasi-Newton projection formulation.
 - Low-level algorithm review set is complete and has already driven the first source canonicalization wave:
   - `runbooks/ODEX_FLOW_REVIEW_NOTES.md`

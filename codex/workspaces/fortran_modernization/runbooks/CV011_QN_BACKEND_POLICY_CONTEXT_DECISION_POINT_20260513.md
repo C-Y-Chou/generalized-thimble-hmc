@@ -2,6 +2,11 @@
 
 Updated: 2026-05-13 JST
 
+## Resolution
+
+User selected option A. Implemented in
+`CV011_QN_POLICY_CONTEXT_SLICE_20260513.md`.
+
 ## Why This Is A Decision Point
 
 `CV011_QN_DIAGNOSTICS_CONTEXT_SLICE_20260513.md` moved QN attempt-capture files
@@ -75,4 +80,5 @@ the best shape for OpenMP/thread-safe productization.
 
 ## Current Stop Condition
 
-Stop for user decision before migrating QN backend/watchdog policy state.
+Superseded. The next decision point is
+`CV011_HMC_POLICY_REVERSE_GATE_CONTEXT_DECISION_POINT_20260513.md`.

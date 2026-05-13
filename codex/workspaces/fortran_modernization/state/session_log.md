@@ -902,3 +902,18 @@
   - `PYTHON="$PWD/.venv-dfols/bin/python" TLTM_OFFICIAL_DFOLS_PYTHONPATH="$($PWD/.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" make -C build FC=gfortran LDFLAGS= test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity post_b_rng_reference_anchor ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`
   - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
 - Stop condition: QN backend/watchdog policy cache ownership needs a decision before migration.
+
+## 2026-05-13 JST - CV-011 QN policy context slice
+
+- User selected option A for QN backend/watchdog policy context ownership.
+- Added `qn_policy_context_t` plus `release_qn_policy_context` in `quasi_newton_solver_mod`.
+- Moved QN backend policy cache, official DFO-LS preset values, watchdog policy cache, force-best proposal controls, backend notice state, and official bridge failure warning state into `qn_policy_context_t`.
+- Preserved legacy/direct-call compatibility with module fallback `module_qn_policy_context`.
+- Stage1 and Stage2 now own one run-level QN policy context and pass it through `metropolis_step`, HMC proposal/warmup/reverse-probe, `rattle_step_core`, QN reverse-gate replay, and QN solve paths.
+- Extended the official DFO-LS preset contract with `policy_context_isolation`, which proved two explicit QN policy contexts can keep independent DFO-LS preset values in the same process.
+- Verification passed:
+  - `PYTHON="$PWD/.venv-dfols/bin/python" TLTM_OFFICIAL_DFOLS_PYTHONPATH="$($PWD/.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" make -C build FC=gfortran LDFLAGS= test_official_dfols_preset_contract test_retained_core_qn_route_contract`
+  - `PYTHON="$PWD/.venv-dfols/bin/python" TLTM_OFFICIAL_DFOLS_PYTHONPATH="$($PWD/.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" make -C build FC=gfortran LDFLAGS= test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity post_b_rng_reference_anchor ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`
+  - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+- Production-comparison tree was not synchronized, staged, or modified.
+- Stop condition: HMC fallback/reverse-gate policy cache, `qn_reverse_gate_active`, and reverse-gate replay status counters need an ownership decision before migration.

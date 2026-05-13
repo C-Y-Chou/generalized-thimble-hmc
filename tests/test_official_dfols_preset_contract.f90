@@ -1,6 +1,6 @@
 program test_official_dfols_preset_contract
    use quasi_newton_solver_mod, only: apply_qn_official_dfols_preset, get_qn_official_dfols_policy, &
-                                     qn_backend_official_dfols
+                                     qn_backend_official_dfols, qn_policy_context_t, release_qn_policy_context
    use utils, only: dp
    implicit none
 
@@ -14,6 +14,7 @@ program test_official_dfols_preset_contract
    call check_stable_aliases(failures)
    call check_legacy_alias(failures)
    call check_unknown_falls_back_to_stable(failures)
+   call check_policy_context_isolation(failures)
 
    if (failures /= 0) then
       write (*, '(A,I0)') "[ERROR] Official DFO-LS preset contract failures=", failures
@@ -92,6 +93,40 @@ contains
          write (*, '(A)') "[FAIL] unknown official DFO-LS preset no longer falls back to stable_gate77."
       end if
    end subroutine check_unknown_falls_back_to_stable
+
+   subroutine check_policy_context_isolation(failures)
+      integer, intent(inout) :: failures
+      type(qn_policy_context_t), target :: policy_a, policy_b
+      integer :: backend_a, npt_a, maxfun_a, backend_b, npt_b, maxfun_b
+      logical :: noise_a, noise_b, ok
+      real(dp) :: rhobeg_a, rhoend_a, abs_tol_a, rel_tol_a
+      real(dp) :: rhobeg_b, rhoend_b, abs_tol_b, rel_tol_b
+
+      call get_qn_official_dfols_policy(backend_a, npt_a, maxfun_a, noise_a, rhobeg_a, rhoend_a, abs_tol_a, rel_tol_a, &
+                                        qn_policy=policy_a)
+      call get_qn_official_dfols_policy(backend_b, npt_b, maxfun_b, noise_b, rhobeg_b, rhoend_b, abs_tol_b, rel_tol_b, &
+                                        qn_policy=policy_b)
+      call apply_qn_official_dfols_preset("legacy", qn_policy=policy_a)
+      call apply_qn_official_dfols_preset("stable", qn_policy=policy_b)
+      call get_qn_official_dfols_policy(backend_a, npt_a, maxfun_a, noise_a, rhobeg_a, rhoend_a, abs_tol_a, rel_tol_a, &
+                                        qn_policy=policy_a)
+      call get_qn_official_dfols_policy(backend_b, npt_b, maxfun_b, noise_b, rhobeg_b, rhoend_b, abs_tol_b, rel_tol_b, &
+                                        qn_policy=policy_b)
+
+      ok = backend_a == qn_backend_official_dfols .and. backend_b == qn_backend_official_dfols .and. &
+           npt_a == 0 .and. maxfun_a == 250 .and. noise_a .and. close_to(rhobeg_a, 5.0e-2_dp) .and. &
+           close_to(rhoend_a, 1.0e-16_dp) .and. close_to(abs_tol_a, 1.0e-30_dp) .and. close_to(rel_tol_a, 0.0_dp) .and. &
+           stable_gate77_matches(npt_b, maxfun_b, noise_b, rhobeg_b, rhoend_b, abs_tol_b, rel_tol_b)
+      write (*, '(A,L1,A,I0,A,ES12.4,A,I0,A,ES12.4)') "[CHECK] policy_context_isolation ok=", ok, &
+         " npt_a=", npt_a, " rhobeg_a=", rhobeg_a, " npt_b=", npt_b, " rhobeg_b=", rhobeg_b
+      if (.not. ok) then
+         failures = failures + 1
+         write (*, '(A)') "[FAIL] separate QN policy contexts are not isolated."
+      end if
+
+      call release_qn_policy_context(policy_a)
+      call release_qn_policy_context(policy_b)
+   end subroutine check_policy_context_isolation
 
    logical function current_policy_is_stable() result(ok)
       integer :: backend_code, npt, maxfun
