@@ -1,7 +1,7 @@
 module markovchain_metropolis
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_quiet_nan, ieee_value
    use utils, only: dp
-   use mt95, only: grnd
+   use mt95, only: grnd, mt95_get_state, mt95_set_state, mt95_state_t
    use markovchain_transition_status, only: metropolis_status_accepted, metropolis_status_delta_h_invalid, &
                                             metropolis_status_hamiltonian_invalid, metropolis_status_output_size_mismatch, &
                                             metropolis_status_proposal_failed, metropolis_status_rejected, &
@@ -22,7 +22,7 @@ contains
    subroutine metropolis_step(x, z, j, total_step_size, num_steps, x_new, z_new, j_new, accept, proposal_failed, transition_status, &
                               h_initial_out, h_final_out, delta_h_out, accept_probability_out, &
                               initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
-                              hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status)
+                              hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, momentum_rng_state, accept_rng_state)
       implicit none
 
       real(dp), intent(in) :: x(:)
@@ -48,6 +48,8 @@ contains
       type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
       type(hmc_reversibility_context_t), intent(inout), optional, target :: hmc_reversibility
       type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
+      type(mt95_state_t), intent(inout), optional :: momentum_rng_state
+      type(mt95_state_t), intent(inout), optional :: accept_rng_state
 
       real(dp) :: h_initial
       real(dp) :: h_final
@@ -83,7 +85,8 @@ contains
 
       call integrate_hmc_proposal(x, z, total_step_size, num_steps, x_new, z_new, h_initial, h_final, j, j_new, &
                                   proposal_ok, hmc_status, initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, &
-                                  qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status)
+                                  qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, &
+                                  momentum_rng_state)
       call publish_metropolis_diagnostics(h_initial, h_final, delta_h, accept_probability, &
                                           h_initial_out, h_final_out, delta_h_out, accept_probability_out)
 
@@ -128,7 +131,13 @@ contains
       call publish_metropolis_diagnostics(h_initial, h_final, delta_h, accept_probability, &
                                           h_initial_out, h_final_out, delta_h_out, accept_probability_out)
 
-      rand = grnd()
+      if (present(accept_rng_state)) then
+         call mt95_set_state(accept_rng_state)
+         rand = grnd()
+         call mt95_get_state(accept_rng_state)
+      else
+         rand = grnd()
+      end if
       if (accept_probability >= 1.0_dp .or. rand <= accept_probability) then
          accept = .true.
          if (present(transition_status)) transition_status = metropolis_status_accepted

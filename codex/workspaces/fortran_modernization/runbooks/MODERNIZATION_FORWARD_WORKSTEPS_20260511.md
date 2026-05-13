@@ -48,7 +48,7 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 | F7 | public method naming and schema-role design | done | yes | `F7_METHOD_ALIASES_V1` freezes public `nofb`/`withfb` names with `no_fb`/`fb_norefine` compatibility aliases | reopen only for schema v2, public taxonomy change, or field removal |
 | F8 | reference comparison harness for source patches | governed | yes | `F8_PATCH_REFERENCE_STATEMENT_V1` and `f14_complete_pre_redo_gate.py` provide patch-local reference statement and M6 anchor validation; CV-004 is now closed as permanent governance | run this harness for every future behavior-relevant source patch |
 | F8b | script evidence audit | done | yes | `SCRIPT_EVIDENCE_AUDIT_20260512.tsv` and `validate_script_evidence_audit.py` classify all tracked script/task files and quarantine historical helpers | reopen CV-005 only on unclassified additions, historical-script overclaim, or current-tier legacy route drift |
-| F9 | low-risk non-physics utility/API cleanup | gated | after-F8 | exact-output or tolerance-bound comparison against accepted rows | no RNG/proposal/schema/counter meaning drift |
+| F9 | low-risk non-physics utility/API cleanup | gated | after-F8 | behavior-preserving legacy trigger/naming cleanup plus exact-output or tolerance-bound comparison against accepted rows | no RNG/proposal/schema/counter meaning drift; escalate behavior-changing candidates to F16 |
 | F10 | typed status/result propagation | gated | after-F14-redo-scope | explicit flow/solver/RATTLE/HMC/reverse-gate result objects | route/counter equality checks pass |
 | F11 | diagnostics accounting implementation | gated | after-F14-redo-scope | broader structured forward/replay/probe/reject accounting beyond local-transition event source | schema versioning and compatibility readers exist |
 | F12 | unified wrapper/product interface | gated | after-F14-redo-scope | wrapper runs same Stage2/Stage3 protocol with v1 sidecars | no public behavior replacement without compatibility layer |
@@ -68,9 +68,11 @@ Do not fast-forward or clean `/lustre1/home/cychou/TLTM_worktrees/tltm_productio
 
 Read `FOUNDATION_COMPLETENESS_RESET_20260511.md` before any modernization task. The immediate implementation planning order is:
 
-1. Keep the post-B deterministic reference anchor for `per_replica_rng_v1` in M4.
-2. Continue CV-011 through full OpenMP/thread-safe productization: migrate or scope remaining module workspaces/state, counters, diagnostics, and policy state, then add deterministic serial/reentrant checks before closure.
-3. Leave production redo scope/scale and CV-002 promotion boundary to the `tltm_production_comparison` tree.
+1. Read `CV011_STAGE2_KERNEL_RNG_V2_IMPLEMENTATION_20260514.md`; `TLTM_STAGE2_RNG_STREAM_CONTRACT=stage2_kernel_rng_v2` is now the Stage2 default.
+2. Keep `legacy_global_v0` as historical compatibility only and `per_replica_rng_v1` for the post-B anchor/audit path.
+3. Keep both `post_b_rng_reference_anchor` and `stage2_rng_v2_anchor` in M4 before production claims.
+4. Continue CV-011 through full OpenMP/thread-safe productization: migrate or scope remaining module workspaces/state, counters, diagnostics, and policy state, then add deterministic serial/reentrant checks before closure.
+5. Leave production redo scope/scale and CV-002 promotion boundary to the `tltm_production_comparison` tree.
 
 M6 comparison tooling remains available as historical/internal behavior readback, especially for assist-off degeneracy observation, with:
 

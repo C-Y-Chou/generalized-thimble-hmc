@@ -3,6 +3,7 @@ module hmc
    use param_mod, only: eo, istest, testmom
    use utils, only: dp
    use model, only: grand
+   use mt95, only: mt95_get_state, mt95_set_state, mt95_state_t
    use solve_flow, only: flow_workspace_t, set_intode_rattle_trace, clear_intode_runtime_trace, get_intode_fallback_stats
    use hmc_kernels, only: decompose2, calculate_hamiltonian
    use hmc_constraints, only: reset_constraint_newton_warm_start, newton_eval_flow_status_context_t
@@ -45,7 +46,7 @@ contains
                                      final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok, &
                                      proposal_status, initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, &
                                      qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, &
-                                     newton_flow_status)
+                                     newton_flow_status, momentum_rng_state)
       implicit none
       real(dp), intent(in) :: state_x(:)
       complex(dp), intent(in) :: state_z(:)
@@ -69,12 +70,13 @@ contains
       type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
       type(hmc_reversibility_context_t), intent(inout), optional, target :: hmc_reversibility
       type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
+      type(mt95_state_t), intent(inout), optional :: momentum_rng_state
       logical :: local_ok
       integer :: local_status
 
       call rattle(state_x, state_z, step_size, num_steps, final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, &
                   local_ok, local_status, initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, qn_diagnostics, &
-                  qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status)
+                  qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, momentum_rng_state)
       if (present(proposal_ok)) proposal_ok = local_ok
       if (present(proposal_status)) proposal_status = local_status
    end subroutine integrate_hmc_proposal
@@ -111,7 +113,7 @@ contains
    subroutine rattle(state_x, state_z, step_size, num_steps, &
                      final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok, proposal_status, &
                      initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
-                     hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status)
+                     hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, momentum_rng_state)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -137,6 +139,7 @@ contains
       type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
       type(hmc_reversibility_context_t), intent(inout), optional, target :: hmc_reversibility
       type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
+      type(mt95_state_t), intent(inout), optional :: momentum_rng_state
 
       integer :: step, state_size
       real(dp) :: integration_step_size
@@ -187,7 +190,13 @@ contains
       final_z = state_z
       temp_jac = jaci
 
-      call grand(momentum)
+      if (present(momentum_rng_state)) then
+         call mt95_set_state(momentum_rng_state)
+         call grand(momentum)
+         call mt95_get_state(momentum_rng_state)
+      else
+         call grand(momentum)
+      end if
       if (istest) momentum = testmom
       if (present(context)) then
          call decompose2(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, context%proposal_ws%decompose_ws)

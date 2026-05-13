@@ -1021,3 +1021,58 @@
 - Stop condition: continue CV-011 with constraint-solver aggregate/failure
   capture diagnostics, solve-flow fallback/trace/failure state, model
   tape/cache, config mirror, or deterministic serial/reentrant checks.
+
+## 2026-05-13 JST - Modernization cleanup vs correctness sweep split
+
+- User raised the risk that strict output-preserving modernization can preserve
+  minor-but-important bugs as golden behavior.
+- Recorded deferred F16 in `OPEN_ITEMS.tsv` and created
+  `runbooks/POST_MODERNIZATION_CORRECTNESS_SWEEP_PLAN_20260513.md`.
+- User clarified that obvious dead triggers and strange internal names are
+  modernization cleanup when behavior can be preserved, not something to defer
+  past modernization closure.
+- Added
+  `runbooks/MODERNIZATION_LEGACY_TRIGGER_NAMING_CLEANUP_20260513.md`, and moved
+  behavior-preserving `eo`/`istest`/`testmom` and `rattle2`/`decompose2` cleanup
+  under F9/W11 with F8 guardrails.
+- Boundary: deferred F16 is only for candidate bugs whose fix may intentionally
+  change output, counters, route selection, or public schema meaning.
+- Behavior-changing fixes require an evidence packet, explicit approval,
+  focused tests, and separate commits from pure modernization cleanup.
+
+## 2026-05-14 JST - Assist diagnostic branch closed; trees converged
+
+- User reported the assist discrepancy/root-cause problem is solved and selected
+  a tree-convergence plan.
+- Active work is narrowed back to `fortran_modernization` and
+  `tltm_production_comparison`.
+- Modernization remains the source/product closure tree.  Production should wait
+  until the modernization fix is complete, then sync to the selected fixed commit
+  and regenerate production from a clean namespace.
+- Do not keep expanding the assist diagnostic side tree as modernization work.
+- Cleanup correction: removed the diagnostic ODEX legacy-sequence source diff
+  from `src/physics/odex_backend.f90`; it must not enter canonical
+  modernization.  The assist-regression tiny reproducer was moved out of the
+  modernization workspace archive and into the production-comparison archive as
+  historical evidence only.
+
+## 2026-05-14 JST - Stage2 RNG v2 design made discoverable
+
+- User noticed new modernization sessions could not find the RNG v2 design after
+  side-tree cleanup.
+- Added `runbooks/CV011_STAGE2_KERNEL_RNG_V2_DESIGN_20260514.md` as the
+  modernization-tree entry point for `stage2_kernel_rng_v2`.
+- Updated `STATE_BRIEF.md`, `WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`,
+  `MODERNIZATION_FORWARD_WORKSTEPS_20260511.md`, and OPEN_ITEMS so future
+  modernization sessions do not treat `per_replica_rng_v1` as production
+  equivalent by default.
+
+## 2026-05-14 JST - Stage2 RNG v2 implemented
+
+- Implemented `TLTM_STAGE2_RNG_STREAM_CONTRACT=stage2_kernel_rng_v2` as the Stage2 default.
+- Added domain-separated kernel RNG seeding for Stage2 initialization, local momentum, local Metropolis accept, and swap accept domains.
+- Threaded optional explicit MT95 state through HMC momentum and Metropolis accept draws while preserving legacy/global callers.
+- Kept `per_replica_rng_v1` available for the post-B reference anchor and `legacy_global_v0` as historical compatibility.
+- Updated Stage2 summaries/manifests and Stage3 production driver provenance so production runs record `stage2_kernel_rng_v2` explicitly.
+- Verification passed: py_compile, Stage2/eval build, `test_tltm_swap_kernel_contract`, `test_mt95_state_contract`, `stage2_rng_v2_anchor`, `post_b_rng_reference_anchor`, Stage3 dry-run, and `git diff --check`.
+- Full M4 build/smoke/science checks passed on the first attempt; M4 correctly failed governance because new source/script files were still untracked and must be staged before final evidence acceptance.

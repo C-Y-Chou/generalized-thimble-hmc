@@ -1,6 +1,6 @@
 # Fortran Modernization State Brief
 
-Updated: 2026-05-13 JST
+Updated: 2026-05-14 JST
 
 ## Read Before Next Solver-Policy Step
 
@@ -9,6 +9,8 @@ Updated: 2026-05-13 JST
   `runbooks/NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md`.
 - Current handoff policy is implemented and M4-gated locally: `nofb` remains author-faithful comparison/control; canonical fallback-on candidate is `strict NT -> QN navigation assist -> unassisted certification -> strict final flow -> RG -> Metropolis`.
 - NT assist is not canonical in this handoff; NT+QN assist is diagnostic-only unless the user explicitly approves a new policy.
+- 2026-05-14 update: the assist/root-cause diagnostic tree is no longer active production work.  Keep the diagnostic evidence, but converge active work back to `fortran_modernization` and `tltm_production_comparison`: finish the modernization fix first, then sync production-comparison and regenerate production.
+- Required read before continuing CV-011 RNG work: `runbooks/CV011_STAGE2_KERNEL_RNG_V2_IMPLEMENTATION_20260514.md`.  `TLTM_STAGE2_RNG_STREAM_CONTRACT=stage2_kernel_rng_v2` is implemented as the Stage2 default; `legacy_global_v0` is compatibility only, and `per_replica_rng_v1` is retained for the post-B anchor/audit path.
 
 ## Current Position
 
@@ -29,6 +31,7 @@ Updated: 2026-05-13 JST
 - CV-004 is closed as permanent governance: every behavior-relevant source patch requires F8, M4, and an affected-baseline comparison or explicitly approved narrower baseline.
 - CV-005 is closed by the script/evidence audit registry and gate. Every tracked file under `scripts/`, `codex/tasks/`, and `codex/workspaces/fortran_modernization/tasks/` has a row in `SCRIPT_EVIDENCE_AUDIT_20260512.tsv`; M4 validates coverage and quarantines historical/legacy-route scripts.
 - CV-011 route B is implemented for RNG streams: Stage1 replicas and Stage2 slots own local-update RNG state, Stage2 swaps use a separate deterministic swap stream, and summaries/manifests label `rng_stream_contract=per_replica_rng_v1`. This intentionally changes finite same-seed trajectories relative to the old shared serial RNG stream.
+- The 2026-05-13 assist-regression tiny reproducer identified the Stage2 RNG stream contract as the first behavioral transition.  CV-011 RNG modernization now implements `stage2_kernel_rng_v2` with domain-separated transition-kernel RNG keys; do not promote `per_replica_rng_v1` to production equivalence by default.
 - Modernization finish decisions are recorded in `MODERNIZATION_FINISH_DECISIONS_20260512.md`: full OpenMP/thread-safe productization remains in scope and production redo is fully separated into `tltm_production_comparison`.
 - Post-B deterministic reference anchor is added for `per_replica_rng_v1`: `post_b_rng_reference_anchor.py` runs tiny Stage1/Stage2 twice, normalizes elapsed/runtime fields, and compares against `POST_B_RNG_REFERENCE_ANCHOR_V1.json`.
 - First non-RNG CV-011 workspace slice is implemented: `hmc_kernels:decompose2` no longer uses shared `save` scratch arrays, and the RATTLE core path carries an explicit `decompose2_workspace_t` through `rattle_step_workspace_t`.
@@ -47,6 +50,7 @@ Updated: 2026-05-13 JST
 - CV-011 HMC reversibility diagnostics context is implemented. Stage1/Stage2 local updates now pass `tltm_run_context_t%diagnostics%hmc_reversibility`; reversibility-probe and state-progress diagnostic policy/counter state no longer use active shared module state on that path.
 - CV-011 Newton eval-flow status context is implemented. Stage1/Stage2 local updates now pass a Stage/run-owned `newton_eval_flow_status_context_t`; Newton eval-flow summary counters no longer use active shared module state on that path.
 - Remaining CV-011 state is not just scratch storage: constraint-solver aggregate/reverse-gate path/failure-capture counters, flow/ODEX counters/traces/last-failure snapshot, model tape cache, and config mirror still need migration or explicit product boundaries.
+- Legacy dead-trigger and strange-name cleanup is modernization work when behavior is preserved: audit `eo`, `istest`, `testmom`, `rattle2`, and `decompose2` under F9/W11 with F8 guardrails. Deferred F16 is only for candidate bugs whose fix may intentionally change output, counters, route selection, or public schema meaning.
 - Modernization is not at automatic production-regeneration approval, but the user-selected conservative F3/F4/F7/F8 pre-redo gates are now implemented without reduced-scope acceptance.
 - F3/CV-009 is closed for the pre-redo gate: retained-core tests cover Newton replay, successful one-step RATTLE/RG pass replay, BTN residual reconstruction, official package-success route census, stub no-fallback route behavior, RG reject/live-state identity, and failure-as-rejection accounting; `f14_complete_pre_redo_gate.py` records the branch/measure harness.
 - F4/CV-010 is closed for the pre-redo gate: `tltm_local_transition_event_t` is the typed local-transition event source, counters are derived from that event, `F4_LOCAL_TRANSITION_AUDIT_V1` freezes the audit context, and M4 validates audit row invariants.
@@ -77,6 +81,7 @@ Updated: 2026-05-13 JST
 - `runbooks/SCRIPT_EVIDENCE_AUDIT_20260512.md`: CV-005 script/evidence audit and quarantine policy.
 - `runbooks/CV011_RNG_WORKSPACE_DECISION_PACKET_20260512.md`: CV-011 RNG/workspace/reentrancy decision packet; user selected route B.
 - `runbooks/CV011_PER_REPLICA_RNG_IMPLEMENTATION_20260512.md`: route-B RNG implementation record and verification.
+- `runbooks/CV011_STAGE2_KERNEL_RNG_V2_DESIGN_20260514.md`: required target design for replacing or auditing `per_replica_rng_v1` after the assist-regression investigation.
 - `runbooks/MODERNIZATION_FINISH_DECISIONS_20260512.md`: final modernization/redo boundary and full OpenMP/thread-safe productization decisions.
 - `runbooks/POST_B_RNG_REFERENCE_ANCHOR_20260512.md`: post-B route-B RNG reference anchor, frozen hashes, and verification.
 - `runbooks/CV011_DECOMPOSE2_WORKSPACE_SLICE_20260512.md`: first non-RNG hidden-workspace migration after route-B RNG streams.
@@ -101,6 +106,8 @@ Updated: 2026-05-13 JST
 - `runbooks/CV011_PROFILE_CONTEXT_SLICE_20260513.md`: profiler context ownership and guardrail record.
 - `runbooks/CV011_HMC_REVERSIBILITY_CONTEXT_SLICE_20260513.md`: HMC reversibility/progress diagnostic context ownership and guardrail record.
 - `runbooks/CV011_NEWTON_FLOW_STATUS_CONTEXT_SLICE_20260513.md`: Newton eval-flow status context ownership and guardrail record.
+- `runbooks/MODERNIZATION_LEGACY_TRIGGER_NAMING_CLEANUP_20260513.md`: active modernization lane for behavior-preserving dead-trigger and strange-name cleanup.
+- `runbooks/POST_MODERNIZATION_CORRECTNESS_SWEEP_PLAN_20260513.md`: deferred post-modernization correctness lane for bug discovery that may intentionally change behavior after evidence and approval.
 - `runbooks/NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md`: current solver-assist handoff; supersedes default-off/later-deletion direction for the next solver-policy slice.
 - `runbooks/F15_NAVIGATION_ASSIST_IMPLEMENTATION_20260513.md`: implemented typed solver-assist policy and M4-gated production-tree sync handoff.
 - `runbooks/FULL_HAIRER_ODEX_REOPEN_PLAN_20260512.md`: historical F1/CV-007 endpoint package and solver-assist default-off implementation notes.
@@ -111,4 +118,6 @@ Updated: 2026-05-13 JST
 
 ## Next Action
 
-F15 is implemented, locally gated, pushed, and synchronized to the production-comparison branch/worktree after remote state refresh confirmed no active pinned production jobs. The profiler, HMC reversibility diagnostics, and Newton eval-flow status context slices are implemented locally. Other CV-011 productization can continue by triaging the next remaining behavior-bearing state boundary: constraint-solver aggregate/reverse-gate path/failure-capture counters, flow/ODEX counters/traces/last-failure snapshots, model tape/cache state, or config mirror. Production redo remains owned by the separate `tltm_production_comparison` tree; do not fast-forward that worktree while the formalized assist bridge jobs are pinned to `6f98b5b`.
+F15 is implemented, locally gated, pushed, and synchronized to the production-comparison branch/worktree after remote state refresh confirmed no active pinned production jobs. The profiler, HMC reversibility diagnostics, Newton eval-flow status context, and Stage2 RNG v2 slices are implemented locally. Next CV-011 work can continue on remaining behavior-bearing state boundaries: constraint-solver aggregate/reverse-gate path/failure-capture counters, flow/ODEX counters/traces/last-failure snapshots, model tape/cache state, or config mirror. Production redo remains owned by the separate `tltm_production_comparison` tree and should sync to the committed RNG v2 modernization patch before regenerating from a clean namespace.
+
+Treat obvious dead triggers and strange internal names as active modernization cleanup when they can be changed without output drift.  Use `MODERNIZATION_LEGACY_TRIGGER_NAMING_CLEANUP_20260513.md` for that lane; reserve deferred F16 for evidence-backed correctness fixes that may intentionally change behavior.

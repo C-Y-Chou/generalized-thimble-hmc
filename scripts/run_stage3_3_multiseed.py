@@ -383,6 +383,15 @@ def read_protocol(repo_root, config_path):
         "observable_exact_re": float(observable_def.get("exact_re", 0.0)),
         "observable_exact_im": float(observable_def.get("exact_im", 0.0)),
         "stage2_init_mode": str(frozen.get("stage2_init_mode", protocol.get("stage2_init_mode", ""))).strip(),
+        "stage2_rng_stream_contract": str(
+            frozen.get(
+                "stage2_rng_stream_contract",
+                protocol.get(
+                    "stage2_rng_stream_contract",
+                    os.environ.get("TLTM_STAGE2_RNG_STREAM_CONTRACT", "stage2_kernel_rng_v2"),
+                ),
+            )
+        ).strip(),
         "write_all_replica_history": bool(
             protocol.get("write_all_replica_history", frozen.get("write_all_replica_history", False))
         ),
@@ -1099,6 +1108,7 @@ def run_one_seed(
             "TLTM_STAGE2_LABEL_TRACE_FILE": str(label_trace_file),
             "TLTM_STAGE2_COLD_Z_HISTORY_FILE": str(cold_z_history_file),
             "TLTM_STAGE2_COLD_PHI_HISTORY_FILE": str(cold_phi_history_file),
+            "TLTM_STAGE2_RNG_STREAM_CONTRACT": setup["stage2_rng_stream_contract"],
             # Keep failure-capture counters off the active window in stage-3.3 production runs.
             "CONSTRAINT_FAIL_CAPTURE_START_SAMPLE": os.environ.get("CONSTRAINT_FAIL_CAPTURE_START_SAMPLE", "2147483647"),
         }
@@ -1143,6 +1153,7 @@ def run_one_seed(
             "local_updates_per_cycle": setup["local_updates_per_cycle"],
             "cycles_per_seed": setup["cycles_per_seed"],
             "warmup_cycles": setup["warmup_cycles"],
+            "stage2_rng_stream_contract": setup["stage2_rng_stream_contract"],
         },
         "stage2_env": selected_manifest_env(env_stage2),
         "paths": {
@@ -1551,6 +1562,7 @@ def write_report(
         "- cycles_per_seed: `{0}`; seeds: `{1}`; init: `{2}`".format(
             setup["cycles_per_seed"], seeds_count, setup.get("stage2_init_mode", "") or "default"
         ),
+        "- Stage2 RNG stream contract: `{0}`".format(setup["stage2_rng_stream_contract"]),
         "- observable target: `Re<virial>=0`, `Im<virial>=0`",
         "",
         "Key results (Re/Im analyzed separately):",
@@ -1657,6 +1669,7 @@ def main():
         print("  cycles={0} warmup={1}".format(setup["cycles_per_seed"], setup["warmup_cycles"]))
         print("  max_flow_time={0:g}".format(setup["max_flow_time"]))
         print("  stage2_init_mode={0}".format(setup.get("stage2_init_mode", "") or "default"))
+        print("  stage2_rng_stream_contract={0}".format(setup["stage2_rng_stream_contract"]))
         print("  all_replica_history={0}".format(setup.get("write_all_replica_history", False)))
         print("  seed_offset={0}".format(args.seed_offset))
         print("  seeds({0}): {1}".format(len(seeds), ",".join(str(x) for x in seeds)))

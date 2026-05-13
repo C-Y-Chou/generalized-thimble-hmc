@@ -6,7 +6,10 @@ module tltm_stage2_driver
    use solve_flow, only: flow, reset_intode_fallback_stats, get_intode_fallback_stats, &
                          intode_status_unknown, intode_status_is_strict_success
    use model, only: grand, calculate_action
-   use mt95, only: getseed, grnd, mt95_get_state, mt95_seed_state, mt95_set_state, mt95_state_t
+   use mt95, only: getseed, grnd, mt95_get_state, mt95_seed_state, mt95_set_state, mt95_state_t, sgrnd
+   use tltm_rng, only: tltm_rng_domain_stage2_init, tltm_rng_domain_stage2_local_accept, &
+                       tltm_rng_domain_stage2_local_momentum, tltm_rng_domain_stage2_swap_accept, &
+                       tltm_seed_kernel_state
    use markovchain_mod, only: adaptive_preflow_to_target
    use markovchain_metropolis, only: metropolis_step
    use markovchain_phase, only: compute_phase_factor
@@ -45,6 +48,9 @@ module tltm_stage2_driver
    integer, parameter :: stage2_cycle_cap_default = 200
    integer, parameter :: stage2_init_attempts_default = 200
    real(dp), parameter :: stage2_init_sigma_default = 0.10_dp
+   character(len=*), parameter :: stage2_rng_legacy_global_v0 = "legacy_global_v0"
+   character(len=*), parameter :: stage2_rng_per_replica_v1 = "per_replica_rng_v1"
+   character(len=*), parameter :: stage2_rng_kernel_v2 = "stage2_kernel_rng_v2"
 
    type :: solver_counter_snapshot_t
       integer(int64) :: newton_count = 0_int64
@@ -117,7 +123,7 @@ contains
       character(len=512) :: cold_z_history_file, cold_phi_history_file
       character(len=512) :: all_history_dir
       character(len=512) :: v1_output_dir, v1_manifest_file, v1_protocol_file
-      character(len=32) :: init_mode
+      character(len=32) :: init_mode, rng_stream_contract
       integer :: n_slots, base_seed, swap_rng_seed, cycle_count, local_updates, x_size
       real(dp) :: max_flow_time, init_sigma
       logical :: swap_enabled, ok
@@ -170,8 +176,9 @@ contains
       call resolve_stage2_all_history_dir(all_history_dir, write_all_history)
       call resolve_stage2_v1_sidecar_paths(v1_output_dir, v1_manifest_file, v1_protocol_file, &
                                            write_v1_manifest, write_v1_protocol, write_v1_package)
+      call resolve_stage2_rng_stream_contract(rng_stream_contract)
       swap_rng_seed = derive_swap_seed(base_seed)
-      call mt95_seed_state(swap_rng_state, swap_rng_seed)
+      if (trim(rng_stream_contract) == stage2_rng_per_replica_v1) call mt95_seed_state(swap_rng_state, swap_rng_seed)
 
       write (*, '(A,I0,A,F8.4,A,I0,A,I0,A,F8.4,A,L1)') "[TLTM-S2] slots=", n_slots, &
          " max_flow=", max_flow_time, " cycles=", cycle_count, " local_updates=", local_updates, &
@@ -179,7 +186,7 @@ contains
       write (*, '(A,A)') "[TLTM-S2] init_mode=", trim(init_mode)
       write (*, '(A,F8.4,A,I0,A,F8.4)') "[TLTM-S2] local params: L=", config%integrator%trajectory_length, &
          " nstep=", config%integrator%integration_steps, " max_flow(test)=", max_flow_time
-      write (*, '(A,I0)') "[TLTM-S2] rng_stream_contract=per_replica_rng_v1 swap_rng_seed=", swap_rng_seed
+      write (*, '(A,A,A,I0)') "[TLTM-S2] rng_stream_contract=", trim(rng_stream_contract), " swap_rng_seed=", swap_rng_seed
 
       hot_slot = n_slots - 1
 
@@ -196,7 +203,7 @@ contains
          slots(i)%flow_time = flow_ladder(i)
          slots(i)%rng_seed = derive_seed(base_seed, i)
          call allocate_tltm_slot(slots(i), x_size)
-         call initialize_slot(slots(i), init_sigma, stage2_init_attempts_default, init_mode, ok, run_contexts(i), &
+         call initialize_slot(slots(i), init_sigma, stage2_init_attempts_default, init_mode, rng_stream_contract, base_seed, ok, run_contexts(i), &
                               newton_flow_status_context)
          if (.not. ok) then
             write (*, '(A,I0,A,F8.4,A)') "[ERROR][TLTM-S2] Slot ", slots(i)%slot_id, &
@@ -209,6 +216,8 @@ contains
             error stop 1
          end if
       end do
+
+      if (trim(rng_stream_contract) == stage2_rng_legacy_global_v0) call sgrnd(base_seed)
 
       call initialize_pair_stats(pair_stats)
       call initialize_label_tracks(label_tracks, n_slots)
@@ -322,12 +331,12 @@ contains
             slot_t0 = wall_time_seconds()
             call run_local_updates(slots(i), local_updates, local_accept_census(i), cycle_idx, run_contexts(i), audit_context, &
                                    qn_diagnostics_context, qn_policy_context, hmc_policy_context, hmc_replay_diagnostics_context, &
-                                   newton_flow_status_context)
+                                   newton_flow_status_context, rng_stream_contract, base_seed)
             slots(i)%local_runtime = slots(i)%local_runtime + (wall_time_seconds() - slot_t0)
          end do
 
          if (swap_enabled .and. n_slots > 1) then
-            call perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state, run_contexts)
+            call perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state, run_contexts, rng_stream_contract, base_seed)
          end if
 
          call refresh_label_positions(slots, label_tracks)
@@ -412,7 +421,7 @@ contains
       call get_constraint_solver_reverse_gate_stats(reverse_gate_candidate_counts, reverse_gate_pass_counts, &
                                                     reverse_gate_reject_counts)
       call write_stage2_summary(summary_file, slots, pair_stats, label_tracks, local_accept_census, cycle_count, local_updates, elapsed, &
-                                swap_enabled, base_seed, swap_rng_seed, &
+                                swap_enabled, base_seed, swap_rng_seed, rng_stream_contract, &
                                 calls_total, calls_integrating, fallback_attempts, fallback_success, fallback_failure, &
                                 fallback_max_steps, fallback_invalid, fallback_h_min, &
                                 solver_total_count, solver_newton_count, solver_quasi_count, solver_failed_count, &
@@ -434,7 +443,7 @@ contains
                                     v1_output_dir, write_v1_package, &
                                     summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
                                     write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
-                                    local_updates, init_sigma, init_mode, swap_enabled, elapsed, slots, pair_stats, label_tracks)
+                                    local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, elapsed, slots, pair_stats, label_tracks)
       call release_qn_diagnostics_context(qn_diagnostics_context)
       call release_qn_policy_context(qn_policy_context)
       call release_all_run_contexts(run_contexts)
@@ -465,11 +474,13 @@ contains
       call close_stage2_audit_context(audit_context)
    end subroutine execute_tltm_stage2
 
-   subroutine initialize_slot(slot, init_sigma, max_attempts, init_mode, ok, run_context, newton_flow_status_context)
+   subroutine initialize_slot(slot, init_sigma, max_attempts, init_mode, rng_stream_contract, base_seed, ok, run_context, newton_flow_status_context)
       type(tltm_slot_t), intent(inout) :: slot
       real(dp), intent(in) :: init_sigma
       integer, intent(in) :: max_attempts
       character(len=*), intent(in) :: init_mode
+      character(len=*), intent(in) :: rng_stream_contract
+      integer, intent(in) :: base_seed
       logical, intent(out) :: ok
       type(tltm_run_context_t), intent(inout) :: run_context
       type(newton_eval_flow_status_context_t), intent(inout), target :: newton_flow_status_context
@@ -478,14 +489,26 @@ contains
       logical :: flow_failed
       logical :: preflow_success
       integer :: attempt, flow_status, stage_count
+      type(mt95_state_t) :: init_rng_state
 
       ok = .false.
       allocate (x_seed(max(1, size(slot%x) - 1)))
-      call mt95_seed_state(slot%rng_state, slot%rng_seed)
-      call mt95_set_state(slot%rng_state)
+      select case (trim(rng_stream_contract))
+      case (stage2_rng_per_replica_v1)
+         call mt95_seed_state(slot%rng_state, slot%rng_seed)
+         call mt95_set_state(slot%rng_state)
+      case (stage2_rng_legacy_global_v0)
+         call sgrnd(slot%rng_seed)
+      end select
 
       do attempt = 1, max_attempts
-         call grand(x_seed)
+         if (trim(rng_stream_contract) == stage2_rng_kernel_v2) then
+            call tltm_seed_kernel_state(init_rng_state, tltm_rng_domain_stage2_init, base_seed, 0, slot%slot_id, attempt)
+            call mt95_set_state(init_rng_state)
+            call grand(x_seed)
+         else
+            call grand(x_seed)
+         end if
          x_seed = init_sigma*x_seed
          if (trim(init_mode) == "direct" .or. trim(init_mode) == "legacy") then
             call x_set_flow_time(slot%x, slot%flow_time)
@@ -515,15 +538,18 @@ contains
          end if
       end do
 
-      if (ok) then
+      if (ok .and. trim(rng_stream_contract) == stage2_rng_per_replica_v1) then
          call mt95_get_state(slot%rng_state)
+         call measure_slot(slot)
+      else if (ok) then
          call measure_slot(slot)
       end if
       if (allocated(x_seed)) deallocate (x_seed)
    end subroutine initialize_slot
 
    subroutine run_local_updates(slot, local_updates, accept_census, cycle_idx, run_context, audit_context, qn_diagnostics_context, &
-                                qn_policy_context, hmc_policy_context, hmc_replay_diagnostics_context, newton_flow_status_context)
+                                qn_policy_context, hmc_policy_context, hmc_replay_diagnostics_context, newton_flow_status_context, &
+                                rng_stream_contract, base_seed)
       type(tltm_slot_t), intent(inout) :: slot
       integer, intent(in) :: local_updates
       type(local_accept_census_t), intent(inout) :: accept_census
@@ -535,6 +561,8 @@ contains
       type(hmc_policy_context_t), intent(inout), target :: hmc_policy_context
       type(hmc_replay_diagnostics_context_t), intent(inout), target :: hmc_replay_diagnostics_context
       type(newton_eval_flow_status_context_t), intent(inout), target :: newton_flow_status_context
+      character(len=*), intent(in) :: rng_stream_contract
+      integer, intent(in) :: base_seed
 
       integer :: update_idx, z_size
       real(dp), allocatable :: x_new(:), x_before(:), initial_momentum(:), final_momentum(:)
@@ -542,6 +570,7 @@ contains
       logical :: accepted, proposal_failed
       integer :: transition_status
       type(solver_counter_snapshot_t) :: solver_before, solver_after
+      type(mt95_state_t) :: momentum_rng_state, accept_rng_state
       real(dp) :: h_initial, h_final, delta_h, accept_probability
 
       z_size = size(slot%z)
@@ -549,21 +578,38 @@ contains
       allocate (initial_momentum(2*z_size), final_momentum(2*z_size))
       allocate (z_new(z_size), z_before(z_size), j_new(z_size, z_size), j_before(z_size, z_size))
 
-      call mt95_set_state(slot%rng_state)
+      if (trim(rng_stream_contract) == stage2_rng_per_replica_v1) call mt95_set_state(slot%rng_state)
       do update_idx = 1, local_updates
          x_before = slot%x
          z_before = slot%z
          j_before = slot%jac
          call snapshot_solver_counters(solver_before)
-         call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
-                              config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
-                              h_initial_out=h_initial, h_final_out=h_final, delta_h_out=delta_h, &
-                              accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
-                              final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
-                              qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
-                              hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
-                              hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
-                              newton_flow_status=newton_flow_status_context)
+         if (trim(rng_stream_contract) == stage2_rng_kernel_v2) then
+            call tltm_seed_kernel_state(momentum_rng_state, tltm_rng_domain_stage2_local_momentum, &
+                                        base_seed, cycle_idx, slot%slot_id, update_idx)
+            call tltm_seed_kernel_state(accept_rng_state, tltm_rng_domain_stage2_local_accept, &
+                                        base_seed, cycle_idx, slot%slot_id, update_idx)
+            call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
+                                 config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
+                                 h_initial_out=h_initial, h_final_out=h_final, delta_h_out=delta_h, &
+                                 accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
+                                 final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
+                                 qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
+                                 hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
+                                 hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
+                                 newton_flow_status=newton_flow_status_context, momentum_rng_state=momentum_rng_state, &
+                                 accept_rng_state=accept_rng_state)
+         else
+            call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
+                                 config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
+                                 h_initial_out=h_initial, h_final_out=h_final, delta_h_out=delta_h, &
+                                 accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
+                                 final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
+                                 qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
+                                 hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
+                                 hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
+                                 newton_flow_status=newton_flow_status_context)
+         end if
          call snapshot_solver_counters(solver_after)
          if (accepted) then
             slot%x = x_new
@@ -579,7 +625,7 @@ contains
                                             h_initial, h_final, delta_h, accept_probability, x_before, x_new, slot%x, &
                                             j_before, j_new, initial_momentum, final_momentum, solver_before, solver_after)
       end do
-      call mt95_get_state(slot%rng_state)
+      if (trim(rng_stream_contract) == stage2_rng_per_replica_v1) call mt95_get_state(slot%rng_state)
 
       if (allocated(x_new)) deallocate (x_new)
       if (allocated(x_before)) deallocate (x_before)
@@ -897,12 +943,14 @@ contains
       end if
    end subroutine measure_slot
 
-   subroutine perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state, run_contexts)
+   subroutine perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state, run_contexts, rng_stream_contract, base_seed)
       type(tltm_slot_t), intent(inout) :: slots(:)
       type(tltm_pair_stats_t), intent(inout) :: pair_stats(:)
       integer, intent(in) :: cycle_idx
       type(mt95_state_t), intent(inout) :: swap_rng_state
       type(tltm_run_context_t), intent(inout) :: run_contexts(:)
+      character(len=*), intent(in) :: rng_stream_contract
+      integer, intent(in) :: base_seed
       integer :: start_idx, idx
 
       if (size(slots) <= 1) return
@@ -914,21 +962,30 @@ contains
       end if
 
       do idx = start_idx, size(slots) - 1, 2
-         call attempt_adjacent_swap(slots(idx), slots(idx + 1), pair_stats(idx), swap_rng_state, run_contexts(idx), run_contexts(idx + 1))
+         call attempt_adjacent_swap(slots(idx), slots(idx + 1), pair_stats(idx), swap_rng_state, run_contexts(idx), &
+                                    run_contexts(idx + 1), rng_stream_contract, base_seed, cycle_idx)
       end do
    end subroutine perform_swap_sweep
 
-   subroutine attempt_adjacent_swap(slot_a, slot_b, stats, swap_rng_state, run_context_a, run_context_b)
+   subroutine attempt_adjacent_swap(slot_a, slot_b, stats, swap_rng_state, run_context_a, run_context_b, &
+                                    rng_stream_contract, base_seed, cycle_idx)
       type(tltm_slot_t), intent(inout) :: slot_a, slot_b
       type(tltm_pair_stats_t), intent(inout) :: stats
       type(mt95_state_t), intent(inout) :: swap_rng_state
       type(tltm_run_context_t), intent(inout) :: run_context_a, run_context_b
+      character(len=*), intent(in), optional :: rng_stream_contract
+      integer, intent(in), optional :: base_seed, cycle_idx
 
       real(dp) :: e_a, e_b, e_ap, e_bp, delta, acc_prob
       logical :: ok_a, ok_b, ok_ap, ok_bp, accept
       integer :: flow_status_ap, flow_status_bp, label_tmp
+      character(len=32) :: rng_contract_local
+      type(mt95_state_t) :: swap_accept_rng_state
       real(dp), allocatable :: x_ap(:), x_bp(:)
       complex(dp), allocatable :: z_ap(:), z_bp(:), j_ap(:, :), j_bp(:, :)
+
+      rng_contract_local = stage2_rng_per_replica_v1
+      if (present(rng_stream_contract)) rng_contract_local = trim(rng_stream_contract)
 
       stats%proposal_count = stats%proposal_count + 1
 
@@ -974,9 +1031,23 @@ contains
       end if
       stats%last_accept_probability = acc_prob
 
-      call mt95_set_state(swap_rng_state)
-      accept = (grnd() <= acc_prob)
-      call mt95_get_state(swap_rng_state)
+      select case (trim(rng_contract_local))
+      case (stage2_rng_kernel_v2)
+         if (.not. present(base_seed) .or. .not. present(cycle_idx)) then
+            write (*, '(A)') "[ERROR][TLTM-S2] stage2_kernel_rng_v2 swap requires base_seed and cycle_idx."
+            error stop 1
+         end if
+         call tltm_seed_kernel_state(swap_accept_rng_state, tltm_rng_domain_stage2_swap_accept, &
+                                     base_seed, cycle_idx, stats%pair_id, 0)
+         call mt95_set_state(swap_accept_rng_state)
+         accept = (grnd() <= acc_prob)
+      case (stage2_rng_legacy_global_v0)
+         accept = (grnd() <= acc_prob)
+      case default
+         call mt95_set_state(swap_rng_state)
+         accept = (grnd() <= acc_prob)
+         call mt95_get_state(swap_rng_state)
+      end select
       if (accept) then
          label_tmp = slot_a%label_id
          slot_a%x = x_ap
@@ -1163,7 +1234,7 @@ contains
    end function reverse_gate_count_at
 
    subroutine write_stage2_summary(summary_file, slots, pair_stats, label_tracks, local_accept_census, cycle_count, local_updates, elapsed, &
-                                   swap_enabled, base_seed, swap_rng_seed, &
+                                   swap_enabled, base_seed, swap_rng_seed, rng_stream_contract, &
                                    calls_total, calls_integrating, fallback_attempts, fallback_success, fallback_failure, &
                                    fallback_max_steps, fallback_invalid, fallback_h_min, &
                                    solver_total_count, solver_newton_count, solver_quasi_count, solver_failed_count, &
@@ -1187,6 +1258,7 @@ contains
       type(tltm_label_track_t), intent(in) :: label_tracks(:)
       type(local_accept_census_t), intent(in) :: local_accept_census(:)
       integer, intent(in) :: cycle_count, local_updates, base_seed, swap_rng_seed
+      character(len=*), intent(in) :: rng_stream_contract
       real(dp), intent(in) :: elapsed
       logical, intent(in) :: swap_enabled
       integer, intent(in) :: calls_total, calls_integrating
@@ -1244,9 +1316,8 @@ contains
       write (unit_summary, '(A,I0)') "# cycles=", cycle_count
       write (unit_summary, '(A,I0)') "# local_updates=", local_updates
       write (unit_summary, '(A,L1)') "# swap_enabled=", swap_enabled
-      write (unit_summary, '(A)') "# rng_stream_contract=per_replica_rng_v1"
-      write (unit_summary, '(A)') &
-         "# seed_policy=CHAIN_RNG_SEED base seed plus deterministic per-slot local-update streams and one swap stream"
+      write (unit_summary, '(A,A)') "# rng_stream_contract=", trim(rng_stream_contract)
+      write (unit_summary, '(A,A)') "# seed_policy=", trim(stage2_seed_policy_text(rng_stream_contract))
       write (unit_summary, '(A,I0)') "# base_seed=", base_seed
       write (unit_summary, '(A,I0)') "# swap_rng_seed=", swap_rng_seed
       write (unit_summary, '(A,F12.6)') "# elapsed_sec=", elapsed
@@ -1555,6 +1626,27 @@ contains
       call read_string_env("TLTM_STAGE2_LABEL_TRACE_FILE", label_trace_file)
    end subroutine resolve_stage2_output_paths
 
+   subroutine resolve_stage2_rng_stream_contract(rng_stream_contract)
+      character(len=*), intent(out) :: rng_stream_contract
+      character(len=128) :: env_value
+      logical :: has_contract
+
+      rng_stream_contract = stage2_rng_kernel_v2
+      env_value = ""
+      call read_string_env("TLTM_STAGE2_RNG_STREAM_CONTRACT", env_value, has_contract)
+      if (has_contract) rng_stream_contract = trim(to_lower_ascii(adjustl(env_value)))
+
+      select case (trim(rng_stream_contract))
+      case (stage2_rng_legacy_global_v0, stage2_rng_per_replica_v1, stage2_rng_kernel_v2)
+         return
+      case default
+         write (*, '(A,A,A)') "[ERROR][TLTM-S2] Unsupported TLTM_STAGE2_RNG_STREAM_CONTRACT='", &
+            trim(rng_stream_contract), "'."
+         write (*, '(A)') "[ERROR][TLTM-S2] Use legacy_global_v0, per_replica_rng_v1, or stage2_kernel_rng_v2."
+         error stop 1
+      end select
+   end subroutine resolve_stage2_rng_stream_contract
+
    subroutine resolve_stage2_cold_history_paths(cold_z_history_file, cold_phi_history_file, write_cold_history)
       character(len=*), intent(out) :: cold_z_history_file, cold_phi_history_file
       logical, intent(out) :: write_cold_history
@@ -1622,7 +1714,7 @@ contains
    subroutine write_stage2_v1_sidecars(manifest_file, protocol_file, write_manifest, write_protocol, output_dir, write_package, &
                                        summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
                                        write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
-                                       local_updates, init_sigma, init_mode, swap_enabled, elapsed, slots, pair_stats, label_tracks)
+                                       local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, elapsed, slots, pair_stats, label_tracks)
       character(len=*), intent(in) :: manifest_file, protocol_file
       logical, intent(in) :: write_manifest, write_protocol
       character(len=*), intent(in) :: output_dir
@@ -1632,7 +1724,7 @@ contains
       logical, intent(in) :: write_cold_history, write_all_history
       integer, intent(in) :: base_seed, swap_rng_seed, cycle_count, local_updates
       real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma, elapsed
-      character(len=*), intent(in) :: init_mode
+      character(len=*), intent(in) :: init_mode, rng_stream_contract
       logical, intent(in) :: swap_enabled
       type(tltm_slot_t), intent(in) :: slots(:)
       type(tltm_pair_stats_t), intent(in) :: pair_stats(:)
@@ -1643,14 +1735,14 @@ contains
       if (write_manifest) call write_stage2_v1_manifest(manifest_file, protocol_file, write_protocol, &
                                                         summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, &
                                                         all_history_dir, write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, &
-                                                        max_flow_time, cycle_count, local_updates, init_sigma, init_mode, swap_enabled, &
+                                                        max_flow_time, cycle_count, local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, &
                                                         elapsed, output_dir, write_package)
    end subroutine write_stage2_v1_sidecars
 
    subroutine write_stage2_v1_manifest(manifest_file, protocol_file, write_protocol, &
                                        summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
                                        write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
-                                       local_updates, init_sigma, init_mode, swap_enabled, elapsed, output_dir, write_package)
+                                       local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, elapsed, output_dir, write_package)
       character(len=*), intent(in) :: manifest_file, protocol_file
       logical, intent(in) :: write_protocol
       character(len=*), intent(in) :: summary_file, label_trace_file
@@ -1658,7 +1750,7 @@ contains
       logical, intent(in) :: write_cold_history, write_all_history
       integer, intent(in) :: base_seed, swap_rng_seed, cycle_count, local_updates
       real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma, elapsed
-      character(len=*), intent(in) :: init_mode
+      character(len=*), intent(in) :: init_mode, rng_stream_contract
       logical, intent(in) :: swap_enabled
       character(len=*), intent(in) :: output_dir
       logical, intent(in) :: write_package
@@ -1696,9 +1788,8 @@ contains
       call write_json_string_field(unit_manifest, "history_boundary", "post_swap", .true.)
       call write_json_string_field(unit_manifest, "label_trace_boundary", "post_swap", .true.)
       call write_json_real_array_field(unit_manifest, "flow_ladder", flow_ladder, .true.)
-      call write_json_string_field(unit_manifest, "rng_stream_contract", "per_replica_rng_v1", .true.)
-      call write_json_string_field(unit_manifest, "seed_policy", &
-                                   "CHAIN_RNG_SEED base seed plus deterministic per-slot local-update streams and one swap stream", .true.)
+      call write_json_string_field(unit_manifest, "rng_stream_contract", trim(rng_stream_contract), .true.)
+      call write_json_string_field(unit_manifest, "seed_policy", trim(stage2_seed_policy_text(rng_stream_contract)), .true.)
 
       write (unit_manifest, '(A)') '  "resolved_stage2_controls": {'
       call write_json_int_field(unit_manifest, "base_seed", base_seed, .true., 4)
@@ -1735,6 +1826,7 @@ contains
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_SWAP_ENABLED", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_INIT_SIGMA", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_INIT_MODE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_RNG_STREAM_CONTRACT", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_SUMMARY_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_LABEL_TRACE_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_COLD_Z_HISTORY_FILE", .true., 4)
@@ -1989,7 +2081,7 @@ contains
 
       write (unit_protocol, '(A)') '  "local_kernel": {'
       call write_json_string_field(unit_protocol, "kernel", "HMC/RATTLE on each fixed flowed surface", .true., 4)
-      call write_json_string_field(unit_protocol, "rng_stream", "owned by slot; stream continues from slot initialization into local updates", .true., 4)
+      call write_json_string_field(unit_protocol, "rng_stream", "contract-selected; see manifest rng_stream_contract and seed_policy", .true., 4)
       call write_json_string_field(unit_protocol, "proposal_failure_semantics", "legal rejection; live slot state unchanged", .true., 4)
       call write_json_string_field(unit_protocol, "reverse_gate", "required for canonical p28 proposal validity", .true., 4)
       call write_json_string_field(unit_protocol, "final_flow_policy", "strict final flow constructs accepted proposal states", .false., 4)
@@ -1999,7 +2091,7 @@ contains
       call write_json_string_field(unit_protocol, "proposal", "exchange base configurations between adjacent fixed flow-time slots", .true., 4)
       call write_json_string_field(unit_protocol, "acceptance_probability", "min(1, exp(-[(E_a(y)+E_b(x))-(E_a(x)+E_b(y))]))", .true., 4)
       call write_json_string_field(unit_protocol, "invalid_reflow_semantics", "reject swap; live slot states and labels unchanged", .true., 4)
-      call write_json_string_field(unit_protocol, "rng_stream", "separate deterministic swap stream", .true., 4)
+      call write_json_string_field(unit_protocol, "rng_stream", "contract-selected; stage2_kernel_rng_v2 uses domain-separated swap_accept keys", .true., 4)
       call write_json_string_field(unit_protocol, "rng_draw_boundary", "draw from swap stream only after finite current and proposed swap energies are available", .false., 4)
       write (unit_protocol, '(A)') '  },'
 
@@ -2360,6 +2452,20 @@ contains
 
       seed_value = derive_seed(base_seed, 1000003)
    end function derive_swap_seed
+
+   pure function stage2_seed_policy_text(rng_stream_contract) result(policy_text)
+      character(len=*), intent(in) :: rng_stream_contract
+      character(len=192) :: policy_text
+
+      select case (trim(rng_stream_contract))
+      case (stage2_rng_kernel_v2)
+         policy_text = "CHAIN_RNG_SEED base seed plus domain-separated stage2 kernel invocation keys"
+      case (stage2_rng_legacy_global_v0)
+         policy_text = "CHAIN_RNG_SEED base seed restored after initialization; local updates and swaps use shared serial MT95 stream"
+      case default
+         policy_text = "CHAIN_RNG_SEED base seed plus deterministic per-slot local-update streams and one swap stream"
+      end select
+   end function stage2_seed_policy_text
 
    subroutine build_linear_ladder(n_slots, max_flow_time, flow_ladder)
       integer, intent(in) :: n_slots
