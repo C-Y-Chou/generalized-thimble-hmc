@@ -1,10 +1,10 @@
 # Fortran Modernization State Brief
 
-Updated: 2026-05-12 JST
+Updated: 2026-05-13 JST
 
 ## Current Position
 
-- Current position is `Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected and first HMC context slice implemented -> full OpenMP/thread-safe productization remains`.
+- Current position is `Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected -> flow/ODEX RHS scratch context slice implemented -> full OpenMP/thread-safe productization remains`.
 - M6 is not "modernization complete" and is not proof that the numerical/software foundation is complete; it is the accepted behavior baseline before larger source refactors resume.
 - The compact source of truth for this positioning is `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`; the reset source of truth for foundation gaps is `runbooks/FOUNDATION_COMPLETENESS_RESET_20260511.md`.
 - M3/M4/M5 modernization infrastructure work is treated as completed, partial, or explicitly deferred by workstream in that matrix.
@@ -28,7 +28,8 @@ Updated: 2026-05-12 JST
 - Third non-RNG CV-011 workspace slice is implemented: `hmc_constraints:solve_constraint_newton` now uses explicit `newton_constraint_workspace_t`, held by the active RATTLE workspace.
 - CV-011 top-level context route A is selected. First slice is implemented: `tltm_run_context_t` owns HMC proposal/reverse-probe/warmup workspaces, and Stage1/Stage2 carry one context per replica/slot through local updates.
 - Stage2 audit file handles/row counters have been migrated out of module `save` state into a Stage2-owned audit context.
-- CV-011 has reached the flow/ODEX context decision point. `solve_flow` RHS scratch state is hidden behind the `odex_backend` callback interface `ode_rhs(y)`, so real flow thread-safety requires choosing a callback-context strategy before editing ODEX/flow APIs.
+- CV-011 flow/ODEX context route A is selected and implemented for the first flow slice. `odex_backend` now has a context-aware callback path, `solve_flow` owns endpoint buffers/RHS scratch/ODEX workspace through `flow_workspace_t`, and Stage1 initialization plus Stage2 initialization/swap reflow paths use per-replica/per-slot run-context flow workspaces.
+- Remaining flow context work: local-update HMC/QN internals still reach flow through compatibility wrappers in some paths, and fallback counters/traces remain module state pending a later diagnostics/accounting context decision.
 - Remaining CV-011 state is not just scratch storage: flow/ODEX context, QN traces/capture/backend callback state, solver/reverse-gate diagnostics counters, model tape cache, config mirror, and profiling still need migration or explicit product boundaries.
 - Modernization is not at automatic production-regeneration approval, but the user-selected conservative F3/F4/F7/F8 pre-redo gates are now implemented without reduced-scope acceptance.
 - F3/CV-009 is closed for the pre-redo gate: retained-core tests cover Newton replay, successful one-step RATTLE/RG pass replay, BTN residual reconstruction, official package-success route census, stub no-fallback route behavior, RG reject/live-state identity, and failure-as-rejection accounting; `f14_complete_pre_redo_gate.py` records the branch/measure harness.
@@ -68,7 +69,8 @@ Updated: 2026-05-12 JST
 - `runbooks/CV011_REMAINING_STATE_DECISION_POINT_20260512.md`: remaining hidden-state categories and the top-level-context decision point.
 - `runbooks/CV011_TOP_LEVEL_RUN_CONTEXT_SLICE_20260512.md`: user-selected top-level run context route and first HMC context threading slice.
 - `runbooks/CV011_STAGE2_AUDIT_CONTEXT_SLICE_20260512.md`: Stage2 diagnostic audit file/counter state moved from module globals into run-owned context.
-- `runbooks/CV011_FLOW_CONTEXT_DECISION_POINT_20260512.md`: next decision point for removing hidden ODEX RHS callback state.
+- `runbooks/CV011_FLOW_CONTEXT_DECISION_POINT_20260512.md`: selected route-A decision point for removing hidden ODEX RHS callback state.
+- `runbooks/CV011_FLOW_CONTEXT_SLICE_20260513.md`: selected route-A implementation record for context-aware ODEX callbacks and `flow_workspace_t`.
 - `runbooks/FULL_HAIRER_ODEX_REOPEN_PLAN_20260512.md`: historical F1/CV-007 endpoint package and solver-assist default-off implementation notes.
 - `runbooks/OFFICIAL_DFOLS_PRODUCTION_REDO_READBACK_20260512.md`: official DFO-LS 256seed/200k production-comparison redo readback.
 - `state/RETAINED_CORE_EVIDENCE.tsv`: retained-core evidence registry.
@@ -77,4 +79,4 @@ Updated: 2026-05-12 JST
 
 ## Next Action
 
-Ask for the CV-011 flow/ODEX callback-context decision. Recommendation is option A: redesign the local ODEX callback context path, then migrate flow/Jacobian RHS scratch into the top-level run context. Production redo remains owned by the separate `tltm_production_comparison` tree and must not be synchronized or modified without explicit user instruction.
+Continue CV-011 OpenMP/thread-safe productization inside the modernization tree by threading `flow_workspace_t` through remaining local-update HMC/QN internals and then scoping the next hidden-state category. Production redo remains owned by the separate `tltm_production_comparison` tree and must not be synchronized or modified without explicit user instruction.

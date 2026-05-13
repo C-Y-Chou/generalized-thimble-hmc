@@ -3,6 +3,7 @@ program test_tltm_swap_kernel_contract
    use mt95, only: mt95_seed_state, mt95_state_t
    use solve_flow, only: flow, intode_status_is_strict_success, intode_status_unknown
    use tltm_stage2_driver, only: attempt_adjacent_swap, compute_effective_energy
+   use tltm_run_context_mod, only: release_tltm_run_context, tltm_run_context_t
    use tltm_types_mod, only: allocate_tltm_slot, release_tltm_slot, tltm_pair_stats_t, tltm_slot_t
    use utils, only: dp, x_set_flow_time, x_set_seed_real
    implicit none
@@ -15,6 +16,7 @@ program test_tltm_swap_kernel_contract
    type(tltm_slot_t) :: slot_a, slot_b
    type(tltm_pair_stats_t) :: stats
    type(mt95_state_t) :: swap_rng_state
+   type(tltm_run_context_t) :: run_context_a, run_context_b
    integer :: n_seed, x_size
    real(dp), allocatable :: seed_a(:), seed_b(:)
    real(dp), allocatable :: x_a0(:), x_b0(:), x_ap(:), x_bp(:)
@@ -73,7 +75,7 @@ program test_tltm_swap_kernel_contract
 
    call reset_pair_stats(stats)
    call mt95_seed_state(swap_rng_state, rng_seed)
-   call attempt_adjacent_swap(slot_a, slot_b, stats, swap_rng_state)
+   call attempt_adjacent_swap(slot_a, slot_b, stats, swap_rng_state, run_context_a, run_context_b)
 
    call assert_equal_int(stats%proposal_count, 1, "valid swap increments proposal count")
    call assert_equal_int(stats%accept_count + stats%reject_count, 1, "valid swap records one terminal outcome")
@@ -103,7 +105,7 @@ program test_tltm_swap_kernel_contract
    slot_a%jac = cmplx(0.0_dp, 0.0_dp, dp)
 
    call reset_pair_stats(stats)
-   call attempt_adjacent_swap(slot_a, slot_b, stats, swap_rng_state)
+   call attempt_adjacent_swap(slot_a, slot_b, stats, swap_rng_state, run_context_a, run_context_b)
    call assert_equal_int(stats%proposal_count, 1, "invalid current energy still records swap proposal")
    call assert_equal_int(stats%accept_count, 0, "invalid current energy cannot accept")
    call assert_equal_int(stats%reject_count, 1, "invalid current energy rejects")
@@ -115,6 +117,8 @@ program test_tltm_swap_kernel_contract
 
    call release_tltm_slot(slot_a)
    call release_tltm_slot(slot_b)
+   call release_tltm_run_context(run_context_a)
+   call release_tltm_run_context(run_context_b)
    deallocate (seed_a, seed_b)
    deallocate (x_a0, x_b0, x_ap, x_bp)
    deallocate (z_a0, z_b0, z_ap, z_bp)

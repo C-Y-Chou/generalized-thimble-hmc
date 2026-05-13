@@ -1,6 +1,28 @@
 # CV-011 Flow Context Decision Point
 
-Updated: 2026-05-12 JST
+Updated: 2026-05-13 JST
+
+## Resolution
+
+User selected option A on 2026-05-13 JST.
+
+Implemented in `CV011_FLOW_CONTEXT_SLICE_20260513.md`:
+
+- `odex_backend` keeps the legacy `ode_rhs(y)` path and adds a context-aware
+  `ode_rhs_context(y, context)` / `odex_integrate_endpoint_context(...)` path.
+- `solve_flow` endpoint buffers, flow/Jacobian RHS scratch, and ODEX endpoint
+  workspace now live in `flow_workspace_t`.
+- `flow`, `flowz`, and `flowzr` accept an optional `flow_workspace_t`; legacy
+  callers use automatic local workspaces, while run-context paths can pass an
+  explicit per-replica/per-slot workspace.
+- Stage1 initialization and Stage2 initialization/swap reflow paths use the
+  top-level run-context flow workspace.
+- `test_odex_flow_jacobian_contract` compares the compatibility path against
+  the explicit context path and passed with zero endpoint/Jacobian difference.
+
+Remaining work is no longer this decision point: continue CV-011 by threading
+the explicit flow workspace through remaining local-update HMC/QN internals and
+then scoping counters/traces/model/config/profile state.
 
 ## Why This Is A Decision Point
 
@@ -69,8 +91,10 @@ Consequence:
 Choose A. It is the only option that actually removes the hidden RHS state
 rather than moving easier buffers around it.
 
-## Current Stop Condition
+## Former Stop Condition
 
 Stop for user decision before changing the ODEX callback interface. This is a
 public internal architecture change even if the intended physics/output
 behavior remains unchanged.
+
+This stop condition is cleared by the 2026-05-13 route-A decision.

@@ -836,3 +836,18 @@
 - Recorded options in `CV011_FLOW_CONTEXT_DECISION_POINT_20260512.md`.
 - Recommendation: choose option A, redesign the local ODEX callback context path, then migrate flow/Jacobian RHS scratch into the top-level run context.
 - Stop condition: user decision required before changing the ODEX callback interface.
+
+## 2026-05-13 JST - CV-011 flow/ODEX context slice
+
+- User selected option A for the flow/ODEX callback-context decision.
+- Added a context-aware ODEX callback path while preserving the legacy endpoint API.
+- Added `flow_workspace_t` and moved flow endpoint buffers, vector/Jacobian RHS scratch, `flow_vec_rhs_scale`, and ODEX endpoint workspace out of module-level SAVE state.
+- Added optional flow workspaces to `flow`, `flowz`, and `flowzr`; legacy callers use automatic local workspaces, while Stage1 initialization and Stage2 initialization/swap reflow now use per-replica/per-slot run-context flow workspaces.
+- Updated the Stage2 swap kernel contract to pass run contexts into `attempt_adjacent_swap`.
+- Behavior boundary: state ownership only; no intended physics, ODEX policy, QN route, reverse-gate, Metropolis, RNG-stream, or schema change.
+- Verification passed:
+  - `make -C build FC=gfortran LDFLAGS= test_odex_flow_jacobian_contract test_odex_solver test_odex_foundation_contract`
+  - `make -C build FC=gfortran LDFLAGS= test_retained_core_newton_contract test_retained_core_rattle_rg_contract post_b_rng_reference_anchor ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`
+  - `make -C build FC=gfortran LDFLAGS= test_tltm_swap_kernel_contract`
+  - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+- Full M4 passed; production-comparison tree was not synchronized, staged, or modified.

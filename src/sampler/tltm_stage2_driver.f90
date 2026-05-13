@@ -175,7 +175,7 @@ contains
 
       hot_slot = n_slots - 1
 
-      allocate (slots(n_slots), label_tracks(n_slots), local_accept_census(n_slots))
+      allocate (slots(n_slots), label_tracks(n_slots), local_accept_census(n_slots), run_contexts(n_slots))
       if (n_slots > 1) then
          allocate (pair_stats(n_slots - 1))
       else
@@ -188,10 +188,11 @@ contains
          slots(i)%flow_time = flow_ladder(i)
          slots(i)%rng_seed = derive_seed(base_seed, i)
          call allocate_tltm_slot(slots(i), x_size)
-         call initialize_slot(slots(i), init_sigma, stage2_init_attempts_default, init_mode, ok)
+         call initialize_slot(slots(i), init_sigma, stage2_init_attempts_default, init_mode, ok, run_contexts(i))
          if (.not. ok) then
             write (*, '(A,I0,A,F8.4,A)') "[ERROR][TLTM-S2] Slot ", slots(i)%slot_id, &
                " initialization failed at flow_time=", slots(i)%flow_time, "."
+            call release_all_run_contexts(run_contexts)
             call release_all_slots(slots)
             if (allocated(flow_ladder)) deallocate (flow_ladder)
             if (allocated(pair_stats)) deallocate (pair_stats)
@@ -306,7 +307,6 @@ contains
       call update_round_trip_bookkeeping(label_tracks, 0, hot_slot)
       call write_label_trace(unit_trace, 0, label_tracks)
 
-      allocate (run_contexts(n_slots))
       run_t0 = wall_time_seconds()
       do cycle_idx = 1, cycle_count
          do i = 1, n_slots
@@ -316,7 +316,7 @@ contains
          end do
 
          if (swap_enabled .and. n_slots > 1) then
-            call perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state)
+            call perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state, run_contexts)
          end if
 
          call refresh_label_positions(slots, label_tracks)
@@ -447,12 +447,13 @@ contains
       call close_stage2_audit_context(audit_context)
    end subroutine execute_tltm_stage2
 
-   subroutine initialize_slot(slot, init_sigma, max_attempts, init_mode, ok)
+   subroutine initialize_slot(slot, init_sigma, max_attempts, init_mode, ok, run_context)
       type(tltm_slot_t), intent(inout) :: slot
       real(dp), intent(in) :: init_sigma
       integer, intent(in) :: max_attempts
       character(len=*), intent(in) :: init_mode
       logical, intent(out) :: ok
+      type(tltm_run_context_t), intent(inout) :: run_context
 
       real(dp), allocatable :: x_seed(:)
       logical :: flow_failed
@@ -483,7 +484,7 @@ contains
          end if
 
          flow_status = intode_status_unknown
-         call flow(slot%x, slot%z, slot%jac, flow_failed, flow_status)
+         call flow(slot%x, slot%z, slot%jac, flow_failed, flow_status, run_context%flow%workspace)
          if ((.not. flow_failed) .and. intode_status_is_strict_success(flow_status)) then
             ok = .true.
             if (trim(init_mode) == "direct" .or. trim(init_mode) == "legacy") then
@@ -866,11 +867,12 @@ contains
       end if
    end subroutine measure_slot
 
-   subroutine perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state)
+   subroutine perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state, run_contexts)
       type(tltm_slot_t), intent(inout) :: slots(:)
       type(tltm_pair_stats_t), intent(inout) :: pair_stats(:)
       integer, intent(in) :: cycle_idx
       type(mt95_state_t), intent(inout) :: swap_rng_state
+      type(tltm_run_context_t), intent(inout) :: run_contexts(:)
       integer :: start_idx, idx
 
       if (size(slots) <= 1) return
@@ -882,14 +884,15 @@ contains
       end if
 
       do idx = start_idx, size(slots) - 1, 2
-         call attempt_adjacent_swap(slots(idx), slots(idx + 1), pair_stats(idx), swap_rng_state)
+         call attempt_adjacent_swap(slots(idx), slots(idx + 1), pair_stats(idx), swap_rng_state, run_contexts(idx), run_contexts(idx + 1))
       end do
    end subroutine perform_swap_sweep
 
-   subroutine attempt_adjacent_swap(slot_a, slot_b, stats, swap_rng_state)
+   subroutine attempt_adjacent_swap(slot_a, slot_b, stats, swap_rng_state, run_context_a, run_context_b)
       type(tltm_slot_t), intent(inout) :: slot_a, slot_b
       type(tltm_pair_stats_t), intent(inout) :: stats
       type(mt95_state_t), intent(inout) :: swap_rng_state
+      type(tltm_run_context_t), intent(inout) :: run_context_a, run_context_b
 
       real(dp) :: e_a, e_b, e_ap, e_bp, delta, acc_prob
       logical :: ok_a, ok_b, ok_ap, ok_bp, accept
@@ -915,14 +918,14 @@ contains
       x_ap = slot_b%x
       call x_set_flow_time(x_ap, slot_a%flow_time)
       flow_status_ap = intode_status_unknown
-      call flow(x_ap, z_ap, j_ap, ok_ap, flow_status_ap)
+      call flow(x_ap, z_ap, j_ap, ok_ap, flow_status_ap, run_context_a%flow%workspace)
       ok_ap = (.not. ok_ap) .and. intode_status_is_strict_success(flow_status_ap)
       if (ok_ap) call compute_effective_energy(z_ap, j_ap, e_ap, ok_ap)
 
       x_bp = slot_a%x
       call x_set_flow_time(x_bp, slot_b%flow_time)
       flow_status_bp = intode_status_unknown
-      call flow(x_bp, z_bp, j_bp, ok_bp, flow_status_bp)
+      call flow(x_bp, z_bp, j_bp, ok_bp, flow_status_bp, run_context_b%flow%workspace)
       ok_bp = (.not. ok_bp) .and. intode_status_is_strict_success(flow_status_bp)
       if (ok_bp) call compute_effective_energy(z_bp, j_bp, e_bp, ok_bp)
 

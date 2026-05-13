@@ -65,13 +65,22 @@ module odex_backend
          real(dp), intent(in) :: y(:)
          real(dp) :: dy(size(y))
       end function ode_rhs
+
+      function ode_rhs_context(y, context) result(dy)
+         import :: dp
+         real(dp), intent(in) :: y(:)
+         class(*), intent(inout) :: context
+         real(dp) :: dy(size(y))
+      end function ode_rhs_context
    end interface
    public :: ode_rhs
+   public :: ode_rhs_context
 
    public :: build_nsteps
    public :: odex_default_options
    public :: ensure_odex_workspace_object
    public :: odex_integrate_endpoint
+   public :: odex_integrate_endpoint_context
    public :: odex_result_reset
    public :: odex_result_mark_success
    public :: odex_result_mark_failure
@@ -212,6 +221,117 @@ contains
       result_state%rejected_steps = rejected_steps
       result_state%stability_rejects = stability_rejects
    end subroutine odex_integrate_endpoint
+
+   subroutine odex_integrate_endpoint_context(f, y, t, res, error_flag, result_state, workspace, options, rhs_context)
+      procedure(ode_rhs_context) :: f
+      real(dp), intent(in) :: y(:), t
+      real(dp), intent(out) :: res(:)
+      logical, intent(out) :: error_flag
+      type(odex_result), intent(out) :: result_state
+      type(odex_workspace), intent(inout) :: workspace
+      type(odex_options), intent(in), optional :: options
+      class(*), intent(inout) :: rhs_context
+
+      type(odex_options) :: opts
+      real(dp) :: h, tc, er1, h_min, t_new, h_step
+      real(dp) :: h_min_fp, h_min_tol, h_min_span
+      integer :: state_size, k, step_count, rejected_steps, stability_rejects
+      logical :: is_last_step, stability_rejected
+
+      call odex_default_options(opts)
+      if (present(options)) opts = options
+      call odex_normalize_options(opts)
+      call odex_result_reset(result_state)
+
+      state_size = size(y)
+      res = y
+      error_flag = .true.
+
+      if (size(res) /= state_size .or. state_size <= 0) then
+         call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, t)
+         return
+      end if
+
+      if (opts%step_sequence /= odex_step_sequence_iwork3 .or. opts%max_steps <= 0) then
+         call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, t)
+         return
+      end if
+
+      if (t == 0.0_dp) then
+         error_flag = .false.
+         call odex_result_mark_success(result_state, odex_status_success_zero_time, 0, 0, 0.0_dp)
+         return
+      end if
+
+      call ensure_odex_workspace_object(workspace, opts%k_max + 1, state_size)
+
+      h_min_fp = opts%h_min_c_fp*epsilon(1.0_dp)*max(1.0_dp, abs(t))
+      h_min_tol = opts%h_min_c_tol*max(opts%abs_tol, opts%rel_tol, epsilon(1.0_dp))
+      h_min_span = opts%h_min_c_span*abs(t)
+      h_min = max(h_min_fp, min(h_min_tol, h_min_span))
+
+      tc = 0.0_dp
+      workspace%ystate(1:state_size) = y
+      h = t*opts%initial_step_fraction
+      if (h == 0.0_dp) h = sign(h_min, t)
+      k = opts%k_min
+      step_count = 0
+      rejected_steps = 0
+      stability_rejects = 0
+
+      do
+         step_count = step_count + 1
+         if (step_count > opts%max_steps) then
+            res = workspace%ystate(1:state_size)
+            call odex_result_mark_failure(result_state, odex_reason_max_steps, max(0, step_count - 1), &
+                                          1 + rejected_steps, k, h, t - tc)
+            result_state%stability_rejects = stability_rejects
+            return
+         end if
+
+         if ((t >= 0.0_dp .and. tc + h >= t) .or. (t < 0.0_dp .and. tc + h <= t)) then
+            is_last_step = .true.
+            h = t - tc
+         else
+            is_last_step = .false.
+         end if
+
+         t_new = tc + h
+         h_step = h
+         call odex_step_context(f, workspace%ystate(1:state_size), h, k, res, er1, workspace, opts, stability_rejected, rhs_context)
+
+         if (vector_has_invalid(res(1:state_size)) .or. .not. ieee_is_finite(h)) then
+            res = workspace%ystate(1:state_size)
+            call odex_result_mark_failure(result_state, odex_reason_invalid, max(0, step_count - 1), &
+                                          1 + rejected_steps, k, h, t - tc)
+            result_state%stability_rejects = stability_rejects
+            return
+         end if
+
+         if (er1 < 1.0_dp) then
+            tc = t_new
+            workspace%ystate(1:state_size) = res(1:state_size)
+            if (is_last_step) exit
+         else
+            rejected_steps = rejected_steps + 1
+            if (stability_rejected) stability_rejects = stability_rejects + 1
+         end if
+
+         if (abs(h) < h_min) then
+            res = workspace%ystate(1:state_size)
+            call odex_result_mark_failure(result_state, odex_reason_h_min, max(0, step_count - 1), &
+                                          1 + rejected_steps, k, h, t - tc)
+            result_state%stability_rejects = stability_rejects
+            return
+         end if
+      end do
+
+      res = workspace%ystate(1:state_size)
+      error_flag = .false.
+      call odex_result_mark_success(result_state, odex_status_success, step_count, k, h_step)
+      result_state%rejected_steps = rejected_steps
+      result_state%stability_rejects = stability_rejects
+   end subroutine odex_integrate_endpoint_context
 
    subroutine odex_step(f, y, h, k, res, err, workspace, opts, stability_rejected)
       procedure(ode_rhs) :: f
@@ -425,6 +545,220 @@ contains
          h = hk1
       end if
    end subroutine odex_step
+
+   subroutine odex_step_context(f, y, h, k, res, err, workspace, opts, stability_rejected, rhs_context)
+      procedure(ode_rhs_context) :: f
+      real(dp), intent(in) :: y(:)
+      real(dp), intent(inout) :: h
+      integer, intent(inout) :: k
+      real(dp), intent(out) :: res(:), err
+      type(odex_workspace), intent(inout) :: workspace
+      type(odex_options), intent(in) :: opts
+      logical, intent(out) :: stability_rejected
+      class(*), intent(inout) :: rhs_context
+
+      integer :: i, j, l, n, ni, k_prev
+      real(dp) :: dt, scale, errsum, wk1, wk2, hk1, hk2
+      real(dp) :: prev_norm, curr_norm
+
+      n = size(y)
+      res = y
+      stability_rejected = .false.
+      wk1 = 0.0_dp
+      wk2 = 0.0_dp
+      hk1 = h
+      hk2 = h
+
+      workspace%fbase(1:n) = f(y, rhs_context)
+
+      if (vector_has_invalid(workspace%fbase(1:n))) then
+         err = huge(1.0_dp)
+         res = y
+         h = sign(max(abs(h)*0.5_dp, 1.0e-16_dp), h)
+         k = max(opts%k_min, k - 1)
+         return
+      end if
+
+      do i = 1, k
+         ni = workspace%nsteps(i)
+         dt = h/real(ni, dp)
+
+         workspace%yprev(1:n) = y
+         workspace%ycurr(1:n) = y + dt*workspace%fbase(1:n)
+         prev_norm = vector_rms(workspace%fbase(1:n))
+
+         do l = 2, ni
+            workspace%fval(1:n) = f(workspace%ycurr(1:n), rhs_context)
+            if (odex_stability_reject(workspace%fval(1:n), prev_norm, dt, opts)) then
+               stability_rejected = .true.
+               err = huge(1.0_dp)
+               res = y
+               h = sign(max(abs(h)*0.5_dp, 1.0e-16_dp), h)
+               k = max(opts%k_min, k - 1)
+               return
+            end if
+            curr_norm = vector_rms(workspace%fval(1:n))
+            workspace%ynext(1:n) = workspace%yprev(1:n) + 2.0_dp*dt*workspace%fval(1:n)
+            workspace%yprev(1:n) = workspace%ycurr(1:n)
+            workspace%ycurr(1:n) = workspace%ynext(1:n)
+            prev_norm = max(prev_norm, curr_norm)
+         end do
+
+         workspace%fval(1:n) = f(workspace%ycurr(1:n), rhs_context)
+         if (odex_stability_reject(workspace%fval(1:n), prev_norm, dt, opts)) then
+            stability_rejected = .true.
+            err = huge(1.0_dp)
+            res = y
+            h = sign(max(abs(h)*0.5_dp, 1.0e-16_dp), h)
+            k = max(opts%k_min, k - 1)
+            return
+         end if
+         workspace%tableau(i, 1, 1:n) = 0.5_dp*(workspace%yprev(1:n) + workspace%ycurr(1:n) + dt*workspace%fval(1:n))
+      end do
+
+      do j = 2, k
+         do i = j, k
+            workspace%tableau(i, j, 1:n) = workspace%tableau(i, j - 1, 1:n) + &
+                                           (workspace%tableau(i, j - 1, 1:n) - workspace%tableau(i - 1, j - 1, 1:n))/ &
+                                           workspace%ratio(i, i - j + 1)
+
+            if (i == k - 1 .and. j == k - 1) then
+               errsum = 0.0_dp
+               do l = 1, n
+                  scale = opts%abs_tol + opts%rel_tol*max(abs(workspace%tableau(k - 2, k - 2, l)), &
+                                                          abs(workspace%tableau(k - 2, k - 3, l)))
+                  scale = max(scale, tiny(1.0_dp))
+                  errsum = errsum + ((workspace%tableau(k - 2, k - 2, l) - workspace%tableau(k - 2, k - 3, l))/scale)**2
+               end do
+               err = sqrt(errsum/real(n, dp))
+               wk2 = calculate_wk(h, err, k - 2, workspace)
+
+               errsum = 0.0_dp
+               do l = 1, n
+                  scale = opts%abs_tol + opts%rel_tol*max(abs(workspace%tableau(k - 1, k - 1, l)), &
+                                                          abs(workspace%tableau(k - 1, k - 2, l)))
+                  scale = max(scale, tiny(1.0_dp))
+                  errsum = errsum + ((workspace%tableau(k - 1, k - 1, l) - workspace%tableau(k - 1, k - 2, l))/scale)**2
+               end do
+               err = sqrt(errsum/real(n, dp))
+               wk1 = calculate_wk(h, err, k - 1, workspace)
+               hk1 = calculate_hk(h, err, k - 1, workspace)
+
+               if (err < 1.0_dp) then
+                  res = workspace%tableau(k - 1, k - 1, 1:n)
+                  if (wk1 > 0.9_dp*wk2) then
+                     k = max(opts%k_min, k - 1)
+                     h = hk1
+                  else
+                     h = hk1*workspace%ak(k)/workspace%ak(k - 1)
+                  end if
+                  return
+               else if (err > real((k*k + 1)**2, dp)) then
+                  k = max(opts%k_min, k - 1)
+                  h = hk1
+                  res = y
+                  return
+               end if
+            end if
+         end do
+      end do
+
+      errsum = 0.0_dp
+      do i = 1, n
+         scale = opts%abs_tol + opts%rel_tol*max(abs(workspace%tableau(k, k, i)), abs(workspace%tableau(k, k - 1, i)))
+         scale = max(scale, tiny(1.0_dp))
+         errsum = errsum + ((workspace%tableau(k, k, i) - workspace%tableau(k, k - 1, i))/scale)**2
+      end do
+      err = sqrt(errsum/real(n, dp))
+
+      hk2 = calculate_hk(h, err, k, workspace)
+      wk2 = calculate_wk(h, err, k, workspace)
+      if (err < 1.0_dp) then
+         res = workspace%tableau(k, k, 1:n)
+         if (wk1 < 0.9_dp*wk2) then
+            k = max(opts%k_min, k - 1)
+            h = hk1
+         else if (wk2 < 0.9_dp*wk1) then
+            k_prev = k
+            k = min(opts%k_max, k + 1)
+            if (k > k_prev) then
+               h = hk2*workspace%ak(k + 1)/workspace%ak(k)
+            else
+               h = hk2
+            end if
+         else
+            h = hk2
+         end if
+         return
+      end if
+
+      ni = workspace%nsteps(k + 1)
+      dt = h/real(ni, dp)
+      workspace%yprev(1:n) = y
+      workspace%ycurr(1:n) = y + dt*workspace%fbase(1:n)
+      prev_norm = vector_rms(workspace%fbase(1:n))
+
+      do l = 2, ni
+         workspace%fval(1:n) = f(workspace%ycurr(1:n), rhs_context)
+         if (odex_stability_reject(workspace%fval(1:n), prev_norm, dt, opts)) then
+            stability_rejected = .true.
+            err = huge(1.0_dp)
+            res = y
+            h = sign(max(abs(h)*0.5_dp, 1.0e-16_dp), h)
+            k = max(opts%k_min, k - 1)
+            return
+         end if
+         curr_norm = vector_rms(workspace%fval(1:n))
+         workspace%ynext(1:n) = workspace%yprev(1:n) + 2.0_dp*dt*workspace%fval(1:n)
+         workspace%yprev(1:n) = workspace%ycurr(1:n)
+         workspace%ycurr(1:n) = workspace%ynext(1:n)
+         prev_norm = max(prev_norm, curr_norm)
+      end do
+
+      workspace%fval(1:n) = f(workspace%ycurr(1:n), rhs_context)
+      if (odex_stability_reject(workspace%fval(1:n), prev_norm, dt, opts)) then
+         stability_rejected = .true.
+         err = huge(1.0_dp)
+         res = y
+         h = sign(max(abs(h)*0.5_dp, 1.0e-16_dp), h)
+         k = max(opts%k_min, k - 1)
+         return
+      end if
+      workspace%tableau(k + 1, 1, 1:n) = 0.5_dp*(workspace%yprev(1:n) + workspace%ycurr(1:n) + dt*workspace%fval(1:n))
+
+      do j = 2, k + 1
+         workspace%tableau(k + 1, j, 1:n) = workspace%tableau(k + 1, j - 1, 1:n) + &
+                                            (workspace%tableau(k + 1, j - 1, 1:n) - workspace%tableau(k, j - 1, 1:n))/ &
+                                            workspace%ratio(k + 1, k - j + 2)
+      end do
+
+      errsum = 0.0_dp
+      do i = 1, n
+         scale = opts%abs_tol + opts%rel_tol*max(abs(workspace%tableau(k + 1, k + 1, i)), &
+                                                 abs(workspace%tableau(k + 1, k, i)))
+         scale = max(scale, tiny(1.0_dp))
+         errsum = errsum + ((workspace%tableau(k + 1, k + 1, i) - workspace%tableau(k + 1, k, i))/scale)**2
+      end do
+      err = sqrt(errsum/real(n, dp))
+
+      if (err < 1.0_dp) then
+         res = workspace%tableau(k + 1, k + 1, 1:n)
+         if (wk1 < 0.9_dp*wk2) then
+            k = max(opts%k_min, k - 1)
+            h = hk1
+         else if (wk2 < 0.9_dp*wk1) then
+            hk1 = calculate_hk(h, err, k + 1, workspace)
+            k = min(opts%k_max, k + 1)
+            h = hk1
+         else
+            h = hk2
+         end if
+      else
+         res = y
+         k = max(opts%k_min, k - 1)
+         h = hk1
+      end if
+   end subroutine odex_step_context
 
    function calculate_wk(h, er1, k, workspace) result(wk)
       real(dp), intent(in) :: h, er1

@@ -1,7 +1,8 @@
 program test_odex_flow_jacobian_contract
    use param_mod, only: read_parameters, state_seed_size_cfg
-   use solve_flow, only: flow, flowz, flowzr, get_intode_fallback_stats, intode_status_is_strict_success, &
-                         intode_status_unknown, reset_intode_fallback_stats
+   use solve_flow, only: flow, flowz, flowzr, flow_workspace_t, get_intode_fallback_stats, &
+                         intode_status_is_strict_success, intode_status_unknown, release_flow_workspace, &
+                         reset_intode_fallback_stats
    use utils, only: dp, x_set_flow_time, x_set_seed_real
    implicit none
 
@@ -22,6 +23,7 @@ program test_odex_flow_jacobian_contract
 
    call check_zero_flow_identity(seed, x, failures)
    call check_flow_endpoint_consistency(seed, x, failures)
+   call check_explicit_flow_context(seed, x, failures)
    call check_flowzr_inverse(seed, x, failures)
    call check_jacobian_finite_difference(seed, x, failures)
    call check_no_fallbacks(failures)
@@ -108,6 +110,47 @@ contains
       end if
       deallocate (z_flow, z_vec, jac)
    end subroutine check_flow_endpoint_consistency
+
+   subroutine check_explicit_flow_context(seed, x, failures)
+      real(dp), intent(in) :: seed(:)
+      real(dp), intent(inout) :: x(:)
+      integer, intent(inout) :: failures
+      type(flow_workspace_t) :: workspace
+      complex(dp), allocatable :: z_legacy(:), z_context(:), jac_legacy(:, :), jac_context(:, :)
+      logical :: failed_legacy, failed_context, ok
+      integer :: status_legacy, status_context
+      real(dp) :: z_diff, jac_diff
+      real(dp), parameter :: tolerance = 1.0e-13_dp
+
+      allocate (z_legacy(size(seed)), z_context(size(seed)), jac_legacy(size(seed), size(seed)), &
+                jac_context(size(seed), size(seed)))
+      call set_x_from_seed(x, 0.08_dp, seed)
+      z_legacy = cmplx(0.0_dp, 0.0_dp, dp)
+      z_context = cmplx(0.0_dp, 0.0_dp, dp)
+      jac_legacy = cmplx(0.0_dp, 0.0_dp, dp)
+      jac_context = cmplx(0.0_dp, 0.0_dp, dp)
+      status_legacy = intode_status_unknown
+      status_context = intode_status_unknown
+
+      call flow(x, z_legacy, jac_legacy, failed_legacy, status_legacy)
+      call flow(x, z_context, jac_context, failed_context, status_context, workspace)
+
+      z_diff = maxval(abs(z_legacy - z_context))
+      jac_diff = maxval(abs(jac_legacy - jac_context))
+      ok = (.not. failed_legacy) .and. (.not. failed_context) .and. &
+           intode_status_is_strict_success(status_legacy) .and. intode_status_is_strict_success(status_context) .and. &
+           z_diff <= tolerance .and. jac_diff <= tolerance
+      write (*, '(A,L1,A,I0,A,I0,A,ES12.4,A,ES12.4)') "[CHECK] explicit_flow_context ok=", ok, &
+         " status_legacy=", status_legacy, " status_context=", status_context, " z_diff=", z_diff, &
+         " jac_diff=", jac_diff
+      if (.not. ok) then
+         failures = failures + 1
+         write (*, '(A)') "[FAIL] explicit flow context path diverged from legacy local-workspace path."
+      end if
+
+      call release_flow_workspace(workspace)
+      deallocate (z_legacy, z_context, jac_legacy, jac_context)
+   end subroutine check_explicit_flow_context
 
    subroutine check_flowzr_inverse(seed, x, failures)
       real(dp), intent(in) :: seed(:)

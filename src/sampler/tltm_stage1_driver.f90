@@ -56,7 +56,7 @@ contains
          replicas(i)%flow_time = flow_ladder(i)
          replicas(i)%rng_seed = derive_replica_seed(base_seed, i)
          call allocate_tltm_replica(replicas(i), x_size)
-         call initialize_replica(replicas(i), init_sigma, stage1_init_attempts_default, ok)
+         call initialize_replica(replicas(i), init_sigma, stage1_init_attempts_default, ok, run_contexts(i))
          if (.not. ok) then
             write (*, '(A,I0,A,F8.4,A)') "[ERROR][TLTM-S1] Replica ", replicas(i)%replica_id, &
                " initialization failed at flow_time=", replicas(i)%flow_time, "."
@@ -89,11 +89,12 @@ contains
       write (*, '(A,1X,A)') "[DONE][TLTM-S1] Summary written to", trim(summary_file)
    end subroutine execute_tltm_stage1
 
-   subroutine initialize_replica(replica, init_sigma, max_attempts, ok)
+   subroutine initialize_replica(replica, init_sigma, max_attempts, ok, run_context)
       type(tltm_replica_t), intent(inout) :: replica
       real(dp), intent(in) :: init_sigma
       integer, intent(in) :: max_attempts
       logical, intent(out) :: ok
+      type(tltm_run_context_t), intent(inout) :: run_context
 
       real(dp), allocatable :: x_seed(:)
       logical :: flow_failed
@@ -110,7 +111,7 @@ contains
          call x_set_flow_time(replica%x, replica%flow_time)
          call x_set_seed_real(replica%x, x_seed)
          flow_status = intode_status_unknown
-         call flow(replica%x, replica%z, replica%jac, flow_failed, flow_status)
+         call flow(replica%x, replica%z, replica%jac, flow_failed, flow_status, run_context%flow%workspace)
          if ((.not. flow_failed) .and. intode_status_is_strict_success(flow_status)) then
             ok = .true.
             exit

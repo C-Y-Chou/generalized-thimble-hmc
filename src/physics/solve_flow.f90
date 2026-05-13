@@ -2,9 +2,9 @@ module solve_flow
    use param_mod, only: at, rt
    use utils, only: dp, complex_to_real, map_to_complex, real_to_complex
    use model, only: ds, hessian_vec
-   use odex_backend, only: build_nsteps, ensure_odex_workspace_object, ode_rhs, &
+   use odex_backend, only: build_nsteps, ensure_odex_workspace_object, ode_rhs, ode_rhs_context, &
                            odex_backend_default_options => odex_default_options, &
-                           odex_integrate_endpoint, odex_k_max, odex_k_min, odex_max_steps_default, &
+                           odex_integrate_endpoint, odex_integrate_endpoint_context, odex_k_max, odex_k_min, odex_max_steps_default, &
                            odex_options, odex_reason_h_min, odex_reason_invalid, odex_reason_max_steps, &
                            odex_reason_none, odex_result, odex_result_mark_failure, odex_result_mark_success, &
                            odex_result_reset, odex_result_to_intode_status, odex_status_failure_h_min, &
@@ -18,14 +18,16 @@ module solve_flow
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    implicit none
 
-   real(dp), allocatable, save :: intode_yc(:), intode_yf(:)
-   real(dp), allocatable, save :: flow_vec_y(:), flow_vec_yf(:)
-   real(dp), allocatable, save :: flow_jac_y(:), flow_jac_yf(:)
-   complex(dp), allocatable, save :: flow_vec_z(:), flow_vec_ds(:)
-   complex(dp), allocatable, save :: flow_jac_z(:), flow_jac_ds(:)
-   complex(dp), allocatable, save :: flow_jac_j(:,:), flow_jac_jprod(:,:)
-   real(dp), save :: flow_vec_rhs_scale = 1.0_dp
-   type(odex_workspace), save :: intode_odex_workspace
+   type :: flow_workspace_t
+      real(dp), allocatable :: intode_yc(:), intode_yf(:)
+      real(dp), allocatable :: flow_vec_y(:), flow_vec_yf(:)
+      real(dp), allocatable :: flow_jac_y(:), flow_jac_yf(:)
+      complex(dp), allocatable :: flow_vec_z(:), flow_vec_ds(:)
+      complex(dp), allocatable :: flow_jac_z(:), flow_jac_ds(:)
+      complex(dp), allocatable :: flow_jac_j(:, :), flow_jac_jprod(:, :)
+      real(dp) :: flow_vec_rhs_scale = 1.0_dp
+      type(odex_workspace) :: intode_odex_workspace
+   end type flow_workspace_t
 
    integer, parameter :: intode_max_steps = odex_max_steps_default
    integer, parameter :: intode_reason_none = odex_reason_none
@@ -113,6 +115,7 @@ contains
       real(dp) :: t_remaining
       type(odex_options) :: integration_options
       type(odex_result) :: integration_result
+      type(flow_workspace_t) :: local_workspace
       real(dp) :: t_prof
 
       call perf_tic(t_prof)
@@ -130,14 +133,14 @@ contains
       intode_calls_integrating = intode_calls_integrating + 1
 
       state_size = size(y)
-      call ensure_real_workspace(intode_yc, state_size)
-      call ensure_real_workspace(intode_yf, state_size)
+      call ensure_real_workspace(local_workspace%intode_yc, state_size)
+      call ensure_real_workspace(local_workspace%intode_yf, state_size)
 
       call odex_default_options(integration_options)
-      call odex_integrate_endpoint(f, y, t, intode_yf(1:state_size), error_flag, &
-                                   integration_result, intode_odex_workspace, integration_options)
+      call odex_integrate_endpoint(f, y, t, local_workspace%intode_yf(1:state_size), error_flag, &
+                                   integration_result, local_workspace%intode_odex_workspace, integration_options)
       if (.not. error_flag) then
-         res = intode_yf(1:state_size)
+         res = local_workspace%intode_yf(1:state_size)
          call set_intode_status(status, odex_result_to_intode_status(integration_result))
          call perf_toc(PERF_INTODE, t_prof)
          return
@@ -152,7 +155,7 @@ contains
                                        integration_result%final_step_size, integration_result%t_remaining)
       end if
       t_remaining = integration_result%t_remaining
-      intode_yc(1:state_size) = intode_yf(1:state_size)
+      local_workspace%intode_yc(1:state_size) = local_workspace%intode_yf(1:state_size)
 
       intode_fallback_attempts = intode_fallback_attempts + 1
       select case (failure_reason)
@@ -166,11 +169,11 @@ contains
       call record_intode_fallback_attempt_context(intode_current_context)
 
       if (failure_reason == intode_reason_h_min .and. intode_fast_hmin_assist) then
-         call intode_try_solver_assist(intode_yc(1:state_size), t_remaining, failure_reason, &
-                                       intode_yf(1:state_size), solver_assist_ok)
+         call intode_try_solver_assist(local_workspace%intode_yc(1:state_size), t_remaining, failure_reason, &
+                                       local_workspace%intode_yf(1:state_size), solver_assist_ok)
          if (solver_assist_ok) then
             intode_fallback_success = intode_fallback_success + 1
-            res = intode_yf(1:state_size)
+            res = local_workspace%intode_yf(1:state_size)
             error_flag = .false.
             call set_intode_status(status, intode_status_success_solver_assist)
             call perf_toc(PERF_INTODE, t_prof)
@@ -178,31 +181,137 @@ contains
          end if
       end if
 
-      call intode_stiff_rescue(f, intode_yc(1:state_size), t_remaining, intode_yf(1:state_size), rescue_failed)
+      call intode_stiff_rescue(f, local_workspace%intode_yc(1:state_size), t_remaining, local_workspace%intode_yf(1:state_size), rescue_failed)
       if (.not. rescue_failed) then
          intode_fallback_success = intode_fallback_success + 1
-         res = intode_yf(1:state_size)
+         res = local_workspace%intode_yf(1:state_size)
          error_flag = .false.
          call set_intode_status(status, intode_status_success_stiff_rescue)
       else
-         call intode_try_solver_assist(intode_yc(1:state_size), t_remaining, failure_reason, &
-                                       intode_yf(1:state_size), solver_assist_ok)
+         call intode_try_solver_assist(local_workspace%intode_yc(1:state_size), t_remaining, failure_reason, &
+                                       local_workspace%intode_yf(1:state_size), solver_assist_ok)
          if (solver_assist_ok) then
             intode_fallback_success = intode_fallback_success + 1
-            res = intode_yf(1:state_size)
+            res = local_workspace%intode_yf(1:state_size)
             error_flag = .false.
             call set_intode_status(status, intode_status_success_solver_assist)
          else
             intode_fallback_failure = intode_fallback_failure + 1
             call record_intode_fallback_failure_context(intode_current_context)
-            call record_intode_last_failure(intode_yc(1:state_size), t_remaining, failure_reason)
-            res = intode_yc(1:state_size)
+            call record_intode_last_failure(local_workspace%intode_yc(1:state_size), t_remaining, failure_reason)
+            res = local_workspace%intode_yc(1:state_size)
             error_flag = .true.
             call set_intode_status(status, odex_result_to_intode_status(integration_result))
          end if
       end if
       call perf_toc(PERF_INTODE, t_prof)
    end subroutine intode
+
+   subroutine intode_with_context(f, y, t, res, error_flag, status, workspace)
+      implicit none
+      procedure(ode_rhs_context) :: f
+      real(dp), intent(in) :: y(:), t
+      real(dp), intent(out) :: res(:)
+      logical, intent(out) :: error_flag
+      integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout) :: workspace
+
+      integer :: state_size, failure_reason
+      logical :: rescue_failed, solver_assist_ok
+      real(dp) :: t_remaining
+      type(odex_options) :: integration_options
+      type(odex_result) :: integration_result
+      real(dp) :: t_prof
+
+      call perf_tic(t_prof)
+      call odex_result_reset(integration_result)
+      call set_intode_status(status, intode_status_unknown)
+      intode_calls_total = intode_calls_total + 1
+      if (t == 0.0_dp) then
+         res = y
+         error_flag = .false.
+         call odex_result_mark_success(integration_result, odex_status_success_zero_time, 0, 0, 0.0_dp)
+         call set_intode_status(status, odex_result_to_intode_status(integration_result))
+         call perf_toc(PERF_INTODE, t_prof)
+         return
+      end if
+      intode_calls_integrating = intode_calls_integrating + 1
+
+      state_size = size(y)
+      call ensure_real_workspace(workspace%intode_yc, state_size)
+      call ensure_real_workspace(workspace%intode_yf, state_size)
+
+      call odex_default_options(integration_options)
+      call odex_integrate_endpoint_context(f, y, t, workspace%intode_yf(1:state_size), error_flag, &
+                                           integration_result, workspace%intode_odex_workspace, integration_options, workspace)
+      if (.not. error_flag) then
+         res = workspace%intode_yf(1:state_size)
+         call set_intode_status(status, odex_result_to_intode_status(integration_result))
+         call perf_toc(PERF_INTODE, t_prof)
+         return
+      end if
+
+      failure_reason = integration_result%failure_reason
+      if (failure_reason /= intode_reason_max_steps .and. failure_reason /= intode_reason_invalid .and. &
+          failure_reason /= intode_reason_h_min) then
+         failure_reason = intode_reason_invalid
+         call odex_result_mark_failure(integration_result, failure_reason, integration_result%accepted_steps, &
+                                       max(1, integration_result%rejected_steps), integration_result%final_order, &
+                                       integration_result%final_step_size, integration_result%t_remaining)
+      end if
+      t_remaining = integration_result%t_remaining
+      workspace%intode_yc(1:state_size) = workspace%intode_yf(1:state_size)
+
+      intode_fallback_attempts = intode_fallback_attempts + 1
+      select case (failure_reason)
+      case (intode_reason_max_steps)
+         intode_fallback_max_steps = intode_fallback_max_steps + 1
+      case (intode_reason_invalid)
+         intode_fallback_invalid = intode_fallback_invalid + 1
+      case (intode_reason_h_min)
+         intode_fallback_h_min = intode_fallback_h_min + 1
+      end select
+      call record_intode_fallback_attempt_context(intode_current_context)
+
+      if (failure_reason == intode_reason_h_min .and. intode_fast_hmin_assist) then
+         call intode_try_solver_assist(workspace%intode_yc(1:state_size), t_remaining, failure_reason, &
+                                       workspace%intode_yf(1:state_size), solver_assist_ok)
+         if (solver_assist_ok) then
+            intode_fallback_success = intode_fallback_success + 1
+            res = workspace%intode_yf(1:state_size)
+            error_flag = .false.
+            call set_intode_status(status, intode_status_success_solver_assist)
+            call perf_toc(PERF_INTODE, t_prof)
+            return
+         end if
+      end if
+
+      call intode_stiff_rescue_context(f, workspace%intode_yc(1:state_size), t_remaining, workspace%intode_yf(1:state_size), &
+                                       rescue_failed, workspace)
+      if (.not. rescue_failed) then
+         intode_fallback_success = intode_fallback_success + 1
+         res = workspace%intode_yf(1:state_size)
+         error_flag = .false.
+         call set_intode_status(status, intode_status_success_stiff_rescue)
+      else
+         call intode_try_solver_assist(workspace%intode_yc(1:state_size), t_remaining, failure_reason, &
+                                       workspace%intode_yf(1:state_size), solver_assist_ok)
+         if (solver_assist_ok) then
+            intode_fallback_success = intode_fallback_success + 1
+            res = workspace%intode_yf(1:state_size)
+            error_flag = .false.
+            call set_intode_status(status, intode_status_success_solver_assist)
+         else
+            intode_fallback_failure = intode_fallback_failure + 1
+            call record_intode_fallback_failure_context(intode_current_context)
+            call record_intode_last_failure(workspace%intode_yc(1:state_size), t_remaining, failure_reason)
+            res = workspace%intode_yc(1:state_size)
+            error_flag = .true.
+            call set_intode_status(status, odex_result_to_intode_status(integration_result))
+         end if
+      end if
+      call perf_toc(PERF_INTODE, t_prof)
+   end subroutine intode_with_context
 
    subroutine set_intode_status(status, status_code)
       implicit none
@@ -422,6 +531,20 @@ contains
       error_flag = .true.
    end subroutine intode_stiff_rescue
 
+   subroutine intode_stiff_rescue_context(f, y, t, res, error_flag, workspace)
+      implicit none
+      procedure(ode_rhs_context) :: f
+      real(dp), intent(in) :: y(:), t
+      real(dp), intent(out) :: res(:)
+      logical, intent(out) :: error_flag
+      type(flow_workspace_t), intent(inout) :: workspace
+
+      ! Radau/JFNK rescue was a legacy secondary integrator stack.  It is
+      ! intentionally disabled; solver-internal assist is handled separately.
+      res = y
+      error_flag = .true.
+   end subroutine intode_stiff_rescue_context
+
    subroutine get_intode_solver_assist_policy(enabled, max_uses, fast_hmin_assist)
       implicit none
       logical, intent(out) :: enabled
@@ -639,11 +762,61 @@ contains
       end do
    end function vector_has_invalid
 
-   subroutine flowz(x, z, error, status)
+   subroutine flowz(x, z, error, status, workspace)
       real(dp), intent(in)::x(:)
       complex(dp), intent(inout)::z(:)
       logical, intent(out)::error
       integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout), optional :: workspace
+
+      type(flow_workspace_t) :: local_workspace
+
+      if (present(workspace)) then
+         call flowz_with_workspace(x, z, error, status, workspace)
+      else
+         call flowz_with_workspace(x, z, error, status, local_workspace)
+      end if
+   end subroutine flowz
+
+   subroutine flowzr(x, z, error, status, workspace)
+      real(dp), intent(in)::x(:)
+      complex(dp), intent(inout)::z(:)
+      logical, intent(out)::error
+      integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout), optional :: workspace
+
+      type(flow_workspace_t) :: local_workspace
+
+      if (present(workspace)) then
+         call flowzr_with_workspace(x, z, error, status, workspace)
+      else
+         call flowzr_with_workspace(x, z, error, status, local_workspace)
+      end if
+   end subroutine flowzr
+
+   subroutine flow(x, z, j, error, status, workspace)
+      real(dp), intent(in)::x(:)
+      complex(dp), intent(inout)::z(:)
+      complex(dp), dimension(:, :), intent(inout)::j
+      logical, intent(out)::error
+      integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout), optional :: workspace
+
+      type(flow_workspace_t) :: local_workspace
+
+      if (present(workspace)) then
+         call flow_with_workspace(x, z, j, error, status, workspace)
+      else
+         call flow_with_workspace(x, z, j, error, status, local_workspace)
+      end if
+   end subroutine flow
+
+   subroutine flowz_with_workspace(x, z, error, status, workspace)
+      real(dp), intent(in)::x(:)
+      complex(dp), intent(inout)::z(:)
+      logical, intent(out)::error
+      integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout) :: workspace
       integer::n, n_complex
       integer :: flow_status_local
       real(dp)::t1
@@ -656,31 +829,33 @@ contains
       t1 = x(1)
       error = .false.
 
-      call ensure_real_workspace(flow_vec_y, n)
-      call ensure_real_workspace(flow_vec_yf, n)
-      call ensure_complex_workspace(flow_vec_z, n_complex)
-      call ensure_complex_workspace(flow_vec_ds, n_complex)
+      call ensure_real_workspace(workspace%flow_vec_y, n)
+      call ensure_real_workspace(workspace%flow_vec_yf, n)
+      call ensure_complex_workspace(workspace%flow_vec_z, n_complex)
+      call ensure_complex_workspace(workspace%flow_vec_ds, n_complex)
 
-      flow_vec_y(1:n:2) = x(2:)
-      flow_vec_y(2:n:2) = 0.0_dp
+      workspace%flow_vec_y(1:n:2) = x(2:)
+      workspace%flow_vec_y(2:n:2) = 0.0_dp
       intode_current_context = intode_ctx_flowz
-      flow_vec_rhs_scale = 1.0_dp
-      call intode(rhs_flow_vec, flow_vec_y(1:n), t1, flow_vec_yf(1:n), error, flow_status_local)
+      workspace%flow_vec_rhs_scale = 1.0_dp
+      call intode_with_context(rhs_flow_vec_context, workspace%flow_vec_y(1:n), t1, workspace%flow_vec_yf(1:n), error, &
+                               flow_status_local, workspace)
       intode_current_context = intode_ctx_unknown
       call set_intode_status(status, flow_status_local)
       if (error) then
          call perf_toc(PERF_FLOWZ, t_prof)
          return
       end if
-      call real_to_complex(flow_vec_yf(1:n), z)
+      call real_to_complex(workspace%flow_vec_yf(1:n), z)
       call perf_toc(PERF_FLOWZ, t_prof)
-   end subroutine flowz
+   end subroutine flowz_with_workspace
 
-   subroutine flowzr(x, z, error, status)
+   subroutine flowzr_with_workspace(x, z, error, status, workspace)
       real(dp), intent(in)::x(:)
       complex(dp), intent(inout)::z(:)
       logical, intent(out)::error
       integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout) :: workspace
       integer::n, n_complex
       integer :: flow_status_local
       real(dp)::t1
@@ -693,32 +868,34 @@ contains
       t1 = x(1)
       error = .false.
 
-      call ensure_real_workspace(flow_vec_y, n)
-      call ensure_real_workspace(flow_vec_yf, n)
-      call ensure_complex_workspace(flow_vec_z, n_complex)
-      call ensure_complex_workspace(flow_vec_ds, n_complex)
+      call ensure_real_workspace(workspace%flow_vec_y, n)
+      call ensure_real_workspace(workspace%flow_vec_yf, n)
+      call ensure_complex_workspace(workspace%flow_vec_z, n_complex)
+      call ensure_complex_workspace(workspace%flow_vec_ds, n_complex)
 
-      call complex_to_real(z, flow_vec_y(1:n))
+      call complex_to_real(z, workspace%flow_vec_y(1:n))
       intode_current_context = intode_ctx_flowzr
-      flow_vec_rhs_scale = -1.0_dp
-      call intode(rhs_flow_vec, flow_vec_y(1:n), t1, flow_vec_yf(1:n), error, flow_status_local)
+      workspace%flow_vec_rhs_scale = -1.0_dp
+      call intode_with_context(rhs_flow_vec_context, workspace%flow_vec_y(1:n), t1, workspace%flow_vec_yf(1:n), error, &
+                               flow_status_local, workspace)
       intode_current_context = intode_ctx_unknown
-      flow_vec_rhs_scale = 1.0_dp
+      workspace%flow_vec_rhs_scale = 1.0_dp
       call set_intode_status(status, flow_status_local)
       if (error) then
          call perf_toc(PERF_FLOWZR, t_prof)
          return
       end if
-      call real_to_complex(flow_vec_yf(1:n), z)
+      call real_to_complex(workspace%flow_vec_yf(1:n), z)
       call perf_toc(PERF_FLOWZR, t_prof)
-   end subroutine flowzr
+   end subroutine flowzr_with_workspace
 
-   subroutine flow(x, z, j, error, status)
+   subroutine flow_with_workspace(x, z, j, error, status, workspace)
       real(dp), intent(in)::x(:)
       complex(dp), intent(inout)::z(:)
       complex(dp), dimension(:, :), intent(inout)::j
       logical, intent(out)::error
       integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout) :: workspace
       integer::n, m, n_complex, n_jac
       integer :: total_n
       integer :: flow_status_local
@@ -735,71 +912,82 @@ contains
       t1 = x(1)
       error = .false.
 
-      call ensure_real_workspace(flow_jac_y, total_n)
-      call ensure_real_workspace(flow_jac_yf, total_n)
-      call ensure_complex_workspace(flow_jac_z, n_complex)
-      call ensure_complex_workspace(flow_jac_ds, n_complex)
-      call ensure_complex_workspace_mat(flow_jac_j, n_jac, n_jac)
-      call ensure_complex_workspace_mat(flow_jac_jprod, n_jac, n_jac)
+      call ensure_real_workspace(workspace%flow_jac_y, total_n)
+      call ensure_real_workspace(workspace%flow_jac_yf, total_n)
+      call ensure_complex_workspace(workspace%flow_jac_z, n_complex)
+      call ensure_complex_workspace(workspace%flow_jac_ds, n_complex)
+      call ensure_complex_workspace_mat(workspace%flow_jac_j, n_jac, n_jac)
+      call ensure_complex_workspace_mat(workspace%flow_jac_jprod, n_jac, n_jac)
 
-      flow_jac_y(1:n:2) = x(2:)
-      flow_jac_y(2:n:2) = 0.0_dp
-      call fill_identity_real_map(flow_jac_y(n + 1:total_n), n_jac)
+      workspace%flow_jac_y(1:n:2) = x(2:)
+      workspace%flow_jac_y(2:n:2) = 0.0_dp
+      call fill_identity_real_map(workspace%flow_jac_y(n + 1:total_n), n_jac)
       intode_current_context = intode_ctx_flow
-      call intode(rhs_flow_jac, flow_jac_y(1:total_n), t1, flow_jac_yf(1:total_n), error, flow_status_local)
+      call intode_with_context(rhs_flow_jac_context, workspace%flow_jac_y(1:total_n), t1, workspace%flow_jac_yf(1:total_n), error, &
+                               flow_status_local, workspace)
       intode_current_context = intode_ctx_unknown
       call set_intode_status(status, flow_status_local)
       if (error) then
          call perf_toc(PERF_FLOW, t_prof)
          return
       end if
-      call real_to_complex(flow_jac_yf(1:n), z)
-      call map_to_complex(flow_jac_yf(n + 1:total_n), j)
+      call real_to_complex(workspace%flow_jac_yf(1:n), z)
+      call map_to_complex(workspace%flow_jac_yf(n + 1:total_n), j)
       call perf_toc(PERF_FLOW, t_prof)
-   end subroutine flow
+   end subroutine flow_with_workspace
 
-   function rhs_flow_vec(y) result(f)
+   function rhs_flow_vec_context(y, context) result(f)
       implicit none
       real(dp), intent(in) :: y(:)
+      class(*), intent(inout) :: context
       real(dp) :: f(size(y))
       integer :: n_complex
 
       f = 0.0_dp
-      if (.not. allocated(flow_vec_z) .or. .not. allocated(flow_vec_ds)) return
-      n_complex = size(flow_vec_z)
-      if (size(y) /= 2*n_complex) return
+      select type (workspace => context)
+      type is (flow_workspace_t)
+         if (.not. allocated(workspace%flow_vec_z) .or. .not. allocated(workspace%flow_vec_ds)) return
+         n_complex = size(workspace%flow_vec_z)
+         if (size(y) /= 2*n_complex) return
 
-      call real_to_complex_vec_fast(y, flow_vec_z(1:n_complex))
-      call ds(flow_vec_z(1:n_complex), flow_vec_ds(1:n_complex))
-      call complex_to_real_vec_conjg_scaled_fast(flow_vec_ds(1:n_complex), f, flow_vec_rhs_scale)
-   end function rhs_flow_vec
+         call real_to_complex_vec_fast(y, workspace%flow_vec_z(1:n_complex))
+         call ds(workspace%flow_vec_z(1:n_complex), workspace%flow_vec_ds(1:n_complex))
+         call complex_to_real_vec_conjg_scaled_fast(workspace%flow_vec_ds(1:n_complex), f, workspace%flow_vec_rhs_scale)
+      end select
+   end function rhs_flow_vec_context
 
-   function rhs_flow_jac(y) result(f)
+   function rhs_flow_jac_context(y, context) result(f)
       implicit none
       real(dp), intent(in) :: y(:)
+      class(*), intent(inout) :: context
       real(dp) :: f(size(y))
       integer :: col
       integer :: n_complex, n_jac, n
 
       f = 0.0_dp
-      if (.not. allocated(flow_jac_z) .or. .not. allocated(flow_jac_ds)) return
-      if (.not. allocated(flow_jac_j) .or. .not. allocated(flow_jac_jprod)) return
+      select type (workspace => context)
+      type is (flow_workspace_t)
+         if (.not. allocated(workspace%flow_jac_z) .or. .not. allocated(workspace%flow_jac_ds)) return
+         if (.not. allocated(workspace%flow_jac_j) .or. .not. allocated(workspace%flow_jac_jprod)) return
 
-      n_complex = size(flow_jac_z)
-      n_jac = size(flow_jac_j, 1)
-      n = 2*n_complex
-      if (size(flow_jac_j, 2) /= n_jac .or. size(flow_jac_jprod, 1) /= n_jac .or. size(flow_jac_jprod, 2) /= n_jac) return
-      if (size(y) /= n + 2*n_jac*n_jac) return
+         n_complex = size(workspace%flow_jac_z)
+         n_jac = size(workspace%flow_jac_j, 1)
+         n = 2*n_complex
+         if (size(workspace%flow_jac_j, 2) /= n_jac .or. size(workspace%flow_jac_jprod, 1) /= n_jac .or. &
+             size(workspace%flow_jac_jprod, 2) /= n_jac) return
+         if (size(y) /= n + 2*n_jac*n_jac) return
 
-      call real_to_complex_vec_fast(y(1:n), flow_jac_z(1:n_complex))
-      call real_to_complex_mat_rowmajor_fast(y(n + 1:), flow_jac_j(1:n_jac, 1:n_jac))
-      call ds(flow_jac_z(1:n_complex), flow_jac_ds(1:n_complex))
-      call complex_to_real_vec_conjg_scaled_fast(flow_jac_ds(1:n_complex), f(1:n), 1.0_dp)
-      do col = 1, n_jac
-         call hessian_vec(flow_jac_z(1:n_complex), flow_jac_j(1:n_jac, col), flow_jac_jprod(1:n_jac, col))
-      end do
-      call map_to_real_conjg_scaled(flow_jac_jprod(1:n_jac, 1:n_jac), f(n + 1:), 1.0_dp)
-   end function rhs_flow_jac
+         call real_to_complex_vec_fast(y(1:n), workspace%flow_jac_z(1:n_complex))
+         call real_to_complex_mat_rowmajor_fast(y(n + 1:), workspace%flow_jac_j(1:n_jac, 1:n_jac))
+         call ds(workspace%flow_jac_z(1:n_complex), workspace%flow_jac_ds(1:n_complex))
+         call complex_to_real_vec_conjg_scaled_fast(workspace%flow_jac_ds(1:n_complex), f(1:n), 1.0_dp)
+         do col = 1, n_jac
+            call hessian_vec(workspace%flow_jac_z(1:n_complex), workspace%flow_jac_j(1:n_jac, col), &
+                             workspace%flow_jac_jprod(1:n_jac, col))
+         end do
+         call map_to_real_conjg_scaled(workspace%flow_jac_jprod(1:n_jac, 1:n_jac), f(n + 1:), 1.0_dp)
+      end select
+   end function rhs_flow_jac_context
 
    subroutine map_to_real_conjg_scaled(mat, vec, scale)
       implicit none
@@ -865,6 +1053,37 @@ contains
          end do
       end do
    end subroutine real_to_complex_mat_rowmajor_fast
+
+   subroutine release_flow_workspace(workspace)
+      type(flow_workspace_t), intent(inout) :: workspace
+
+      if (allocated(workspace%intode_yc)) deallocate (workspace%intode_yc)
+      if (allocated(workspace%intode_yf)) deallocate (workspace%intode_yf)
+      if (allocated(workspace%flow_vec_y)) deallocate (workspace%flow_vec_y)
+      if (allocated(workspace%flow_vec_yf)) deallocate (workspace%flow_vec_yf)
+      if (allocated(workspace%flow_jac_y)) deallocate (workspace%flow_jac_y)
+      if (allocated(workspace%flow_jac_yf)) deallocate (workspace%flow_jac_yf)
+      if (allocated(workspace%flow_vec_z)) deallocate (workspace%flow_vec_z)
+      if (allocated(workspace%flow_vec_ds)) deallocate (workspace%flow_vec_ds)
+      if (allocated(workspace%flow_jac_z)) deallocate (workspace%flow_jac_z)
+      if (allocated(workspace%flow_jac_ds)) deallocate (workspace%flow_jac_ds)
+      if (allocated(workspace%flow_jac_j)) deallocate (workspace%flow_jac_j)
+      if (allocated(workspace%flow_jac_jprod)) deallocate (workspace%flow_jac_jprod)
+      if (allocated(workspace%intode_odex_workspace%tableau)) deallocate (workspace%intode_odex_workspace%tableau)
+      if (allocated(workspace%intode_odex_workspace%ystate)) deallocate (workspace%intode_odex_workspace%ystate)
+      if (allocated(workspace%intode_odex_workspace%yprev)) deallocate (workspace%intode_odex_workspace%yprev)
+      if (allocated(workspace%intode_odex_workspace%ycurr)) deallocate (workspace%intode_odex_workspace%ycurr)
+      if (allocated(workspace%intode_odex_workspace%ynext)) deallocate (workspace%intode_odex_workspace%ynext)
+      if (allocated(workspace%intode_odex_workspace%fval)) deallocate (workspace%intode_odex_workspace%fval)
+      if (allocated(workspace%intode_odex_workspace%fbase)) deallocate (workspace%intode_odex_workspace%fbase)
+      if (allocated(workspace%intode_odex_workspace%nsteps)) deallocate (workspace%intode_odex_workspace%nsteps)
+      if (allocated(workspace%intode_odex_workspace%ak)) deallocate (workspace%intode_odex_workspace%ak)
+      if (allocated(workspace%intode_odex_workspace%invexp)) deallocate (workspace%intode_odex_workspace%invexp)
+      if (allocated(workspace%intode_odex_workspace%ratio)) deallocate (workspace%intode_odex_workspace%ratio)
+      workspace%flow_vec_rhs_scale = 1.0_dp
+      workspace%intode_odex_workspace%tables_ready = .false.
+      workspace%intode_odex_workspace%table_k = 0
+   end subroutine release_flow_workspace
 
    subroutine ensure_real_workspace(buf, n_need)
       implicit none
