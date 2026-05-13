@@ -76,7 +76,17 @@ also the best fit with the already selected pattern: Stage/run ownership for
 shared policy/diagnostics and per-replica/per-slot ownership for active
 proposal workspaces.
 
+## Resolution
+
+User selected A on 2026-05-13 JST.
+
+Implementation record:
+
+- `CV011_HMC_POLICY_REVERSE_GATE_CONTEXT_SLICE_20260513.md`
+
 ## Current Stop Condition
 
-Stop for user decision before migrating `hmc_integrator_core` S1 fallback,
-reverse-gate policy, replay recursion flag, and replay status counters.
+Superseded. The HMC fallback/reverse-gate policy, replay runtime flag, and
+replay status counters have been migrated into explicit contexts for the
+Stage1/Stage2 local-update path, with legacy module fallback retained for
+direct callers.

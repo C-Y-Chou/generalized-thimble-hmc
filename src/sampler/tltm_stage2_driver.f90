@@ -11,7 +11,8 @@ module tltm_stage2_driver
    use markovchain_metropolis, only: metropolis_step
    use markovchain_phase, only: compute_phase_factor
    use hmc_constraints, only: reset_newton_eval_flow_status_counts, get_newton_eval_flow_status_counts
-   use hmc_integrator_core, only: reset_reverse_gate_replay_status_counts, get_reverse_gate_replay_status_counts
+   use hmc_integrator_core, only: reset_reverse_gate_replay_status_counts, get_reverse_gate_replay_status_counts, &
+                                  hmc_policy_context_t, hmc_replay_diagnostics_context_t
    use quasi_newton_solver_mod, only: get_quasi_global_filter_stats, reset_quasi_eval_flow_status_counts, &
                                       get_quasi_eval_flow_status_counts, qn_diagnostics_context_t, &
                                       release_qn_diagnostics_context, qn_policy_context_t, release_qn_policy_context
@@ -106,6 +107,8 @@ contains
       type(stage2_audit_context_t) :: audit_context
       type(qn_diagnostics_context_t) :: qn_diagnostics_context
       type(qn_policy_context_t) :: qn_policy_context
+      type(hmc_policy_context_t) :: hmc_policy_context
+      type(hmc_replay_diagnostics_context_t) :: hmc_replay_diagnostics_context
       type(mt95_state_t) :: swap_rng_state
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file, label_trace_file
@@ -153,7 +156,7 @@ contains
       call reset_constraint_solver_stats()
       call reset_newton_eval_flow_status_counts()
       call reset_quasi_eval_flow_status_counts(qn_diagnostics_context)
-      call reset_reverse_gate_replay_status_counts()
+      call reset_reverse_gate_replay_status_counts(hmc_replay_diagnostics_context)
 
       x_size = config%state%x_size
       call resolve_base_seed(base_seed)
@@ -315,7 +318,7 @@ contains
          do i = 1, n_slots
             slot_t0 = wall_time_seconds()
             call run_local_updates(slots(i), local_updates, local_accept_census(i), cycle_idx, run_contexts(i), audit_context, &
-                                   qn_diagnostics_context, qn_policy_context)
+                                   qn_diagnostics_context, qn_policy_context, hmc_policy_context, hmc_replay_diagnostics_context)
             slots(i)%local_runtime = slots(i)%local_runtime + (wall_time_seconds() - slot_t0)
          end do
 
@@ -422,7 +425,7 @@ contains
                                 far_flowzr_used_fail_sum, far_final_resort_used_fail_sum, &
                                 global_filter_candidate_count, global_filter_pass_count, global_filter_reject_count, &
                                 reverse_gate_candidate_counts, reverse_gate_pass_counts, reverse_gate_reject_counts, &
-                                qn_diagnostics_context)
+                                qn_diagnostics_context, hmc_replay_diagnostics_context)
       call write_stage2_v1_sidecars(v1_manifest_file, v1_protocol_file, write_v1_manifest, write_v1_protocol, &
                                     v1_output_dir, write_v1_package, &
                                     summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
@@ -514,7 +517,7 @@ contains
    end subroutine initialize_slot
 
    subroutine run_local_updates(slot, local_updates, accept_census, cycle_idx, run_context, audit_context, qn_diagnostics_context, &
-                                qn_policy_context)
+                                qn_policy_context, hmc_policy_context, hmc_replay_diagnostics_context)
       type(tltm_slot_t), intent(inout) :: slot
       integer, intent(in) :: local_updates
       type(local_accept_census_t), intent(inout) :: accept_census
@@ -523,6 +526,8 @@ contains
       type(stage2_audit_context_t), intent(inout) :: audit_context
       type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics_context
       type(qn_policy_context_t), intent(inout), target :: qn_policy_context
+      type(hmc_policy_context_t), intent(inout), target :: hmc_policy_context
+      type(hmc_replay_diagnostics_context_t), intent(inout), target :: hmc_replay_diagnostics_context
 
       integer :: update_idx, z_size
       real(dp), allocatable :: x_new(:), x_before(:), initial_momentum(:), final_momentum(:)
@@ -548,7 +553,8 @@ contains
                               h_initial_out=h_initial, h_final_out=h_final, delta_h_out=delta_h, &
                               accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
                               final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
-                              qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context)
+                              qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
+                              hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context)
          call snapshot_solver_counters(solver_after)
          if (accepted) then
             slot%x = x_new
@@ -1165,7 +1171,7 @@ contains
                                    far_flowzr_used_fail_sum, far_final_resort_used_fail_sum, &
                                    global_filter_candidate_count, global_filter_pass_count, global_filter_reject_count, &
                                    reverse_gate_candidate_counts, reverse_gate_pass_counts, reverse_gate_reject_counts, &
-                                   qn_diagnostics_context)
+                                   qn_diagnostics_context, hmc_replay_diagnostics_context)
       character(len=*), intent(in) :: summary_file
       type(tltm_slot_t), intent(in) :: slots(:)
       type(tltm_pair_stats_t), intent(in) :: pair_stats(:)
@@ -1196,6 +1202,7 @@ contains
       integer(int64), intent(in) :: reverse_gate_pass_counts(:)
       integer(int64), intent(in) :: reverse_gate_reject_counts(:)
       type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics_context
+      type(hmc_replay_diagnostics_context_t), intent(inout), target :: hmc_replay_diagnostics_context
 
       integer, parameter :: unit_summary = 79
       integer :: ios, i, total_count
@@ -1281,7 +1288,8 @@ contains
                                                  rg_replay_final_force_failed_count, rg_replay_final_projection_failed_count, &
                                                  rg_replay_reverse_gate_rejected_count, rg_replay_final_flow_max_steps_count, &
                                                  rg_replay_final_flow_invalid_count, rg_replay_final_flow_h_min_count, &
-                                                 rg_replay_final_flow_non_strict_success_count, rg_replay_unknown_count)
+                                                 rg_replay_final_flow_non_strict_success_count, rg_replay_unknown_count, &
+                                                 hmc_replay_diagnostics_context)
       write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
          "# reverse_gate_replay_status success=", rg_replay_success_count, &
          " output_size_mismatch=", rg_replay_output_size_mismatch_count, &

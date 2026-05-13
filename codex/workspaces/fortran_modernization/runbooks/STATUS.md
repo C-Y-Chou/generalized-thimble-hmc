@@ -2,6 +2,13 @@
 
 Updated: 2026-05-13 JST
 
+## Read Before Next Solver-Policy Step
+
+- The previous solver-assist default-off / later-deletion direction is superseded for the next solver-policy slice.
+- Before changing solver assist, deleting assist code, changing defaults, or touching `flowz` / `flowzr`, QN residual evaluation, final `flow(...)`, reverse gate, or Metropolis, read `NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md`.
+- Current handoff policy: `nofb` remains author-faithful comparison/control; canonical fallback-on candidate is `strict NT -> QN navigation assist -> unassisted certification -> strict final flow -> RG -> Metropolis`.
+- NT assist is not canonical in this handoff; NT+QN assist is diagnostic-only unless the user explicitly approves a new policy.
+
 ## Objective
 - Define the governing principles, workstreams, milestones, and verification rules for systematic TLTM Fortran modernization.
 - Keep behavior preservation explicit: engineering changes must not silently change the underlying physics or accepted reference outputs.
@@ -11,14 +18,14 @@ Updated: 2026-05-13 JST
 - User-confirmed alias: "code refine" means this `fortran_modernization` task, not a separate workspace.
 - Current position is now tracked by workstream matrix, not by treating M0-M6 as a linear completion ladder:
   - `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`
-  - Position: reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected -> flow/ODEX/HMC/QN flow context implemented -> official DFO-LS callback context implemented -> QN trace/eval context implemented -> QN diagnostics context implemented -> QN policy context implemented -> HMC policy/reverse-gate context decision point.
+  - Position: reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected -> flow/ODEX/HMC/QN flow context implemented -> official DFO-LS callback context implemented -> QN trace/eval context implemented -> QN diagnostics context implemented -> QN policy context implemented -> HMC policy/reverse-gate context implemented -> remaining diagnostics/model/config/profile state boundaries.
 - Foundation closure decisions recorded on 2026-05-12 JST:
   - `CV-007` is closed by endpoint-only ODEX product boundary;
   - `CV-001` is closed by `official_line_kernel_correctness_gate.py`;
   - `CV-006` is closed by `DFOLS_CLAIM_PROVENANCE_POLICY_V1`;
   - `CV-004` is closed as permanent F8/M4 behavior-preservation governance;
   - `CV-005` is closed by machine-checked script/evidence audit;
-  - `CV-011` route-B RNG stream ownership, top-level run contexts, flow/ODEX context, HMC/QN flow threading, official DFO-LS callback context, QN trace/eval context, QN diagnostics context, and QN policy context are implemented. CV-011 remains open for full OpenMP/thread-safe productization: HMC fallback/reverse-gate state, remaining behavior-bearing module state/workspaces, counters, diagnostics, policy state, and deterministic serial/reentrant tests.
+  - `CV-011` route-B RNG stream ownership, top-level run contexts, flow/ODEX context, HMC/QN flow threading, official DFO-LS callback context, QN trace/eval context, QN diagnostics context, QN policy context, and HMC fallback/reverse-gate context are implemented. CV-011 remains open for full OpenMP/thread-safe productization: remaining behavior-bearing module state/workspaces, counters, diagnostics, policy state, model/config/profile ownership, and deterministic serial/reentrant tests.
 - Modernization finish decisions recorded on 2026-05-12 JST:
   - `runbooks/MODERNIZATION_FINISH_DECISIONS_20260512.md`
   - Production redo is completely separated into `tltm_production_comparison`; modernization provides frozen commits/contracts but does not own redo queueing, readback, or final production-output promotion.
@@ -47,7 +54,10 @@ Updated: 2026-05-13 JST
 - CV-011 QN policy context slice added on 2026-05-13 JST:
   - `runbooks/CV011_QN_POLICY_CONTEXT_SLICE_20260513.md`
   - Stage1 and Stage2 now own one run-level `qn_policy_context_t`; QN backend/watchdog policy cache and official DFO-LS preset state no longer live in active module globals.
-  - The next decision point is `runbooks/CV011_HMC_POLICY_REVERSE_GATE_CONTEXT_DECISION_POINT_20260513.md`.
+- CV-011 HMC policy/reverse-gate context slice added on 2026-05-13 JST:
+  - `runbooks/CV011_HMC_POLICY_REVERSE_GATE_CONTEXT_SLICE_20260513.md`
+  - Stage1 and Stage2 now own one run-level `hmc_policy_context_t` and one run-level `hmc_replay_diagnostics_context_t`; each per-replica/per-slot HMC context owns `hmc_replay_runtime_context_t`.
+  - S1 fallback/reverse-gate policy, `qn_reverse_gate_active`, and reverse-gate replay status counters no longer live in active module globals for the Stage1/Stage2 local-update path.
 - Algorithm reference bundle is collected under `references/`, including TLTM HMC, simplified Newton/RATTLE/HMC, DFO-GN/DFO-LS, Hairer ODEX, and the user original quasi-Newton projection formulation.
 - Low-level algorithm review set is complete and has already driven the first source canonicalization wave:
   - `runbooks/ODEX_FLOW_REVIEW_NOTES.md`
@@ -58,7 +68,7 @@ Updated: 2026-05-13 JST
   - `runbooks/PLANNING_DISCUSSION_BRIEF.md`
 - Current flow policy is ODEX primary integration with solver-internal ODE assist for NT/QN residual evaluation and strict final proposal/live-state flow.
 - Current p28 route is Newton -> p28 QN BTN/backflow rescue residual solved by embedded official DFO-LS -> reverse gate -> Metropolis, without post-refine or non-p28 QN families.
-- ODEX completeness is closed by explicit TLTM endpoint-only product boundary: dense output and a general-purpose Hairer ODEX library claim are non-goals, solver assist is default-off diagnostic-only pending later deletion, and broader ODEX claims require reopening CV-007.
+- ODEX endpoint-only product boundary remains closed for dense-output/general-library scope, but the solver-assist production policy is reopened for the next handoff.  The old default-off deletion direction is superseded by `NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md`.
 
 ## Current architecture understanding
 - `solve_flow.f90` is flow mapping plus ODEX-like integration plus solver-internal residual-assist policy plus diagnostics.

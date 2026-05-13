@@ -64,116 +64,150 @@ module hmc_integrator_core
    integer, parameter :: s1_non_near_cheap_full_max_iter_default = 36
    real(dp), parameter :: qn_reverse_gate_tol_default = 1.0e-8_dp
 
-   logical, save :: s1_fallback_policy_loaded = .false.
-   integer, save :: s1_probe_max_iter = s1_probe_max_iter_default
-   integer, save :: s1_near_full_max_iter = s1_near_full_max_iter_default
-   integer, save :: s1_non_near_cheap_full_max_iter = s1_non_near_cheap_full_max_iter_default
-   logical, save :: s1_near_rescue_enabled = .false.
-   logical, save :: s1_nonnear_rescue_enabled = .false.
-   logical, save :: qn_reverse_gate_enabled = .false.
-   logical, save :: qn_reverse_gate_active = .false.
-   real(dp), save :: qn_reverse_gate_tol = qn_reverse_gate_tol_default
-   real(dp), save :: qn_quasi_tol_override = -1.0_dp
-   integer(int64), save :: reverse_gate_replay_status_success = 0_int64
-   integer(int64), save :: reverse_gate_replay_status_output_size_mismatch = 0_int64
-   integer(int64), save :: reverse_gate_replay_status_momentum_size_mismatch = 0_int64
-   integer(int64), save :: reverse_gate_replay_status_initial_force_failed = 0_int64
-   integer(int64), save :: reverse_gate_replay_status_constraint_failed = 0_int64
-   integer(int64), save :: reverse_gate_replay_status_final_flow_failed = 0_int64
-   integer(int64), save :: reverse_gate_replay_status_final_force_failed = 0_int64
-   integer(int64), save :: reverse_gate_replay_status_final_projection_failed = 0_int64
-   integer(int64), save :: reverse_gate_replay_status_reverse_gate_rejected = 0_int64
-   integer(int64), save :: reverse_gate_replay_status_final_flow_max_steps = 0_int64
-   integer(int64), save :: reverse_gate_replay_status_final_flow_invalid = 0_int64
-   integer(int64), save :: reverse_gate_replay_status_final_flow_h_min = 0_int64
-   integer(int64), save :: reverse_gate_replay_status_final_flow_non_strict_success = 0_int64
-   integer(int64), save :: reverse_gate_replay_status_unknown = 0_int64
+   type :: hmc_policy_context_t
+      logical :: s1_fallback_policy_loaded = .false.
+      integer :: s1_probe_max_iter = s1_probe_max_iter_default
+      integer :: s1_near_full_max_iter = s1_near_full_max_iter_default
+      integer :: s1_non_near_cheap_full_max_iter = s1_non_near_cheap_full_max_iter_default
+      logical :: s1_near_rescue_enabled = .false.
+      logical :: s1_nonnear_rescue_enabled = .false.
+      logical :: qn_reverse_gate_enabled = .false.
+      real(dp) :: qn_reverse_gate_tol = qn_reverse_gate_tol_default
+      real(dp) :: qn_quasi_tol_override = -1.0_dp
+   end type hmc_policy_context_t
+
+   type :: hmc_replay_runtime_context_t
+      logical :: qn_reverse_gate_active = .false.
+   end type hmc_replay_runtime_context_t
+
+   type :: hmc_replay_diagnostics_context_t
+      integer(int64) :: reverse_gate_replay_status_success = 0_int64
+      integer(int64) :: reverse_gate_replay_status_output_size_mismatch = 0_int64
+      integer(int64) :: reverse_gate_replay_status_momentum_size_mismatch = 0_int64
+      integer(int64) :: reverse_gate_replay_status_initial_force_failed = 0_int64
+      integer(int64) :: reverse_gate_replay_status_constraint_failed = 0_int64
+      integer(int64) :: reverse_gate_replay_status_final_flow_failed = 0_int64
+      integer(int64) :: reverse_gate_replay_status_final_force_failed = 0_int64
+      integer(int64) :: reverse_gate_replay_status_final_projection_failed = 0_int64
+      integer(int64) :: reverse_gate_replay_status_reverse_gate_rejected = 0_int64
+      integer(int64) :: reverse_gate_replay_status_final_flow_max_steps = 0_int64
+      integer(int64) :: reverse_gate_replay_status_final_flow_invalid = 0_int64
+      integer(int64) :: reverse_gate_replay_status_final_flow_h_min = 0_int64
+      integer(int64) :: reverse_gate_replay_status_final_flow_non_strict_success = 0_int64
+      integer(int64) :: reverse_gate_replay_status_unknown = 0_int64
+   end type hmc_replay_diagnostics_context_t
+
+   type(hmc_policy_context_t), save, target :: module_hmc_policy_context
+   type(hmc_replay_runtime_context_t), save, target :: module_hmc_replay_runtime_context
+   type(hmc_replay_diagnostics_context_t), save, target :: module_hmc_replay_diagnostics_context
 
 contains
 
-   subroutine reset_reverse_gate_replay_status_counts()
+   subroutine reset_reverse_gate_replay_status_counts(hmc_replay_diagnostics)
       implicit none
+      type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
+      type(hmc_replay_diagnostics_context_t), pointer :: active_diagnostics
 
-      reverse_gate_replay_status_success = 0_int64
-      reverse_gate_replay_status_output_size_mismatch = 0_int64
-      reverse_gate_replay_status_momentum_size_mismatch = 0_int64
-      reverse_gate_replay_status_initial_force_failed = 0_int64
-      reverse_gate_replay_status_constraint_failed = 0_int64
-      reverse_gate_replay_status_final_flow_failed = 0_int64
-      reverse_gate_replay_status_final_force_failed = 0_int64
-      reverse_gate_replay_status_final_projection_failed = 0_int64
-      reverse_gate_replay_status_reverse_gate_rejected = 0_int64
-      reverse_gate_replay_status_final_flow_max_steps = 0_int64
-      reverse_gate_replay_status_final_flow_invalid = 0_int64
-      reverse_gate_replay_status_final_flow_h_min = 0_int64
-      reverse_gate_replay_status_final_flow_non_strict_success = 0_int64
-      reverse_gate_replay_status_unknown = 0_int64
+      call resolve_hmc_replay_diagnostics(hmc_replay_diagnostics, active_diagnostics)
+      active_diagnostics%reverse_gate_replay_status_success = 0_int64
+      active_diagnostics%reverse_gate_replay_status_output_size_mismatch = 0_int64
+      active_diagnostics%reverse_gate_replay_status_momentum_size_mismatch = 0_int64
+      active_diagnostics%reverse_gate_replay_status_initial_force_failed = 0_int64
+      active_diagnostics%reverse_gate_replay_status_constraint_failed = 0_int64
+      active_diagnostics%reverse_gate_replay_status_final_flow_failed = 0_int64
+      active_diagnostics%reverse_gate_replay_status_final_force_failed = 0_int64
+      active_diagnostics%reverse_gate_replay_status_final_projection_failed = 0_int64
+      active_diagnostics%reverse_gate_replay_status_reverse_gate_rejected = 0_int64
+      active_diagnostics%reverse_gate_replay_status_final_flow_max_steps = 0_int64
+      active_diagnostics%reverse_gate_replay_status_final_flow_invalid = 0_int64
+      active_diagnostics%reverse_gate_replay_status_final_flow_h_min = 0_int64
+      active_diagnostics%reverse_gate_replay_status_final_flow_non_strict_success = 0_int64
+      active_diagnostics%reverse_gate_replay_status_unknown = 0_int64
    end subroutine reset_reverse_gate_replay_status_counts
 
    subroutine get_reverse_gate_replay_status_counts(success, output_size_mismatch, momentum_size_mismatch, initial_force_failed, &
                                                     constraint_failed, final_flow_failed, final_force_failed, final_projection_failed, &
                                                     reverse_gate_rejected, final_flow_max_steps, final_flow_invalid, final_flow_h_min, &
-                                                    final_flow_non_strict_success, unknown)
+                                                    final_flow_non_strict_success, unknown, hmc_replay_diagnostics)
       implicit none
       integer(int64), intent(out) :: success, output_size_mismatch, momentum_size_mismatch, initial_force_failed
       integer(int64), intent(out) :: constraint_failed, final_flow_failed, final_force_failed, final_projection_failed
       integer(int64), intent(out) :: reverse_gate_rejected, final_flow_max_steps, final_flow_invalid, final_flow_h_min
       integer(int64), intent(out) :: final_flow_non_strict_success, unknown
+      type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
+      type(hmc_replay_diagnostics_context_t), pointer :: active_diagnostics
 
-      success = reverse_gate_replay_status_success
-      output_size_mismatch = reverse_gate_replay_status_output_size_mismatch
-      momentum_size_mismatch = reverse_gate_replay_status_momentum_size_mismatch
-      initial_force_failed = reverse_gate_replay_status_initial_force_failed
-      constraint_failed = reverse_gate_replay_status_constraint_failed
-      final_flow_failed = reverse_gate_replay_status_final_flow_failed
-      final_force_failed = reverse_gate_replay_status_final_force_failed
-      final_projection_failed = reverse_gate_replay_status_final_projection_failed
-      reverse_gate_rejected = reverse_gate_replay_status_reverse_gate_rejected
-      final_flow_max_steps = reverse_gate_replay_status_final_flow_max_steps
-      final_flow_invalid = reverse_gate_replay_status_final_flow_invalid
-      final_flow_h_min = reverse_gate_replay_status_final_flow_h_min
-      final_flow_non_strict_success = reverse_gate_replay_status_final_flow_non_strict_success
-      unknown = reverse_gate_replay_status_unknown
+      call resolve_hmc_replay_diagnostics(hmc_replay_diagnostics, active_diagnostics)
+      success = active_diagnostics%reverse_gate_replay_status_success
+      output_size_mismatch = active_diagnostics%reverse_gate_replay_status_output_size_mismatch
+      momentum_size_mismatch = active_diagnostics%reverse_gate_replay_status_momentum_size_mismatch
+      initial_force_failed = active_diagnostics%reverse_gate_replay_status_initial_force_failed
+      constraint_failed = active_diagnostics%reverse_gate_replay_status_constraint_failed
+      final_flow_failed = active_diagnostics%reverse_gate_replay_status_final_flow_failed
+      final_force_failed = active_diagnostics%reverse_gate_replay_status_final_force_failed
+      final_projection_failed = active_diagnostics%reverse_gate_replay_status_final_projection_failed
+      reverse_gate_rejected = active_diagnostics%reverse_gate_replay_status_reverse_gate_rejected
+      final_flow_max_steps = active_diagnostics%reverse_gate_replay_status_final_flow_max_steps
+      final_flow_invalid = active_diagnostics%reverse_gate_replay_status_final_flow_invalid
+      final_flow_h_min = active_diagnostics%reverse_gate_replay_status_final_flow_h_min
+      final_flow_non_strict_success = active_diagnostics%reverse_gate_replay_status_final_flow_non_strict_success
+      unknown = active_diagnostics%reverse_gate_replay_status_unknown
    end subroutine get_reverse_gate_replay_status_counts
 
-   subroutine record_reverse_gate_replay_status(step_status)
+   subroutine record_reverse_gate_replay_status(step_status, hmc_replay_diagnostics)
       implicit none
       integer, intent(in) :: step_status
+      type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
+      type(hmc_replay_diagnostics_context_t), pointer :: active_diagnostics
 
+      call resolve_hmc_replay_diagnostics(hmc_replay_diagnostics, active_diagnostics)
       select case (step_status)
       case (hmc_step_status_success)
-         reverse_gate_replay_status_success = reverse_gate_replay_status_success + 1_int64
+         active_diagnostics%reverse_gate_replay_status_success = active_diagnostics%reverse_gate_replay_status_success + 1_int64
       case (hmc_step_status_output_size_mismatch)
-         reverse_gate_replay_status_output_size_mismatch = reverse_gate_replay_status_output_size_mismatch + 1_int64
+         active_diagnostics%reverse_gate_replay_status_output_size_mismatch = &
+            active_diagnostics%reverse_gate_replay_status_output_size_mismatch + 1_int64
       case (hmc_step_status_momentum_size_mismatch)
-         reverse_gate_replay_status_momentum_size_mismatch = reverse_gate_replay_status_momentum_size_mismatch + 1_int64
+         active_diagnostics%reverse_gate_replay_status_momentum_size_mismatch = &
+            active_diagnostics%reverse_gate_replay_status_momentum_size_mismatch + 1_int64
       case (hmc_step_status_initial_force_failed)
-         reverse_gate_replay_status_initial_force_failed = reverse_gate_replay_status_initial_force_failed + 1_int64
+         active_diagnostics%reverse_gate_replay_status_initial_force_failed = &
+            active_diagnostics%reverse_gate_replay_status_initial_force_failed + 1_int64
       case (hmc_step_status_constraint_failed)
-         reverse_gate_replay_status_constraint_failed = reverse_gate_replay_status_constraint_failed + 1_int64
+         active_diagnostics%reverse_gate_replay_status_constraint_failed = &
+            active_diagnostics%reverse_gate_replay_status_constraint_failed + 1_int64
       case (hmc_step_status_final_flow_failed)
-         reverse_gate_replay_status_final_flow_failed = reverse_gate_replay_status_final_flow_failed + 1_int64
+         active_diagnostics%reverse_gate_replay_status_final_flow_failed = &
+            active_diagnostics%reverse_gate_replay_status_final_flow_failed + 1_int64
       case (hmc_step_status_final_force_failed)
-         reverse_gate_replay_status_final_force_failed = reverse_gate_replay_status_final_force_failed + 1_int64
+         active_diagnostics%reverse_gate_replay_status_final_force_failed = &
+            active_diagnostics%reverse_gate_replay_status_final_force_failed + 1_int64
       case (hmc_step_status_final_projection_failed)
-         reverse_gate_replay_status_final_projection_failed = reverse_gate_replay_status_final_projection_failed + 1_int64
+         active_diagnostics%reverse_gate_replay_status_final_projection_failed = &
+            active_diagnostics%reverse_gate_replay_status_final_projection_failed + 1_int64
       case (hmc_step_status_reverse_gate_rejected)
-         reverse_gate_replay_status_reverse_gate_rejected = reverse_gate_replay_status_reverse_gate_rejected + 1_int64
+         active_diagnostics%reverse_gate_replay_status_reverse_gate_rejected = &
+            active_diagnostics%reverse_gate_replay_status_reverse_gate_rejected + 1_int64
       case (hmc_step_status_final_flow_max_steps)
-         reverse_gate_replay_status_final_flow_max_steps = reverse_gate_replay_status_final_flow_max_steps + 1_int64
+         active_diagnostics%reverse_gate_replay_status_final_flow_max_steps = &
+            active_diagnostics%reverse_gate_replay_status_final_flow_max_steps + 1_int64
       case (hmc_step_status_final_flow_invalid)
-         reverse_gate_replay_status_final_flow_invalid = reverse_gate_replay_status_final_flow_invalid + 1_int64
+         active_diagnostics%reverse_gate_replay_status_final_flow_invalid = &
+            active_diagnostics%reverse_gate_replay_status_final_flow_invalid + 1_int64
       case (hmc_step_status_final_flow_h_min)
-         reverse_gate_replay_status_final_flow_h_min = reverse_gate_replay_status_final_flow_h_min + 1_int64
+         active_diagnostics%reverse_gate_replay_status_final_flow_h_min = &
+            active_diagnostics%reverse_gate_replay_status_final_flow_h_min + 1_int64
       case (hmc_step_status_final_flow_non_strict_success)
-         reverse_gate_replay_status_final_flow_non_strict_success = reverse_gate_replay_status_final_flow_non_strict_success + 1_int64
+         active_diagnostics%reverse_gate_replay_status_final_flow_non_strict_success = &
+            active_diagnostics%reverse_gate_replay_status_final_flow_non_strict_success + 1_int64
       case default
-         reverse_gate_replay_status_unknown = reverse_gate_replay_status_unknown + 1_int64
+         active_diagnostics%reverse_gate_replay_status_unknown = active_diagnostics%reverse_gate_replay_status_unknown + 1_int64
       end select
    end subroutine record_reverse_gate_replay_status
 
    subroutine rattle_step_core(state_x, state_z, step_size, final_x, final_z, jaci, jacf, momentum, &
-                               method_converged, ws, step_status, flow_workspace, qn_context, qn_diagnostics, qn_policy)
+                               method_converged, ws, step_status, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
+                               hmc_policy, hmc_replay_runtime, hmc_replay_diagnostics)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -191,6 +225,9 @@ contains
       type(qn_context_t), intent(inout), optional, target :: qn_context
       type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+      type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
+      type(hmc_replay_runtime_context_t), intent(inout), optional, target :: hmc_replay_runtime
+      type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
 
       integer :: n_state
       logical :: has_error
@@ -229,8 +266,14 @@ contains
       real(dp), allocatable :: quasi_res_norm(:), quasi_alpha(:)
       integer, allocatable :: quasi_iter(:), quasi_backtrack(:), quasi_attempt(:)
       logical, allocatable :: quasi_accepted(:), quasi_eval_ok(:)
+      type(hmc_policy_context_t), pointer :: active_hmc_policy
+      type(hmc_replay_runtime_context_t), pointer :: active_hmc_replay_runtime
+      type(hmc_replay_diagnostics_context_t), pointer :: active_hmc_replay_diagnostics
 
       call perf_tic(t_prof)
+      call resolve_hmc_policy(hmc_policy, active_hmc_policy)
+      call resolve_hmc_replay_runtime(hmc_replay_runtime, active_hmc_replay_runtime)
+      call resolve_hmc_replay_diagnostics(hmc_replay_diagnostics, active_hmc_replay_diagnostics)
       n_state = size(state_z)
       has_error = .false.
       method_converged = .false.
@@ -279,8 +322,8 @@ contains
       end if
 
       call ensure_rattle_step_workspace(ws, size(state_x), n_state, size(jaci, 1), size(jaci, 2))
-      call load_s1_fallback_policy()
-      if (qn_reverse_gate_enabled .and. (.not. qn_reverse_gate_active)) then
+      call load_s1_fallback_policy(active_hmc_policy)
+      if (active_hmc_policy%qn_reverse_gate_enabled .and. (.not. active_hmc_replay_runtime%qn_reverse_gate_active)) then
          allocate (initial_momentum_for_gate(size(momentum)))
          initial_momentum_for_gate = momentum
       end if
@@ -316,7 +359,7 @@ contains
             call set_intode_stage_trace(intode_stage_quasi)
             call set_intode_quasi_iter_trace(0)
             quasi_tol = cttol
-            if (qn_quasi_tol_override > 0.0_dp) quasi_tol = qn_quasi_tol_override
+            if (active_hmc_policy%qn_quasi_tol_override > 0.0_dp) quasi_tol = active_hmc_policy%qn_quasi_tol_override
             trace_stats_available = .false.
             trace_all_eval_ok = .false.
             trace_count = 0
@@ -335,7 +378,7 @@ contains
             near_rescue_started = .false.
 
             ! S1-only fallback path: probe -> classify -> one stage-1 rescue pass.
-            call try_quasi_stage(quasi_tol, s1_probe_max_iter, constraint_quasi_stage_probe, ws, has_error, final_x, &
+            call try_quasi_stage(quasi_tol, active_hmc_policy%s1_probe_max_iter, constraint_quasi_stage_probe, ws, has_error, final_x, &
                                  flow_workspace, qn_context, qn_diagnostics, qn_policy)
             if (.not. has_error) then
                quasi_solved_ok = .true.
@@ -372,7 +415,7 @@ contains
                                                 step_size, ws, has_error, final_x, near_rescue_started, near_rescue_done, &
                                                 quasi_solved_ok, reverse_gate_used_full_stage, &
                                                 reverse_gate_used_nonnear_route, reverse_gate_far_route, flow_workspace, qn_context, &
-                                                qn_diagnostics, qn_policy)
+                                                qn_diagnostics, qn_policy, active_hmc_policy)
 
                reverse_gate_used_near_rescue = near_rescue_started
                select case (reverse_gate_far_route)
@@ -540,13 +583,14 @@ contains
       end if
       momentum = ws%del_z
 
-      if (qn_reverse_gate_enabled .and. (.not. qn_reverse_gate_active)) then
+      if (active_hmc_policy%qn_reverse_gate_enabled .and. (.not. active_hmc_replay_runtime%qn_reverse_gate_active)) then
          reverse_gate_used_probe_only = (.not. reverse_gate_used_full_stage) .and. &
                                         (.not. reverse_gate_used_near_rescue) .and. &
                                         (.not. reverse_gate_used_nonnear_route)
          reverse_gate_passed = qn_reverse_gate_accepts(state_x, state_z, initial_momentum_for_gate, &
                                                        final_x, final_z, jaci, ws%temp_jac, momentum, step_size, flow_workspace, &
-                                                       qn_context, qn_diagnostics, qn_policy)
+                                                       qn_context, qn_diagnostics, qn_policy, active_hmc_policy, &
+                                                       active_hmc_replay_runtime, active_hmc_replay_diagnostics)
          call record_constraint_solver_reverse_gate(reverse_gate_passed, reverse_gate_used_probe_only, &
                                                     reverse_gate_used_full_stage, reverse_gate_used_near_rescue, &
                                                     reverse_gate_used_nonnear_route, reverse_gate_used_class_local, &
@@ -594,7 +638,8 @@ contains
    end function hmc_step_status_from_final_flow_status
 
    logical function qn_reverse_gate_accepts(state_x, state_z, initial_momentum, final_x, final_z, initial_jac, final_jac, &
-                                            final_momentum, step_size, flow_workspace, qn_context, qn_diagnostics, qn_policy) result(accepts)
+                                            final_momentum, step_size, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
+                                            hmc_policy, hmc_replay_runtime, hmc_replay_diagnostics) result(accepts)
       implicit none
       real(dp), intent(in) :: state_x(:), initial_momentum(:), final_x(:), final_momentum(:), step_size
       complex(dp), intent(in) :: state_z(:), final_z(:), initial_jac(:, :), final_jac(:, :)
@@ -602,6 +647,9 @@ contains
       type(qn_context_t), intent(inout), optional, target :: qn_context
       type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+      type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
+      type(hmc_replay_runtime_context_t), intent(inout), optional, target :: hmc_replay_runtime
+      type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
 
       real(dp), allocatable :: reverse_x(:), reverse_momentum(:)
       complex(dp), allocatable :: reverse_z(:), reverse_jac(:, :)
@@ -609,8 +657,14 @@ contains
       logical :: reverse_ok
       integer :: reverse_step_status
       real(dp) :: dx_inf, dz_inf, dj_inf, dp_inf
+      type(hmc_policy_context_t), pointer :: active_hmc_policy
+      type(hmc_replay_runtime_context_t), pointer :: active_hmc_replay_runtime
+      type(hmc_replay_diagnostics_context_t), pointer :: active_hmc_replay_diagnostics
 
       accepts = .false.
+      call resolve_hmc_policy(hmc_policy, active_hmc_policy)
+      call resolve_hmc_replay_runtime(hmc_replay_runtime, active_hmc_replay_runtime)
+      call resolve_hmc_replay_diagnostics(hmc_replay_diagnostics, active_hmc_replay_diagnostics)
       if (size(initial_momentum) /= size(final_momentum)) return
       if (size(state_x) /= size(final_x)) return
       if (size(state_z) /= size(final_z)) return
@@ -620,22 +674,23 @@ contains
       allocate (reverse_z(size(final_z)), reverse_jac(size(final_jac, 1), size(final_jac, 2)))
 
       reverse_momentum = -final_momentum
-      qn_reverse_gate_active = .true.
+      active_hmc_replay_runtime%qn_reverse_gate_active = .true.
       reverse_step_status = hmc_step_status_unknown
       call push_constraint_solver_stats_suppression()
       call rattle_step_core(final_x, final_z, step_size, reverse_x, reverse_z, final_jac, reverse_jac, reverse_momentum, &
-                            reverse_ok, reverse_ws, reverse_step_status, flow_workspace, qn_context, qn_diagnostics, qn_policy)
+                            reverse_ok, reverse_ws, reverse_step_status, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
+                            active_hmc_policy, active_hmc_replay_runtime, active_hmc_replay_diagnostics)
       call pop_constraint_solver_stats_suppression()
-      qn_reverse_gate_active = .false.
-      call record_reverse_gate_replay_status(reverse_step_status)
+      active_hmc_replay_runtime%qn_reverse_gate_active = .false.
+      call record_reverse_gate_replay_status(reverse_step_status, active_hmc_replay_diagnostics)
 
       if (reverse_ok) then
          dx_inf = max_abs_real_local(reverse_x - state_x)
          dz_inf = max_abs_complex_local(reverse_z - state_z)
          dj_inf = maxval(abs(reverse_jac - initial_jac))
          dp_inf = max_abs_real_local(reverse_momentum + initial_momentum)
-         accepts = (dx_inf <= qn_reverse_gate_tol .and. dz_inf <= qn_reverse_gate_tol .and. &
-                    dj_inf <= qn_reverse_gate_tol .and. dp_inf <= qn_reverse_gate_tol)
+         accepts = (dx_inf <= active_hmc_policy%qn_reverse_gate_tol .and. dz_inf <= active_hmc_policy%qn_reverse_gate_tol .and. &
+                    dj_inf <= active_hmc_policy%qn_reverse_gate_tol .and. dp_inf <= active_hmc_policy%qn_reverse_gate_tol)
       end if
 
       call release_rattle_step_workspace(reverse_ws)
@@ -711,7 +766,8 @@ contains
                                           trace_regress_ratio, trace_best_over_tol, &
                                           step_size, ws, has_error, final_x, near_rescue_started, near_rescue_done, &
                                           quasi_solved_ok, used_full_stage, &
-                                          used_nonnear_route, far_route_used, flow_workspace, qn_context, qn_diagnostics, qn_policy)
+                                          used_nonnear_route, far_route_used, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
+                                          hmc_policy)
       implicit none
       real(dp), intent(in) :: quasi_tol
       real(dp), intent(in) :: step_size
@@ -731,19 +787,20 @@ contains
       type(qn_context_t), intent(inout), optional, target :: qn_context
       type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+      type(hmc_policy_context_t), intent(in) :: hmc_policy
       integer :: far_route
 
       if (.not. has_error) return
 
       if (quasi_case == quasi_case_near) then
-         if (.not. s1_near_rescue_enabled) then
+         if (.not. hmc_policy%s1_near_rescue_enabled) then
             call record_constraint_near_unusable()
             return
          end if
          near_rescue_started = .true.
          call record_constraint_near_rescue_attempt()
          used_full_stage = .true.
-         call try_quasi_stage(quasi_tol, s1_near_full_max_iter, constraint_quasi_stage_full, ws, has_error, final_x, &
+         call try_quasi_stage(quasi_tol, hmc_policy%s1_near_full_max_iter, constraint_quasi_stage_full, ws, has_error, final_x, &
                               flow_workspace, qn_context, qn_diagnostics, qn_policy)
          if (.not. has_error) then
             near_rescue_done = .true.
@@ -762,10 +819,10 @@ contains
                                             trace_progress_ratio, trace_regress_ratio, trace_best_over_tol)
       far_route_used = far_route
       call record_constraint_solver_far_route(far_route)
-      if (s1_nonnear_rescue_enabled .and. far_route >= constraint_quasi_far_route_light) then
+      if (hmc_policy%s1_nonnear_rescue_enabled .and. far_route >= constraint_quasi_far_route_light) then
          used_full_stage = .true.
          used_nonnear_route = .true.
-         call try_quasi_stage(quasi_tol, s1_non_near_cheap_full_max_iter, constraint_quasi_stage_full, ws, has_error, final_x, &
+         call try_quasi_stage(quasi_tol, hmc_policy%s1_non_near_cheap_full_max_iter, constraint_quasi_stage_full, ws, has_error, final_x, &
                               flow_workspace, qn_context, qn_diagnostics, qn_policy)
       end if
       if (has_error) then
@@ -917,29 +974,66 @@ contains
       end if
    end subroutine update_quasi_trace_gate_metrics
 
-   subroutine load_s1_fallback_policy()
+   subroutine resolve_hmc_policy(hmc_policy, active_policy)
       implicit none
+      type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
+      type(hmc_policy_context_t), pointer, intent(out) :: active_policy
+
+      if (present(hmc_policy)) then
+         active_policy => hmc_policy
+      else
+         active_policy => module_hmc_policy_context
+      end if
+   end subroutine resolve_hmc_policy
+
+   subroutine resolve_hmc_replay_runtime(hmc_replay_runtime, active_runtime)
+      implicit none
+      type(hmc_replay_runtime_context_t), intent(inout), optional, target :: hmc_replay_runtime
+      type(hmc_replay_runtime_context_t), pointer, intent(out) :: active_runtime
+
+      if (present(hmc_replay_runtime)) then
+         active_runtime => hmc_replay_runtime
+      else
+         active_runtime => module_hmc_replay_runtime_context
+      end if
+   end subroutine resolve_hmc_replay_runtime
+
+   subroutine resolve_hmc_replay_diagnostics(hmc_replay_diagnostics, active_diagnostics)
+      implicit none
+      type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
+      type(hmc_replay_diagnostics_context_t), pointer, intent(out) :: active_diagnostics
+
+      if (present(hmc_replay_diagnostics)) then
+         active_diagnostics => hmc_replay_diagnostics
+      else
+         active_diagnostics => module_hmc_replay_diagnostics_context
+      end if
+   end subroutine resolve_hmc_replay_diagnostics
+
+   subroutine load_s1_fallback_policy(hmc_policy)
+      implicit none
+      type(hmc_policy_context_t), intent(inout) :: hmc_policy
       character(len=64) :: env_value
       logical :: env_present
       integer :: parsed_value, ios
 
-      if (s1_fallback_policy_loaded) return
-      s1_fallback_policy_loaded = .true.
-      s1_probe_max_iter = s1_probe_max_iter_default
-      s1_near_full_max_iter = s1_near_full_max_iter_default
-      s1_non_near_cheap_full_max_iter = s1_non_near_cheap_full_max_iter_default
-      s1_near_rescue_enabled = .false.
-      s1_nonnear_rescue_enabled = .false.
-      qn_reverse_gate_enabled = .false.
-      qn_reverse_gate_tol = qn_reverse_gate_tol_default
-      qn_quasi_tol_override = -1.0_dp
+      if (hmc_policy%s1_fallback_policy_loaded) return
+      hmc_policy%s1_fallback_policy_loaded = .true.
+      hmc_policy%s1_probe_max_iter = s1_probe_max_iter_default
+      hmc_policy%s1_near_full_max_iter = s1_near_full_max_iter_default
+      hmc_policy%s1_non_near_cheap_full_max_iter = s1_non_near_cheap_full_max_iter_default
+      hmc_policy%s1_near_rescue_enabled = .false.
+      hmc_policy%s1_nonnear_rescue_enabled = .false.
+      hmc_policy%qn_reverse_gate_enabled = .false.
+      hmc_policy%qn_reverse_gate_tol = qn_reverse_gate_tol_default
+      hmc_policy%qn_quasi_tol_override = -1.0_dp
 
 
       call read_string_env("QN_S1_PROBE_MAX_ITER", env_value, env_present)
       if (env_present) then
          read (env_value, *, iostat=ios) parsed_value
          if (ios == 0 .and. parsed_value >= 1) then
-            s1_probe_max_iter = parsed_value
+            hmc_policy%s1_probe_max_iter = parsed_value
          else
             write (*, '(A)') "[WARN] Invalid QN_S1_PROBE_MAX_ITER; using default 28."
          end if
@@ -949,7 +1043,7 @@ contains
       if (env_present) then
          read (env_value, *, iostat=ios) parsed_value
          if (ios == 0 .and. parsed_value >= 1) then
-            s1_near_full_max_iter = parsed_value
+            hmc_policy%s1_near_full_max_iter = parsed_value
          else
             write (*, '(A)') "[WARN] Invalid QN_S1_NEAR_FULL_MAX_ITER; using default 100."
          end if
@@ -959,7 +1053,7 @@ contains
       if (env_present) then
          read (env_value, *, iostat=ios) parsed_value
          if (ios == 0 .and. parsed_value >= 1) then
-            s1_non_near_cheap_full_max_iter = parsed_value
+            hmc_policy%s1_non_near_cheap_full_max_iter = parsed_value
          else
             write (*, '(A)') "[WARN] Invalid QN_S1_NONNEAR_CHEAP_MAX_ITER; using default 36."
          end if
@@ -969,9 +1063,9 @@ contains
       if (env_present) then
          select case (trim(adjustl(env_value)))
          case ("0", "false", "FALSE", "False", "off", "OFF", "Off", "no", "NO", "No")
-            s1_nonnear_rescue_enabled = .false.
+            hmc_policy%s1_nonnear_rescue_enabled = .false.
          case default
-            s1_nonnear_rescue_enabled = .true.
+            hmc_policy%s1_nonnear_rescue_enabled = .true.
          end select
       end if
 
@@ -979,9 +1073,9 @@ contains
       if (env_present) then
          select case (trim(adjustl(env_value)))
          case ("0", "false", "FALSE", "False", "off", "OFF", "Off", "no", "NO", "No")
-            s1_near_rescue_enabled = .false.
+            hmc_policy%s1_near_rescue_enabled = .false.
          case default
-            s1_near_rescue_enabled = .true.
+            hmc_policy%s1_near_rescue_enabled = .true.
          end select
       end if
 
@@ -989,38 +1083,38 @@ contains
       if (env_present) then
          select case (trim(adjustl(env_value)))
          case ("0", "false", "FALSE", "False", "off", "OFF", "Off", "no", "NO", "No")
-            qn_reverse_gate_enabled = .false.
+            hmc_policy%qn_reverse_gate_enabled = .false.
          case default
-            qn_reverse_gate_enabled = .true.
+            hmc_policy%qn_reverse_gate_enabled = .true.
          end select
       end if
 
       call read_string_env("QN_REVERSE_GATE_TOL", env_value, env_present)
       if (env_present) then
-         read (env_value, *, iostat=ios) qn_reverse_gate_tol
-         if (ios /= 0 .or. qn_reverse_gate_tol <= 0.0_dp) then
-            qn_reverse_gate_tol = qn_reverse_gate_tol_default
+         read (env_value, *, iostat=ios) hmc_policy%qn_reverse_gate_tol
+         if (ios /= 0 .or. hmc_policy%qn_reverse_gate_tol <= 0.0_dp) then
+            hmc_policy%qn_reverse_gate_tol = qn_reverse_gate_tol_default
             write (*, '(A)') "[WARN] Invalid QN_REVERSE_GATE_TOL; using default 1e-8."
          end if
       end if
 
       call read_string_env("QN_QUASI_TOL_OVERRIDE", env_value, env_present)
       if (env_present) then
-         read (env_value, *, iostat=ios) qn_quasi_tol_override
-         if (ios /= 0 .or. qn_quasi_tol_override <= 0.0_dp) then
-            qn_quasi_tol_override = -1.0_dp
+         read (env_value, *, iostat=ios) hmc_policy%qn_quasi_tol_override
+         if (ios /= 0 .or. hmc_policy%qn_quasi_tol_override <= 0.0_dp) then
+            hmc_policy%qn_quasi_tol_override = -1.0_dp
             write (*, '(A)') "[WARN] Invalid QN_QUASI_TOL_OVERRIDE; using cttol."
          end if
       end if
 
-      write (*, *) "[INFO] s1 fallback controls: probe_iter=", s1_probe_max_iter, &
-         " near_full_iter=", s1_near_full_max_iter, &
-         " nonnear_cheap_iter=", s1_non_near_cheap_full_max_iter, &
-         " near_rescue_enabled=", s1_near_rescue_enabled, &
-         " nonnear_rescue_enabled=", s1_nonnear_rescue_enabled, &
-         " reverse_gate_enabled=", qn_reverse_gate_enabled, &
-         " reverse_gate_tol=", qn_reverse_gate_tol, &
-         " quasi_tol_override=", qn_quasi_tol_override
+      write (*, *) "[INFO] s1 fallback controls: probe_iter=", hmc_policy%s1_probe_max_iter, &
+         " near_full_iter=", hmc_policy%s1_near_full_max_iter, &
+         " nonnear_cheap_iter=", hmc_policy%s1_non_near_cheap_full_max_iter, &
+         " near_rescue_enabled=", hmc_policy%s1_near_rescue_enabled, &
+         " nonnear_rescue_enabled=", hmc_policy%s1_nonnear_rescue_enabled, &
+         " reverse_gate_enabled=", hmc_policy%qn_reverse_gate_enabled, &
+         " reverse_gate_tol=", hmc_policy%qn_reverse_gate_tol, &
+         " quasi_tol_override=", hmc_policy%qn_quasi_tol_override
    end subroutine load_s1_fallback_policy
 
    real(dp) function max_abs_real_local(vals) result(out)

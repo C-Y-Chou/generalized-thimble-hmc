@@ -1,6 +1,7 @@
 program test_retained_core_rattle_rg_contract
    use hmc_integrator_core, only: get_reverse_gate_replay_status_counts, hmc_step_status_success, &
-                                  reset_reverse_gate_replay_status_counts, rattle_step_core
+                                  hmc_step_status_final_flow_failed, hmc_replay_diagnostics_context_t, &
+                                  record_reverse_gate_replay_status, reset_reverse_gate_replay_status_counts, rattle_step_core
    use hmc_kernels, only: decompose2
    use hmc_state_buffers, only: release_rattle_step_workspace, rattle_step_workspace_t
    use param_mod, only: cttol, read_parameters, state_seed_size_cfg
@@ -44,6 +45,7 @@ program test_retained_core_rattle_rg_contract
    call check_forward_endpoint(final_x, final_z, jacf, failures)
    call check_final_momentum_tangent(momentum, jacf, tangent, tangent_component, normal_component, failures)
    call check_reverse_gate_replay(failures)
+   call check_replay_diagnostics_context_isolation(failures)
    call check_step_status(converged, step_status, failures)
 
    call release_rattle_step_workspace(ws)
@@ -140,5 +142,39 @@ contains
          " success=", success, " failure_total=", failure_total
       if (.not. ok) failures = failures + 1
    end subroutine check_reverse_gate_replay
+
+   subroutine check_replay_diagnostics_context_isolation(failures)
+      integer, intent(inout) :: failures
+      type(hmc_replay_diagnostics_context_t) :: diagnostics_a, diagnostics_b
+      integer(int64) :: success_a, output_size_mismatch_a, momentum_size_mismatch_a, initial_force_failed_a
+      integer(int64) :: constraint_failed_a, final_flow_failed_a, final_force_failed_a, final_projection_failed_a
+      integer(int64) :: reverse_gate_rejected_a, final_flow_max_steps_a, final_flow_invalid_a, final_flow_h_min_a
+      integer(int64) :: final_flow_non_strict_success_a, unknown_a
+      integer(int64) :: success_b, output_size_mismatch_b, momentum_size_mismatch_b, initial_force_failed_b
+      integer(int64) :: constraint_failed_b, final_flow_failed_b, final_force_failed_b, final_projection_failed_b
+      integer(int64) :: reverse_gate_rejected_b, final_flow_max_steps_b, final_flow_invalid_b, final_flow_h_min_b
+      integer(int64) :: final_flow_non_strict_success_b, unknown_b
+      logical :: ok
+
+      call reset_reverse_gate_replay_status_counts(diagnostics_a)
+      call reset_reverse_gate_replay_status_counts(diagnostics_b)
+      call record_reverse_gate_replay_status(hmc_step_status_success, diagnostics_a)
+      call record_reverse_gate_replay_status(hmc_step_status_final_flow_failed, diagnostics_b)
+      call get_reverse_gate_replay_status_counts(success_a, output_size_mismatch_a, momentum_size_mismatch_a, initial_force_failed_a, &
+                                                 constraint_failed_a, final_flow_failed_a, final_force_failed_a, final_projection_failed_a, &
+                                                 reverse_gate_rejected_a, final_flow_max_steps_a, final_flow_invalid_a, final_flow_h_min_a, &
+                                                 final_flow_non_strict_success_a, unknown_a, diagnostics_a)
+      call get_reverse_gate_replay_status_counts(success_b, output_size_mismatch_b, momentum_size_mismatch_b, initial_force_failed_b, &
+                                                 constraint_failed_b, final_flow_failed_b, final_force_failed_b, final_projection_failed_b, &
+                                                 reverse_gate_rejected_b, final_flow_max_steps_b, final_flow_invalid_b, final_flow_h_min_b, &
+                                                 final_flow_non_strict_success_b, unknown_b, diagnostics_b)
+
+      ok = success_a == 1_int64 .and. final_flow_failed_a == 0_int64 .and. unknown_a == 0_int64 .and. &
+           success_b == 0_int64 .and. final_flow_failed_b == 1_int64 .and. unknown_b == 0_int64
+      write (*, '(A,L1,A,I0,A,I0,A,I0,A,I0)') "[CHECK] replay_diagnostics_context_isolation ok=", ok, &
+         " success_a=", success_a, " final_flow_failed_a=", final_flow_failed_a, &
+         " success_b=", success_b, " final_flow_failed_b=", final_flow_failed_b
+      if (.not. ok) failures = failures + 1
+   end subroutine check_replay_diagnostics_context_isolation
 
 end program test_retained_core_rattle_rg_contract

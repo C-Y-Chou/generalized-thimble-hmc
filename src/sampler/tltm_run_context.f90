@@ -1,6 +1,7 @@
 module tltm_run_context_mod
    use solve_flow, only: flow_workspace_t, release_flow_workspace
    use hmc_state_buffers, only: rattle_step_workspace_t, release_rattle_step_workspace
+   use hmc_integrator_core, only: hmc_replay_runtime_context_t
    use quasi_newton_solver_mod, only: qn_context_t, release_qn_context
    implicit none
    private
@@ -18,6 +19,7 @@ module tltm_run_context_mod
       type(rattle_step_workspace_t) :: proposal_ws
       type(rattle_step_workspace_t) :: reverse_probe_ws
       type(rattle_step_workspace_t) :: warmup_ws
+      type(hmc_replay_runtime_context_t) :: replay_runtime
    end type tltm_hmc_context_t
 
    type :: tltm_flow_context_t
@@ -70,6 +72,7 @@ contains
       call release_rattle_step_workspace(context%proposal_ws)
       call release_rattle_step_workspace(context%reverse_probe_ws)
       call release_rattle_step_workspace(context%warmup_ws)
+      context%replay_runtime%qn_reverse_gate_active = .false.
    end subroutine release_tltm_hmc_context
 
    subroutine release_tltm_flow_context(context)

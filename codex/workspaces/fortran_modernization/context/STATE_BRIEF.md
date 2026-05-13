@@ -2,9 +2,17 @@
 
 Updated: 2026-05-13 JST
 
+## Read Before Next Solver-Policy Step
+
+- The previous solver-assist default-off / later-deletion direction is superseded for the next solver-policy slice.
+- Required read before any assist deletion/default-off cleanup or source work that touches solver assist, `flowz` / `flowzr`, QN residual evaluation, final `flow(...)`, reverse gate, or Metropolis:
+  `runbooks/NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md`.
+- Current handoff policy: `nofb` remains author-faithful comparison/control; canonical fallback-on candidate is `strict NT -> QN navigation assist -> unassisted certification -> strict final flow -> RG -> Metropolis`.
+- NT assist is not canonical in this handoff; NT+QN assist is diagnostic-only unless the user explicitly approves a new policy.
+
 ## Current Position
 
-- Current position is `Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected -> flow/ODEX/HMC/QN flow context implemented -> official DFO-LS callback context implemented -> QN trace/eval context implemented -> QN diagnostics context implemented -> QN policy context implemented -> HMC policy/reverse-gate context decision point`.
+- Current position is `Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected -> flow/ODEX/HMC/QN flow context implemented -> official DFO-LS callback context implemented -> QN trace/eval context implemented -> QN diagnostics context implemented -> QN policy context implemented -> HMC policy/reverse-gate context implemented -> remaining diagnostics/model/config/profile state boundaries`.
 - M6 is not "modernization complete" and is not proof that the numerical/software foundation is complete; it is the accepted behavior baseline before larger source refactors resume.
 - The compact source of truth for this positioning is `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`; the reset source of truth for foundation gaps is `runbooks/FOUNDATION_COMPLETENESS_RESET_20260511.md`.
 - M3/M4/M5 modernization infrastructure work is treated as completed, partial, or explicitly deferred by workstream in that matrix.
@@ -15,7 +23,7 @@ Updated: 2026-05-13 JST
 - Embedded official DFO-LS is now the default QN backend. `QN_SOLVER_BACKEND=internal` is only for controlled legacy comparison.
 - Official DFO-LS backend replacement F2 is accepted for the current representative scope: representative embedded 10seed x 10k gate passed with 1000 captured attempts, 923 embedded-converged attempts, 0 float64 failures, 0 missing replay rows, and 0 embedded-converged regressions.
 - Official DFO-LS production-comparison evidence exists as a completed provisional artifact: `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`, 256 seeds x 200000 cycles for both `nofb` and `withfb`, generated under production-comparison commit `c0e4021`. This artifact predates the latest modernization HEAD and must not be interpreted as a rerun after updating production to the current modernization state.
-- F1/CV-007 is closed by explicit product boundary: TLTM modernization targets an endpoint-only ODEX backend for TLTM flow endpoint evaluation; dense output and a general-purpose Hairer ODEX library claim are non-goals. `INTODE_SOLVER_ASSIST_ENABLED` defaults off and assist-on is diagnostic opt-in only pending later deletion.
+- F1/CV-007 endpoint-only ODEX product boundary remains closed for dense-output/general-library scope, but solver-assist production policy is reopened by `NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md`.  Do not continue the old assist default-off / later-deletion cleanup without applying the new fallback-on strict-certification handoff.
 - CV-001 is closed for modernization-tree official-line kernel correctness. `official_line_kernel_correctness_gate.py` passed under embedded official `DFO-LS==1.6.5`, `stable_gate77`, solver assist default-off, and the canonical Newton -> p28 QN BTN residual -> reverse gate -> Metropolis route. Manifest: `output/tests/official_line_kernel_correctness_gate/CV001_official_line_kernel_correctness_manifest.json`.
 - CV-006 is closed by strict DFO-LS claim/provenance policy. `DFOLS_CLAIM_PROVENANCE_POLICY_V1` separates embedded official package evidence from historical/internal DFO-LS-style evidence, and M4 validates it through the CV-001 gate.
 - CV-004 is closed as permanent governance: every behavior-relevant source patch requires F8, M4, and an affected-baseline comparison or explicitly approved narrower baseline.
@@ -33,8 +41,8 @@ Updated: 2026-05-13 JST
 - CV-011 QN trace/eval context route A first slice is implemented. Active Stage1/Stage2 local updates pass `run_context%qn%workspace`; QN residual scratch, eval proposed/flowed caches, last-trace buffers, trace route/iteration state, watchdog scope/last status, and per-attempt residual eval count now live in `qn_context_t`, with module fallback preserved for legacy direct callers.
 - CV-011 QN diagnostics context route A is implemented. Stage1/Stage2 now own one run-level `qn_diagnostics_context_t`; QN attempt-capture file handles/flags/counters, eval-flow status counters, and QN global-filter counters live in that diagnostics sink, with module fallback preserved for legacy direct callers.
 - CV-011 QN policy context route A is implemented. Stage1/Stage2 now own one run-level `qn_policy_context_t`; QN backend policy cache, official DFO-LS preset values, watchdog policy cache, force-best controls, notice state, and official bridge failure warning state live in that policy context, with module fallback preserved for legacy direct callers.
-- The next decision point is HMC fallback/reverse-gate context ownership. `hmc_integrator_core` still owns S1 fallback/reverse-gate policy cache, `qn_reverse_gate_active`, and reverse-gate replay status counters as module state.
-- Remaining CV-011 state is not just scratch storage: HMC fallback/reverse-gate policy/runtime/counters, solver/reverse-gate diagnostics counters, flow/ODEX counters/traces/last-failure snapshot, model tape cache, config mirror, reversibility/progress probe config, and profiling still need migration or explicit product boundaries.
+- CV-011 HMC policy/reverse-gate context route A is implemented. Stage1/Stage2 now own one run-level `hmc_policy_context_t` and one run-level `hmc_replay_diagnostics_context_t`; each per-replica/per-slot HMC context owns `hmc_replay_runtime_context_t`; S1 fallback/reverse-gate policy, `qn_reverse_gate_active`, and replay status counters no longer use active shared module state on the Stage1/Stage2 local-update path.
+- Remaining CV-011 state is not just scratch storage: solver/reverse-gate diagnostics counters, flow/ODEX counters/traces/last-failure snapshot, model tape cache, config mirror, reversibility/progress probe config, and profiling still need migration or explicit product boundaries.
 - Modernization is not at automatic production-regeneration approval, but the user-selected conservative F3/F4/F7/F8 pre-redo gates are now implemented without reduced-scope acceptance.
 - F3/CV-009 is closed for the pre-redo gate: retained-core tests cover Newton replay, successful one-step RATTLE/RG pass replay, BTN residual reconstruction, official package-success route census, stub no-fallback route behavior, RG reject/live-state identity, and failure-as-rejection accounting; `f14_complete_pre_redo_gate.py` records the branch/measure harness.
 - F4/CV-010 is closed for the pre-redo gate: `tltm_local_transition_event_t` is the typed local-transition event source, counters are derived from that event, `F4_LOCAL_TRANSITION_AUDIT_V1` freezes the audit context, and M4 validates audit row invariants.
@@ -84,7 +92,9 @@ Updated: 2026-05-13 JST
 - `runbooks/CV011_QN_DIAGNOSTICS_CONTEXT_SLICE_20260513.md`: QN diagnostics/capture sink implementation record.
 - `runbooks/CV011_QN_BACKEND_POLICY_CONTEXT_DECISION_POINT_20260513.md`: selected route-A decision point for QN backend/watchdog policy ownership.
 - `runbooks/CV011_QN_POLICY_CONTEXT_SLICE_20260513.md`: QN backend/watchdog policy context implementation record.
-- `runbooks/CV011_HMC_POLICY_REVERSE_GATE_CONTEXT_DECISION_POINT_20260513.md`: next decision point for HMC fallback/reverse-gate policy, runtime, and replay counters.
+- `runbooks/CV011_HMC_POLICY_REVERSE_GATE_CONTEXT_DECISION_POINT_20260513.md`: selected route-A decision point for HMC fallback/reverse-gate policy, runtime, and replay counters.
+- `runbooks/CV011_HMC_POLICY_REVERSE_GATE_CONTEXT_SLICE_20260513.md`: HMC fallback/reverse-gate policy/runtime/diagnostics context implementation record.
+- `runbooks/NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md`: current solver-assist handoff; supersedes default-off/later-deletion direction for the next solver-policy slice.
 - `runbooks/FULL_HAIRER_ODEX_REOPEN_PLAN_20260512.md`: historical F1/CV-007 endpoint package and solver-assist default-off implementation notes.
 - `runbooks/OFFICIAL_DFOLS_PRODUCTION_REDO_READBACK_20260512.md`: official DFO-LS 256seed/200k production-comparison redo readback.
 - `state/RETAINED_CORE_EVIDENCE.tsv`: retained-core evidence registry.
@@ -93,4 +103,4 @@ Updated: 2026-05-13 JST
 
 ## Next Action
 
-Ask for the CV-011 HMC policy/reverse-gate context decision. Recommendation is option A: split HMC policy, replay runtime state, and replay diagnostics so full OpenMP/thread-safe proposal productization can continue without mixing product policy and counters. Production redo remains owned by the separate `tltm_production_comparison` tree and must not be synchronized or modified without explicit user instruction.
+Before continuing CV-011 work that touches solver assist, `flowz` / `flowzr`, QN residual evaluation, final `flow(...)`, reverse gate, or Metropolis, read and apply `runbooks/NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md`.  Other CV-011 productization can continue by triaging the next remaining behavior-bearing state boundary: solver/reverse-gate diagnostics counters, flow/ODEX counters/traces/last-failure snapshots, model tape/cache state, config mirror, reversibility/progress probe state, or profiling counters. Production redo remains owned by the separate `tltm_production_comparison` tree and must not be synchronized or modified without explicit user instruction.

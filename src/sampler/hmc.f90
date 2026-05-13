@@ -10,6 +10,8 @@ module hmc
    use tltm_run_context_mod, only: tltm_hmc_context_t
    use quasi_newton_solver_mod, only: qn_context_t, qn_diagnostics_context_t, qn_policy_context_t
    use hmc_integrator_core, only: rattle_step_core, &
+                                  hmc_policy_context_t, &
+                                  hmc_replay_diagnostics_context_t, &
                                   hmc_step_status_output_size_mismatch, &
                                   hmc_step_status_momentum_size_mismatch, &
                                   hmc_step_status_initial_force_failed, &
@@ -41,7 +43,7 @@ contains
    subroutine integrate_hmc_proposal(state_x, state_z, step_size, num_steps, &
                                      final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok, &
                                      proposal_status, initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, &
-                                     qn_diagnostics, qn_policy)
+                                     qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics)
       implicit none
       real(dp), intent(in) :: state_x(:)
       complex(dp), intent(in) :: state_z(:)
@@ -61,19 +63,21 @@ contains
       type(qn_context_t), intent(inout), optional, target :: qn_context
       type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+      type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
+      type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
       logical :: local_ok
       integer :: local_status
 
       call rattle(state_x, state_z, step_size, num_steps, final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, &
                   local_ok, local_status, initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, qn_diagnostics, &
-                  qn_policy)
+                  qn_policy, hmc_policy, hmc_replay_diagnostics)
       if (present(proposal_ok)) proposal_ok = local_ok
       if (present(proposal_status)) proposal_status = local_status
    end subroutine integrate_hmc_proposal
 
    subroutine integrate_hmc_warmup(state_x, state_z, step_size, num_steps, &
                                    final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, context, flow_workspace, qn_context, &
-                                   qn_diagnostics, qn_policy)
+                                   qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics)
       implicit none
       real(dp), intent(in) :: state_x(:)
       complex(dp), intent(in) :: state_z(:)
@@ -90,14 +94,17 @@ contains
       type(qn_context_t), intent(inout), optional, target :: qn_context
       type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+      type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
+      type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
 
       call rattle2(state_x, state_z, step_size, num_steps, final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, &
-                   context, flow_workspace, qn_context, qn_diagnostics, qn_policy)
+                   context, flow_workspace, qn_context, qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics)
    end subroutine integrate_hmc_warmup
 
    subroutine rattle(state_x, state_z, step_size, num_steps, &
                      final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok, proposal_status, &
-                     initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, qn_diagnostics, qn_policy)
+                     initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
+                     hmc_policy, hmc_replay_diagnostics)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -119,6 +126,8 @@ contains
       type(qn_context_t), intent(inout), optional, target :: qn_context
       type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+      type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
+      type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
 
       integer :: step, state_size
       real(dp) :: integration_step_size
@@ -198,10 +207,12 @@ contains
          call set_intode_rattle_trace(step, 1)
          if (present(context)) then
             call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
-                                  method_converged, context%proposal_ws, step_status, flow_workspace, qn_context, qn_diagnostics, qn_policy)
+                                  method_converged, context%proposal_ws, step_status, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
+                                  hmc_policy, context%replay_runtime, hmc_replay_diagnostics)
          else
             call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
-                                  method_converged, ws, step_status, flow_workspace, qn_context, qn_diagnostics, qn_policy)
+                                  method_converged, ws, step_status, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
+                                  hmc_policy=hmc_policy, hmc_replay_diagnostics=hmc_replay_diagnostics)
          end if
          if (.not. method_converged) then
             proposal_status = proposal_status_from_step_status(step_status)
@@ -308,11 +319,12 @@ contains
             if (present(context)) then
                call rattle_step_core(local_prev_x, local_prev_z, local_step_size, out_x, out_z, local_jac, out_jac, &
                                      local_momentum, local_method_converged, context%reverse_probe_ws, local_step_status, &
-                                     flow_workspace, qn_context, qn_diagnostics, qn_policy)
+                                     flow_workspace, qn_context, qn_diagnostics, qn_policy, hmc_policy, context%replay_runtime, &
+                                     hmc_replay_diagnostics)
             else
                call rattle_step_core(local_prev_x, local_prev_z, local_step_size, out_x, out_z, local_jac, out_jac, &
                                      local_momentum, local_method_converged, local_ws, local_step_status, flow_workspace, qn_context, &
-                                     qn_diagnostics, qn_policy)
+                                     qn_diagnostics, qn_policy, hmc_policy=hmc_policy, hmc_replay_diagnostics=hmc_replay_diagnostics)
             end if
             if (.not. local_method_converged) then
                local_proposal_status = proposal_status_from_step_status(local_step_status)
@@ -473,7 +485,7 @@ contains
 
    subroutine rattle2(state_x, state_z, step_size, num_steps, &
                       final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, context, flow_workspace, qn_context, &
-                      qn_diagnostics, qn_policy)
+                      qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -492,6 +504,8 @@ contains
       type(qn_context_t), intent(inout), optional, target :: qn_context
       type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+      type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
+      type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
 
       integer :: step, state_size, wi, substep
       real(dp) :: integration_step_size
@@ -537,11 +551,13 @@ contains
                if (present(context)) then
                   call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
                                         method_converged, context%warmup_ws, flow_workspace=flow_workspace, qn_context=qn_context, &
-                                        qn_diagnostics=qn_diagnostics, qn_policy=qn_policy)
+                                        qn_diagnostics=qn_diagnostics, qn_policy=qn_policy, hmc_policy=hmc_policy, &
+                                        hmc_replay_runtime=context%replay_runtime, hmc_replay_diagnostics=hmc_replay_diagnostics)
                else
                   call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
                                         method_converged, ws, flow_workspace=flow_workspace, qn_context=qn_context, &
-                                        qn_diagnostics=qn_diagnostics, qn_policy=qn_policy)
+                                        qn_diagnostics=qn_diagnostics, qn_policy=qn_policy, hmc_policy=hmc_policy, &
+                                        hmc_replay_diagnostics=hmc_replay_diagnostics)
                end if
                if (.not. method_converged) then
                   call abort_with_failure()
@@ -558,11 +574,13 @@ contains
             if (present(context)) then
                call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
                                      method_converged, context%warmup_ws, flow_workspace=flow_workspace, qn_context=qn_context, &
-                                     qn_diagnostics=qn_diagnostics, qn_policy=qn_policy)
+                                     qn_diagnostics=qn_diagnostics, qn_policy=qn_policy, hmc_policy=hmc_policy, &
+                                     hmc_replay_runtime=context%replay_runtime, hmc_replay_diagnostics=hmc_replay_diagnostics)
             else
                call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
                                      method_converged, ws, flow_workspace=flow_workspace, qn_context=qn_context, &
-                                     qn_diagnostics=qn_diagnostics, qn_policy=qn_policy)
+                                     qn_diagnostics=qn_diagnostics, qn_policy=qn_policy, hmc_policy=hmc_policy, &
+                                     hmc_replay_diagnostics=hmc_replay_diagnostics)
             end if
             if (.not. method_converged) then
                call abort_with_failure()
@@ -579,11 +597,13 @@ contains
                if (present(context)) then
                   call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
                                         method_converged, context%warmup_ws, flow_workspace=flow_workspace, qn_context=qn_context, &
-                                        qn_diagnostics=qn_diagnostics, qn_policy=qn_policy)
+                                        qn_diagnostics=qn_diagnostics, qn_policy=qn_policy, hmc_policy=hmc_policy, &
+                                        hmc_replay_runtime=context%replay_runtime, hmc_replay_diagnostics=hmc_replay_diagnostics)
                else
                   call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
                                         method_converged, ws, flow_workspace=flow_workspace, qn_context=qn_context, &
-                                        qn_diagnostics=qn_diagnostics, qn_policy=qn_policy)
+                                        qn_diagnostics=qn_diagnostics, qn_policy=qn_policy, hmc_policy=hmc_policy, &
+                                        hmc_replay_diagnostics=hmc_replay_diagnostics)
                end if
                if (.not. method_converged) then
                   call abort_with_failure()
@@ -599,11 +619,13 @@ contains
             if (present(context)) then
                call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
                                      method_converged, context%warmup_ws, flow_workspace=flow_workspace, qn_context=qn_context, &
-                                     qn_diagnostics=qn_diagnostics, qn_policy=qn_policy)
+                                     qn_diagnostics=qn_diagnostics, qn_policy=qn_policy, hmc_policy=hmc_policy, &
+                                     hmc_replay_runtime=context%replay_runtime, hmc_replay_diagnostics=hmc_replay_diagnostics)
             else
                call rattle_step_core(temp_x, temp_z, integration_step_size, final_x, final_z, temp_jac, jacf, momentum, &
                                      method_converged, ws, flow_workspace=flow_workspace, qn_context=qn_context, &
-                                     qn_diagnostics=qn_diagnostics, qn_policy=qn_policy)
+                                     qn_diagnostics=qn_diagnostics, qn_policy=qn_policy, hmc_policy=hmc_policy, &
+                                     hmc_replay_diagnostics=hmc_replay_diagnostics)
             end if
             if (.not. method_converged) then
                call abort_with_failure()

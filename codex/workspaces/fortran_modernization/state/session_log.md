@@ -917,3 +917,20 @@
   - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
 - Production-comparison tree was not synchronized, staged, or modified.
 - Stop condition: HMC fallback/reverse-gate policy cache, `qn_reverse_gate_active`, and reverse-gate replay status counters need an ownership decision before migration.
+
+## 2026-05-13 JST - CV-011 HMC policy/reverse-gate context slice
+
+- User selected option A for HMC fallback/reverse-gate context ownership.
+- Added `hmc_policy_context_t`, `hmc_replay_runtime_context_t`, and `hmc_replay_diagnostics_context_t` in `hmc_integrator_core`.
+- Moved S1 fallback/reverse-gate env policy cache into `hmc_policy_context_t`.
+- Moved `qn_reverse_gate_active` into per-HMC `hmc_replay_runtime_context_t`, stored under `tltm_hmc_context_t`.
+- Moved reverse-gate replay status counters into Stage/run-owned `hmc_replay_diagnostics_context_t`.
+- Preserved legacy/direct-call compatibility with module fallback contexts.
+- Stage1 and Stage2 now own one run-level HMC policy context and one run-level replay diagnostics context, and pass them through Metropolis/HMC/RATTLE/QN reverse-gate paths.
+- Extended the retained-core RATTLE/RG contract with `replay_diagnostics_context_isolation`, which proved two HMC replay diagnostics contexts retain independent status counters.
+- Verification passed:
+  - `PYTHON="$PWD/.venv-dfols/bin/python" TLTM_OFFICIAL_DFOLS_PYTHONPATH="$($PWD/.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" make -C build FC=gfortran LDFLAGS= test_retained_core_rattle_rg_contract test_retained_core_rg_reject_identity`
+  - `PYTHON="$PWD/.venv-dfols/bin/python" TLTM_OFFICIAL_DFOLS_PYTHONPATH="$($PWD/.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" make -C build FC=gfortran LDFLAGS= test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity post_b_rng_reference_anchor ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`
+  - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+- Production-comparison tree was not synchronized, staged, or modified.
+- Stop condition: triage the next remaining behavior-bearing state boundary before migrating more module state.
