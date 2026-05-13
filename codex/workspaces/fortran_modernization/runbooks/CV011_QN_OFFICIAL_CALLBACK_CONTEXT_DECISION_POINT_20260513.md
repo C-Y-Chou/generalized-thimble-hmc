@@ -2,6 +2,24 @@
 
 Updated: 2026-05-13 JST
 
+## Resolution
+
+User selected option A on 2026-05-13 JST.
+
+Implemented in `CV011_QN_OFFICIAL_CALLBACK_CONTEXT_SLICE_20260513.md`:
+
+- Added a per-attempt `qn_official_callback_context_t` carried through the C
+  bridge `ctx` pointer.
+- The Fortran official DFO-LS callback recovers `xt`, `z`, `del_z`, `jac`, and
+  the active `flow_workspace_t` from `ctx`.
+- Removed the active-route dependency on module-level `qn_official_*` callback
+  context arrays and active flag.
+- Official QN route, retained-core, post-B RNG anchor, and full M4 verification
+  passed.
+
+Remaining work is no longer this decision point: QN trace/capture/eval context
+state is the next CV-011 decision point.
+
 ## Why This Is A Decision Point
 
 The active official DFO-LS backend calls a C bridge. The bridge already accepts
@@ -55,8 +73,10 @@ Consequence:
 Choose A. It uses an existing C bridge feature (`ctx`) and addresses the active
 official backend rather than proving thread-safety on a non-default route.
 
-## Current Stop Condition
+## Former Stop Condition
 
 Stop for user decision before rewriting the official DFO-LS callback context.
 This is a callback ABI/context design change even though the intended
 physics/output behavior remains unchanged.
+
+This stop condition is cleared by the 2026-05-13 route-A decision.

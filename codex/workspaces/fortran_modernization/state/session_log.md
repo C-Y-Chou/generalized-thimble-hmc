@@ -861,3 +861,15 @@
   - `PYTHON="$PWD/.venv-dfols/bin/python" TLTM_OFFICIAL_DFOLS_PYTHONPATH="$($PWD/.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" make -C build FC=gfortran LDFLAGS= test_retained_core_qn_route_contract test_retained_core_rg_reject_identity post_b_rng_reference_anchor ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`
   - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
 - Stop condition: decide whether to redesign the official DFO-LS callback to use the C bridge `ctx` pointer for per-attempt context before continuing deeper QN backend state migration.
+
+## 2026-05-13 JST - CV-011 QN official callback context slice
+
+- User selected option A for official DFO-LS callback context.
+- Added a per-attempt `qn_official_callback_context_t` and passed it through the C bridge `ctx` pointer.
+- `qn_official_dfols_eval_callback` now recovers `xt`, `z`, `del_z`, `jac`, and active `flow_workspace_t` from `ctx` instead of module-level `qn_official_*` context arrays.
+- Removed the active-route dependency on the module-level official callback active flag and callback arrays.
+- Verification passed:
+  - `PYTHON="$PWD/.venv-dfols/bin/python" TLTM_OFFICIAL_DFOLS_PYTHONPATH="$($PWD/.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" make -C build FC=gfortran LDFLAGS= test_retained_core_qn_route_contract`
+  - `PYTHON="$PWD/.venv-dfols/bin/python" TLTM_OFFICIAL_DFOLS_PYTHONPATH="$($PWD/.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" make -C build FC=gfortran LDFLAGS= test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity post_b_rng_reference_anchor ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`
+  - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+- Stop condition: QN trace/capture/eval context ownership needs a decision before moving `quasi_last_trace_*`, watchdog, attempt-capture, eval-flow counters, and backend policy cache.

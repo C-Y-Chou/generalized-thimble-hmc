@@ -2,7 +2,7 @@ module quasi_newton_solver_mod
    use runtime_env_mod, only: parse_int_env, parse_real_env, parse_logical_env, read_string_env, to_lower_ascii
    use utils, only: dp, complex_to_real, real_to_complex
    use, intrinsic :: iso_fortran_env, only: int64
-   use, intrinsic :: iso_c_binding, only: c_double, c_funloc, c_funptr, c_int, c_null_ptr, c_ptr
+   use, intrinsic :: iso_c_binding, only: c_associated, c_double, c_f_pointer, c_funloc, c_funptr, c_int, c_loc, c_null_ptr, c_ptr
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_value, ieee_quiet_nan
    use solve_flow, only: flowzr, flowz, flow_workspace_t, set_intode_stage_trace, set_intode_quasi_iter_trace, intode_stage_quasi, &
                          get_intode_rescue_stats, intode_status_unknown, intode_status_success, intode_status_success_zero_time, &
@@ -81,10 +81,20 @@ module quasi_newton_solver_mod
    real(dp), save :: qn_official_dfols_rhoend = 1.0e-16_dp
    real(dp), save :: qn_official_dfols_model_abs_tol = 1.0e-30_dp
    real(dp), save :: qn_official_dfols_model_rel_tol = 0.0_dp
-   logical, save :: qn_official_context_active = .false.
-   real(dp), allocatable, save :: qn_official_xt(:), qn_official_del_z(:), qn_official_last_jl(:)
-   complex(dp), allocatable, save :: qn_official_z(:), qn_official_jac(:, :)
-   type(flow_workspace_t), pointer, save :: qn_official_flow_workspace => null()
+   type, bind(C) :: qn_official_callback_context_t
+      type(c_ptr) :: xt = c_null_ptr
+      type(c_ptr) :: z = c_null_ptr
+      type(c_ptr) :: del_z = c_null_ptr
+      type(c_ptr) :: jac = c_null_ptr
+      type(c_ptr) :: flow_workspace = c_null_ptr
+      integer(c_int) :: n = 0_c_int
+      integer(c_int) :: n_xt = 0_c_int
+      integer(c_int) :: n_z = 0_c_int
+      integer(c_int) :: n_del_z = 0_c_int
+      integer(c_int) :: jac_rows = 0_c_int
+      integer(c_int) :: jac_cols = 0_c_int
+      integer(c_int) :: has_flow_workspace = 0_c_int
+   end type qn_official_callback_context_t
 
    interface
       integer(c_int) function tltm_official_dfols_solve_c(n, x0, x_out, package_residual_norm, nf, flag, npt, rhobeg, &
@@ -291,8 +301,9 @@ contains
       implicit none
       integer, intent(in) :: attempt_idx
       real(dp), intent(in) :: tol
-      real(dp), intent(in) :: xt(:), del_z(:), x_init(:)
-      complex(dp), intent(in) :: z(:), jac(:, :)
+      real(dp), intent(in), target :: xt(:), del_z(:)
+      real(dp), intent(in) :: x_init(:)
+      complex(dp), intent(in), target :: z(:), jac(:, :)
       logical, intent(out) :: converged
       real(dp), intent(out) :: Jl(:), x_new(:)
       real(dp), intent(out), optional :: x_best_out(:)
@@ -306,6 +317,7 @@ contains
       logical :: eval_error, initial_eval_ok
       real(dp), allocatable :: x_seed(:), x_solution(:), x_best(:), r(:), Jl_eval(:), Jl_best(:)
       real(c_double), allocatable :: x0_c(:), x_solution_c(:)
+      type(qn_official_callback_context_t), target :: callback_context
 
       n = 2*size(z)
       converged = .false.
@@ -374,7 +386,7 @@ contains
          return
       end if
 
-      call activate_qn_official_context(xt, z, del_z, jac, flow_workspace)
+      call initialize_qn_official_callback_context(callback_context, xt, z, del_z, jac, flow_workspace)
       do i = 1, n
          x0_c(i) = real(x_seed(i), c_double)
          x_solution_c(i) = real(x_seed(i), c_double)
@@ -389,9 +401,9 @@ contains
                                              int(qn_official_dfols_npt, c_int), qn_official_dfols_rhobeg, &
                                              qn_official_dfols_rhoend, int(qn_official_dfols_maxfun, c_int), &
                                              c_objfun_has_noise, qn_official_dfols_model_abs_tol, &
-                                             qn_official_dfols_model_rel_tol, c_null_ptr, &
+                                             qn_official_dfols_model_rel_tol, c_loc(callback_context), &
                                              c_funloc(qn_official_dfols_eval_callback))
-      call deactivate_qn_official_context()
+      call clear_qn_official_callback_context(callback_context)
 
       if (c_status /= 0_c_int) then
          call warn_official_dfols_failure(int(c_status), int(c_flag))
@@ -445,16 +457,32 @@ contains
       real(c_double), intent(in) :: x_c(*)
       real(c_double), intent(out) :: r_c(*)
 
+      type(qn_official_callback_context_t), pointer :: callback_context
+      real(dp), pointer :: xt_ptr(:), del_z_ptr(:)
+      complex(dp), pointer :: z_ptr(:), jac_ptr(:, :)
+      type(flow_workspace_t), pointer :: flow_workspace_ptr
       integer :: n, i
       logical :: eval_error
       real(dp), allocatable :: xi(:), fq(:), jl(:)
 
       status = 1_c_int
       n = int(n_c)
-      if (.not. qn_official_context_active) return
+      if (.not. c_associated(ctx)) return
       if (n <= 0) return
-      if (.not. allocated(qn_official_del_z)) return
-      if (size(qn_official_del_z) /= n) return
+      call c_f_pointer(ctx, callback_context)
+      if (.not. associated(callback_context)) return
+      if (int(callback_context%n) /= n) return
+      if (int(callback_context%n_del_z) /= n) return
+      if (.not. c_associated(callback_context%xt)) return
+      if (.not. c_associated(callback_context%z)) return
+      if (.not. c_associated(callback_context%del_z)) return
+      if (.not. c_associated(callback_context%jac)) return
+      if (callback_context%n_xt <= 0_c_int .or. callback_context%n_z <= 0_c_int) return
+      if (callback_context%jac_rows <= 0_c_int .or. callback_context%jac_cols <= 0_c_int) return
+      call c_f_pointer(callback_context%xt, xt_ptr, [int(callback_context%n_xt)])
+      call c_f_pointer(callback_context%z, z_ptr, [int(callback_context%n_z)])
+      call c_f_pointer(callback_context%del_z, del_z_ptr, [int(callback_context%n_del_z)])
+      call c_f_pointer(callback_context%jac, jac_ptr, [int(callback_context%jac_rows), int(callback_context%jac_cols)])
       allocate (xi(n), fq(n), jl(n))
 
       do i = 1, n
@@ -464,20 +492,17 @@ contains
 
       quasi_trace_iter = 0
       call count_qn_attempt_eval()
-      if (associated(qn_official_flow_workspace)) then
-         call evaluate_constraint_residual(qn_official_xt, qn_official_z, xi, fq, qn_official_del_z, eval_error, jl, &
-                                           qn_official_jac, qn_official_flow_workspace)
+      if (callback_context%has_flow_workspace /= 0_c_int .and. c_associated(callback_context%flow_workspace)) then
+         call c_f_pointer(callback_context%flow_workspace, flow_workspace_ptr)
+         call evaluate_constraint_residual(xt_ptr, z_ptr, xi, fq, del_z_ptr, eval_error, jl, jac_ptr, flow_workspace_ptr)
       else
-         call evaluate_constraint_residual(qn_official_xt, qn_official_z, xi, fq, qn_official_del_z, eval_error, jl, qn_official_jac)
+         call evaluate_constraint_residual(xt_ptr, z_ptr, xi, fq, del_z_ptr, eval_error, jl, jac_ptr)
       end if
       if (eval_error .or. .not. real_vector_is_finite(fq)) goto 100
 
       do i = 1, n
          r_c(i) = real(fq(i), c_double)
       end do
-      if (allocated(qn_official_last_jl)) then
-         if (size(qn_official_last_jl) == n) qn_official_last_jl = jl
-      end if
       status = 0_c_int
 
 100   continue
@@ -486,46 +511,49 @@ contains
       if (allocated(jl)) deallocate (jl)
    end function qn_official_dfols_eval_callback
 
-   subroutine activate_qn_official_context(xt, z, del_z, jac, flow_workspace)
+   subroutine initialize_qn_official_callback_context(context, xt, z, del_z, jac, flow_workspace)
       implicit none
-      real(dp), intent(in) :: xt(:), del_z(:)
-      complex(dp), intent(in) :: z(:), jac(:, :)
+      type(qn_official_callback_context_t), intent(out) :: context
+      real(dp), intent(in), target :: xt(:), del_z(:)
+      complex(dp), intent(in), target :: z(:), jac(:, :)
       type(flow_workspace_t), intent(inout), optional, target :: flow_workspace
-      integer :: n_xt, n_z, n_delz
 
-      n_xt = size(xt)
-      n_z = size(z)
-      n_delz = size(del_z)
-      call ensure_real_workspace(qn_official_xt, n_xt)
-      call ensure_complex_workspace(qn_official_z, n_z)
-      call ensure_real_workspace(qn_official_del_z, n_delz)
-      call ensure_real_workspace(qn_official_last_jl, n_delz)
-      if (allocated(qn_official_jac)) then
-         if (size(qn_official_jac, 1) /= size(jac, 1) .or. size(qn_official_jac, 2) /= size(jac, 2)) then
-            deallocate (qn_official_jac)
-         end if
-      end if
-      if (.not. allocated(qn_official_jac)) allocate (qn_official_jac(size(jac, 1), size(jac, 2)))
-
-      qn_official_xt(1:n_xt) = xt
-      qn_official_z(1:n_z) = z
-      qn_official_del_z(1:n_delz) = del_z
-      qn_official_last_jl(1:n_delz) = 0.0_dp
-      qn_official_jac = jac
+      context%xt = c_loc(xt(1))
+      context%z = c_loc(z(1))
+      context%del_z = c_loc(del_z(1))
+      context%jac = c_loc(jac(1, 1))
+      context%n = int(size(del_z), c_int)
+      context%n_xt = int(size(xt), c_int)
+      context%n_z = int(size(z), c_int)
+      context%n_del_z = int(size(del_z), c_int)
+      context%jac_rows = int(size(jac, 1), c_int)
+      context%jac_cols = int(size(jac, 2), c_int)
       if (present(flow_workspace)) then
-         qn_official_flow_workspace => flow_workspace
+         context%flow_workspace = c_loc(flow_workspace)
+         context%has_flow_workspace = 1_c_int
       else
-         nullify(qn_official_flow_workspace)
+         context%flow_workspace = c_null_ptr
+         context%has_flow_workspace = 0_c_int
       end if
-      qn_official_context_active = .true.
-   end subroutine activate_qn_official_context
+   end subroutine initialize_qn_official_callback_context
 
-   subroutine deactivate_qn_official_context()
+   subroutine clear_qn_official_callback_context(context)
       implicit none
+      type(qn_official_callback_context_t), intent(inout) :: context
 
-      qn_official_context_active = .false.
-      nullify(qn_official_flow_workspace)
-   end subroutine deactivate_qn_official_context
+      context%xt = c_null_ptr
+      context%z = c_null_ptr
+      context%del_z = c_null_ptr
+      context%jac = c_null_ptr
+      context%flow_workspace = c_null_ptr
+      context%n = 0_c_int
+      context%n_xt = 0_c_int
+      context%n_z = 0_c_int
+      context%n_del_z = 0_c_int
+      context%jac_rows = 0_c_int
+      context%jac_cols = 0_c_int
+      context%has_flow_workspace = 0_c_int
+   end subroutine clear_qn_official_callback_context
 
    subroutine warn_official_dfols_failure(status, flag)
       implicit none

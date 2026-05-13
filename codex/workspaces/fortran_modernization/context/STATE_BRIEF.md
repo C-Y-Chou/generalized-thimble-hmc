@@ -4,7 +4,7 @@ Updated: 2026-05-13 JST
 
 ## Current Position
 
-- Current position is `Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected -> flow/ODEX RHS scratch and HMC/QN flow-context threading implemented -> QN official callback-context decision point`.
+- Current position is `Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected -> flow/ODEX/HMC/QN flow context implemented -> official DFO-LS callback context implemented -> QN trace/capture context decision point`.
 - M6 is not "modernization complete" and is not proof that the numerical/software foundation is complete; it is the accepted behavior baseline before larger source refactors resume.
 - The compact source of truth for this positioning is `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`; the reset source of truth for foundation gaps is `runbooks/FOUNDATION_COMPLETENESS_RESET_20260511.md`.
 - M3/M4/M5 modernization infrastructure work is treated as completed, partial, or explicitly deferred by workstream in that matrix.
@@ -29,8 +29,9 @@ Updated: 2026-05-13 JST
 - CV-011 top-level context route A is selected. First slice is implemented: `tltm_run_context_t` owns HMC proposal/reverse-probe/warmup workspaces, and Stage1/Stage2 carry one context per replica/slot through local updates.
 - Stage2 audit file handles/row counters have been migrated out of module `save` state into a Stage2-owned audit context.
 - CV-011 flow/ODEX context route A is selected and implemented. `odex_backend` now has a context-aware callback path; `solve_flow` owns endpoint buffers/RHS scratch/ODEX workspace through `flow_workspace_t`; Stage1/Stage2 initialization, Stage2 swap reflow, and Stage1/Stage2 local-update HMC/QN proposal paths pass per-replica/per-slot run-context flow workspaces.
-- The next decision point is QN official DFO-LS callback context. The C bridge already accepts a `ctx` pointer, but the Fortran official-backend callback still uses module-level `qn_official_*` context state. Product-level thread-safety requires choosing whether to redesign that callback context now.
-- Remaining CV-011 state is not just scratch storage: flow/ODEX context, QN traces/capture/backend callback state, solver/reverse-gate diagnostics counters, model tape cache, config mirror, and profiling still need migration or explicit product boundaries.
+- CV-011 official DFO-LS callback context route A is selected and implemented. The C bridge `ctx` pointer now carries per-attempt official callback context, so the active route no longer depends on module-level `qn_official_*` callback arrays/active flag.
+- The next decision point is QN trace/capture/eval context. `quasi_newton_solver_mod` still owns residual scratch/eval cache, last-trace buffers, watchdog state, attempt-capture files/counters, eval-flow counters, and backend policy cache as module state. Moving them sets the diagnostics ownership model for the active QN route.
+- Remaining CV-011 state is not just scratch storage: QN traces/capture/eval state, solver/reverse-gate diagnostics counters, flow/ODEX counters/traces/last-failure snapshot, model tape cache, config mirror, and profiling still need migration or explicit product boundaries.
 - Modernization is not at automatic production-regeneration approval, but the user-selected conservative F3/F4/F7/F8 pre-redo gates are now implemented without reduced-scope acceptance.
 - F3/CV-009 is closed for the pre-redo gate: retained-core tests cover Newton replay, successful one-step RATTLE/RG pass replay, BTN residual reconstruction, official package-success route census, stub no-fallback route behavior, RG reject/live-state identity, and failure-as-rejection accounting; `f14_complete_pre_redo_gate.py` records the branch/measure harness.
 - F4/CV-010 is closed for the pre-redo gate: `tltm_local_transition_event_t` is the typed local-transition event source, counters are derived from that event, `F4_LOCAL_TRANSITION_AUDIT_V1` freezes the audit context, and M4 validates audit row invariants.
@@ -72,7 +73,9 @@ Updated: 2026-05-13 JST
 - `runbooks/CV011_FLOW_CONTEXT_DECISION_POINT_20260512.md`: selected route-A decision point for removing hidden ODEX RHS callback state.
 - `runbooks/CV011_FLOW_CONTEXT_SLICE_20260513.md`: selected route-A implementation record for context-aware ODEX callbacks and `flow_workspace_t`.
 - `runbooks/CV011_HMC_QN_FLOW_CONTEXT_SLICE_20260513.md`: HMC/Newton/QN local-update flow workspace threading slice.
-- `runbooks/CV011_QN_OFFICIAL_CALLBACK_CONTEXT_DECISION_POINT_20260513.md`: next decision point for removing official DFO-LS callback module state.
+- `runbooks/CV011_QN_OFFICIAL_CALLBACK_CONTEXT_DECISION_POINT_20260513.md`: selected route-A decision point for removing official DFO-LS callback module state.
+- `runbooks/CV011_QN_OFFICIAL_CALLBACK_CONTEXT_SLICE_20260513.md`: official DFO-LS callback context implementation record.
+- `runbooks/CV011_QN_TRACE_CAPTURE_CONTEXT_DECISION_POINT_20260513.md`: next decision point for QN trace/capture/eval context ownership.
 - `runbooks/FULL_HAIRER_ODEX_REOPEN_PLAN_20260512.md`: historical F1/CV-007 endpoint package and solver-assist default-off implementation notes.
 - `runbooks/OFFICIAL_DFOLS_PRODUCTION_REDO_READBACK_20260512.md`: official DFO-LS 256seed/200k production-comparison redo readback.
 - `state/RETAINED_CORE_EVIDENCE.tsv`: retained-core evidence registry.
@@ -81,4 +84,4 @@ Updated: 2026-05-13 JST
 
 ## Next Action
 
-Ask for the CV-011 QN official DFO-LS callback-context decision. Recommendation is option A: use the C bridge `ctx` pointer to carry a per-attempt Fortran callback context, then remove the active route's dependence on module-level `qn_official_*` callback state. Production redo remains owned by the separate `tltm_production_comparison` tree and must not be synchronized or modified without explicit user instruction.
+Ask for the CV-011 QN trace/capture/eval context decision. Recommendation is option A: introduce a run-owned QN sub-context and migrate active-route QN eval scratch, last-trace buffers, watchdog active state, and attempt-capture state in staged slices. Production redo remains owned by the separate `tltm_production_comparison` tree and must not be synchronized or modified without explicit user instruction.
