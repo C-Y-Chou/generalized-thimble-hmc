@@ -25,7 +25,7 @@ first explicit scratch-workspace migrations.
 | Class | Examples | Product issue |
 | --- | --- | --- |
 | Flow/ODEX workspaces and counters | `solve_flow.f90` ODEX buffers, `intode_odex_workspace`, rescue/status counters, trace context, last-failure snapshot | Needs a per-run/per-thread flow context or an explicit scope decision for diagnostics/counters. |
-| QN residual, trace, capture, and official-backend state | `quasi_newton_solver.f90` residual buffers, trace arrays, watchdog/capture files, backend preset cache, official DFO-LS callback context | Needs a QN context that owns residual scratch, trace/capture state, official backend callback data, and policy. |
+| QN residual, trace, capture, and official-backend state | `quasi_newton_solver.f90` residual buffers, trace arrays, watchdog/capture files, backend preset cache, official DFO-LS callback context | Official callback context and active QN trace/eval/watchdog context are implemented. Remaining decision: capture file/counter/policy ownership via a driver-owned diagnostics sink, per-replica files, or legacy serial boundary. |
 | Constraint/reverse-gate counters and capture files | `constraint_solver_stats.f90` counters, suppression depth, fail-capture units/files | Needs a run diagnostics object or explicit thread-safe aggregation policy. |
 | Stage2 diagnostic file handles | `tltm_stage2_driver.f90` RG reject audit and local-transition audit units/files | Needs per-run audit handles rather than module globals. |
 | Model tape/cache state | `model_generated.f90`, `model_tape_ad.f90` tape/cache arrays and current point | Needs either per-thread/per-context tape ownership or a product decision to avoid sharing this cache across OpenMP workers. |

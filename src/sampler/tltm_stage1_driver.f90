@@ -144,7 +144,7 @@ contains
       do update_idx = 1, local_updates
          call metropolis_step(replica%x, replica%z, replica%jac, config%integrator%trajectory_length, &
                               config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
-                              context=run_context%hmc, flow_workspace=run_context%flow%workspace)
+                              context=run_context%hmc, flow_workspace=run_context%flow%workspace, qn_context=run_context%qn%workspace)
          if (accepted) then
             replica%x = x_new
             replica%z = z_new

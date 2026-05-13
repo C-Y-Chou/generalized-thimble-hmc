@@ -533,7 +533,8 @@ contains
                               config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
                               h_initial_out=h_initial, h_final_out=h_final, delta_h_out=delta_h, &
                               accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
-                              final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace)
+                              final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
+                              qn_context=run_context%qn%workspace)
          call snapshot_solver_counters(solver_after)
          if (accepted) then
             slot%x = x_new

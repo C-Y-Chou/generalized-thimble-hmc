@@ -873,3 +873,17 @@
   - `PYTHON="$PWD/.venv-dfols/bin/python" TLTM_OFFICIAL_DFOLS_PYTHONPATH="$($PWD/.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" make -C build FC=gfortran LDFLAGS= test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity post_b_rng_reference_anchor ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`
   - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
 - Stop condition: QN trace/capture/eval context ownership needs a decision before moving `quasi_last_trace_*`, watchdog, attempt-capture, eval-flow counters, and backend policy cache.
+
+## 2026-05-13 JST - CV-011 QN trace/eval context slice
+
+- User selected option A for QN trace/capture/eval context ownership.
+- Added `qn_context_t` plus `release_qn_context` in `quasi_newton_solver_mod`.
+- Moved active-route QN residual scratch, proposed/flowed eval cache, last-trace buffers, trace route/iteration state, watchdog scope/last status, and per-attempt residual eval count into `qn_context_t`.
+- Preserved legacy/direct-call compatibility with module fallback `module_qn_context`.
+- Added `tltm_qn_context_t` under `tltm_run_context_t` and threaded `run_context%qn%workspace` through Stage1/Stage2 local updates, `metropolis_step`, HMC proposal/warmup/reverse-probe, `rattle_step_core`, QN solves, QN reverse-gate replay, and trace readers.
+- Extended the official QN route retained-core test with `qn_context_trace_isolation`, which proved two QN contexts keep independent traces while the official DFO-LS callback uses the selected context.
+- Verification passed:
+  - `PYTHON="$PWD/.venv-dfols/bin/python" TLTM_OFFICIAL_DFOLS_PYTHONPATH="$($PWD/.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" make -C build FC=gfortran LDFLAGS= test_retained_core_qn_route_contract`
+  - `PYTHON="$PWD/.venv-dfols/bin/python" TLTM_OFFICIAL_DFOLS_PYTHONPATH="$($PWD/.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" make -C build FC=gfortran LDFLAGS= test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity post_b_rng_reference_anchor ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`
+  - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+- Stop condition: QN attempt-capture files/counters, eval-flow/global-filter counters, and backend policy cache need a diagnostics ownership decision before migration.

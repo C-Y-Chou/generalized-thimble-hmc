@@ -11,21 +11,34 @@ module quasi_newton_solver_mod
    use quasi_newton_linear_solver_mod, only: solve_linear_direction, initial_guess_from_jacobian
    implicit none
 
-   complex(dp), allocatable, save :: residual_jlc(:), residual_z_trial(:), residual_z_flowed(:)
-   real(dp), allocatable, save :: residual_xtu(:)
-   integer, save :: quasi_trace_iter = 0
-   integer, save :: quasi_last_trace_count = 0
-   integer, save :: quasi_last_trace_capacity = 0
-   integer, save :: quasi_last_trace_dim = 0
-   complex(dp), allocatable, save :: quasi_last_trace_z_proposed(:, :), quasi_last_trace_z_flowed(:, :)
-   real(dp), allocatable, save :: quasi_last_trace_res_norm(:), quasi_last_trace_alpha(:)
-   integer, allocatable, save :: quasi_last_trace_iter(:), quasi_last_trace_backtrack(:), quasi_last_trace_attempt(:)
-   integer, allocatable, save :: quasi_last_trace_route(:)
-   logical, allocatable, save :: quasi_last_trace_accepted(:), quasi_last_trace_eval_ok(:)
-   complex(dp), allocatable, save :: quasi_eval_z_proposed(:), quasi_eval_z_flowed(:)
-   logical, save :: quasi_eval_has_flowed = .false.
-   logical, save :: quasi_eval_flowed_is_inverse = .false.
-   integer, save :: quasi_trace_route_code = 0
+   type :: qn_context_t
+      complex(dp), allocatable :: residual_jlc(:), residual_z_trial(:)
+      integer :: trace_iter = 0
+      integer :: last_trace_count = 0
+      integer :: last_trace_capacity = 0
+      integer :: last_trace_dim = 0
+      complex(dp), allocatable :: last_trace_z_proposed(:, :), last_trace_z_flowed(:, :)
+      real(dp), allocatable :: last_trace_res_norm(:), last_trace_alpha(:)
+      integer, allocatable :: last_trace_iter(:), last_trace_backtrack(:), last_trace_attempt(:)
+      integer, allocatable :: last_trace_route(:)
+      logical, allocatable :: last_trace_accepted(:), last_trace_eval_ok(:)
+      complex(dp), allocatable :: eval_z_proposed(:), eval_z_flowed(:)
+      logical :: eval_has_flowed = .false.
+      logical :: eval_flowed_is_inverse = .false.
+      integer :: trace_route_code = 0
+      logical :: watchdog_scope_active = .false.
+      integer :: watchdog_start_solver_assist = 0
+      integer :: watchdog_used_solver_assist = 0
+      integer :: watchdog_used_accepted_iter = 0
+      logical :: watchdog_hit = .false.
+      logical :: watchdog_last_hit = .false.
+      integer :: watchdog_last_used = 0
+      integer :: watchdog_last_used_accepted_iter = 0
+      integer :: watchdog_hit_total = 0
+      integer(int64) :: current_attempt_eval_count = 0_int64
+   end type qn_context_t
+
+   type(qn_context_t), target, save :: module_qn_context
    integer, parameter :: quasi_solver_assist_budget_default = 20000
    integer, save :: quasi_solver_assist_budget = quasi_solver_assist_budget_default
    integer, parameter :: quasi_accepted_iter_budget_default = 0
@@ -44,15 +57,6 @@ module quasi_newton_solver_mod
    integer(int64), save :: quasi_eval_flow_status_failure_h_min = 0_int64
    integer(int64), save :: quasi_eval_flow_status_unknown = 0_int64
    logical, save :: quasi_watchdog_policy_loaded = .false.
-   logical, save :: quasi_watchdog_scope_active = .false.
-   integer, save :: quasi_watchdog_start_solver_assist = 0
-   integer, save :: quasi_watchdog_used_solver_assist = 0
-   integer, save :: quasi_watchdog_used_accepted_iter = 0
-   logical, save :: quasi_watchdog_hit = .false.
-   logical, save :: quasi_watchdog_last_hit = .false.
-   integer, save :: quasi_watchdog_last_used = 0
-   integer, save :: quasi_watchdog_last_used_accepted_iter = 0
-   integer, save :: quasi_watchdog_hit_total = 0
    logical, save :: qn_attempt_capture_policy_loaded = .false.
    logical, save :: qn_attempt_capture_enabled = .false.
    logical, save :: qn_attempt_capture_files_ready = .false.
@@ -66,7 +70,6 @@ module quasi_newton_solver_mod
    integer, save :: qn_attempt_capture_x0_unit = -1
    integer, save :: qn_attempt_capture_xi0_unit = -1
    integer, save :: qn_attempt_capture_meta_unit = -1
-   integer(int64), save :: qn_current_attempt_eval_count = 0_int64
    character(len=512), save :: qn_attempt_capture_dir = ""
    integer, parameter :: qn_backend_internal = 1
    integer, parameter :: qn_backend_official_dfols = 2
@@ -87,6 +90,7 @@ module quasi_newton_solver_mod
       type(c_ptr) :: del_z = c_null_ptr
       type(c_ptr) :: jac = c_null_ptr
       type(c_ptr) :: flow_workspace = c_null_ptr
+      type(c_ptr) :: qn_context = c_null_ptr
       integer(c_int) :: n = 0_c_int
       integer(c_int) :: n_xt = 0_c_int
       integer(c_int) :: n_z = 0_c_int
@@ -94,6 +98,7 @@ module quasi_newton_solver_mod
       integer(c_int) :: jac_rows = 0_c_int
       integer(c_int) :: jac_cols = 0_c_int
       integer(c_int) :: has_flow_workspace = 0_c_int
+      integer(c_int) :: has_qn_context = 0_c_int
    end type qn_official_callback_context_t
 
    interface
@@ -114,8 +119,57 @@ module quasi_newton_solver_mod
 
 contains
 
+   subroutine resolve_qn_context(qn_context, active_context)
+      implicit none
+      type(qn_context_t), intent(inout), optional, target :: qn_context
+      type(qn_context_t), pointer :: active_context
+
+      if (present(qn_context)) then
+         active_context => qn_context
+      else
+         active_context => module_qn_context
+      end if
+   end subroutine resolve_qn_context
+
+   subroutine release_qn_context(context)
+      implicit none
+      type(qn_context_t), intent(inout) :: context
+
+      if (allocated(context%residual_jlc)) deallocate (context%residual_jlc)
+      if (allocated(context%residual_z_trial)) deallocate (context%residual_z_trial)
+      if (allocated(context%last_trace_z_proposed)) deallocate (context%last_trace_z_proposed)
+      if (allocated(context%last_trace_z_flowed)) deallocate (context%last_trace_z_flowed)
+      if (allocated(context%last_trace_res_norm)) deallocate (context%last_trace_res_norm)
+      if (allocated(context%last_trace_alpha)) deallocate (context%last_trace_alpha)
+      if (allocated(context%last_trace_iter)) deallocate (context%last_trace_iter)
+      if (allocated(context%last_trace_backtrack)) deallocate (context%last_trace_backtrack)
+      if (allocated(context%last_trace_attempt)) deallocate (context%last_trace_attempt)
+      if (allocated(context%last_trace_route)) deallocate (context%last_trace_route)
+      if (allocated(context%last_trace_accepted)) deallocate (context%last_trace_accepted)
+      if (allocated(context%last_trace_eval_ok)) deallocate (context%last_trace_eval_ok)
+      if (allocated(context%eval_z_proposed)) deallocate (context%eval_z_proposed)
+      if (allocated(context%eval_z_flowed)) deallocate (context%eval_z_flowed)
+      context%trace_iter = 0
+      context%last_trace_count = 0
+      context%last_trace_capacity = 0
+      context%last_trace_dim = 0
+      context%eval_has_flowed = .false.
+      context%eval_flowed_is_inverse = .false.
+      context%trace_route_code = 0
+      context%watchdog_scope_active = .false.
+      context%watchdog_start_solver_assist = 0
+      context%watchdog_used_solver_assist = 0
+      context%watchdog_used_accepted_iter = 0
+      context%watchdog_hit = .false.
+      context%watchdog_last_hit = .false.
+      context%watchdog_last_used = 0
+      context%watchdog_last_used_accepted_iter = 0
+      context%watchdog_hit_total = 0
+      context%current_attempt_eval_count = 0_int64
+   end subroutine release_qn_context
+
    subroutine solve_constraint_quasi_newton(f, tol, max_iter, xt, z, del_z, ierr, Jl, x_new, jac, x_seed_override, x_best_solution, &
-                                            flow_workspace)
+                                            flow_workspace, qn_context)
       implicit none
 
       integer, intent(in) :: max_iter
@@ -130,18 +184,21 @@ contains
       real(dp), intent(out), optional :: x_best_solution(:)
 
       interface
-         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace)
+         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context)
             use, intrinsic :: iso_fortran_env, only: real64
             use solve_flow, only: flow_workspace_t
+            import :: qn_context_t
             integer, parameter :: dp = real64
             real(dp), intent(in) :: xt(:), xi(:), del_z(:)
             complex(dp), intent(in) :: z(:), jac(:, :)
             real(dp), intent(out) :: fq(:), Jl(:)
             logical, intent(out) :: ierr
             type(flow_workspace_t), intent(inout), optional :: flow_workspace
+            type(qn_context_t), intent(inout), optional, target :: qn_context
          end subroutine f
       end interface
       type(flow_workspace_t), intent(inout), optional, target :: flow_workspace
+      type(qn_context_t), intent(inout), optional, target :: qn_context
 
       real(dp), parameter :: promising_first_pass_res = 1.0e-2_dp
       real(dp), parameter :: probe_priority_pass_trigger_res = 1.0e-3_dp
@@ -154,13 +211,15 @@ contains
       real(dp) :: best_accept_tol
       real(dp), allocatable :: x0_guess(:), x_best_first(:), x_stage_best(:), x_stage_seed(:), x_best_global(:)
       real(dp), allocatable :: x_try(:), Jl_try(:), Jl_best_global(:)
+      type(qn_context_t), pointer :: active_context
 
       n = 2*size(z)
+      call resolve_qn_context(qn_context, active_context)
       allocate (x0_guess(n), x_best_first(n), x_stage_best(n), x_stage_seed(n), x_try(n), x_best_global(n), &
                 Jl_try(n), Jl_best_global(n))
-      call reset_quasi_last_trace(size(z))
-      call reset_quasi_watchdog_last_status()
-      call begin_quasi_watchdog_scope()
+      call reset_quasi_last_trace(active_context, size(z))
+      call reset_quasi_watchdog_last_status(active_context)
+      call begin_quasi_watchdog_scope(active_context)
 
       call initial_guess_from_jacobian(jac, del_z, x0_guess)
       if (present(x_seed_override)) then
@@ -185,9 +244,10 @@ contains
       call load_qn_backend_policy()
       if (qn_solver_backend == qn_backend_official_dfols) then
          attempt_idx = 1
-         quasi_trace_route_code = 10
+         active_context%trace_route_code = 10
          call run_official_dfols_attempt(tol, attempt_idx, xt, z, del_z, jac, x0_guess, stage_converged, Jl, x_new, &
-                                         x_best_out=x_best_first, best_res_out=best_res_first, flow_workspace=flow_workspace)
+                                         x_best_out=x_best_first, best_res_out=best_res_first, flow_workspace=flow_workspace, &
+                                         qn_context=active_context)
          best_res_global = best_res_first
          Jl_best_global = Jl
          x_best_global = x_best_first
@@ -205,15 +265,16 @@ contains
          if (present(x_best_solution)) then
             if (size(x_best_solution) == n) x_best_solution = x_best_global
          end if
-         call end_quasi_watchdog_scope()
+         call end_quasi_watchdog_scope(active_context)
          deallocate (x0_guess, x_best_first, x_stage_best, x_stage_seed, x_try, x_best_global, Jl_try, Jl_best_global)
          return
       end if
 
       attempt_idx = 1
-      quasi_trace_route_code = 1
+      active_context%trace_route_code = 1
       call run_dfo_ls_attempt(f, tol, max_iter, attempt_idx, xt, z, del_z, jac, x0_guess, stage_converged, Jl, x_new, &
-                              x_best_out=x_best_first, best_res_out=best_res_first, flow_workspace=flow_workspace)
+                              x_best_out=x_best_first, best_res_out=best_res_first, flow_workspace=flow_workspace, &
+                              qn_context=active_context)
       if (best_res_first < best_res_global) then
          best_res_global = best_res_first
          Jl_best_global = Jl
@@ -234,9 +295,10 @@ contains
          x_try = xt
          Jl_try = Jl
          attempt_idx = attempt_idx + 1
-         quasi_trace_route_code = 2
+         active_context%trace_route_code = 2
          call run_dfo_ls_attempt(f, tol, 2*max_iter, attempt_idx, xt, z, del_z, jac, x_stage_seed, stage_converged, &
-                                 Jl_try, x_try, x_best_out=x_stage_best, best_res_out=best_res_try, flow_workspace=flow_workspace)
+                                 Jl_try, x_try, x_best_out=x_stage_best, best_res_out=best_res_try, flow_workspace=flow_workspace, &
+                                 qn_context=active_context)
          if (best_res_try < best_res_global) then
             best_res_global = best_res_try
             Jl_best_global = Jl_try
@@ -254,8 +316,9 @@ contains
       end if
 
       if ((.not. converged) .and. residual_within_accept_tolerance(best_res_global, tol)) then
-         quasi_trace_route_code = 90
-         call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best_global, best_res_global, x_new, Jl, converged, flow_workspace)
+         active_context%trace_route_code = 90
+         call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best_global, best_res_global, x_new, Jl, converged, flow_workspace, &
+                                       active_context)
       end if
       if (.not. converged) then
          best_accept_tol = tol
@@ -263,9 +326,9 @@ contains
             best_accept_tol = qn_force_best_proposal_tol
          end if
          if (ieee_is_finite(best_res_global) .and. best_res_global < best_accept_tol) then
-            quasi_trace_route_code = 91
+            active_context%trace_route_code = 91
             call rescue_attempt_from_best(xt, z, del_z, best_accept_tol, Jl_best_global, best_res_global, x_new, Jl, &
-                                          converged, flow_workspace)
+                                          converged, flow_workspace, active_context)
          end if
       end if
       if (global_filter_candidate) then
@@ -280,7 +343,7 @@ contains
       if (present(x_best_solution)) then
          if (size(x_best_solution) == n) x_best_solution = x_best_global
       end if
-      call end_quasi_watchdog_scope()
+      call end_quasi_watchdog_scope(active_context)
       deallocate (x0_guess, x_best_first, x_stage_best, x_stage_seed, x_try, x_best_global, Jl_try, Jl_best_global)
    end subroutine solve_constraint_quasi_newton
 
@@ -297,7 +360,7 @@ contains
    end subroutine record_quasi_global_filter
 
    subroutine run_official_dfols_attempt(tol, attempt_idx, xt, z, del_z, jac, x_init, converged, Jl, x_new, &
-                                         x_best_out, best_res_out, flow_workspace)
+                                         x_best_out, best_res_out, flow_workspace, qn_context)
       implicit none
       integer, intent(in) :: attempt_idx
       real(dp), intent(in) :: tol
@@ -309,6 +372,7 @@ contains
       real(dp), intent(out), optional :: x_best_out(:)
       real(dp), intent(out), optional :: best_res_out
       type(flow_workspace_t), intent(inout), optional, target :: flow_workspace
+      type(qn_context_t), intent(inout), target :: qn_context
 
       integer :: n, i
       integer(c_int) :: c_status, c_n, c_nf, c_flag, c_objfun_has_noise
@@ -339,24 +403,24 @@ contains
       final_r_norm = huge(1.0_dp)
       best_r_norm = huge(1.0_dp)
       initial_eval_ok = .false.
-      qn_current_attempt_eval_count = 0_int64
-      quasi_trace_iter = 0
+      qn_context%current_attempt_eval_count = 0_int64
+      qn_context%trace_iter = 0
       call cpu_time(attempt_cpu_start)
 
-      call count_qn_attempt_eval()
-      call evaluate_constraint_residual(xt, z, x_seed, r, del_z, eval_error, Jl_eval, jac, flow_workspace)
+      call count_qn_attempt_eval(qn_context)
+      call evaluate_constraint_residual(xt, z, x_seed, r, del_z, eval_error, Jl_eval, jac, flow_workspace, qn_context)
       if (eval_error .or. .not. real_vector_is_finite(r)) then
          x_seed = 0.0_dp
-         quasi_trace_iter = 0
-         call count_qn_attempt_eval()
-         call evaluate_constraint_residual(xt, z, x_seed, r, del_z, eval_error, Jl_eval, jac, flow_workspace)
+         qn_context%trace_iter = 0
+         call count_qn_attempt_eval(qn_context)
+         call evaluate_constraint_residual(xt, z, x_seed, r, del_z, eval_error, Jl_eval, jac, flow_workspace, qn_context)
       end if
       if (eval_error .or. .not. real_vector_is_finite(r)) then
-         call append_quasi_trace_sample(0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
+         call append_quasi_trace_sample(qn_context, 0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
          attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
          call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, qn_official_dfols_maxfun, tol, &
                                  huge(1.0_dp), huge(1.0_dp), .false., .false., &
-                                 qn_current_attempt_eval_count, attempt_cpu_seconds)
+                                 qn_context%current_attempt_eval_count, attempt_cpu_seconds)
          deallocate (x_seed, x_solution, x_best, r, Jl_eval, Jl_best, x0_c, x_solution_c)
          return
       end if
@@ -368,11 +432,11 @@ contains
          x_best = x_seed
          Jl_best = Jl_eval
       end if
-      call append_quasi_trace_sample(0.0_dp, 0, 0, attempt_idx, initial_r_norm, &
+      call append_quasi_trace_sample(qn_context, 0.0_dp, 0, 0, attempt_idx, initial_r_norm, &
                                      residual_within_accept_tolerance(initial_r_norm, tol), .true.)
 
       if (residual_within_accept_tolerance(best_r_norm, tol)) then
-         call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace)
+         call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace, qn_context)
          if (.not. converged) x_new = xt
          if (present(x_best_out)) then
             if (size(x_best_out) == size(x_best)) x_best_out = x_best
@@ -381,12 +445,12 @@ contains
          attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
          call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, qn_official_dfols_maxfun, tol, &
                                  initial_r_norm, best_r_norm, converged, initial_eval_ok, &
-                                 qn_current_attempt_eval_count, attempt_cpu_seconds)
+                                 qn_context%current_attempt_eval_count, attempt_cpu_seconds)
          deallocate (x_seed, x_solution, x_best, r, Jl_eval, Jl_best, x0_c, x_solution_c)
          return
       end if
 
-      call initialize_qn_official_callback_context(callback_context, xt, z, del_z, jac, flow_workspace)
+      call initialize_qn_official_callback_context(callback_context, xt, z, del_z, jac, flow_workspace, qn_context)
       do i = 1, n
          x0_c(i) = real(x_seed(i), c_double)
          x_solution_c(i) = real(x_seed(i), c_double)
@@ -407,18 +471,18 @@ contains
 
       if (c_status /= 0_c_int) then
          call warn_official_dfols_failure(int(c_status), int(c_flag))
-         call append_quasi_trace_sample(0.0_dp, 0, int(c_status), attempt_idx, huge(1.0_dp), .false., .false.)
+         call append_quasi_trace_sample(qn_context, 0.0_dp, 0, int(c_status), attempt_idx, huge(1.0_dp), .false., .false.)
       else
          do i = 1, n
             x_solution(i) = real(x_solution_c(i), dp)
          end do
          if (real_vector_is_finite(x_solution)) then
-            quasi_trace_iter = 0
-            call count_qn_attempt_eval()
-            call evaluate_constraint_residual(xt, z, x_solution, r, del_z, eval_error, Jl_eval, jac, flow_workspace)
+            qn_context%trace_iter = 0
+            call count_qn_attempt_eval(qn_context)
+            call evaluate_constraint_residual(xt, z, x_solution, r, del_z, eval_error, Jl_eval, jac, flow_workspace, qn_context)
             if (.not. eval_error .and. real_vector_is_finite(r)) then
                final_r_norm = norm2(r)
-               call append_quasi_trace_sample(1.0_dp, 0, int(c_nf), attempt_idx, final_r_norm, &
+               call append_quasi_trace_sample(qn_context, 1.0_dp, 0, int(c_nf), attempt_idx, final_r_norm, &
                                               residual_within_accept_tolerance(final_r_norm, tol), .true.)
                if (ieee_is_finite(final_r_norm) .and. final_r_norm < best_r_norm) then
                   best_r_norm = final_r_norm
@@ -426,14 +490,14 @@ contains
                   Jl_best = Jl_eval
                end if
             else
-               call append_quasi_trace_sample(1.0_dp, 0, int(c_nf), attempt_idx, huge(1.0_dp), .false., .false.)
+               call append_quasi_trace_sample(qn_context, 1.0_dp, 0, int(c_nf), attempt_idx, huge(1.0_dp), .false., .false.)
             end if
          else
-            call append_quasi_trace_sample(1.0_dp, 0, int(c_nf), attempt_idx, huge(1.0_dp), .false., .false.)
+            call append_quasi_trace_sample(qn_context, 1.0_dp, 0, int(c_nf), attempt_idx, huge(1.0_dp), .false., .false.)
          end if
       end if
 
-      call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace)
+      call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace, qn_context)
       if (.not. converged) then
          x_new = xt
          if (size(Jl_best) == size(Jl)) Jl = Jl_best
@@ -445,7 +509,7 @@ contains
       attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
       call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, qn_official_dfols_maxfun, tol, &
                               initial_r_norm, best_r_norm, converged, initial_eval_ok, &
-                              qn_current_attempt_eval_count, attempt_cpu_seconds)
+                              qn_context%current_attempt_eval_count, attempt_cpu_seconds)
 
       deallocate (x_seed, x_solution, x_best, r, Jl_eval, Jl_best, x0_c, x_solution_c)
    end subroutine run_official_dfols_attempt
@@ -461,6 +525,7 @@ contains
       real(dp), pointer :: xt_ptr(:), del_z_ptr(:)
       complex(dp), pointer :: z_ptr(:), jac_ptr(:, :)
       type(flow_workspace_t), pointer :: flow_workspace_ptr
+      type(qn_context_t), pointer :: qn_context_ptr
       integer :: n, i
       logical :: eval_error
       real(dp), allocatable :: xi(:), fq(:), jl(:)
@@ -490,13 +555,19 @@ contains
       end do
       if (.not. real_vector_is_finite(xi)) goto 100
 
-      quasi_trace_iter = 0
-      call count_qn_attempt_eval()
+      if (callback_context%has_qn_context /= 0_c_int .and. c_associated(callback_context%qn_context)) then
+         call c_f_pointer(callback_context%qn_context, qn_context_ptr)
+      else
+         qn_context_ptr => module_qn_context
+      end if
+      qn_context_ptr%trace_iter = 0
+      call count_qn_attempt_eval(qn_context_ptr)
       if (callback_context%has_flow_workspace /= 0_c_int .and. c_associated(callback_context%flow_workspace)) then
          call c_f_pointer(callback_context%flow_workspace, flow_workspace_ptr)
-         call evaluate_constraint_residual(xt_ptr, z_ptr, xi, fq, del_z_ptr, eval_error, jl, jac_ptr, flow_workspace_ptr)
+         call evaluate_constraint_residual(xt_ptr, z_ptr, xi, fq, del_z_ptr, eval_error, jl, jac_ptr, flow_workspace_ptr, &
+                                           qn_context_ptr)
       else
-         call evaluate_constraint_residual(xt_ptr, z_ptr, xi, fq, del_z_ptr, eval_error, jl, jac_ptr)
+         call evaluate_constraint_residual(xt_ptr, z_ptr, xi, fq, del_z_ptr, eval_error, jl, jac_ptr, qn_context=qn_context_ptr)
       end if
       if (eval_error .or. .not. real_vector_is_finite(fq)) goto 100
 
@@ -511,12 +582,13 @@ contains
       if (allocated(jl)) deallocate (jl)
    end function qn_official_dfols_eval_callback
 
-   subroutine initialize_qn_official_callback_context(context, xt, z, del_z, jac, flow_workspace)
+   subroutine initialize_qn_official_callback_context(context, xt, z, del_z, jac, flow_workspace, qn_context)
       implicit none
       type(qn_official_callback_context_t), intent(out) :: context
       real(dp), intent(in), target :: xt(:), del_z(:)
       complex(dp), intent(in), target :: z(:), jac(:, :)
       type(flow_workspace_t), intent(inout), optional, target :: flow_workspace
+      type(qn_context_t), intent(inout), optional, target :: qn_context
 
       context%xt = c_loc(xt(1))
       context%z = c_loc(z(1))
@@ -535,6 +607,13 @@ contains
          context%flow_workspace = c_null_ptr
          context%has_flow_workspace = 0_c_int
       end if
+      if (present(qn_context)) then
+         context%qn_context = c_loc(qn_context)
+         context%has_qn_context = 1_c_int
+      else
+         context%qn_context = c_null_ptr
+         context%has_qn_context = 0_c_int
+      end if
    end subroutine initialize_qn_official_callback_context
 
    subroutine clear_qn_official_callback_context(context)
@@ -546,6 +625,7 @@ contains
       context%del_z = c_null_ptr
       context%jac = c_null_ptr
       context%flow_workspace = c_null_ptr
+      context%qn_context = c_null_ptr
       context%n = 0_c_int
       context%n_xt = 0_c_int
       context%n_z = 0_c_int
@@ -553,6 +633,7 @@ contains
       context%jac_rows = 0_c_int
       context%jac_cols = 0_c_int
       context%has_flow_workspace = 0_c_int
+      context%has_qn_context = 0_c_int
    end subroutine clear_qn_official_callback_context
 
    subroutine warn_official_dfols_failure(status, flag)
@@ -566,7 +647,7 @@ contains
    end subroutine warn_official_dfols_failure
 
    subroutine run_dfo_ls_attempt(f, tol, max_iter, attempt_idx, xt, z, del_z, jac, x_init, converged, Jl, x_new, &
-                                 x_best_out, best_res_out, flow_workspace)
+                                 x_best_out, best_res_out, flow_workspace, qn_context)
       implicit none
       integer, intent(in) :: max_iter
       integer, intent(in) :: attempt_idx
@@ -578,17 +659,20 @@ contains
       real(dp), intent(out), optional :: x_best_out(:)
       real(dp), intent(out), optional :: best_res_out
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(qn_context_t), intent(inout), target :: qn_context
 
       interface
-         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace)
+         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context)
             use, intrinsic :: iso_fortran_env, only: real64
             use solve_flow, only: flow_workspace_t
+            import :: qn_context_t
             integer, parameter :: dp = real64
             real(dp), intent(in) :: xt(:), xi(:), del_z(:)
             complex(dp), intent(in) :: z(:), jac(:, :)
             real(dp), intent(out) :: fq(:), Jl(:)
             logical, intent(out) :: ierr
             type(flow_workspace_t), intent(inout), optional :: flow_workspace
+            type(qn_context_t), intent(inout), optional, target :: qn_context
          end subroutine f
       end interface
 
@@ -633,22 +717,22 @@ contains
          x = 0.0_dp
       end if
 
-      quasi_trace_iter = 0
-      qn_current_attempt_eval_count = 0_int64
+      qn_context%trace_iter = 0
+      qn_context%current_attempt_eval_count = 0_int64
       call cpu_time(attempt_cpu_start)
-      call count_qn_attempt_eval()
-      call f(xt, z, x, r, del_z, eval_error, Jl, jac, flow_workspace)
+      call count_qn_attempt_eval(qn_context)
+      call f(xt, z, x, r, del_z, eval_error, Jl, jac, flow_workspace, qn_context)
       if (eval_error .or. .not. real_vector_is_finite(r)) then
          x = 0.0_dp
-         quasi_trace_iter = 0
-         call count_qn_attempt_eval()
-         call f(xt, z, x, r, del_z, eval_error, Jl, jac, flow_workspace)
+         qn_context%trace_iter = 0
+         call count_qn_attempt_eval(qn_context)
+         call f(xt, z, x, r, del_z, eval_error, Jl, jac, flow_workspace, qn_context)
       end if
       if (eval_error .or. .not. real_vector_is_finite(r)) then
-         call append_quasi_trace_sample(0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
+         call append_quasi_trace_sample(qn_context, 0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
          attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
          call capture_qn_attempt(xt, z, del_z, x, attempt_idx, max_iter, tol, huge(1.0_dp), huge(1.0_dp), .false., .false., &
-                                 qn_current_attempt_eval_count, attempt_cpu_seconds)
+                                 qn_context%current_attempt_eval_count, attempt_cpu_seconds)
          deallocate (x, x_trial, x_seed, r, r_trial, Jm, Hm, Bm, g, step, hs, Jl_trial, x_best, Jl_best)
          return
       end if
@@ -656,16 +740,16 @@ contains
       x_seed = x
       r_norm = norm2(r)
       if (.not. ieee_is_finite(r_norm)) then
-         call append_quasi_trace_sample(0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
+         call append_quasi_trace_sample(qn_context, 0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
          attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
          call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, max_iter, tol, r_norm, huge(1.0_dp), .false., .false., &
-                                 qn_current_attempt_eval_count, attempt_cpu_seconds)
+                                 qn_context%current_attempt_eval_count, attempt_cpu_seconds)
          deallocate (x, x_trial, x_seed, r, r_trial, Jm, Hm, Bm, g, step, hs, Jl_trial, x_best, Jl_best)
          return
       end if
 
       initial_r_norm = r_norm
-      call append_quasi_trace_sample(0.0_dp, 0, 0, attempt_idx, r_norm, .false., .true.)
+      call append_quasi_trace_sample(qn_context, 0.0_dp, 0, 0, attempt_idx, r_norm, .false., .true.)
       best_r_norm = r_norm
       prev_best_r_norm = best_r_norm
       x_best = x
@@ -685,15 +769,15 @@ contains
       stagnation_limit = max(16, min(40, max_iter/2))
 
       do iter_idx = 1, max_iter
-         if (quasi_watchdog_scope_active .and. quasi_watchdog_hit) exit
+         if (qn_context%watchdog_scope_active .and. qn_context%watchdog_hit) exit
          if (residual_within_accept_tolerance(r_norm, tol)) exit
          prev_r_norm = r_norm
 
-         call build_dfo_gn_jacobian(f, xt, z, del_z, jac, x, r, trust_radius, iter_idx, Jm, flow_workspace)
+         call build_dfo_gn_jacobian(f, xt, z, del_z, jac, x, r, trust_radius, iter_idx, Jm, flow_workspace, qn_context)
          Hm = matmul(transpose(Jm), Jm)
          g = matmul(transpose(Jm), r)
          if (.not. real_vector_is_finite(g)) then
-            call append_quasi_trace_sample(0.0_dp, iter_idx, 0, attempt_idx, huge(1.0_dp), .false., .false.)
+            call append_quasi_trace_sample(qn_context, 0.0_dp, iter_idx, 0, attempt_idx, huge(1.0_dp), .false., .false.)
             trust_radius = max(trust_radius_min, 0.5_dp*trust_radius)
             lambda = min(lambda_max, max(10.0_dp*lambda, 1.0e-6_dp))
             cycle
@@ -724,11 +808,11 @@ contains
             end if
 
             x_trial = x + step
-            quasi_trace_iter = iter_idx
-            call count_qn_attempt_eval()
-            call f(xt, z, x_trial, r_trial, del_z, eval_error, Jl_trial, jac, flow_workspace)
+            qn_context%trace_iter = iter_idx
+            call count_qn_attempt_eval(qn_context)
+            call f(xt, z, x_trial, r_trial, del_z, eval_error, Jl_trial, jac, flow_workspace, qn_context)
             if (eval_error .or. .not. real_vector_is_finite(r_trial)) then
-               call append_quasi_trace_sample(0.0_dp, iter_idx, 0, attempt_idx, huge(1.0_dp), .false., .false.)
+               call append_quasi_trace_sample(qn_context, 0.0_dp, iter_idx, 0, attempt_idx, huge(1.0_dp), .false., .false.)
                trust_radius = max(trust_radius_min, 0.5_dp*trust_radius)
                lambda_trial = min(lambda_max, 4.0_dp*lambda_trial)
                cycle
@@ -736,7 +820,7 @@ contains
 
             r_trial_norm = norm2(r_trial)
             if (.not. ieee_is_finite(r_trial_norm)) then
-               call append_quasi_trace_sample(0.0_dp, iter_idx, 0, attempt_idx, huge(1.0_dp), .false., .false.)
+               call append_quasi_trace_sample(qn_context, 0.0_dp, iter_idx, 0, attempt_idx, huge(1.0_dp), .false., .false.)
                trust_radius = max(trust_radius_min, 0.5_dp*trust_radius)
                lambda_trial = min(lambda_max, 4.0_dp*lambda_trial)
                cycle
@@ -755,7 +839,7 @@ contains
                        (ieee_is_finite(ared) .and. ared > 0.0_dp .and. ieee_is_finite(ratio) .and. ratio >= eta_accept)
 
             alpha_ratio = min(1.0_dp, step_norm/max(trust_radius, tiny(1.0_dp)))
-            call append_quasi_trace_sample(alpha_ratio, iter_idx, 0, attempt_idx, r_trial_norm, accepted, .true.)
+            call append_quasi_trace_sample(qn_context, alpha_ratio, iter_idx, 0, attempt_idx, r_trial_norm, accepted, .true.)
 
             if (accepted) then
                x = x_trial
@@ -844,24 +928,25 @@ contains
                end select
 
                x_trial = x + escape_len*step
-               quasi_trace_iter = iter_idx
-               call count_qn_attempt_eval()
-               call f(xt, z, x_trial, r_trial, del_z, eval_error, Jl_trial, jac, flow_workspace)
+               qn_context%trace_iter = iter_idx
+               call count_qn_attempt_eval(qn_context)
+               call f(xt, z, x_trial, r_trial, del_z, eval_error, Jl_trial, jac, flow_workspace, qn_context)
                if (eval_error .or. .not. real_vector_is_finite(r_trial)) then
-                  call append_quasi_trace_sample(0.0_dp, iter_idx, 100 + escape_try, attempt_idx, huge(1.0_dp), .false., .false.)
+                  call append_quasi_trace_sample(qn_context, 0.0_dp, iter_idx, 100 + escape_try, attempt_idx, huge(1.0_dp), .false., .false.)
                   cycle
                end if
 
                r_trial_norm = norm2(r_trial)
                if (.not. ieee_is_finite(r_trial_norm)) then
-                  call append_quasi_trace_sample(0.0_dp, iter_idx, 100 + escape_try, attempt_idx, huge(1.0_dp), .false., .false.)
+                  call append_quasi_trace_sample(qn_context, 0.0_dp, iter_idx, 100 + escape_try, attempt_idx, huge(1.0_dp), .false., .false.)
                   cycle
                end if
 
                escape_accept = residual_within_accept_tolerance(r_trial_norm, tol) .or. &
                                (r_trial_norm <= r_norm*(1.0_dp - escape_improve_rel))
                alpha_ratio = min(1.0_dp, escape_len/max(trust_radius, tiny(1.0_dp)))
-               call append_quasi_trace_sample(alpha_ratio, iter_idx, 100 + escape_try, attempt_idx, r_trial_norm, escape_accept, .true.)
+               call append_quasi_trace_sample(qn_context, alpha_ratio, iter_idx, 100 + escape_try, attempt_idx, r_trial_norm, &
+                                              escape_accept, .true.)
                if (.not. escape_accept) cycle
 
                x = x_trial
@@ -895,7 +980,7 @@ contains
          if (iter_idx >= 8 .and. no_improve_count >= stagnation_limit) exit
       end do
 
-      call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace)
+      call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace, qn_context)
       if (.not. converged) then
          x_new = xt
          if (size(Jl_best) == size(Jl)) Jl = Jl_best
@@ -906,29 +991,32 @@ contains
       if (present(best_res_out)) best_res_out = best_r_norm
       attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
       call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, max_iter, tol, initial_r_norm, best_r_norm, converged, .true., &
-                              qn_current_attempt_eval_count, attempt_cpu_seconds)
+                              qn_context%current_attempt_eval_count, attempt_cpu_seconds)
 
       deallocate (x, x_trial, x_seed, r, r_trial, Jm, Hm, Bm, g, step, hs, Jl_trial, x_best, Jl_best)
    end subroutine run_dfo_ls_attempt
 
-   subroutine build_dfo_gn_jacobian(f, xt, z, del_z, jac, x, r, trust_radius, iter_idx, Jm, flow_workspace)
+   subroutine build_dfo_gn_jacobian(f, xt, z, del_z, jac, x, r, trust_radius, iter_idx, Jm, flow_workspace, qn_context)
       implicit none
       real(dp), intent(in) :: xt(:), del_z(:), x(:), r(:), trust_radius
       complex(dp), intent(in) :: z(:), jac(:, :)
       integer, intent(in) :: iter_idx
       real(dp), intent(out) :: Jm(:, :)
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(qn_context_t), intent(inout), target :: qn_context
 
       interface
-         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace)
+         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context)
             use, intrinsic :: iso_fortran_env, only: real64
             use solve_flow, only: flow_workspace_t
+            import :: qn_context_t
             integer, parameter :: dp = real64
             real(dp), intent(in) :: xt(:), xi(:), del_z(:)
             complex(dp), intent(in) :: z(:), jac(:, :)
             real(dp), intent(out) :: fq(:), Jl(:)
             logical, intent(out) :: ierr
             type(flow_workspace_t), intent(inout), optional :: flow_workspace
+            type(qn_context_t), intent(inout), optional, target :: qn_context
          end subroutine f
       end interface
 
@@ -952,17 +1040,17 @@ contains
          eval_plus_ok = .false.
          x_probe = x
          x_probe(i) = x_probe(i) + h
-         quasi_trace_iter = iter_idx
-         call count_qn_attempt_eval()
-         call f(xt, z, x_probe, r_plus, del_z, eval_error, Jl_probe, jac, flow_workspace)
+         qn_context%trace_iter = iter_idx
+         call count_qn_attempt_eval(qn_context)
+         call f(xt, z, x_probe, r_plus, del_z, eval_error, Jl_probe, jac, flow_workspace, qn_context)
          if (.not. eval_error .and. real_vector_is_finite(r_plus)) eval_plus_ok = .true.
 
          eval_minus_ok = .false.
          x_probe = x
          x_probe(i) = x_probe(i) - h
-         quasi_trace_iter = iter_idx
-         call count_qn_attempt_eval()
-         call f(xt, z, x_probe, r_minus, del_z, eval_error, Jl_probe, jac, flow_workspace)
+         qn_context%trace_iter = iter_idx
+         call count_qn_attempt_eval(qn_context)
+         call f(xt, z, x_probe, r_minus, del_z, eval_error, Jl_probe, jac, flow_workspace, qn_context)
          if (.not. eval_error .and. real_vector_is_finite(r_minus)) eval_minus_ok = .true.
 
          if (eval_plus_ok .and. eval_minus_ok) then
@@ -985,13 +1073,14 @@ contains
       deallocate (x_probe, r_plus, r_minus, Jl_probe)
    end subroutine build_dfo_gn_jacobian
 
-   subroutine recover_converged_flowed_state(xt, z, del_z, Jl, z_flowed, eval_error, flow_workspace)
+   subroutine recover_converged_flowed_state(xt, z, del_z, Jl, z_flowed, eval_error, flow_workspace, qn_context)
       implicit none
       real(dp), intent(in) :: xt(:), del_z(:), Jl(:)
       complex(dp), intent(in) :: z(:)
       complex(dp), intent(out) :: z_flowed(:)
       logical, intent(out) :: eval_error
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(qn_context_t), intent(inout), target :: qn_context
       complex(dp) :: z_trial(size(z))
 
       if (size(z_flowed) /= size(z) .or. size(del_z) /= size(Jl)) then
@@ -999,10 +1088,10 @@ contains
          return
       end if
 
-      if (quasi_eval_has_flowed .and. quasi_eval_flowed_is_inverse) then
-         if (allocated(quasi_eval_z_flowed)) then
-            if (size(quasi_eval_z_flowed) >= size(z)) then
-               z_flowed = quasi_eval_z_flowed(1:size(z))
+      if (qn_context%eval_has_flowed .and. qn_context%eval_flowed_is_inverse) then
+         if (allocated(qn_context%eval_z_flowed)) then
+            if (size(qn_context%eval_z_flowed) >= size(z)) then
+               z_flowed = qn_context%eval_z_flowed(1:size(z))
                eval_error = .false.
                return
             end if
@@ -1011,27 +1100,28 @@ contains
 
       call real_to_complex(del_z + Jl, z_trial)
       z_trial = z + z_trial
-      call update_quasi_watchdog_scope()
-      if (quasi_watchdog_scope_active .and. quasi_watchdog_hit) then
+      call update_quasi_watchdog_scope(qn_context)
+      if (qn_context%watchdog_scope_active .and. qn_context%watchdog_hit) then
          eval_error = .true.
          return
       end if
       call flowzr(xt, z_trial, eval_error, workspace=flow_workspace)
-      call update_quasi_watchdog_scope()
-      if (quasi_watchdog_scope_active .and. quasi_watchdog_hit) then
+      call update_quasi_watchdog_scope(qn_context)
+      if (qn_context%watchdog_scope_active .and. qn_context%watchdog_hit) then
          eval_error = .true.
          return
       end if
       if (.not. eval_error) z_flowed = z_trial
    end subroutine recover_converged_flowed_state
 
-   subroutine rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_fx_norm, x_new, Jl, converged, flow_workspace)
+   subroutine rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_fx_norm, x_new, Jl, converged, flow_workspace, qn_context)
       implicit none
       real(dp), intent(in) :: xt(:), del_z(:), tol, Jl_best(:), best_fx_norm
       complex(dp), intent(in) :: z(:)
       real(dp), intent(inout) :: x_new(:), Jl(:)
       logical, intent(out) :: converged
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(qn_context_t), intent(inout), target :: qn_context
 
       logical :: eval_error
       complex(dp) :: z_new(size(z))
@@ -1041,7 +1131,7 @@ contains
       if (size(Jl_best) /= size(Jl)) return
 
       Jl = Jl_best
-      call recover_converged_flowed_state(xt, z, del_z, Jl, z_new, eval_error, flow_workspace)
+      call recover_converged_flowed_state(xt, z, del_z, Jl, z_new, eval_error, flow_workspace, qn_context)
       if (eval_error) then
          converged = .false.
          return
@@ -1072,18 +1162,19 @@ contains
       end do
    end function real_vector_is_finite
 
-   subroutine mark_constraint_eval_invalid(fq, Jl, ierr)
+   subroutine mark_constraint_eval_invalid(fq, Jl, ierr, qn_context)
       implicit none
       real(dp), intent(out) :: fq(:), Jl(:)
       logical, intent(out) :: ierr
+      type(qn_context_t), intent(inout) :: qn_context
 
       ! Invalid flow evaluations are signaled by ierr, not by an artificial
       ! large residual that could pollute trust-region or line-search state.
       fq = 0.0_dp
       Jl = 0.0_dp
       ierr = .true.
-      quasi_eval_has_flowed = .false.
-      quasi_eval_flowed_is_inverse = .false.
+      qn_context%eval_has_flowed = .false.
+      qn_context%eval_flowed_is_inverse = .false.
    end subroutine mark_constraint_eval_invalid
 
    subroutine reset_quasi_eval_flow_status_counts()
@@ -1139,66 +1230,69 @@ contains
       end select
    end subroutine record_quasi_eval_flow_status
 
-   subroutine evaluate_constraint_residual(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace)
+   subroutine evaluate_constraint_residual(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context)
       implicit none
       real(dp), intent(in) :: xt(:), xi(:), del_z(:)
       complex(dp), intent(in) :: z(:), jac(:, :)
       real(dp), intent(out) :: fq(:), Jl(:)
       logical, intent(out) :: ierr
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(qn_context_t), intent(inout), optional, target :: qn_context
 
       integer :: flow_status, n
+      type(qn_context_t), pointer :: active_context
 
+      call resolve_qn_context(qn_context, active_context)
       n = size(z)
       if (size(xt) /= n + 1 .or. size(xi) /= 2*n .or. size(del_z) /= 2*n .or. size(fq) /= 2*n .or. size(Jl) /= 2*n) then
-         call mark_constraint_eval_invalid(fq, Jl, ierr)
+         call mark_constraint_eval_invalid(fq, Jl, ierr, active_context)
          return
       end if
 
-      call ensure_complex_workspace(residual_jlc, n)
-      call ensure_complex_workspace(residual_z_trial, n)
+      call ensure_complex_workspace(active_context%residual_jlc, n)
+      call ensure_complex_workspace(active_context%residual_z_trial, n)
 
       ! BTN paper variables: xi(1:n)=b, xi(n+1:2*n)=a, ztrial = ztilde - J*(a+i*b).
-      residual_jlc = -matmul(jac, xi(n + 1:) + cmplx(0.0_dp, 1.0_dp, dp)*xi(1:n))
-      call complex_to_real(residual_jlc, Jl)
+      active_context%residual_jlc(1:n) = -matmul(jac, xi(n + 1:) + cmplx(0.0_dp, 1.0_dp, dp)*xi(1:n))
+      call complex_to_real(active_context%residual_jlc(1:n), Jl)
 
-      call real_to_complex(del_z, residual_z_trial)
-      residual_z_trial = z + residual_z_trial + residual_jlc
-      call ensure_complex_workspace(quasi_eval_z_proposed, n)
-      call ensure_complex_workspace(quasi_eval_z_flowed, n)
-      quasi_eval_z_proposed(1:n) = residual_z_trial(1:n)
-      quasi_eval_has_flowed = .false.
-      quasi_eval_flowed_is_inverse = .false.
-      call update_quasi_watchdog_scope()
-      if (quasi_watchdog_scope_active .and. quasi_watchdog_hit) then
-         call mark_constraint_eval_invalid(fq, Jl, ierr)
+      call real_to_complex(del_z, active_context%residual_z_trial(1:n))
+      active_context%residual_z_trial(1:n) = z + active_context%residual_z_trial(1:n) + active_context%residual_jlc(1:n)
+      call ensure_complex_workspace(active_context%eval_z_proposed, n)
+      call ensure_complex_workspace(active_context%eval_z_flowed, n)
+      active_context%eval_z_proposed(1:n) = active_context%residual_z_trial(1:n)
+      active_context%eval_has_flowed = .false.
+      active_context%eval_flowed_is_inverse = .false.
+      call update_quasi_watchdog_scope(active_context)
+      if (active_context%watchdog_scope_active .and. active_context%watchdog_hit) then
+         call mark_constraint_eval_invalid(fq, Jl, ierr, active_context)
          return
       end if
 
       call set_intode_stage_trace(intode_stage_quasi)
-      call set_intode_quasi_iter_trace(quasi_trace_iter)
+      call set_intode_quasi_iter_trace(active_context%trace_iter)
       flow_status = intode_status_unknown
-      call flowzr(xt, residual_z_trial, ierr, flow_status, flow_workspace)
+      call flowzr(xt, active_context%residual_z_trial, ierr, flow_status, flow_workspace)
       call record_quasi_eval_flow_status(flow_status)
       if (ierr) then
-         call mark_constraint_eval_invalid(fq, Jl, ierr)
+         call mark_constraint_eval_invalid(fq, Jl, ierr, active_context)
          return
       end if
-      call update_quasi_watchdog_scope()
-      if (quasi_watchdog_scope_active .and. quasi_watchdog_hit) then
-         call mark_constraint_eval_invalid(fq, Jl, ierr)
+      call update_quasi_watchdog_scope(active_context)
+      if (active_context%watchdog_scope_active .and. active_context%watchdog_hit) then
+         call mark_constraint_eval_invalid(fq, Jl, ierr, active_context)
          return
       end if
-      quasi_eval_z_flowed(1:n) = residual_z_trial(1:n)
-      quasi_eval_has_flowed = .true.
-      quasi_eval_flowed_is_inverse = .true.
+      active_context%eval_z_flowed(1:n) = active_context%residual_z_trial(1:n)
+      active_context%eval_has_flowed = .true.
+      active_context%eval_flowed_is_inverse = .true.
 
-      fq(1:n) = aimag(residual_z_trial)
+      fq(1:n) = aimag(active_context%residual_z_trial)
       fq(n + 1:) = xi(n + 1:)
    end subroutine evaluate_constraint_residual
 
    subroutine get_quasi_newton_last_trace_r2c(available, proposal_count, z_proposed, z_flowed, residual_norm, alpha, &
-                                              iter_idx, backtrack_idx, attempt_idx, accepted, eval_ok, route_code)
+                                              iter_idx, backtrack_idx, attempt_idx, accepted, eval_ok, route_code, qn_context)
       implicit none
       logical, intent(out) :: available
       integer, intent(out) :: proposal_count
@@ -1207,31 +1301,34 @@ contains
       integer, allocatable, intent(out) :: iter_idx(:), backtrack_idx(:), attempt_idx(:)
       integer, allocatable, intent(out), optional :: route_code(:)
       logical, allocatable, intent(out) :: accepted(:), eval_ok(:)
+      type(qn_context_t), intent(inout), optional, target :: qn_context
+      type(qn_context_t), pointer :: active_context
 
-      available = (quasi_last_trace_dim == 1 .and. quasi_last_trace_count > 0)
-      proposal_count = quasi_last_trace_count
+      call resolve_qn_context(qn_context, active_context)
+      available = (active_context%last_trace_dim == 1 .and. active_context%last_trace_count > 0)
+      proposal_count = active_context%last_trace_count
       if (.not. available) return
 
       allocate (z_proposed(proposal_count), z_flowed(proposal_count), residual_norm(proposal_count), alpha(proposal_count), &
                 iter_idx(proposal_count), backtrack_idx(proposal_count), attempt_idx(proposal_count), &
                 accepted(proposal_count), eval_ok(proposal_count))
-      z_proposed = quasi_last_trace_z_proposed(1, 1:proposal_count)
-      z_flowed = quasi_last_trace_z_flowed(1, 1:proposal_count)
-      residual_norm = quasi_last_trace_res_norm(1:proposal_count)
-      alpha = quasi_last_trace_alpha(1:proposal_count)
-      iter_idx = quasi_last_trace_iter(1:proposal_count)
-      backtrack_idx = quasi_last_trace_backtrack(1:proposal_count)
-      attempt_idx = quasi_last_trace_attempt(1:proposal_count)
+      z_proposed = active_context%last_trace_z_proposed(1, 1:proposal_count)
+      z_flowed = active_context%last_trace_z_flowed(1, 1:proposal_count)
+      residual_norm = active_context%last_trace_res_norm(1:proposal_count)
+      alpha = active_context%last_trace_alpha(1:proposal_count)
+      iter_idx = active_context%last_trace_iter(1:proposal_count)
+      backtrack_idx = active_context%last_trace_backtrack(1:proposal_count)
+      attempt_idx = active_context%last_trace_attempt(1:proposal_count)
       if (present(route_code)) then
          allocate (route_code(proposal_count))
-         route_code = quasi_last_trace_route(1:proposal_count)
+         route_code = active_context%last_trace_route(1:proposal_count)
       end if
-      accepted = quasi_last_trace_accepted(1:proposal_count)
-      eval_ok = quasi_last_trace_eval_ok(1:proposal_count)
+      accepted = active_context%last_trace_accepted(1:proposal_count)
+      eval_ok = active_context%last_trace_eval_ok(1:proposal_count)
    end subroutine get_quasi_newton_last_trace_r2c
 
    subroutine get_quasi_newton_last_trace_stats(available, proposal_count, first_res_norm, best_res_norm, last_res_norm, all_eval_ok, &
-                                                valid_eval_count, valid_eval_fraction)
+                                                valid_eval_count, valid_eval_fraction, qn_context)
       implicit none
       logical, intent(out) :: available
       integer, intent(out) :: proposal_count
@@ -1239,11 +1336,14 @@ contains
       logical, intent(out) :: all_eval_ok
       integer, intent(out) :: valid_eval_count
       real(dp), intent(out) :: valid_eval_fraction
+      type(qn_context_t), intent(inout), optional, target :: qn_context
 
       integer :: i, last_attempt, n_used
       real(dp) :: r
+      type(qn_context_t), pointer :: active_context
 
-      available = (quasi_last_trace_count > 0)
+      call resolve_qn_context(qn_context, active_context)
+      available = (active_context%last_trace_count > 0)
       proposal_count = 0
       first_res_norm = huge(1.0_dp)
       best_res_norm = huge(1.0_dp)
@@ -1252,18 +1352,18 @@ contains
       valid_eval_count = 0
       valid_eval_fraction = 0.0_dp
       if (.not. available) return
-      last_attempt = quasi_last_trace_attempt(quasi_last_trace_count)
+      last_attempt = active_context%last_trace_attempt(active_context%last_trace_count)
       n_used = 0
 
-      do i = 1, quasi_last_trace_count
-         if (quasi_last_trace_attempt(i) /= last_attempt) cycle
+      do i = 1, active_context%last_trace_count
+         if (active_context%last_trace_attempt(i) /= last_attempt) cycle
          n_used = n_used + 1
-         if (.not. quasi_last_trace_eval_ok(i)) then
+         if (.not. active_context%last_trace_eval_ok(i)) then
             all_eval_ok = .false.
             cycle
          end if
          valid_eval_count = valid_eval_count + 1
-         r = quasi_last_trace_res_norm(i)
+         r = active_context%last_trace_res_norm(i)
          if (ieee_is_finite(r) .and. r > 0.0_dp) then
             if (first_res_norm >= huge(1.0_dp)*0.5_dp) first_res_norm = r
             if (r < best_res_norm) best_res_norm = r
@@ -1336,91 +1436,94 @@ contains
       end if
    end subroutine ensure_logical_workspace
 
-   subroutine ensure_trace_capacity(n_need)
+   subroutine ensure_trace_capacity(context, n_need)
       implicit none
+      type(qn_context_t), intent(inout) :: context
       integer, intent(in) :: n_need
       integer :: new_cap
 
-      if (quasi_last_trace_dim <= 0) return
-      if (allocated(quasi_last_trace_z_proposed)) then
-         if (size(quasi_last_trace_z_proposed, 1) /= quasi_last_trace_dim) then
-            deallocate (quasi_last_trace_z_proposed, quasi_last_trace_z_flowed, quasi_last_trace_res_norm, quasi_last_trace_alpha, &
-                        quasi_last_trace_iter, quasi_last_trace_backtrack, quasi_last_trace_attempt, quasi_last_trace_route, &
-                        quasi_last_trace_accepted, quasi_last_trace_eval_ok)
-            quasi_last_trace_capacity = 0
-            quasi_last_trace_count = 0
+      if (context%last_trace_dim <= 0) return
+      if (allocated(context%last_trace_z_proposed)) then
+         if (size(context%last_trace_z_proposed, 1) /= context%last_trace_dim) then
+            deallocate (context%last_trace_z_proposed, context%last_trace_z_flowed, context%last_trace_res_norm, context%last_trace_alpha, &
+                        context%last_trace_iter, context%last_trace_backtrack, context%last_trace_attempt, context%last_trace_route, &
+                        context%last_trace_accepted, context%last_trace_eval_ok)
+            context%last_trace_capacity = 0
+            context%last_trace_count = 0
          end if
       end if
 
-      if (n_need <= quasi_last_trace_capacity .and. allocated(quasi_last_trace_z_proposed)) return
+      if (n_need <= context%last_trace_capacity .and. allocated(context%last_trace_z_proposed)) return
 
-      new_cap = max(64, max(n_need, 2*quasi_last_trace_capacity))
-      call grow_complex_trace(quasi_last_trace_z_proposed, quasi_last_trace_dim, quasi_last_trace_count, new_cap)
-      call grow_complex_trace(quasi_last_trace_z_flowed, quasi_last_trace_dim, quasi_last_trace_count, new_cap)
-      call grow_real_trace(quasi_last_trace_res_norm, quasi_last_trace_count, new_cap)
-      call grow_real_trace(quasi_last_trace_alpha, quasi_last_trace_count, new_cap)
-      call grow_int_trace(quasi_last_trace_iter, quasi_last_trace_count, new_cap)
-      call grow_int_trace(quasi_last_trace_backtrack, quasi_last_trace_count, new_cap)
-      call grow_int_trace(quasi_last_trace_attempt, quasi_last_trace_count, new_cap)
-      call grow_int_trace(quasi_last_trace_route, quasi_last_trace_count, new_cap)
-      call grow_logical_trace(quasi_last_trace_accepted, quasi_last_trace_count, new_cap)
-      call grow_logical_trace(quasi_last_trace_eval_ok, quasi_last_trace_count, new_cap)
-      quasi_last_trace_capacity = new_cap
+      new_cap = max(64, max(n_need, 2*context%last_trace_capacity))
+      call grow_complex_trace(context%last_trace_z_proposed, context%last_trace_dim, context%last_trace_count, new_cap)
+      call grow_complex_trace(context%last_trace_z_flowed, context%last_trace_dim, context%last_trace_count, new_cap)
+      call grow_real_trace(context%last_trace_res_norm, context%last_trace_count, new_cap)
+      call grow_real_trace(context%last_trace_alpha, context%last_trace_count, new_cap)
+      call grow_int_trace(context%last_trace_iter, context%last_trace_count, new_cap)
+      call grow_int_trace(context%last_trace_backtrack, context%last_trace_count, new_cap)
+      call grow_int_trace(context%last_trace_attempt, context%last_trace_count, new_cap)
+      call grow_int_trace(context%last_trace_route, context%last_trace_count, new_cap)
+      call grow_logical_trace(context%last_trace_accepted, context%last_trace_count, new_cap)
+      call grow_logical_trace(context%last_trace_eval_ok, context%last_trace_count, new_cap)
+      context%last_trace_capacity = new_cap
    end subroutine ensure_trace_capacity
 
-   subroutine reset_quasi_last_trace(n_dim)
+   subroutine reset_quasi_last_trace(context, n_dim)
       implicit none
+      type(qn_context_t), intent(inout) :: context
       integer, intent(in) :: n_dim
 
-      quasi_last_trace_count = 0
-      quasi_last_trace_dim = n_dim
-      quasi_trace_route_code = 0
-      call ensure_complex_workspace(quasi_eval_z_proposed, n_dim)
-      call ensure_complex_workspace(quasi_eval_z_flowed, n_dim)
-      quasi_eval_has_flowed = .false.
-      quasi_eval_flowed_is_inverse = .false.
-      call ensure_trace_capacity(1)
+      context%last_trace_count = 0
+      context%last_trace_dim = n_dim
+      context%trace_route_code = 0
+      call ensure_complex_workspace(context%eval_z_proposed, n_dim)
+      call ensure_complex_workspace(context%eval_z_flowed, n_dim)
+      context%eval_has_flowed = .false.
+      context%eval_flowed_is_inverse = .false.
+      call ensure_trace_capacity(context, 1)
    end subroutine reset_quasi_last_trace
 
-   subroutine append_quasi_trace_sample(alpha, iter_idx, backtrack_idx, attempt_idx, res_norm, accepted, eval_ok)
+   subroutine append_quasi_trace_sample(context, alpha, iter_idx, backtrack_idx, attempt_idx, res_norm, accepted, eval_ok)
       implicit none
+      type(qn_context_t), intent(inout) :: context
       real(dp), intent(in) :: alpha, res_norm
       integer, intent(in) :: iter_idx, backtrack_idx, attempt_idx
       logical, intent(in) :: accepted, eval_ok
       integer :: k, n_dim, i
       real(dp) :: nanv
 
-      n_dim = quasi_last_trace_dim
+      n_dim = context%last_trace_dim
       if (n_dim <= 0) return
-      call ensure_trace_capacity(quasi_last_trace_count + 1)
-      if (.not. allocated(quasi_last_trace_z_proposed)) return
+      call ensure_trace_capacity(context, context%last_trace_count + 1)
+      if (.not. allocated(context%last_trace_z_proposed)) return
 
-      k = quasi_last_trace_count + 1
-      quasi_last_trace_z_proposed(1:n_dim, k) = quasi_eval_z_proposed(1:n_dim)
-      if (quasi_eval_has_flowed) then
-         quasi_last_trace_z_flowed(1:n_dim, k) = quasi_eval_z_flowed(1:n_dim)
+      k = context%last_trace_count + 1
+      context%last_trace_z_proposed(1:n_dim, k) = context%eval_z_proposed(1:n_dim)
+      if (context%eval_has_flowed) then
+         context%last_trace_z_flowed(1:n_dim, k) = context%eval_z_flowed(1:n_dim)
       else
          nanv = ieee_value(0.0_dp, ieee_quiet_nan)
          do i = 1, n_dim
-            quasi_last_trace_z_flowed(i, k) = cmplx(nanv, nanv, dp)
+            context%last_trace_z_flowed(i, k) = cmplx(nanv, nanv, dp)
          end do
       end if
-      quasi_last_trace_res_norm(k) = res_norm
-      quasi_last_trace_alpha(k) = alpha
-      quasi_last_trace_iter(k) = iter_idx
-      quasi_last_trace_backtrack(k) = backtrack_idx
-      quasi_last_trace_attempt(k) = attempt_idx
-      quasi_last_trace_route(k) = quasi_trace_route_code
-      quasi_last_trace_accepted(k) = accepted
-      quasi_last_trace_eval_ok(k) = eval_ok
-      quasi_last_trace_count = k
+      context%last_trace_res_norm(k) = res_norm
+      context%last_trace_alpha(k) = alpha
+      context%last_trace_iter(k) = iter_idx
+      context%last_trace_backtrack(k) = backtrack_idx
+      context%last_trace_attempt(k) = attempt_idx
+      context%last_trace_route(k) = context%trace_route_code
+      context%last_trace_accepted(k) = accepted
+      context%last_trace_eval_ok(k) = eval_ok
+      context%last_trace_count = k
 
-      if (quasi_watchdog_scope_active .and. accepted .and. eval_ok) then
-         quasi_watchdog_used_accepted_iter = quasi_watchdog_used_accepted_iter + 1
-         if ((.not. quasi_watchdog_hit) .and. quasi_accepted_iter_budget > 0) then
-            if (quasi_watchdog_used_accepted_iter > quasi_accepted_iter_budget) then
-               quasi_watchdog_hit = .true.
-               quasi_watchdog_hit_total = quasi_watchdog_hit_total + 1
+      if (context%watchdog_scope_active .and. accepted .and. eval_ok) then
+         context%watchdog_used_accepted_iter = context%watchdog_used_accepted_iter + 1
+         if ((.not. context%watchdog_hit) .and. quasi_accepted_iter_budget > 0) then
+            if (context%watchdog_used_accepted_iter > quasi_accepted_iter_budget) then
+               context%watchdog_hit = .true.
+               context%watchdog_hit_total = context%watchdog_hit_total + 1
             end if
          end if
       end if
@@ -1472,76 +1575,84 @@ contains
       call move_alloc(tmp, buf)
    end subroutine grow_logical_trace
 
-   subroutine reset_quasi_watchdog_last_status()
+   subroutine reset_quasi_watchdog_last_status(context)
       implicit none
-      quasi_watchdog_last_hit = .false.
-      quasi_watchdog_last_used = 0
-      quasi_watchdog_last_used_accepted_iter = 0
+      type(qn_context_t), intent(inout) :: context
+
+      context%watchdog_last_hit = .false.
+      context%watchdog_last_used = 0
+      context%watchdog_last_used_accepted_iter = 0
    end subroutine reset_quasi_watchdog_last_status
 
-   subroutine begin_quasi_watchdog_scope()
+   subroutine begin_quasi_watchdog_scope(context)
       implicit none
+      type(qn_context_t), intent(inout) :: context
 
       call load_quasi_watchdog_policy()
-      quasi_watchdog_scope_active = (quasi_solver_assist_budget > 0 .or. quasi_accepted_iter_budget > 0)
-      quasi_watchdog_hit = .false.
-      quasi_watchdog_used_solver_assist = 0
-      quasi_watchdog_used_accepted_iter = 0
-      quasi_watchdog_start_solver_assist = current_solver_assist_success_count()
-      call reset_quasi_watchdog_last_status()
+      context%watchdog_scope_active = (quasi_solver_assist_budget > 0 .or. quasi_accepted_iter_budget > 0)
+      context%watchdog_hit = .false.
+      context%watchdog_used_solver_assist = 0
+      context%watchdog_used_accepted_iter = 0
+      context%watchdog_start_solver_assist = current_solver_assist_success_count()
+      call reset_quasi_watchdog_last_status(context)
    end subroutine begin_quasi_watchdog_scope
 
-   subroutine end_quasi_watchdog_scope()
+   subroutine end_quasi_watchdog_scope(context)
       implicit none
+      type(qn_context_t), intent(inout) :: context
 
-      call update_quasi_watchdog_scope()
-      quasi_watchdog_last_hit = quasi_watchdog_hit
-      quasi_watchdog_last_used = quasi_watchdog_used_solver_assist
-      quasi_watchdog_last_used_accepted_iter = quasi_watchdog_used_accepted_iter
-      quasi_watchdog_scope_active = .false.
+      call update_quasi_watchdog_scope(context)
+      context%watchdog_last_hit = context%watchdog_hit
+      context%watchdog_last_used = context%watchdog_used_solver_assist
+      context%watchdog_last_used_accepted_iter = context%watchdog_used_accepted_iter
+      context%watchdog_scope_active = .false.
    end subroutine end_quasi_watchdog_scope
 
-   subroutine update_quasi_watchdog_scope()
+   subroutine update_quasi_watchdog_scope(context)
       implicit none
+      type(qn_context_t), intent(inout) :: context
       integer :: current_solver_assist_success
 
-      if (.not. quasi_watchdog_scope_active) return
+      if (.not. context%watchdog_scope_active) return
       current_solver_assist_success = current_solver_assist_success_count()
-      quasi_watchdog_used_solver_assist = max(0, current_solver_assist_success - quasi_watchdog_start_solver_assist)
-      if ((.not. quasi_watchdog_hit) .and. quasi_solver_assist_budget > 0) then
-         if (quasi_watchdog_used_solver_assist > quasi_solver_assist_budget) then
-            quasi_watchdog_hit = .true.
-            quasi_watchdog_hit_total = quasi_watchdog_hit_total + 1
+      context%watchdog_used_solver_assist = max(0, current_solver_assist_success - context%watchdog_start_solver_assist)
+      if ((.not. context%watchdog_hit) .and. quasi_solver_assist_budget > 0) then
+         if (context%watchdog_used_solver_assist > quasi_solver_assist_budget) then
+            context%watchdog_hit = .true.
+            context%watchdog_hit_total = context%watchdog_hit_total + 1
          end if
       end if
-      if ((.not. quasi_watchdog_hit) .and. quasi_accepted_iter_budget > 0) then
-         if (quasi_watchdog_used_accepted_iter > quasi_accepted_iter_budget) then
-            quasi_watchdog_hit = .true.
-            quasi_watchdog_hit_total = quasi_watchdog_hit_total + 1
+      if ((.not. context%watchdog_hit) .and. quasi_accepted_iter_budget > 0) then
+         if (context%watchdog_used_accepted_iter > quasi_accepted_iter_budget) then
+            context%watchdog_hit = .true.
+            context%watchdog_hit_total = context%watchdog_hit_total + 1
          end if
       end if
    end subroutine update_quasi_watchdog_scope
 
-   subroutine get_quasi_newton_watchdog_status(budget_hit, budget_used, budget_limit)
+   subroutine get_quasi_newton_watchdog_status(budget_hit, budget_used, budget_limit, qn_context)
       implicit none
       logical, intent(out) :: budget_hit
       integer, intent(out) :: budget_used, budget_limit
+      type(qn_context_t), intent(inout), optional, target :: qn_context
+      type(qn_context_t), pointer :: active_context
 
+      call resolve_qn_context(qn_context, active_context)
       call load_quasi_watchdog_policy()
-      if (quasi_watchdog_scope_active) call update_quasi_watchdog_scope()
-      if (quasi_watchdog_scope_active) then
-         budget_hit = quasi_watchdog_hit
+      if (active_context%watchdog_scope_active) call update_quasi_watchdog_scope(active_context)
+      if (active_context%watchdog_scope_active) then
+         budget_hit = active_context%watchdog_hit
          if (quasi_solver_assist_budget > 0) then
-            budget_used = quasi_watchdog_used_solver_assist
+            budget_used = active_context%watchdog_used_solver_assist
          else
-            budget_used = quasi_watchdog_used_accepted_iter
+            budget_used = active_context%watchdog_used_accepted_iter
          end if
       else
-         budget_hit = quasi_watchdog_last_hit
+         budget_hit = active_context%watchdog_last_hit
          if (quasi_solver_assist_budget > 0) then
-            budget_used = quasi_watchdog_last_used
+            budget_used = active_context%watchdog_last_used
          else
-            budget_used = quasi_watchdog_last_used_accepted_iter
+            budget_used = active_context%watchdog_last_used_accepted_iter
          end if
       end if
       if (quasi_solver_assist_budget > 0) then
@@ -1773,10 +1884,11 @@ contains
       reject_count = quasi_global_filter_reject_count
    end subroutine get_quasi_global_filter_stats
 
-   subroutine count_qn_attempt_eval()
+   subroutine count_qn_attempt_eval(qn_context)
       implicit none
+      type(qn_context_t), intent(inout) :: qn_context
 
-      qn_current_attempt_eval_count = qn_current_attempt_eval_count + 1_int64
+      qn_context%current_attempt_eval_count = qn_context%current_attempt_eval_count + 1_int64
    end subroutine count_qn_attempt_eval
 
    real(dp) function qn_attempt_elapsed_seconds(start_seconds) result(elapsed)

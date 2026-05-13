@@ -62,7 +62,14 @@ Consequence:
 Choose A. QN is on the active official route, and the remaining QN state mixes
 scratch with diagnostics. A run-owned QN context is the honest product shape.
 
-## Current Stop Condition
+## Decision Status
 
-Stop for user decision before moving QN trace/capture/eval state, because this
-sets the diagnostics ownership model for the active QN route.
+Resolved on 2026-05-13 JST: user chose A.
+
+First implementation record:
+
+- `CV011_QN_TRACE_EVAL_CONTEXT_SLICE_20260513.md`
+
+New stop condition:
+
+- `CV011_QN_CAPTURE_DIAGNOSTICS_CONTEXT_DECISION_POINT_20260513.md`

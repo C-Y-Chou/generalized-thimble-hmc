@@ -14,7 +14,7 @@ module hmc_integrator_core
    use hmc_constraints, only: solve_constraint_newton
    use hmc_state_buffers, only: rattle_step_workspace_t, ensure_rattle_step_workspace, release_rattle_step_workspace
    use quasi_newton_solver_mod, only: solve_constraint_quasi_newton, evaluate_constraint_residual, &
-                                      get_quasi_newton_last_trace_r2c, get_quasi_newton_last_trace_stats
+                                      get_quasi_newton_last_trace_r2c, get_quasi_newton_last_trace_stats, qn_context_t
    use constraint_solver_stats_mod, only: record_constraint_solver_newton_success, &
                                            record_constraint_solver_quasi_success, &
                                            record_constraint_solver_fail, &
@@ -172,7 +172,7 @@ contains
    end subroutine record_reverse_gate_replay_status
 
    subroutine rattle_step_core(state_x, state_z, step_size, final_x, final_z, jaci, jacf, momentum, &
-                               method_converged, ws, step_status, flow_workspace)
+                               method_converged, ws, step_status, flow_workspace, qn_context)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -187,6 +187,7 @@ contains
       type(rattle_step_workspace_t), intent(inout) :: ws
       integer, intent(out), optional :: step_status
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(qn_context_t), intent(inout), optional, target :: qn_context
 
       integer :: n_state
       logical :: has_error
@@ -332,12 +333,12 @@ contains
 
             ! S1-only fallback path: probe -> classify -> one stage-1 rescue pass.
             call try_quasi_stage(quasi_tol, s1_probe_max_iter, constraint_quasi_stage_probe, ws, has_error, final_x, &
-                                 flow_workspace)
+                                 flow_workspace, qn_context)
             if (.not. has_error) then
                quasi_solved_ok = .true.
             else
                call get_quasi_newton_last_trace_stats(trace_stats_available, trace_count, trace_first_res, trace_best_res, trace_last_res, &
-                                                      trace_all_eval_ok, trace_valid_count, trace_valid_fraction)
+                                                      trace_all_eval_ok, trace_valid_count, trace_valid_fraction, qn_context=qn_context)
                call update_quasi_trace_gate_metrics(trace_stats_available, trace_first_res, trace_best_res, &
                                                     trace_last_res, quasi_tol, trace_progress_ratio, &
                                                     trace_regress_ratio, class2_retry_res_threshold, near_case_res_threshold)
@@ -367,7 +368,7 @@ contains
                                                 trace_progress_ratio, trace_regress_ratio, trace_best_over_tol, &
                                                 step_size, ws, has_error, final_x, near_rescue_started, near_rescue_done, &
                                                 quasi_solved_ok, reverse_gate_used_full_stage, &
-                                                reverse_gate_used_nonnear_route, reverse_gate_far_route, flow_workspace)
+                                                reverse_gate_used_nonnear_route, reverse_gate_far_route, flow_workspace, qn_context)
 
                reverse_gate_used_near_rescue = near_rescue_started
                select case (reverse_gate_far_route)
@@ -381,7 +382,7 @@ contains
 
                if (has_error) then
                   call get_quasi_newton_last_trace_stats(trace_stats_available, trace_count, trace_first_res, trace_best_res, trace_last_res, &
-                                                         trace_all_eval_ok, trace_valid_count, trace_valid_fraction)
+                                                         trace_all_eval_ok, trace_valid_count, trace_valid_fraction, qn_context=qn_context)
                   if (trace_stats_available) then
                      call update_quasi_trace_gate_metrics(trace_stats_available, trace_first_res, trace_best_res, &
                                                           trace_last_res, quasi_tol, trace_progress_ratio, &
@@ -422,7 +423,7 @@ contains
 
                call get_quasi_newton_last_trace_r2c(quasi_trace_available, quasi_proposal_count, quasi_z_proposed, quasi_z_flowed, &
                                                     quasi_res_norm, quasi_alpha, quasi_iter, quasi_backtrack, quasi_attempt, &
-                                                    quasi_accepted, quasi_eval_ok)
+                                                    quasi_accepted, quasi_eval_ok, qn_context=qn_context)
                if (quasi_trace_available .and. quasi_proposal_count > 0) then
                   call record_constraint_solver_fail(state_z, ws%del_z, state_x, &
                                                      quasi_z_proposed=quasi_z_proposed, quasi_z_flowed=quasi_z_flowed, &
@@ -540,7 +541,8 @@ contains
                                         (.not. reverse_gate_used_near_rescue) .and. &
                                         (.not. reverse_gate_used_nonnear_route)
          reverse_gate_passed = qn_reverse_gate_accepts(state_x, state_z, initial_momentum_for_gate, &
-                                                       final_x, final_z, jaci, ws%temp_jac, momentum, step_size, flow_workspace)
+                                                       final_x, final_z, jaci, ws%temp_jac, momentum, step_size, flow_workspace, &
+                                                       qn_context)
          call record_constraint_solver_reverse_gate(reverse_gate_passed, reverse_gate_used_probe_only, &
                                                     reverse_gate_used_full_stage, reverse_gate_used_near_rescue, &
                                                     reverse_gate_used_nonnear_route, reverse_gate_used_class_local, &
@@ -588,11 +590,12 @@ contains
    end function hmc_step_status_from_final_flow_status
 
    logical function qn_reverse_gate_accepts(state_x, state_z, initial_momentum, final_x, final_z, initial_jac, final_jac, &
-                                            final_momentum, step_size, flow_workspace) result(accepts)
+                                            final_momentum, step_size, flow_workspace, qn_context) result(accepts)
       implicit none
       real(dp), intent(in) :: state_x(:), initial_momentum(:), final_x(:), final_momentum(:), step_size
       complex(dp), intent(in) :: state_z(:), final_z(:), initial_jac(:, :), final_jac(:, :)
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(qn_context_t), intent(inout), optional, target :: qn_context
 
       real(dp), allocatable :: reverse_x(:), reverse_momentum(:)
       complex(dp), allocatable :: reverse_z(:), reverse_jac(:, :)
@@ -615,7 +618,7 @@ contains
       reverse_step_status = hmc_step_status_unknown
       call push_constraint_solver_stats_suppression()
       call rattle_step_core(final_x, final_z, step_size, reverse_x, reverse_z, final_jac, reverse_jac, reverse_momentum, &
-                            reverse_ok, reverse_ws, reverse_step_status, flow_workspace)
+                            reverse_ok, reverse_ws, reverse_step_status, flow_workspace, qn_context)
       call pop_constraint_solver_stats_suppression()
       qn_reverse_gate_active = .false.
       call record_reverse_gate_replay_status(reverse_step_status)
@@ -636,7 +639,7 @@ contains
       if (allocated(reverse_jac)) deallocate (reverse_jac)
    end function qn_reverse_gate_accepts
 
-   subroutine try_quasi_stage(quasi_tol, quasi_max_iter, stage_code, ws, has_error, final_x, flow_workspace)
+   subroutine try_quasi_stage(quasi_tol, quasi_max_iter, stage_code, ws, has_error, final_x, flow_workspace, qn_context)
       implicit none
       real(dp), intent(in) :: quasi_tol
       integer, intent(in) :: quasi_max_iter, stage_code
@@ -644,17 +647,18 @@ contains
       logical, intent(out) :: has_error
       real(dp), intent(inout) :: final_x(:)
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(qn_context_t), intent(inout), optional, target :: qn_context
 
       call record_constraint_solver_quasi_stage_attempt(stage_code)
       call solve_constraint_quasi_newton(evaluate_constraint_residual, quasi_tol, quasi_max_iter, ws%temp_x, ws%temp_z, ws%del_z, &
-                                         has_error, ws%Jl, final_x, ws%temp_jac, flow_workspace=flow_workspace)
+                                         has_error, ws%Jl, final_x, ws%temp_jac, flow_workspace=flow_workspace, qn_context=qn_context)
       if (.not. has_error) then
          call record_constraint_solver_quasi_stage_success(stage_code)
       end if
    end subroutine try_quasi_stage
 
    subroutine refresh_quasi_trace_gate_state(quasi_tol, trace_available, trace_valid_fraction, &
-                                             trace_progress_ratio, trace_regress_ratio, trace_best_over_tol)
+                                             trace_progress_ratio, trace_regress_ratio, trace_best_over_tol, qn_context)
       implicit none
       real(dp), intent(in) :: quasi_tol
       logical, intent(out) :: trace_available
@@ -664,6 +668,7 @@ contains
       real(dp) :: trace_first_res, trace_best_res, trace_last_res
       real(dp) :: class2_retry_res_threshold, near_case_res_threshold
       logical :: trace_all_eval_ok
+      type(qn_context_t), intent(inout), optional, target :: qn_context
 
       trace_available = .false.
       trace_valid_fraction = 0.0_dp
@@ -680,7 +685,7 @@ contains
       near_case_res_threshold = huge(1.0_dp)
 
       call get_quasi_newton_last_trace_stats(trace_available, trace_count, trace_first_res, trace_best_res, trace_last_res, &
-                                             trace_all_eval_ok, trace_valid_count, trace_valid_fraction)
+                                             trace_all_eval_ok, trace_valid_count, trace_valid_fraction, qn_context=qn_context)
       if (trace_available) then
          call update_quasi_trace_gate_metrics(trace_available, trace_first_res, trace_best_res, trace_last_res, &
                                               quasi_tol, trace_progress_ratio, trace_regress_ratio, &
@@ -696,7 +701,7 @@ contains
                                           trace_regress_ratio, trace_best_over_tol, &
                                           step_size, ws, has_error, final_x, near_rescue_started, near_rescue_done, &
                                           quasi_solved_ok, used_full_stage, &
-                                          used_nonnear_route, far_route_used, flow_workspace)
+                                          used_nonnear_route, far_route_used, flow_workspace, qn_context)
       implicit none
       real(dp), intent(in) :: quasi_tol
       real(dp), intent(in) :: step_size
@@ -713,6 +718,7 @@ contains
       logical, intent(inout) :: used_nonnear_route
       integer, intent(inout) :: far_route_used
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(qn_context_t), intent(inout), optional, target :: qn_context
       integer :: far_route
 
       if (.not. has_error) return
@@ -726,7 +732,7 @@ contains
          call record_constraint_near_rescue_attempt()
          used_full_stage = .true.
          call try_quasi_stage(quasi_tol, s1_near_full_max_iter, constraint_quasi_stage_full, ws, has_error, final_x, &
-                              flow_workspace)
+                              flow_workspace, qn_context)
          if (.not. has_error) then
             near_rescue_done = .true.
             call record_constraint_near_rescue_success()
@@ -735,7 +741,7 @@ contains
          end if
 
          call refresh_quasi_trace_gate_state(quasi_tol, trace_stats_available, trace_valid_fraction, &
-                                             trace_progress_ratio, trace_regress_ratio, trace_best_over_tol)
+                                             trace_progress_ratio, trace_regress_ratio, trace_best_over_tol, qn_context)
          call record_constraint_near_unusable()
          return
       end if
@@ -748,11 +754,11 @@ contains
          used_full_stage = .true.
          used_nonnear_route = .true.
          call try_quasi_stage(quasi_tol, s1_non_near_cheap_full_max_iter, constraint_quasi_stage_full, ws, has_error, final_x, &
-                              flow_workspace)
+                              flow_workspace, qn_context)
       end if
       if (has_error) then
          call refresh_quasi_trace_gate_state(quasi_tol, trace_stats_available, trace_valid_fraction, &
-                                             trace_progress_ratio, trace_regress_ratio, trace_best_over_tol)
+                                             trace_progress_ratio, trace_regress_ratio, trace_best_over_tol, qn_context)
       end if
       call record_constraint_solver_far_investment((.not. has_error), .false., 0, 0)
       if (.not. has_error) quasi_solved_ok = .true.

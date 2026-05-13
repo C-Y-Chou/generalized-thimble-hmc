@@ -49,15 +49,15 @@ python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --
 
 Full M4 result: all guardrails passed; artifacts in `output/tests/m4_guardrails`.
 
-## Next Stop
+## Subsequent Update
 
-QN trace/capture/eval state remains module-owned:
+The first QN trace/eval context slice is now implemented in
+`CV011_QN_TRACE_EVAL_CONTEXT_SLICE_20260513.md`.
 
-- residual scratch/eval cache arrays;
-- `quasi_last_trace_*` trace buffers;
-- watchdog active/last state;
+The remaining QN decision is capture/diagnostics ownership:
+
 - QN attempt-capture files and counters;
 - QN eval-flow and global-filter counters;
 - backend policy cache and notice flags.
 
-See `CV011_QN_TRACE_CAPTURE_CONTEXT_DECISION_POINT_20260513.md`.
+See `CV011_QN_CAPTURE_DIAGNOSTICS_CONTEXT_DECISION_POINT_20260513.md`.
