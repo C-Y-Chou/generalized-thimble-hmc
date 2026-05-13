@@ -851,3 +851,13 @@
   - `make -C build FC=gfortran LDFLAGS= test_tltm_swap_kernel_contract`
   - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
 - Full M4 passed; production-comparison tree was not synchronized, staged, or modified.
+
+## 2026-05-13 JST - CV-011 HMC/QN flow-context threading slice
+
+- Threaded optional `flow_workspace_t` through `metropolis_step`, HMC proposal/warmup/reverse-probe, `rattle_step_core`, Newton constraint solve, QN residual evaluation, QN rescue/recovery, and final RATTLE flow.
+- Stage1 and Stage2 local updates now pass `run_context%flow%workspace`, so active per-replica/per-slot proposal paths use explicit flow workspace ownership.
+- The official DFO-LS C callback path can use the active flow workspace for residual evaluations, but its callback context still relies on module-level `qn_official_*` state.
+- Verification passed:
+  - `PYTHON="$PWD/.venv-dfols/bin/python" TLTM_OFFICIAL_DFOLS_PYTHONPATH="$($PWD/.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" make -C build FC=gfortran LDFLAGS= test_retained_core_qn_route_contract test_retained_core_rg_reject_identity post_b_rng_reference_anchor ../bin/run_tltm_stage1 ../bin/run_tltm_stage2`
+  - `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+- Stop condition: decide whether to redesign the official DFO-LS callback to use the C bridge `ctx` pointer for per-attempt context before continuing deeper QN backend state migration.

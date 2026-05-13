@@ -1,7 +1,7 @@
 # Progress Tracker: fortran_modernization
 
 ## Current milestone
-- CV-011 OpenMP/thread-safe productization active: CV-001/CV-004/CV-005/CV-006/CV-007 are closed for modernization scope, CV-011 route-B RNG streams, post-B reference anchor, early non-RNG workspace slices, the first top-level TLTM run-context/HMC slice, Stage2 audit context ownership, and the first flow/ODEX context slice are implemented. Remaining modernization work is full OpenMP/thread-safe productization. Production redo is external to modernization and belongs to `tltm_production_comparison`.
+- CV-011 OpenMP/thread-safe productization active: CV-001/CV-004/CV-005/CV-006/CV-007 are closed for modernization scope, CV-011 route-B RNG streams, post-B reference anchor, early non-RNG workspace slices, the first top-level TLTM run-context/HMC slice, Stage2 audit context ownership, flow/ODEX context, and HMC/QN flow-context threading are implemented. Next stop is the QN official DFO-LS callback-context decision. Production redo is external to modernization and belongs to `tltm_production_comparison`.
 
 ## Milestones
 - M0: planning and governance established
@@ -97,6 +97,7 @@
 - 2026-05-12 JST: Implemented the Stage2 audit context slice. RG-reject audit and local-transition audit loaded/enabled flags, file units, paths, max rows, and row counters now live in `stage2_audit_context_t` owned by `execute_tltm_stage2` instead of module-level SAVE state. Tiny Stage2 audit run passed with both audit envs enabled.
 - 2026-05-12 JST: Recorded the flow/ODEX context decision point. `solve_flow` RHS scratch still depends on `odex_backend` callback shape `ode_rhs(y)` with no explicit user/context argument. Recommendation is option A: redesign the local ODEX callback context path before migrating flow/Jacobian RHS scratch into `tltm_run_context_t`.
 - 2026-05-13 JST: User selected CV-011 flow/ODEX option A. Added a context-aware ODEX callback path, migrated `solve_flow` endpoint/RHS/Jacobian scratch plus ODEX endpoint workspace into `flow_workspace_t`, threaded flow workspaces through Stage1 initialization and Stage2 initialization/swap reflow paths, added an explicit context-vs-legacy flow/Jacobian contract check, and reran full M4 successfully.
+- 2026-05-13 JST: Continued CV-011 flow context through local-update internals. `metropolis_step`, HMC proposal/warmup/reverse-probe, `rattle_step_core`, Newton constraint solve, QN residual evaluation, and final RATTLE flow can now receive the per-replica/per-slot `flow_workspace_t`; Stage1/Stage2 local updates pass `run_context%flow%workspace`. Official DFO-LS callback flow evaluations use the active workspace, but the callback context itself still relies on module-level `qn_official_*` state, creating the next decision point.
 - 2026-05-08 JST: Added retained-core implementation correctness audit gate for ODEX, simplified Newton, RATTLE, QN p28 loss, and HMC/Metropolis/RG before any ODEX-only validation jobs.
 
 ## 2026-05-08 - M2 retained-core implementation audit

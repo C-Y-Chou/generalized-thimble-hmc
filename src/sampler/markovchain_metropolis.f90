@@ -9,6 +9,7 @@ module markovchain_metropolis
    use hmc, only: integrate_hmc_proposal, &
                   hmc_proposal_status_output_size_mismatch, &
                   hmc_proposal_status_reverse_gate_rejected
+   use solve_flow, only: flow_workspace_t
    use tltm_run_context_mod, only: tltm_hmc_context_t
    implicit none
 
@@ -16,7 +17,7 @@ contains
 
    subroutine metropolis_step(x, z, j, total_step_size, num_steps, x_new, z_new, j_new, accept, proposal_failed, transition_status, &
                               h_initial_out, h_final_out, delta_h_out, accept_probability_out, &
-                              initial_momentum_out, final_momentum_out, context)
+                              initial_momentum_out, final_momentum_out, context, flow_workspace)
       implicit none
 
       real(dp), intent(in) :: x(:)
@@ -34,6 +35,7 @@ contains
       real(dp), intent(out), optional :: h_initial_out, h_final_out, delta_h_out, accept_probability_out
       real(dp), intent(out), optional :: initial_momentum_out(:), final_momentum_out(:)
       type(tltm_hmc_context_t), intent(inout), optional :: context
+      type(flow_workspace_t), intent(inout), optional :: flow_workspace
 
       real(dp) :: h_initial
       real(dp) :: h_final
@@ -68,7 +70,7 @@ contains
       j_new = j
 
       call integrate_hmc_proposal(x, z, total_step_size, num_steps, x_new, z_new, h_initial, h_final, j, j_new, &
-                                  proposal_ok, hmc_status, initial_momentum_out, final_momentum_out, context)
+                                  proposal_ok, hmc_status, initial_momentum_out, final_momentum_out, context, flow_workspace)
       call publish_metropolis_diagnostics(h_initial, h_final, delta_h, accept_probability, &
                                           h_initial_out, h_final_out, delta_h_out, accept_probability_out)
 

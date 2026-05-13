@@ -4,7 +4,7 @@ module quasi_newton_solver_mod
    use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: iso_c_binding, only: c_double, c_funloc, c_funptr, c_int, c_null_ptr, c_ptr
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_value, ieee_quiet_nan
-   use solve_flow, only: flowzr, flowz, set_intode_stage_trace, set_intode_quasi_iter_trace, intode_stage_quasi, &
+   use solve_flow, only: flowzr, flowz, flow_workspace_t, set_intode_stage_trace, set_intode_quasi_iter_trace, intode_stage_quasi, &
                          get_intode_rescue_stats, intode_status_unknown, intode_status_success, intode_status_success_zero_time, &
                          intode_status_success_stiff_rescue, intode_status_success_solver_assist, &
                          intode_status_failure_max_steps, intode_status_failure_invalid, intode_status_failure_h_min
@@ -84,6 +84,7 @@ module quasi_newton_solver_mod
    logical, save :: qn_official_context_active = .false.
    real(dp), allocatable, save :: qn_official_xt(:), qn_official_del_z(:), qn_official_last_jl(:)
    complex(dp), allocatable, save :: qn_official_z(:), qn_official_jac(:, :)
+   type(flow_workspace_t), pointer, save :: qn_official_flow_workspace => null()
 
    interface
       integer(c_int) function tltm_official_dfols_solve_c(n, x0, x_out, package_residual_norm, nf, flag, npt, rhobeg, &
@@ -103,7 +104,8 @@ module quasi_newton_solver_mod
 
 contains
 
-   subroutine solve_constraint_quasi_newton(f, tol, max_iter, xt, z, del_z, ierr, Jl, x_new, jac, x_seed_override, x_best_solution)
+   subroutine solve_constraint_quasi_newton(f, tol, max_iter, xt, z, del_z, ierr, Jl, x_new, jac, x_seed_override, x_best_solution, &
+                                            flow_workspace)
       implicit none
 
       integer, intent(in) :: max_iter
@@ -118,15 +120,18 @@ contains
       real(dp), intent(out), optional :: x_best_solution(:)
 
       interface
-         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac)
+         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace)
             use, intrinsic :: iso_fortran_env, only: real64
+            use solve_flow, only: flow_workspace_t
             integer, parameter :: dp = real64
             real(dp), intent(in) :: xt(:), xi(:), del_z(:)
             complex(dp), intent(in) :: z(:), jac(:, :)
             real(dp), intent(out) :: fq(:), Jl(:)
             logical, intent(out) :: ierr
+            type(flow_workspace_t), intent(inout), optional :: flow_workspace
          end subroutine f
       end interface
+      type(flow_workspace_t), intent(inout), optional, target :: flow_workspace
 
       real(dp), parameter :: promising_first_pass_res = 1.0e-2_dp
       real(dp), parameter :: probe_priority_pass_trigger_res = 1.0e-3_dp
@@ -172,7 +177,7 @@ contains
          attempt_idx = 1
          quasi_trace_route_code = 10
          call run_official_dfols_attempt(tol, attempt_idx, xt, z, del_z, jac, x0_guess, stage_converged, Jl, x_new, &
-                                         x_best_out=x_best_first, best_res_out=best_res_first)
+                                         x_best_out=x_best_first, best_res_out=best_res_first, flow_workspace=flow_workspace)
          best_res_global = best_res_first
          Jl_best_global = Jl
          x_best_global = x_best_first
@@ -198,7 +203,7 @@ contains
       attempt_idx = 1
       quasi_trace_route_code = 1
       call run_dfo_ls_attempt(f, tol, max_iter, attempt_idx, xt, z, del_z, jac, x0_guess, stage_converged, Jl, x_new, &
-                              x_best_out=x_best_first, best_res_out=best_res_first)
+                              x_best_out=x_best_first, best_res_out=best_res_first, flow_workspace=flow_workspace)
       if (best_res_first < best_res_global) then
          best_res_global = best_res_first
          Jl_best_global = Jl
@@ -221,7 +226,7 @@ contains
          attempt_idx = attempt_idx + 1
          quasi_trace_route_code = 2
          call run_dfo_ls_attempt(f, tol, 2*max_iter, attempt_idx, xt, z, del_z, jac, x_stage_seed, stage_converged, &
-                                 Jl_try, x_try, x_best_out=x_stage_best, best_res_out=best_res_try)
+                                 Jl_try, x_try, x_best_out=x_stage_best, best_res_out=best_res_try, flow_workspace=flow_workspace)
          if (best_res_try < best_res_global) then
             best_res_global = best_res_try
             Jl_best_global = Jl_try
@@ -240,7 +245,7 @@ contains
 
       if ((.not. converged) .and. residual_within_accept_tolerance(best_res_global, tol)) then
          quasi_trace_route_code = 90
-         call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best_global, best_res_global, x_new, Jl, converged)
+         call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best_global, best_res_global, x_new, Jl, converged, flow_workspace)
       end if
       if (.not. converged) then
          best_accept_tol = tol
@@ -249,7 +254,8 @@ contains
          end if
          if (ieee_is_finite(best_res_global) .and. best_res_global < best_accept_tol) then
             quasi_trace_route_code = 91
-            call rescue_attempt_from_best(xt, z, del_z, best_accept_tol, Jl_best_global, best_res_global, x_new, Jl, converged)
+            call rescue_attempt_from_best(xt, z, del_z, best_accept_tol, Jl_best_global, best_res_global, x_new, Jl, &
+                                          converged, flow_workspace)
          end if
       end if
       if (global_filter_candidate) then
@@ -281,7 +287,7 @@ contains
    end subroutine record_quasi_global_filter
 
    subroutine run_official_dfols_attempt(tol, attempt_idx, xt, z, del_z, jac, x_init, converged, Jl, x_new, &
-                                         x_best_out, best_res_out)
+                                         x_best_out, best_res_out, flow_workspace)
       implicit none
       integer, intent(in) :: attempt_idx
       real(dp), intent(in) :: tol
@@ -291,6 +297,7 @@ contains
       real(dp), intent(out) :: Jl(:), x_new(:)
       real(dp), intent(out), optional :: x_best_out(:)
       real(dp), intent(out), optional :: best_res_out
+      type(flow_workspace_t), intent(inout), optional, target :: flow_workspace
 
       integer :: n, i
       integer(c_int) :: c_status, c_n, c_nf, c_flag, c_objfun_has_noise
@@ -325,12 +332,12 @@ contains
       call cpu_time(attempt_cpu_start)
 
       call count_qn_attempt_eval()
-      call evaluate_constraint_residual(xt, z, x_seed, r, del_z, eval_error, Jl_eval, jac)
+      call evaluate_constraint_residual(xt, z, x_seed, r, del_z, eval_error, Jl_eval, jac, flow_workspace)
       if (eval_error .or. .not. real_vector_is_finite(r)) then
          x_seed = 0.0_dp
          quasi_trace_iter = 0
          call count_qn_attempt_eval()
-         call evaluate_constraint_residual(xt, z, x_seed, r, del_z, eval_error, Jl_eval, jac)
+         call evaluate_constraint_residual(xt, z, x_seed, r, del_z, eval_error, Jl_eval, jac, flow_workspace)
       end if
       if (eval_error .or. .not. real_vector_is_finite(r)) then
          call append_quasi_trace_sample(0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
@@ -353,7 +360,7 @@ contains
                                      residual_within_accept_tolerance(initial_r_norm, tol), .true.)
 
       if (residual_within_accept_tolerance(best_r_norm, tol)) then
-         call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged)
+         call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace)
          if (.not. converged) x_new = xt
          if (present(x_best_out)) then
             if (size(x_best_out) == size(x_best)) x_best_out = x_best
@@ -367,7 +374,7 @@ contains
          return
       end if
 
-      call activate_qn_official_context(xt, z, del_z, jac)
+      call activate_qn_official_context(xt, z, del_z, jac, flow_workspace)
       do i = 1, n
          x0_c(i) = real(x_seed(i), c_double)
          x_solution_c(i) = real(x_seed(i), c_double)
@@ -396,7 +403,7 @@ contains
          if (real_vector_is_finite(x_solution)) then
             quasi_trace_iter = 0
             call count_qn_attempt_eval()
-            call evaluate_constraint_residual(xt, z, x_solution, r, del_z, eval_error, Jl_eval, jac)
+            call evaluate_constraint_residual(xt, z, x_solution, r, del_z, eval_error, Jl_eval, jac, flow_workspace)
             if (.not. eval_error .and. real_vector_is_finite(r)) then
                final_r_norm = norm2(r)
                call append_quasi_trace_sample(1.0_dp, 0, int(c_nf), attempt_idx, final_r_norm, &
@@ -414,7 +421,7 @@ contains
          end if
       end if
 
-      call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged)
+      call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace)
       if (.not. converged) then
          x_new = xt
          if (size(Jl_best) == size(Jl)) Jl = Jl_best
@@ -457,7 +464,12 @@ contains
 
       quasi_trace_iter = 0
       call count_qn_attempt_eval()
-      call evaluate_constraint_residual(qn_official_xt, qn_official_z, xi, fq, qn_official_del_z, eval_error, jl, qn_official_jac)
+      if (associated(qn_official_flow_workspace)) then
+         call evaluate_constraint_residual(qn_official_xt, qn_official_z, xi, fq, qn_official_del_z, eval_error, jl, &
+                                           qn_official_jac, qn_official_flow_workspace)
+      else
+         call evaluate_constraint_residual(qn_official_xt, qn_official_z, xi, fq, qn_official_del_z, eval_error, jl, qn_official_jac)
+      end if
       if (eval_error .or. .not. real_vector_is_finite(fq)) goto 100
 
       do i = 1, n
@@ -474,10 +486,11 @@ contains
       if (allocated(jl)) deallocate (jl)
    end function qn_official_dfols_eval_callback
 
-   subroutine activate_qn_official_context(xt, z, del_z, jac)
+   subroutine activate_qn_official_context(xt, z, del_z, jac, flow_workspace)
       implicit none
       real(dp), intent(in) :: xt(:), del_z(:)
       complex(dp), intent(in) :: z(:), jac(:, :)
+      type(flow_workspace_t), intent(inout), optional, target :: flow_workspace
       integer :: n_xt, n_z, n_delz
 
       n_xt = size(xt)
@@ -499,6 +512,11 @@ contains
       qn_official_del_z(1:n_delz) = del_z
       qn_official_last_jl(1:n_delz) = 0.0_dp
       qn_official_jac = jac
+      if (present(flow_workspace)) then
+         qn_official_flow_workspace => flow_workspace
+      else
+         nullify(qn_official_flow_workspace)
+      end if
       qn_official_context_active = .true.
    end subroutine activate_qn_official_context
 
@@ -506,6 +524,7 @@ contains
       implicit none
 
       qn_official_context_active = .false.
+      nullify(qn_official_flow_workspace)
    end subroutine deactivate_qn_official_context
 
    subroutine warn_official_dfols_failure(status, flag)
@@ -519,7 +538,7 @@ contains
    end subroutine warn_official_dfols_failure
 
    subroutine run_dfo_ls_attempt(f, tol, max_iter, attempt_idx, xt, z, del_z, jac, x_init, converged, Jl, x_new, &
-                                 x_best_out, best_res_out)
+                                 x_best_out, best_res_out, flow_workspace)
       implicit none
       integer, intent(in) :: max_iter
       integer, intent(in) :: attempt_idx
@@ -530,15 +549,18 @@ contains
       real(dp), intent(out) :: Jl(:), x_new(:)
       real(dp), intent(out), optional :: x_best_out(:)
       real(dp), intent(out), optional :: best_res_out
+      type(flow_workspace_t), intent(inout), optional :: flow_workspace
 
       interface
-         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac)
+         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace)
             use, intrinsic :: iso_fortran_env, only: real64
+            use solve_flow, only: flow_workspace_t
             integer, parameter :: dp = real64
             real(dp), intent(in) :: xt(:), xi(:), del_z(:)
             complex(dp), intent(in) :: z(:), jac(:, :)
             real(dp), intent(out) :: fq(:), Jl(:)
             logical, intent(out) :: ierr
+            type(flow_workspace_t), intent(inout), optional :: flow_workspace
          end subroutine f
       end interface
 
@@ -587,12 +609,12 @@ contains
       qn_current_attempt_eval_count = 0_int64
       call cpu_time(attempt_cpu_start)
       call count_qn_attempt_eval()
-      call f(xt, z, x, r, del_z, eval_error, Jl, jac)
+      call f(xt, z, x, r, del_z, eval_error, Jl, jac, flow_workspace)
       if (eval_error .or. .not. real_vector_is_finite(r)) then
          x = 0.0_dp
          quasi_trace_iter = 0
          call count_qn_attempt_eval()
-         call f(xt, z, x, r, del_z, eval_error, Jl, jac)
+         call f(xt, z, x, r, del_z, eval_error, Jl, jac, flow_workspace)
       end if
       if (eval_error .or. .not. real_vector_is_finite(r)) then
          call append_quasi_trace_sample(0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
@@ -639,7 +661,7 @@ contains
          if (residual_within_accept_tolerance(r_norm, tol)) exit
          prev_r_norm = r_norm
 
-         call build_dfo_gn_jacobian(f, xt, z, del_z, jac, x, r, trust_radius, iter_idx, Jm)
+         call build_dfo_gn_jacobian(f, xt, z, del_z, jac, x, r, trust_radius, iter_idx, Jm, flow_workspace)
          Hm = matmul(transpose(Jm), Jm)
          g = matmul(transpose(Jm), r)
          if (.not. real_vector_is_finite(g)) then
@@ -676,7 +698,7 @@ contains
             x_trial = x + step
             quasi_trace_iter = iter_idx
             call count_qn_attempt_eval()
-            call f(xt, z, x_trial, r_trial, del_z, eval_error, Jl_trial, jac)
+            call f(xt, z, x_trial, r_trial, del_z, eval_error, Jl_trial, jac, flow_workspace)
             if (eval_error .or. .not. real_vector_is_finite(r_trial)) then
                call append_quasi_trace_sample(0.0_dp, iter_idx, 0, attempt_idx, huge(1.0_dp), .false., .false.)
                trust_radius = max(trust_radius_min, 0.5_dp*trust_radius)
@@ -796,7 +818,7 @@ contains
                x_trial = x + escape_len*step
                quasi_trace_iter = iter_idx
                call count_qn_attempt_eval()
-               call f(xt, z, x_trial, r_trial, del_z, eval_error, Jl_trial, jac)
+               call f(xt, z, x_trial, r_trial, del_z, eval_error, Jl_trial, jac, flow_workspace)
                if (eval_error .or. .not. real_vector_is_finite(r_trial)) then
                   call append_quasi_trace_sample(0.0_dp, iter_idx, 100 + escape_try, attempt_idx, huge(1.0_dp), .false., .false.)
                   cycle
@@ -845,7 +867,7 @@ contains
          if (iter_idx >= 8 .and. no_improve_count >= stagnation_limit) exit
       end do
 
-      call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged)
+      call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace)
       if (.not. converged) then
          x_new = xt
          if (size(Jl_best) == size(Jl)) Jl = Jl_best
@@ -861,21 +883,24 @@ contains
       deallocate (x, x_trial, x_seed, r, r_trial, Jm, Hm, Bm, g, step, hs, Jl_trial, x_best, Jl_best)
    end subroutine run_dfo_ls_attempt
 
-   subroutine build_dfo_gn_jacobian(f, xt, z, del_z, jac, x, r, trust_radius, iter_idx, Jm)
+   subroutine build_dfo_gn_jacobian(f, xt, z, del_z, jac, x, r, trust_radius, iter_idx, Jm, flow_workspace)
       implicit none
       real(dp), intent(in) :: xt(:), del_z(:), x(:), r(:), trust_radius
       complex(dp), intent(in) :: z(:), jac(:, :)
       integer, intent(in) :: iter_idx
       real(dp), intent(out) :: Jm(:, :)
+      type(flow_workspace_t), intent(inout), optional :: flow_workspace
 
       interface
-         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac)
+         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace)
             use, intrinsic :: iso_fortran_env, only: real64
+            use solve_flow, only: flow_workspace_t
             integer, parameter :: dp = real64
             real(dp), intent(in) :: xt(:), xi(:), del_z(:)
             complex(dp), intent(in) :: z(:), jac(:, :)
             real(dp), intent(out) :: fq(:), Jl(:)
             logical, intent(out) :: ierr
+            type(flow_workspace_t), intent(inout), optional :: flow_workspace
          end subroutine f
       end interface
 
@@ -901,7 +926,7 @@ contains
          x_probe(i) = x_probe(i) + h
          quasi_trace_iter = iter_idx
          call count_qn_attempt_eval()
-         call f(xt, z, x_probe, r_plus, del_z, eval_error, Jl_probe, jac)
+         call f(xt, z, x_probe, r_plus, del_z, eval_error, Jl_probe, jac, flow_workspace)
          if (.not. eval_error .and. real_vector_is_finite(r_plus)) eval_plus_ok = .true.
 
          eval_minus_ok = .false.
@@ -909,7 +934,7 @@ contains
          x_probe(i) = x_probe(i) - h
          quasi_trace_iter = iter_idx
          call count_qn_attempt_eval()
-         call f(xt, z, x_probe, r_minus, del_z, eval_error, Jl_probe, jac)
+         call f(xt, z, x_probe, r_minus, del_z, eval_error, Jl_probe, jac, flow_workspace)
          if (.not. eval_error .and. real_vector_is_finite(r_minus)) eval_minus_ok = .true.
 
          if (eval_plus_ok .and. eval_minus_ok) then
@@ -932,12 +957,13 @@ contains
       deallocate (x_probe, r_plus, r_minus, Jl_probe)
    end subroutine build_dfo_gn_jacobian
 
-   subroutine recover_converged_flowed_state(xt, z, del_z, Jl, z_flowed, eval_error)
+   subroutine recover_converged_flowed_state(xt, z, del_z, Jl, z_flowed, eval_error, flow_workspace)
       implicit none
       real(dp), intent(in) :: xt(:), del_z(:), Jl(:)
       complex(dp), intent(in) :: z(:)
       complex(dp), intent(out) :: z_flowed(:)
       logical, intent(out) :: eval_error
+      type(flow_workspace_t), intent(inout), optional :: flow_workspace
       complex(dp) :: z_trial(size(z))
 
       if (size(z_flowed) /= size(z) .or. size(del_z) /= size(Jl)) then
@@ -962,7 +988,7 @@ contains
          eval_error = .true.
          return
       end if
-      call flowzr(xt, z_trial, eval_error)
+      call flowzr(xt, z_trial, eval_error, workspace=flow_workspace)
       call update_quasi_watchdog_scope()
       if (quasi_watchdog_scope_active .and. quasi_watchdog_hit) then
          eval_error = .true.
@@ -971,12 +997,13 @@ contains
       if (.not. eval_error) z_flowed = z_trial
    end subroutine recover_converged_flowed_state
 
-   subroutine rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_fx_norm, x_new, Jl, converged)
+   subroutine rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_fx_norm, x_new, Jl, converged, flow_workspace)
       implicit none
       real(dp), intent(in) :: xt(:), del_z(:), tol, Jl_best(:), best_fx_norm
       complex(dp), intent(in) :: z(:)
       real(dp), intent(inout) :: x_new(:), Jl(:)
       logical, intent(out) :: converged
+      type(flow_workspace_t), intent(inout), optional :: flow_workspace
 
       logical :: eval_error
       complex(dp) :: z_new(size(z))
@@ -986,7 +1013,7 @@ contains
       if (size(Jl_best) /= size(Jl)) return
 
       Jl = Jl_best
-      call recover_converged_flowed_state(xt, z, del_z, Jl, z_new, eval_error)
+      call recover_converged_flowed_state(xt, z, del_z, Jl, z_new, eval_error, flow_workspace)
       if (eval_error) then
          converged = .false.
          return
@@ -1084,12 +1111,13 @@ contains
       end select
    end subroutine record_quasi_eval_flow_status
 
-   subroutine evaluate_constraint_residual(xt, z, xi, fq, del_z, ierr, Jl, jac)
+   subroutine evaluate_constraint_residual(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace)
       implicit none
       real(dp), intent(in) :: xt(:), xi(:), del_z(:)
       complex(dp), intent(in) :: z(:), jac(:, :)
       real(dp), intent(out) :: fq(:), Jl(:)
       logical, intent(out) :: ierr
+      type(flow_workspace_t), intent(inout), optional :: flow_workspace
 
       integer :: flow_status, n
 
@@ -1122,7 +1150,7 @@ contains
       call set_intode_stage_trace(intode_stage_quasi)
       call set_intode_quasi_iter_trace(quasi_trace_iter)
       flow_status = intode_status_unknown
-      call flowzr(xt, residual_z_trial, ierr, flow_status)
+      call flowzr(xt, residual_z_trial, ierr, flow_status, flow_workspace)
       call record_quasi_eval_flow_status(flow_status)
       if (ierr) then
          call mark_constraint_eval_invalid(fq, Jl, ierr)

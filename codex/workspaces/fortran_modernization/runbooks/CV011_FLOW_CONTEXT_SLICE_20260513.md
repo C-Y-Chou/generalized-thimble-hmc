@@ -61,8 +61,11 @@ Full M4 result: all guardrails passed; artifacts in `output/tests/m4_guardrails`
 
 ## Still Open
 
-- Local-update HMC/QN internals still have compatibility-path flow calls in
-  some paths; thread `flow_workspace_t` through those call chains next.
+- Local-update HMC/QN internals are covered by
+  `CV011_HMC_QN_FLOW_CONTEXT_SLICE_20260513.md`.
+- Official DFO-LS backend callback context still relies on module-level
+  `qn_official_*` state; see
+  `CV011_QN_OFFICIAL_CALLBACK_CONTEXT_DECISION_POINT_20260513.md`.
 - `solve_flow` fallback counters, trace context, and last-failure snapshot are
   intentionally not moved in this slice; they need a later diagnostics/status
   context decision.
