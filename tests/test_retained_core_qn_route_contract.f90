@@ -1,5 +1,6 @@
 program test_retained_core_qn_route_contract
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+   use, intrinsic :: iso_fortran_env, only: int64
    use hmc_kernels, only: calculate_dV
    use model, only: ds
    use param_mod, only: cttol, read_parameters, state_seed_size_cfg
@@ -7,6 +8,8 @@ program test_retained_core_qn_route_contract
    use quasi_newton_solver_mod, only: evaluate_constraint_residual, get_qn_official_dfols_policy, &
                                       get_quasi_newton_last_trace_r2c, get_quasi_newton_last_trace_stats, &
                                       qn_backend_official_dfols, qn_context_t, release_qn_context, &
+                                      qn_diagnostics_context_t, release_qn_diagnostics_context, &
+                                      reset_quasi_eval_flow_status_counts, get_quasi_eval_flow_status_counts, &
                                       solve_constraint_quasi_newton
    use runtime_env_mod, only: parse_logical_env
    use solve_flow, only: flow, flowzr, intode_status_is_strict_success, intode_status_unknown
@@ -45,6 +48,7 @@ program test_retained_core_qn_route_contract
    call check_btn_paper_residual(x, z, jac, del_z, xi, fq, Jl, failures)
    call check_official_route_contract(x, z, jac, del_z, Jl_solver, x_new, x_best, failures)
    call check_qn_context_trace_isolation(x, z, jac, del_z, Jl_solver, x_new, x_best, failures)
+   call check_qn_diagnostics_context_isolation(x, z, jac, del_z, Jl_solver, x_new, x_best, failures)
    call check_official_route_census(x, z, jac, dV, Jl_solver, x_new, x_best, failures)
 
    deallocate (seed, x, z, jac)
@@ -235,6 +239,58 @@ contains
       call release_qn_context(context_b)
       deallocate (del_z_b)
    end subroutine check_qn_context_trace_isolation
+
+   subroutine check_qn_diagnostics_context_isolation(x, z, jac, del_z, Jl, x_new, x_best, failures)
+      real(dp), intent(in) :: x(:), del_z(:)
+      complex(dp), intent(in) :: z(:), jac(:, :)
+      real(dp), intent(inout) :: Jl(:), x_new(:), x_best(:)
+      integer, intent(inout) :: failures
+
+      type(qn_context_t), target :: context_a, context_b
+      type(qn_diagnostics_context_t), target :: diagnostics_a, diagnostics_b
+      real(dp), allocatable :: del_z_b(:)
+      logical :: ierr, ok
+      integer(int64) :: a_total_before, a_total_after, b_total_before, b_total_after
+
+      allocate (del_z_b(size(del_z)))
+      del_z_b = 0.85_dp*del_z
+      call reset_quasi_eval_flow_status_counts(diagnostics_a)
+      call reset_quasi_eval_flow_status_counts(diagnostics_b)
+
+      call solve_constraint_quasi_newton(evaluate_constraint_residual, cttol, 28, x, z, del_z, ierr, Jl, x_new, jac, &
+                                         x_best_solution=x_best, qn_context=context_a, qn_diagnostics=diagnostics_a)
+      call qn_eval_status_total(diagnostics_a, a_total_before)
+      call qn_eval_status_total(diagnostics_b, b_total_before)
+
+      call solve_constraint_quasi_newton(evaluate_constraint_residual, cttol, 28, x, z, del_z_b, ierr, Jl, x_new, jac, &
+                                         x_best_solution=x_best, qn_context=context_b, qn_diagnostics=diagnostics_b)
+      call qn_eval_status_total(diagnostics_a, a_total_after)
+      call qn_eval_status_total(diagnostics_b, b_total_after)
+
+      ok = a_total_before > 0_int64 .and. b_total_before == 0_int64 .and. &
+           a_total_after == a_total_before .and. b_total_after > 0_int64
+      write (*, '(A,L1,A,I0,A,I0,A,I0,A,I0)') "[CHECK] qn_diagnostics_context_isolation ok=", ok, &
+         " a_before=", a_total_before, " a_after=", a_total_after, &
+         " b_before=", b_total_before, " b_after=", b_total_after
+      if (.not. ok) failures = failures + 1
+
+      call release_qn_context(context_a)
+      call release_qn_context(context_b)
+      call release_qn_diagnostics_context(diagnostics_a)
+      call release_qn_diagnostics_context(diagnostics_b)
+      deallocate (del_z_b)
+   end subroutine check_qn_diagnostics_context_isolation
+
+   subroutine qn_eval_status_total(qn_diagnostics, total)
+      type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics
+      integer(int64), intent(out) :: total
+      integer(int64) :: success, zero_time, stiff_rescue, solver_assist
+      integer(int64) :: failure_max_steps, failure_invalid, failure_h_min, unknown
+
+      call get_quasi_eval_flow_status_counts(success, zero_time, stiff_rescue, solver_assist, &
+                                             failure_max_steps, failure_invalid, failure_h_min, unknown, qn_diagnostics)
+      total = success + zero_time + stiff_rescue + solver_assist + failure_max_steps + failure_invalid + failure_h_min + unknown
+   end subroutine qn_eval_status_total
 
    subroutine check_official_route_census(x, z, jac, dV, Jl, x_new, x_best, failures)
       real(dp), intent(in) :: x(:), dV(:)

@@ -73,14 +73,18 @@ Passed:
 python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going
 ```
 
+## Subsequent Update
+
+QN capture/counter diagnostics ownership was implemented in
+`CV011_QN_DIAGNOSTICS_CONTEXT_SLICE_20260513.md`.
+
 ## Remaining Open Boundary
 
-This slice intentionally does not migrate shared diagnostic/file ownership:
+The remaining QN module-owned state is backend/watchdog policy cache ownership:
 
-- QN attempt-capture file units, file-ready/write-error flags, sample counters,
-  stride/limit policy, and capture directory;
-- QN eval-flow status counters and global-filter counters;
-- QN backend policy cache, preset values, notice/warning flags.
+- QN backend policy cache, preset values, notice/warning flags;
+- QN watchdog policy cache and related budget/force-best settings.
 
-Those are diagnostics/product ownership decisions, not just scratch buffers.
-The next stop is `CV011_QN_CAPTURE_DIAGNOSTICS_CONTEXT_DECISION_POINT_20260513.md`.
+Those are product policy/config decisions, not scratch buffers or diagnostics
+sinks. The next stop is
+`CV011_QN_BACKEND_POLICY_CONTEXT_DECISION_POINT_20260513.md`.

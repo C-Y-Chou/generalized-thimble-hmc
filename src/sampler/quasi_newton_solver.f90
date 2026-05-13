@@ -39,38 +39,43 @@ module quasi_newton_solver_mod
    end type qn_context_t
 
    type(qn_context_t), target, save :: module_qn_context
+
+   type :: qn_diagnostics_context_t
+      integer(int64) :: global_filter_candidate_count = 0_int64
+      integer(int64) :: global_filter_pass_count = 0_int64
+      integer(int64) :: global_filter_reject_count = 0_int64
+      integer(int64) :: eval_flow_status_success = 0_int64
+      integer(int64) :: eval_flow_status_zero_time = 0_int64
+      integer(int64) :: eval_flow_status_stiff_rescue = 0_int64
+      integer(int64) :: eval_flow_status_solver_assist = 0_int64
+      integer(int64) :: eval_flow_status_failure_max_steps = 0_int64
+      integer(int64) :: eval_flow_status_failure_invalid = 0_int64
+      integer(int64) :: eval_flow_status_failure_h_min = 0_int64
+      integer(int64) :: eval_flow_status_unknown = 0_int64
+      logical :: attempt_capture_policy_loaded = .false.
+      logical :: attempt_capture_enabled = .false.
+      logical :: attempt_capture_files_ready = .false.
+      logical :: attempt_capture_write_error = .false.
+      integer :: attempt_capture_limit = 100
+      integer :: attempt_capture_stride = 1
+      integer :: attempt_capture_seen = 0
+      integer :: attempt_capture_count = 0
+      integer :: attempt_capture_z0_unit = -1
+      integer :: attempt_capture_delz_unit = -1
+      integer :: attempt_capture_x0_unit = -1
+      integer :: attempt_capture_xi0_unit = -1
+      integer :: attempt_capture_meta_unit = -1
+      character(len=512) :: attempt_capture_dir = ""
+   end type qn_diagnostics_context_t
+
+   type(qn_diagnostics_context_t), target, save :: module_qn_diagnostics_context
    integer, parameter :: quasi_solver_assist_budget_default = 20000
    integer, save :: quasi_solver_assist_budget = quasi_solver_assist_budget_default
    integer, parameter :: quasi_accepted_iter_budget_default = 0
    integer, save :: quasi_accepted_iter_budget = quasi_accepted_iter_budget_default
    logical, save :: qn_force_best_proposal_enabled = .false.
    real(dp), save :: qn_force_best_proposal_tol = -1.0_dp
-   integer(int64), save :: quasi_global_filter_candidate_count = 0_int64
-   integer(int64), save :: quasi_global_filter_pass_count = 0_int64
-   integer(int64), save :: quasi_global_filter_reject_count = 0_int64
-   integer(int64), save :: quasi_eval_flow_status_success = 0_int64
-   integer(int64), save :: quasi_eval_flow_status_zero_time = 0_int64
-   integer(int64), save :: quasi_eval_flow_status_stiff_rescue = 0_int64
-   integer(int64), save :: quasi_eval_flow_status_solver_assist = 0_int64
-   integer(int64), save :: quasi_eval_flow_status_failure_max_steps = 0_int64
-   integer(int64), save :: quasi_eval_flow_status_failure_invalid = 0_int64
-   integer(int64), save :: quasi_eval_flow_status_failure_h_min = 0_int64
-   integer(int64), save :: quasi_eval_flow_status_unknown = 0_int64
    logical, save :: quasi_watchdog_policy_loaded = .false.
-   logical, save :: qn_attempt_capture_policy_loaded = .false.
-   logical, save :: qn_attempt_capture_enabled = .false.
-   logical, save :: qn_attempt_capture_files_ready = .false.
-   logical, save :: qn_attempt_capture_write_error = .false.
-   integer, save :: qn_attempt_capture_limit = 100
-   integer, save :: qn_attempt_capture_stride = 1
-   integer, save :: qn_attempt_capture_seen = 0
-   integer, save :: qn_attempt_capture_count = 0
-   integer, save :: qn_attempt_capture_z0_unit = -1
-   integer, save :: qn_attempt_capture_delz_unit = -1
-   integer, save :: qn_attempt_capture_x0_unit = -1
-   integer, save :: qn_attempt_capture_xi0_unit = -1
-   integer, save :: qn_attempt_capture_meta_unit = -1
-   character(len=512), save :: qn_attempt_capture_dir = ""
    integer, parameter :: qn_backend_internal = 1
    integer, parameter :: qn_backend_official_dfols = 2
    logical, save :: qn_backend_policy_loaded = .false.
@@ -91,6 +96,7 @@ module quasi_newton_solver_mod
       type(c_ptr) :: jac = c_null_ptr
       type(c_ptr) :: flow_workspace = c_null_ptr
       type(c_ptr) :: qn_context = c_null_ptr
+      type(c_ptr) :: qn_diagnostics = c_null_ptr
       integer(c_int) :: n = 0_c_int
       integer(c_int) :: n_xt = 0_c_int
       integer(c_int) :: n_z = 0_c_int
@@ -99,6 +105,7 @@ module quasi_newton_solver_mod
       integer(c_int) :: jac_cols = 0_c_int
       integer(c_int) :: has_flow_workspace = 0_c_int
       integer(c_int) :: has_qn_context = 0_c_int
+      integer(c_int) :: has_qn_diagnostics = 0_c_int
    end type qn_official_callback_context_t
 
    interface
@@ -130,6 +137,18 @@ contains
          active_context => module_qn_context
       end if
    end subroutine resolve_qn_context
+
+   subroutine resolve_qn_diagnostics(qn_diagnostics, active_diagnostics)
+      implicit none
+      type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
+      type(qn_diagnostics_context_t), pointer :: active_diagnostics
+
+      if (present(qn_diagnostics)) then
+         active_diagnostics => qn_diagnostics
+      else
+         active_diagnostics => module_qn_diagnostics_context
+      end if
+   end subroutine resolve_qn_diagnostics
 
    subroutine release_qn_context(context)
       implicit none
@@ -168,8 +187,44 @@ contains
       context%current_attempt_eval_count = 0_int64
    end subroutine release_qn_context
 
+   subroutine release_qn_diagnostics_context(context)
+      implicit none
+      type(qn_diagnostics_context_t), intent(inout) :: context
+
+      if (context%attempt_capture_z0_unit /= -1) close (context%attempt_capture_z0_unit)
+      if (context%attempt_capture_delz_unit /= -1) close (context%attempt_capture_delz_unit)
+      if (context%attempt_capture_x0_unit /= -1) close (context%attempt_capture_x0_unit)
+      if (context%attempt_capture_xi0_unit /= -1) close (context%attempt_capture_xi0_unit)
+      if (context%attempt_capture_meta_unit /= -1) close (context%attempt_capture_meta_unit)
+      context%global_filter_candidate_count = 0_int64
+      context%global_filter_pass_count = 0_int64
+      context%global_filter_reject_count = 0_int64
+      context%eval_flow_status_success = 0_int64
+      context%eval_flow_status_zero_time = 0_int64
+      context%eval_flow_status_stiff_rescue = 0_int64
+      context%eval_flow_status_solver_assist = 0_int64
+      context%eval_flow_status_failure_max_steps = 0_int64
+      context%eval_flow_status_failure_invalid = 0_int64
+      context%eval_flow_status_failure_h_min = 0_int64
+      context%eval_flow_status_unknown = 0_int64
+      context%attempt_capture_policy_loaded = .false.
+      context%attempt_capture_enabled = .false.
+      context%attempt_capture_files_ready = .false.
+      context%attempt_capture_write_error = .false.
+      context%attempt_capture_limit = 100
+      context%attempt_capture_stride = 1
+      context%attempt_capture_seen = 0
+      context%attempt_capture_count = 0
+      context%attempt_capture_z0_unit = -1
+      context%attempt_capture_delz_unit = -1
+      context%attempt_capture_x0_unit = -1
+      context%attempt_capture_xi0_unit = -1
+      context%attempt_capture_meta_unit = -1
+      context%attempt_capture_dir = ""
+   end subroutine release_qn_diagnostics_context
+
    subroutine solve_constraint_quasi_newton(f, tol, max_iter, xt, z, del_z, ierr, Jl, x_new, jac, x_seed_override, x_best_solution, &
-                                            flow_workspace, qn_context)
+                                            flow_workspace, qn_context, qn_diagnostics)
       implicit none
 
       integer, intent(in) :: max_iter
@@ -184,10 +239,10 @@ contains
       real(dp), intent(out), optional :: x_best_solution(:)
 
       interface
-         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context)
+         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context, qn_diagnostics)
             use, intrinsic :: iso_fortran_env, only: real64
             use solve_flow, only: flow_workspace_t
-            import :: qn_context_t
+            import :: qn_context_t, qn_diagnostics_context_t
             integer, parameter :: dp = real64
             real(dp), intent(in) :: xt(:), xi(:), del_z(:)
             complex(dp), intent(in) :: z(:), jac(:, :)
@@ -195,10 +250,12 @@ contains
             logical, intent(out) :: ierr
             type(flow_workspace_t), intent(inout), optional :: flow_workspace
             type(qn_context_t), intent(inout), optional, target :: qn_context
+            type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
          end subroutine f
       end interface
       type(flow_workspace_t), intent(inout), optional, target :: flow_workspace
       type(qn_context_t), intent(inout), optional, target :: qn_context
+      type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
 
       real(dp), parameter :: promising_first_pass_res = 1.0e-2_dp
       real(dp), parameter :: probe_priority_pass_trigger_res = 1.0e-3_dp
@@ -212,9 +269,11 @@ contains
       real(dp), allocatable :: x0_guess(:), x_best_first(:), x_stage_best(:), x_stage_seed(:), x_best_global(:)
       real(dp), allocatable :: x_try(:), Jl_try(:), Jl_best_global(:)
       type(qn_context_t), pointer :: active_context
+      type(qn_diagnostics_context_t), pointer :: active_diagnostics
 
       n = 2*size(z)
       call resolve_qn_context(qn_context, active_context)
+      call resolve_qn_diagnostics(qn_diagnostics, active_diagnostics)
       allocate (x0_guess(n), x_best_first(n), x_stage_best(n), x_stage_seed(n), x_try(n), x_best_global(n), &
                 Jl_try(n), Jl_best_global(n))
       call reset_quasi_last_trace(active_context, size(z))
@@ -247,7 +306,7 @@ contains
          active_context%trace_route_code = 10
          call run_official_dfols_attempt(tol, attempt_idx, xt, z, del_z, jac, x0_guess, stage_converged, Jl, x_new, &
                                          x_best_out=x_best_first, best_res_out=best_res_first, flow_workspace=flow_workspace, &
-                                         qn_context=active_context)
+                                         qn_context=active_context, qn_diagnostics=active_diagnostics)
          best_res_global = best_res_first
          Jl_best_global = Jl
          x_best_global = x_best_first
@@ -256,7 +315,7 @@ contains
              best_res_global <= probe_global_rescue_trigger_res) then
             global_filter_candidate = .true.
          end if
-         if (global_filter_candidate) call record_quasi_global_filter(converged)
+         if (global_filter_candidate) call record_quasi_global_filter(active_diagnostics, converged)
          if (.not. converged) then
             x_new = xt
             Jl = Jl_best_global
@@ -274,7 +333,7 @@ contains
       active_context%trace_route_code = 1
       call run_dfo_ls_attempt(f, tol, max_iter, attempt_idx, xt, z, del_z, jac, x0_guess, stage_converged, Jl, x_new, &
                               x_best_out=x_best_first, best_res_out=best_res_first, flow_workspace=flow_workspace, &
-                              qn_context=active_context)
+                              qn_context=active_context, qn_diagnostics=active_diagnostics)
       if (best_res_first < best_res_global) then
          best_res_global = best_res_first
          Jl_best_global = Jl
@@ -298,7 +357,7 @@ contains
          active_context%trace_route_code = 2
          call run_dfo_ls_attempt(f, tol, 2*max_iter, attempt_idx, xt, z, del_z, jac, x_stage_seed, stage_converged, &
                                  Jl_try, x_try, x_best_out=x_stage_best, best_res_out=best_res_try, flow_workspace=flow_workspace, &
-                                 qn_context=active_context)
+                                 qn_context=active_context, qn_diagnostics=active_diagnostics)
          if (best_res_try < best_res_global) then
             best_res_global = best_res_try
             Jl_best_global = Jl_try
@@ -332,7 +391,7 @@ contains
          end if
       end if
       if (global_filter_candidate) then
-         call record_quasi_global_filter(converged)
+         call record_quasi_global_filter(active_diagnostics, converged)
       end if
       if (.not. converged) then
          x_new = xt
@@ -347,20 +406,21 @@ contains
       deallocate (x0_guess, x_best_first, x_stage_best, x_stage_seed, x_try, x_best_global, Jl_try, Jl_best_global)
    end subroutine solve_constraint_quasi_newton
 
-   subroutine record_quasi_global_filter(local_success)
+   subroutine record_quasi_global_filter(qn_diagnostics, local_success)
       implicit none
+      type(qn_diagnostics_context_t), intent(inout) :: qn_diagnostics
       logical, intent(in) :: local_success
 
-      quasi_global_filter_candidate_count = quasi_global_filter_candidate_count + 1_int64
+      qn_diagnostics%global_filter_candidate_count = qn_diagnostics%global_filter_candidate_count + 1_int64
       if (local_success) then
-         quasi_global_filter_pass_count = quasi_global_filter_pass_count + 1_int64
+         qn_diagnostics%global_filter_pass_count = qn_diagnostics%global_filter_pass_count + 1_int64
       else
-         quasi_global_filter_reject_count = quasi_global_filter_reject_count + 1_int64
+         qn_diagnostics%global_filter_reject_count = qn_diagnostics%global_filter_reject_count + 1_int64
       end if
    end subroutine record_quasi_global_filter
 
    subroutine run_official_dfols_attempt(tol, attempt_idx, xt, z, del_z, jac, x_init, converged, Jl, x_new, &
-                                         x_best_out, best_res_out, flow_workspace, qn_context)
+                                         x_best_out, best_res_out, flow_workspace, qn_context, qn_diagnostics)
       implicit none
       integer, intent(in) :: attempt_idx
       real(dp), intent(in) :: tol
@@ -373,6 +433,7 @@ contains
       real(dp), intent(out), optional :: best_res_out
       type(flow_workspace_t), intent(inout), optional, target :: flow_workspace
       type(qn_context_t), intent(inout), target :: qn_context
+      type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics
 
       integer :: n, i
       integer(c_int) :: c_status, c_n, c_nf, c_flag, c_objfun_has_noise
@@ -408,19 +469,21 @@ contains
       call cpu_time(attempt_cpu_start)
 
       call count_qn_attempt_eval(qn_context)
-      call evaluate_constraint_residual(xt, z, x_seed, r, del_z, eval_error, Jl_eval, jac, flow_workspace, qn_context)
+      call evaluate_constraint_residual(xt, z, x_seed, r, del_z, eval_error, Jl_eval, jac, flow_workspace, qn_context, &
+                                        qn_diagnostics)
       if (eval_error .or. .not. real_vector_is_finite(r)) then
          x_seed = 0.0_dp
          qn_context%trace_iter = 0
          call count_qn_attempt_eval(qn_context)
-         call evaluate_constraint_residual(xt, z, x_seed, r, del_z, eval_error, Jl_eval, jac, flow_workspace, qn_context)
+         call evaluate_constraint_residual(xt, z, x_seed, r, del_z, eval_error, Jl_eval, jac, flow_workspace, qn_context, &
+                                           qn_diagnostics)
       end if
       if (eval_error .or. .not. real_vector_is_finite(r)) then
          call append_quasi_trace_sample(qn_context, 0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
          attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
          call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, qn_official_dfols_maxfun, tol, &
                                  huge(1.0_dp), huge(1.0_dp), .false., .false., &
-                                 qn_context%current_attempt_eval_count, attempt_cpu_seconds)
+                                 qn_context%current_attempt_eval_count, attempt_cpu_seconds, qn_diagnostics)
          deallocate (x_seed, x_solution, x_best, r, Jl_eval, Jl_best, x0_c, x_solution_c)
          return
       end if
@@ -445,12 +508,12 @@ contains
          attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
          call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, qn_official_dfols_maxfun, tol, &
                                  initial_r_norm, best_r_norm, converged, initial_eval_ok, &
-                                 qn_context%current_attempt_eval_count, attempt_cpu_seconds)
+                                 qn_context%current_attempt_eval_count, attempt_cpu_seconds, qn_diagnostics)
          deallocate (x_seed, x_solution, x_best, r, Jl_eval, Jl_best, x0_c, x_solution_c)
          return
       end if
 
-      call initialize_qn_official_callback_context(callback_context, xt, z, del_z, jac, flow_workspace, qn_context)
+      call initialize_qn_official_callback_context(callback_context, xt, z, del_z, jac, flow_workspace, qn_context, qn_diagnostics)
       do i = 1, n
          x0_c(i) = real(x_seed(i), c_double)
          x_solution_c(i) = real(x_seed(i), c_double)
@@ -479,7 +542,8 @@ contains
          if (real_vector_is_finite(x_solution)) then
             qn_context%trace_iter = 0
             call count_qn_attempt_eval(qn_context)
-            call evaluate_constraint_residual(xt, z, x_solution, r, del_z, eval_error, Jl_eval, jac, flow_workspace, qn_context)
+            call evaluate_constraint_residual(xt, z, x_solution, r, del_z, eval_error, Jl_eval, jac, flow_workspace, qn_context, &
+                                              qn_diagnostics)
             if (.not. eval_error .and. real_vector_is_finite(r)) then
                final_r_norm = norm2(r)
                call append_quasi_trace_sample(qn_context, 1.0_dp, 0, int(c_nf), attempt_idx, final_r_norm, &
@@ -509,7 +573,7 @@ contains
       attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
       call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, qn_official_dfols_maxfun, tol, &
                               initial_r_norm, best_r_norm, converged, initial_eval_ok, &
-                              qn_context%current_attempt_eval_count, attempt_cpu_seconds)
+                              qn_context%current_attempt_eval_count, attempt_cpu_seconds, qn_diagnostics)
 
       deallocate (x_seed, x_solution, x_best, r, Jl_eval, Jl_best, x0_c, x_solution_c)
    end subroutine run_official_dfols_attempt
@@ -526,6 +590,7 @@ contains
       complex(dp), pointer :: z_ptr(:), jac_ptr(:, :)
       type(flow_workspace_t), pointer :: flow_workspace_ptr
       type(qn_context_t), pointer :: qn_context_ptr
+      type(qn_diagnostics_context_t), pointer :: qn_diagnostics_ptr
       integer :: n, i
       logical :: eval_error
       real(dp), allocatable :: xi(:), fq(:), jl(:)
@@ -560,14 +625,20 @@ contains
       else
          qn_context_ptr => module_qn_context
       end if
+      if (callback_context%has_qn_diagnostics /= 0_c_int .and. c_associated(callback_context%qn_diagnostics)) then
+         call c_f_pointer(callback_context%qn_diagnostics, qn_diagnostics_ptr)
+      else
+         qn_diagnostics_ptr => module_qn_diagnostics_context
+      end if
       qn_context_ptr%trace_iter = 0
       call count_qn_attempt_eval(qn_context_ptr)
       if (callback_context%has_flow_workspace /= 0_c_int .and. c_associated(callback_context%flow_workspace)) then
          call c_f_pointer(callback_context%flow_workspace, flow_workspace_ptr)
          call evaluate_constraint_residual(xt_ptr, z_ptr, xi, fq, del_z_ptr, eval_error, jl, jac_ptr, flow_workspace_ptr, &
-                                           qn_context_ptr)
+                                           qn_context_ptr, qn_diagnostics_ptr)
       else
-         call evaluate_constraint_residual(xt_ptr, z_ptr, xi, fq, del_z_ptr, eval_error, jl, jac_ptr, qn_context=qn_context_ptr)
+         call evaluate_constraint_residual(xt_ptr, z_ptr, xi, fq, del_z_ptr, eval_error, jl, jac_ptr, qn_context=qn_context_ptr, &
+                                           qn_diagnostics=qn_diagnostics_ptr)
       end if
       if (eval_error .or. .not. real_vector_is_finite(fq)) goto 100
 
@@ -582,13 +653,14 @@ contains
       if (allocated(jl)) deallocate (jl)
    end function qn_official_dfols_eval_callback
 
-   subroutine initialize_qn_official_callback_context(context, xt, z, del_z, jac, flow_workspace, qn_context)
+   subroutine initialize_qn_official_callback_context(context, xt, z, del_z, jac, flow_workspace, qn_context, qn_diagnostics)
       implicit none
       type(qn_official_callback_context_t), intent(out) :: context
       real(dp), intent(in), target :: xt(:), del_z(:)
       complex(dp), intent(in), target :: z(:), jac(:, :)
       type(flow_workspace_t), intent(inout), optional, target :: flow_workspace
       type(qn_context_t), intent(inout), optional, target :: qn_context
+      type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
 
       context%xt = c_loc(xt(1))
       context%z = c_loc(z(1))
@@ -614,6 +686,13 @@ contains
          context%qn_context = c_null_ptr
          context%has_qn_context = 0_c_int
       end if
+      if (present(qn_diagnostics)) then
+         context%qn_diagnostics = c_loc(qn_diagnostics)
+         context%has_qn_diagnostics = 1_c_int
+      else
+         context%qn_diagnostics = c_null_ptr
+         context%has_qn_diagnostics = 0_c_int
+      end if
    end subroutine initialize_qn_official_callback_context
 
    subroutine clear_qn_official_callback_context(context)
@@ -626,6 +705,7 @@ contains
       context%jac = c_null_ptr
       context%flow_workspace = c_null_ptr
       context%qn_context = c_null_ptr
+      context%qn_diagnostics = c_null_ptr
       context%n = 0_c_int
       context%n_xt = 0_c_int
       context%n_z = 0_c_int
@@ -634,6 +714,7 @@ contains
       context%jac_cols = 0_c_int
       context%has_flow_workspace = 0_c_int
       context%has_qn_context = 0_c_int
+      context%has_qn_diagnostics = 0_c_int
    end subroutine clear_qn_official_callback_context
 
    subroutine warn_official_dfols_failure(status, flag)
@@ -647,7 +728,7 @@ contains
    end subroutine warn_official_dfols_failure
 
    subroutine run_dfo_ls_attempt(f, tol, max_iter, attempt_idx, xt, z, del_z, jac, x_init, converged, Jl, x_new, &
-                                 x_best_out, best_res_out, flow_workspace, qn_context)
+                                 x_best_out, best_res_out, flow_workspace, qn_context, qn_diagnostics)
       implicit none
       integer, intent(in) :: max_iter
       integer, intent(in) :: attempt_idx
@@ -660,12 +741,13 @@ contains
       real(dp), intent(out), optional :: best_res_out
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
       type(qn_context_t), intent(inout), target :: qn_context
+      type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics
 
       interface
-         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context)
+         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context, qn_diagnostics)
             use, intrinsic :: iso_fortran_env, only: real64
             use solve_flow, only: flow_workspace_t
-            import :: qn_context_t
+            import :: qn_context_t, qn_diagnostics_context_t
             integer, parameter :: dp = real64
             real(dp), intent(in) :: xt(:), xi(:), del_z(:)
             complex(dp), intent(in) :: z(:), jac(:, :)
@@ -673,6 +755,7 @@ contains
             logical, intent(out) :: ierr
             type(flow_workspace_t), intent(inout), optional :: flow_workspace
             type(qn_context_t), intent(inout), optional, target :: qn_context
+            type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
          end subroutine f
       end interface
 
@@ -721,18 +804,18 @@ contains
       qn_context%current_attempt_eval_count = 0_int64
       call cpu_time(attempt_cpu_start)
       call count_qn_attempt_eval(qn_context)
-      call f(xt, z, x, r, del_z, eval_error, Jl, jac, flow_workspace, qn_context)
+      call f(xt, z, x, r, del_z, eval_error, Jl, jac, flow_workspace, qn_context, qn_diagnostics)
       if (eval_error .or. .not. real_vector_is_finite(r)) then
          x = 0.0_dp
          qn_context%trace_iter = 0
          call count_qn_attempt_eval(qn_context)
-         call f(xt, z, x, r, del_z, eval_error, Jl, jac, flow_workspace, qn_context)
+         call f(xt, z, x, r, del_z, eval_error, Jl, jac, flow_workspace, qn_context, qn_diagnostics)
       end if
       if (eval_error .or. .not. real_vector_is_finite(r)) then
          call append_quasi_trace_sample(qn_context, 0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
          attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
          call capture_qn_attempt(xt, z, del_z, x, attempt_idx, max_iter, tol, huge(1.0_dp), huge(1.0_dp), .false., .false., &
-                                 qn_context%current_attempt_eval_count, attempt_cpu_seconds)
+                                 qn_context%current_attempt_eval_count, attempt_cpu_seconds, qn_diagnostics)
          deallocate (x, x_trial, x_seed, r, r_trial, Jm, Hm, Bm, g, step, hs, Jl_trial, x_best, Jl_best)
          return
       end if
@@ -743,7 +826,7 @@ contains
          call append_quasi_trace_sample(qn_context, 0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
          attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
          call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, max_iter, tol, r_norm, huge(1.0_dp), .false., .false., &
-                                 qn_context%current_attempt_eval_count, attempt_cpu_seconds)
+                                 qn_context%current_attempt_eval_count, attempt_cpu_seconds, qn_diagnostics)
          deallocate (x, x_trial, x_seed, r, r_trial, Jm, Hm, Bm, g, step, hs, Jl_trial, x_best, Jl_best)
          return
       end if
@@ -773,7 +856,8 @@ contains
          if (residual_within_accept_tolerance(r_norm, tol)) exit
          prev_r_norm = r_norm
 
-         call build_dfo_gn_jacobian(f, xt, z, del_z, jac, x, r, trust_radius, iter_idx, Jm, flow_workspace, qn_context)
+         call build_dfo_gn_jacobian(f, xt, z, del_z, jac, x, r, trust_radius, iter_idx, Jm, flow_workspace, qn_context, &
+                                    qn_diagnostics)
          Hm = matmul(transpose(Jm), Jm)
          g = matmul(transpose(Jm), r)
          if (.not. real_vector_is_finite(g)) then
@@ -810,7 +894,7 @@ contains
             x_trial = x + step
             qn_context%trace_iter = iter_idx
             call count_qn_attempt_eval(qn_context)
-            call f(xt, z, x_trial, r_trial, del_z, eval_error, Jl_trial, jac, flow_workspace, qn_context)
+            call f(xt, z, x_trial, r_trial, del_z, eval_error, Jl_trial, jac, flow_workspace, qn_context, qn_diagnostics)
             if (eval_error .or. .not. real_vector_is_finite(r_trial)) then
                call append_quasi_trace_sample(qn_context, 0.0_dp, iter_idx, 0, attempt_idx, huge(1.0_dp), .false., .false.)
                trust_radius = max(trust_radius_min, 0.5_dp*trust_radius)
@@ -930,7 +1014,7 @@ contains
                x_trial = x + escape_len*step
                qn_context%trace_iter = iter_idx
                call count_qn_attempt_eval(qn_context)
-               call f(xt, z, x_trial, r_trial, del_z, eval_error, Jl_trial, jac, flow_workspace, qn_context)
+               call f(xt, z, x_trial, r_trial, del_z, eval_error, Jl_trial, jac, flow_workspace, qn_context, qn_diagnostics)
                if (eval_error .or. .not. real_vector_is_finite(r_trial)) then
                   call append_quasi_trace_sample(qn_context, 0.0_dp, iter_idx, 100 + escape_try, attempt_idx, huge(1.0_dp), .false., .false.)
                   cycle
@@ -991,12 +1075,13 @@ contains
       if (present(best_res_out)) best_res_out = best_r_norm
       attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
       call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, max_iter, tol, initial_r_norm, best_r_norm, converged, .true., &
-                              qn_context%current_attempt_eval_count, attempt_cpu_seconds)
+                              qn_context%current_attempt_eval_count, attempt_cpu_seconds, qn_diagnostics)
 
       deallocate (x, x_trial, x_seed, r, r_trial, Jm, Hm, Bm, g, step, hs, Jl_trial, x_best, Jl_best)
    end subroutine run_dfo_ls_attempt
 
-   subroutine build_dfo_gn_jacobian(f, xt, z, del_z, jac, x, r, trust_radius, iter_idx, Jm, flow_workspace, qn_context)
+   subroutine build_dfo_gn_jacobian(f, xt, z, del_z, jac, x, r, trust_radius, iter_idx, Jm, flow_workspace, qn_context, &
+                                    qn_diagnostics)
       implicit none
       real(dp), intent(in) :: xt(:), del_z(:), x(:), r(:), trust_radius
       complex(dp), intent(in) :: z(:), jac(:, :)
@@ -1004,12 +1089,13 @@ contains
       real(dp), intent(out) :: Jm(:, :)
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
       type(qn_context_t), intent(inout), target :: qn_context
+      type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics
 
       interface
-         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context)
+         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context, qn_diagnostics)
             use, intrinsic :: iso_fortran_env, only: real64
             use solve_flow, only: flow_workspace_t
-            import :: qn_context_t
+            import :: qn_context_t, qn_diagnostics_context_t
             integer, parameter :: dp = real64
             real(dp), intent(in) :: xt(:), xi(:), del_z(:)
             complex(dp), intent(in) :: z(:), jac(:, :)
@@ -1017,6 +1103,7 @@ contains
             logical, intent(out) :: ierr
             type(flow_workspace_t), intent(inout), optional :: flow_workspace
             type(qn_context_t), intent(inout), optional, target :: qn_context
+            type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
          end subroutine f
       end interface
 
@@ -1042,7 +1129,7 @@ contains
          x_probe(i) = x_probe(i) + h
          qn_context%trace_iter = iter_idx
          call count_qn_attempt_eval(qn_context)
-         call f(xt, z, x_probe, r_plus, del_z, eval_error, Jl_probe, jac, flow_workspace, qn_context)
+         call f(xt, z, x_probe, r_plus, del_z, eval_error, Jl_probe, jac, flow_workspace, qn_context, qn_diagnostics)
          if (.not. eval_error .and. real_vector_is_finite(r_plus)) eval_plus_ok = .true.
 
          eval_minus_ok = .false.
@@ -1050,7 +1137,7 @@ contains
          x_probe(i) = x_probe(i) - h
          qn_context%trace_iter = iter_idx
          call count_qn_attempt_eval(qn_context)
-         call f(xt, z, x_probe, r_minus, del_z, eval_error, Jl_probe, jac, flow_workspace, qn_context)
+         call f(xt, z, x_probe, r_minus, del_z, eval_error, Jl_probe, jac, flow_workspace, qn_context, qn_diagnostics)
          if (.not. eval_error .and. real_vector_is_finite(r_minus)) eval_minus_ok = .true.
 
          if (eval_plus_ok .and. eval_minus_ok) then
@@ -1177,60 +1264,67 @@ contains
       qn_context%eval_flowed_is_inverse = .false.
    end subroutine mark_constraint_eval_invalid
 
-   subroutine reset_quasi_eval_flow_status_counts()
+   subroutine reset_quasi_eval_flow_status_counts(qn_diagnostics)
       implicit none
+      type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
+      type(qn_diagnostics_context_t), pointer :: active_diagnostics
 
-      quasi_eval_flow_status_success = 0_int64
-      quasi_eval_flow_status_zero_time = 0_int64
-      quasi_eval_flow_status_stiff_rescue = 0_int64
-      quasi_eval_flow_status_solver_assist = 0_int64
-      quasi_eval_flow_status_failure_max_steps = 0_int64
-      quasi_eval_flow_status_failure_invalid = 0_int64
-      quasi_eval_flow_status_failure_h_min = 0_int64
-      quasi_eval_flow_status_unknown = 0_int64
+      call resolve_qn_diagnostics(qn_diagnostics, active_diagnostics)
+      active_diagnostics%eval_flow_status_success = 0_int64
+      active_diagnostics%eval_flow_status_zero_time = 0_int64
+      active_diagnostics%eval_flow_status_stiff_rescue = 0_int64
+      active_diagnostics%eval_flow_status_solver_assist = 0_int64
+      active_diagnostics%eval_flow_status_failure_max_steps = 0_int64
+      active_diagnostics%eval_flow_status_failure_invalid = 0_int64
+      active_diagnostics%eval_flow_status_failure_h_min = 0_int64
+      active_diagnostics%eval_flow_status_unknown = 0_int64
    end subroutine reset_quasi_eval_flow_status_counts
 
    subroutine get_quasi_eval_flow_status_counts(success, zero_time, stiff_rescue, solver_assist, &
-                                                failure_max_steps, failure_invalid, failure_h_min, unknown)
+                                                failure_max_steps, failure_invalid, failure_h_min, unknown, qn_diagnostics)
       implicit none
       integer(int64), intent(out) :: success, zero_time, stiff_rescue, solver_assist
       integer(int64), intent(out) :: failure_max_steps, failure_invalid, failure_h_min, unknown
+      type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
+      type(qn_diagnostics_context_t), pointer :: active_diagnostics
 
-      success = quasi_eval_flow_status_success
-      zero_time = quasi_eval_flow_status_zero_time
-      stiff_rescue = quasi_eval_flow_status_stiff_rescue
-      solver_assist = quasi_eval_flow_status_solver_assist
-      failure_max_steps = quasi_eval_flow_status_failure_max_steps
-      failure_invalid = quasi_eval_flow_status_failure_invalid
-      failure_h_min = quasi_eval_flow_status_failure_h_min
-      unknown = quasi_eval_flow_status_unknown
+      call resolve_qn_diagnostics(qn_diagnostics, active_diagnostics)
+      success = active_diagnostics%eval_flow_status_success
+      zero_time = active_diagnostics%eval_flow_status_zero_time
+      stiff_rescue = active_diagnostics%eval_flow_status_stiff_rescue
+      solver_assist = active_diagnostics%eval_flow_status_solver_assist
+      failure_max_steps = active_diagnostics%eval_flow_status_failure_max_steps
+      failure_invalid = active_diagnostics%eval_flow_status_failure_invalid
+      failure_h_min = active_diagnostics%eval_flow_status_failure_h_min
+      unknown = active_diagnostics%eval_flow_status_unknown
    end subroutine get_quasi_eval_flow_status_counts
 
-   subroutine record_quasi_eval_flow_status(flow_status)
+   subroutine record_quasi_eval_flow_status(qn_diagnostics, flow_status)
       implicit none
+      type(qn_diagnostics_context_t), intent(inout) :: qn_diagnostics
       integer, intent(in) :: flow_status
 
       select case (flow_status)
       case (intode_status_success)
-         quasi_eval_flow_status_success = quasi_eval_flow_status_success + 1_int64
+         qn_diagnostics%eval_flow_status_success = qn_diagnostics%eval_flow_status_success + 1_int64
       case (intode_status_success_zero_time)
-         quasi_eval_flow_status_zero_time = quasi_eval_flow_status_zero_time + 1_int64
+         qn_diagnostics%eval_flow_status_zero_time = qn_diagnostics%eval_flow_status_zero_time + 1_int64
       case (intode_status_success_stiff_rescue)
-         quasi_eval_flow_status_stiff_rescue = quasi_eval_flow_status_stiff_rescue + 1_int64
+         qn_diagnostics%eval_flow_status_stiff_rescue = qn_diagnostics%eval_flow_status_stiff_rescue + 1_int64
       case (intode_status_success_solver_assist)
-         quasi_eval_flow_status_solver_assist = quasi_eval_flow_status_solver_assist + 1_int64
+         qn_diagnostics%eval_flow_status_solver_assist = qn_diagnostics%eval_flow_status_solver_assist + 1_int64
       case (intode_status_failure_max_steps)
-         quasi_eval_flow_status_failure_max_steps = quasi_eval_flow_status_failure_max_steps + 1_int64
+         qn_diagnostics%eval_flow_status_failure_max_steps = qn_diagnostics%eval_flow_status_failure_max_steps + 1_int64
       case (intode_status_failure_invalid)
-         quasi_eval_flow_status_failure_invalid = quasi_eval_flow_status_failure_invalid + 1_int64
+         qn_diagnostics%eval_flow_status_failure_invalid = qn_diagnostics%eval_flow_status_failure_invalid + 1_int64
       case (intode_status_failure_h_min)
-         quasi_eval_flow_status_failure_h_min = quasi_eval_flow_status_failure_h_min + 1_int64
+         qn_diagnostics%eval_flow_status_failure_h_min = qn_diagnostics%eval_flow_status_failure_h_min + 1_int64
       case default
-         quasi_eval_flow_status_unknown = quasi_eval_flow_status_unknown + 1_int64
+         qn_diagnostics%eval_flow_status_unknown = qn_diagnostics%eval_flow_status_unknown + 1_int64
       end select
    end subroutine record_quasi_eval_flow_status
 
-   subroutine evaluate_constraint_residual(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context)
+   subroutine evaluate_constraint_residual(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context, qn_diagnostics)
       implicit none
       real(dp), intent(in) :: xt(:), xi(:), del_z(:)
       complex(dp), intent(in) :: z(:), jac(:, :)
@@ -1238,11 +1332,14 @@ contains
       logical, intent(out) :: ierr
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
       type(qn_context_t), intent(inout), optional, target :: qn_context
+      type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
 
       integer :: flow_status, n
       type(qn_context_t), pointer :: active_context
+      type(qn_diagnostics_context_t), pointer :: active_diagnostics
 
       call resolve_qn_context(qn_context, active_context)
+      call resolve_qn_diagnostics(qn_diagnostics, active_diagnostics)
       n = size(z)
       if (size(xt) /= n + 1 .or. size(xi) /= 2*n .or. size(del_z) /= 2*n .or. size(fq) /= 2*n .or. size(Jl) /= 2*n) then
          call mark_constraint_eval_invalid(fq, Jl, ierr, active_context)
@@ -1273,7 +1370,7 @@ contains
       call set_intode_quasi_iter_trace(active_context%trace_iter)
       flow_status = intode_status_unknown
       call flowzr(xt, active_context%residual_z_trial, ierr, flow_status, flow_workspace)
-      call record_quasi_eval_flow_status(flow_status)
+      call record_quasi_eval_flow_status(active_diagnostics, flow_status)
       if (ierr) then
          call mark_constraint_eval_invalid(fq, Jl, ierr, active_context)
          return
@@ -1875,13 +1972,16 @@ contains
          "tol=", qn_force_best_proposal_tol
    end subroutine load_quasi_watchdog_policy
 
-   subroutine get_quasi_global_filter_stats(candidate_count, pass_count, reject_count)
+   subroutine get_quasi_global_filter_stats(candidate_count, pass_count, reject_count, qn_diagnostics)
       implicit none
       integer(int64), intent(out) :: candidate_count, pass_count, reject_count
+      type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
+      type(qn_diagnostics_context_t), pointer :: active_diagnostics
 
-      candidate_count = quasi_global_filter_candidate_count
-      pass_count = quasi_global_filter_pass_count
-      reject_count = quasi_global_filter_reject_count
+      call resolve_qn_diagnostics(qn_diagnostics, active_diagnostics)
+      candidate_count = active_diagnostics%global_filter_candidate_count
+      pass_count = active_diagnostics%global_filter_pass_count
+      reject_count = active_diagnostics%global_filter_reject_count
    end subroutine get_quasi_global_filter_stats
 
    subroutine count_qn_attempt_eval(qn_context)
@@ -1901,7 +2001,7 @@ contains
    end function qn_attempt_elapsed_seconds
 
    subroutine capture_qn_attempt(xt, z, del_z, xi0, attempt_idx, max_iter, tol, initial_residual_norm, best_residual_norm, &
-                                 converged, initial_eval_ok, residual_eval_count, cpu_seconds)
+                                 converged, initial_eval_ok, residual_eval_count, cpu_seconds, qn_diagnostics)
       implicit none
       real(dp), intent(in) :: xt(:), del_z(:), xi0(:)
       complex(dp), intent(in) :: z(:)
@@ -1910,167 +2010,178 @@ contains
       logical, intent(in) :: converged, initial_eval_ok
       integer(int64), intent(in) :: residual_eval_count
       real(dp), intent(in) :: cpu_seconds
+      type(qn_diagnostics_context_t), intent(inout) :: qn_diagnostics
 
       integer :: sample_idx, n_z, n_delz, n_x, n_xi, ios
       logical :: io_ok
 
-      call load_qn_attempt_capture_policy()
-      if (.not. qn_attempt_capture_enabled) return
+      call load_qn_attempt_capture_policy(qn_diagnostics)
+      if (.not. qn_diagnostics%attempt_capture_enabled) return
 
-      qn_attempt_capture_seen = qn_attempt_capture_seen + 1
-      if (qn_attempt_capture_stride > 1) then
-         if (mod(qn_attempt_capture_seen - 1, qn_attempt_capture_stride) /= 0) return
+      qn_diagnostics%attempt_capture_seen = qn_diagnostics%attempt_capture_seen + 1
+      if (qn_diagnostics%attempt_capture_stride > 1) then
+         if (mod(qn_diagnostics%attempt_capture_seen - 1, qn_diagnostics%attempt_capture_stride) /= 0) return
       end if
-      if (qn_attempt_capture_limit > 0 .and. qn_attempt_capture_count >= qn_attempt_capture_limit) return
+      if (qn_diagnostics%attempt_capture_limit > 0 .and. &
+          qn_diagnostics%attempt_capture_count >= qn_diagnostics%attempt_capture_limit) return
 
-      call ensure_qn_attempt_capture_files(io_ok)
+      call ensure_qn_attempt_capture_files(qn_diagnostics, io_ok)
       if (.not. io_ok) return
 
-      sample_idx = qn_attempt_capture_count + 1
+      sample_idx = qn_diagnostics%attempt_capture_count + 1
       n_z = size(z)
       n_delz = size(del_z)
       n_x = size(xt)
       n_xi = size(xi0)
 
-      write (qn_attempt_capture_z0_unit, iostat=ios) sample_idx, n_z, z
+      write (qn_diagnostics%attempt_capture_z0_unit, iostat=ios) sample_idx, n_z, z
       if (ios /= 0) then
-         call handle_qn_attempt_capture_error("[WARN] Failed writing QN attempt z0 snapshot.")
+         call handle_qn_attempt_capture_error(qn_diagnostics, "[WARN] Failed writing QN attempt z0 snapshot.")
          return
       end if
-      write (qn_attempt_capture_delz_unit, iostat=ios) sample_idx, n_delz, del_z
+      write (qn_diagnostics%attempt_capture_delz_unit, iostat=ios) sample_idx, n_delz, del_z
       if (ios /= 0) then
-         call handle_qn_attempt_capture_error("[WARN] Failed writing QN attempt delz snapshot.")
+         call handle_qn_attempt_capture_error(qn_diagnostics, "[WARN] Failed writing QN attempt delz snapshot.")
          return
       end if
-      write (qn_attempt_capture_x0_unit, iostat=ios) sample_idx, n_x, xt
+      write (qn_diagnostics%attempt_capture_x0_unit, iostat=ios) sample_idx, n_x, xt
       if (ios /= 0) then
-         call handle_qn_attempt_capture_error("[WARN] Failed writing QN attempt x0 snapshot.")
+         call handle_qn_attempt_capture_error(qn_diagnostics, "[WARN] Failed writing QN attempt x0 snapshot.")
          return
       end if
-      write (qn_attempt_capture_xi0_unit, iostat=ios) sample_idx, n_xi, xi0
+      write (qn_diagnostics%attempt_capture_xi0_unit, iostat=ios) sample_idx, n_xi, xi0
       if (ios /= 0) then
-         call handle_qn_attempt_capture_error("[WARN] Failed writing QN attempt xi0 snapshot.")
+         call handle_qn_attempt_capture_error(qn_diagnostics, "[WARN] Failed writing QN attempt xi0 snapshot.")
          return
       end if
-      write (qn_attempt_capture_meta_unit, '(*(g0,:,","))', iostat=ios) sample_idx, attempt_idx, max_iter, n_z, n_x, n_xi, &
-         tol, initial_residual_norm, best_residual_norm, norm2(xi0), logical_to_int(converged), logical_to_int(initial_eval_ok), &
-         residual_eval_count, cpu_seconds
+      write (qn_diagnostics%attempt_capture_meta_unit, '(*(g0,:,","))', iostat=ios) sample_idx, attempt_idx, max_iter, n_z, n_x, &
+         n_xi, tol, initial_residual_norm, best_residual_norm, norm2(xi0), logical_to_int(converged), &
+         logical_to_int(initial_eval_ok), residual_eval_count, cpu_seconds
       if (ios /= 0) then
-         call handle_qn_attempt_capture_error("[WARN] Failed writing QN attempt meta row.")
+         call handle_qn_attempt_capture_error(qn_diagnostics, "[WARN] Failed writing QN attempt meta row.")
          return
       end if
 
-      flush (qn_attempt_capture_z0_unit)
-      flush (qn_attempt_capture_delz_unit)
-      flush (qn_attempt_capture_x0_unit)
-      flush (qn_attempt_capture_xi0_unit)
-      flush (qn_attempt_capture_meta_unit)
-      qn_attempt_capture_count = sample_idx
+      flush (qn_diagnostics%attempt_capture_z0_unit)
+      flush (qn_diagnostics%attempt_capture_delz_unit)
+      flush (qn_diagnostics%attempt_capture_x0_unit)
+      flush (qn_diagnostics%attempt_capture_xi0_unit)
+      flush (qn_diagnostics%attempt_capture_meta_unit)
+      qn_diagnostics%attempt_capture_count = sample_idx
    end subroutine capture_qn_attempt
 
-   subroutine load_qn_attempt_capture_policy()
+   subroutine load_qn_attempt_capture_policy(qn_diagnostics)
       implicit none
+      type(qn_diagnostics_context_t), intent(inout) :: qn_diagnostics
       logical :: env_present
 
-      if (qn_attempt_capture_policy_loaded) return
-      qn_attempt_capture_policy_loaded = .true.
+      if (qn_diagnostics%attempt_capture_policy_loaded) return
+      qn_diagnostics%attempt_capture_policy_loaded = .true.
 
-      qn_attempt_capture_dir = ""
-      call read_string_env("QN_ATTEMPT_CAPTURE_DIR", qn_attempt_capture_dir, env_present)
-      qn_attempt_capture_enabled = env_present .and. len_trim(qn_attempt_capture_dir) > 0
-      if (.not. qn_attempt_capture_enabled) return
+      qn_diagnostics%attempt_capture_dir = ""
+      call read_string_env("QN_ATTEMPT_CAPTURE_DIR", qn_diagnostics%attempt_capture_dir, env_present)
+      qn_diagnostics%attempt_capture_enabled = env_present .and. len_trim(qn_diagnostics%attempt_capture_dir) > 0
+      if (.not. qn_diagnostics%attempt_capture_enabled) return
 
-      qn_attempt_capture_limit = 100
-      qn_attempt_capture_stride = 1
-      call parse_int_env("QN_ATTEMPT_CAPTURE_LIMIT", qn_attempt_capture_limit)
-      call parse_int_env("QN_ATTEMPT_CAPTURE_STRIDE", qn_attempt_capture_stride)
-      qn_attempt_capture_stride = max(1, qn_attempt_capture_stride)
+      qn_diagnostics%attempt_capture_limit = 100
+      qn_diagnostics%attempt_capture_stride = 1
+      call parse_int_env("QN_ATTEMPT_CAPTURE_LIMIT", qn_diagnostics%attempt_capture_limit)
+      call parse_int_env("QN_ATTEMPT_CAPTURE_STRIDE", qn_diagnostics%attempt_capture_stride)
+      qn_diagnostics%attempt_capture_stride = max(1, qn_diagnostics%attempt_capture_stride)
 
-      if (qn_attempt_capture_limit > 0) then
-         write (*, '(A,I0)') "[INFO] QN attempt capture limit=", qn_attempt_capture_limit
+      if (qn_diagnostics%attempt_capture_limit > 0) then
+         write (*, '(A,I0)') "[INFO] QN attempt capture limit=", qn_diagnostics%attempt_capture_limit
       else
          write (*, '(A)') "[INFO] QN attempt capture limit=unlimited"
       end if
-      write (*, '(A,I0)') "[INFO] QN attempt capture stride=", qn_attempt_capture_stride
-      write (*, '(A,1X,A)') "[INFO] QN attempt capture dir=", trim(qn_attempt_capture_dir)
+      write (*, '(A,I0)') "[INFO] QN attempt capture stride=", qn_diagnostics%attempt_capture_stride
+      write (*, '(A,1X,A)') "[INFO] QN attempt capture dir=", trim(qn_diagnostics%attempt_capture_dir)
    end subroutine load_qn_attempt_capture_policy
 
-   subroutine ensure_qn_attempt_capture_files(io_ok)
+   subroutine ensure_qn_attempt_capture_files(qn_diagnostics, io_ok)
       implicit none
+      type(qn_diagnostics_context_t), intent(inout) :: qn_diagnostics
       logical, intent(out) :: io_ok
       integer :: ios
 
       io_ok = .true.
-      if (qn_attempt_capture_files_ready) return
-      if (qn_attempt_capture_write_error) then
+      if (qn_diagnostics%attempt_capture_files_ready) return
+      if (qn_diagnostics%attempt_capture_write_error) then
          io_ok = .false.
          return
       end if
 
-      open (newunit=qn_attempt_capture_z0_unit, file=trim(join_capture_path("qn_attempt_z0.dat")), status='replace', &
+      open (newunit=qn_diagnostics%attempt_capture_z0_unit, file=trim(join_capture_path(qn_diagnostics, "qn_attempt_z0.dat")), &
+            status='replace', &
             access='stream', form='unformatted', action='write', iostat=ios)
       if (ios /= 0) then
-         call handle_qn_attempt_capture_error("[WARN] Failed opening QN attempt z0 output.")
+         call handle_qn_attempt_capture_error(qn_diagnostics, "[WARN] Failed opening QN attempt z0 output.")
          io_ok = .false.
          return
       end if
-      open (newunit=qn_attempt_capture_delz_unit, file=trim(join_capture_path("qn_attempt_delz.dat")), status='replace', &
+      open (newunit=qn_diagnostics%attempt_capture_delz_unit, file=trim(join_capture_path(qn_diagnostics, "qn_attempt_delz.dat")), &
+            status='replace', &
             access='stream', form='unformatted', action='write', iostat=ios)
       if (ios /= 0) then
-         call handle_qn_attempt_capture_error("[WARN] Failed opening QN attempt delz output.")
+         call handle_qn_attempt_capture_error(qn_diagnostics, "[WARN] Failed opening QN attempt delz output.")
          io_ok = .false.
          return
       end if
-      open (newunit=qn_attempt_capture_x0_unit, file=trim(join_capture_path("qn_attempt_x0.dat")), status='replace', &
+      open (newunit=qn_diagnostics%attempt_capture_x0_unit, file=trim(join_capture_path(qn_diagnostics, "qn_attempt_x0.dat")), &
+            status='replace', &
             access='stream', form='unformatted', action='write', iostat=ios)
       if (ios /= 0) then
-         call handle_qn_attempt_capture_error("[WARN] Failed opening QN attempt x0 output.")
+         call handle_qn_attempt_capture_error(qn_diagnostics, "[WARN] Failed opening QN attempt x0 output.")
          io_ok = .false.
          return
       end if
-      open (newunit=qn_attempt_capture_xi0_unit, file=trim(join_capture_path("qn_attempt_xi0.dat")), status='replace', &
+      open (newunit=qn_diagnostics%attempt_capture_xi0_unit, file=trim(join_capture_path(qn_diagnostics, "qn_attempt_xi0.dat")), &
+            status='replace', &
             access='stream', form='unformatted', action='write', iostat=ios)
       if (ios /= 0) then
-         call handle_qn_attempt_capture_error("[WARN] Failed opening QN attempt xi0 output.")
+         call handle_qn_attempt_capture_error(qn_diagnostics, "[WARN] Failed opening QN attempt xi0 output.")
          io_ok = .false.
          return
       end if
-      open (newunit=qn_attempt_capture_meta_unit, file=trim(join_capture_path("qn_attempt_meta.csv")), status='replace', &
+      open (newunit=qn_diagnostics%attempt_capture_meta_unit, file=trim(join_capture_path(qn_diagnostics, "qn_attempt_meta.csv")), &
+            status='replace', &
             action='write', iostat=ios)
       if (ios /= 0) then
-         call handle_qn_attempt_capture_error("[WARN] Failed opening QN attempt meta output.")
+         call handle_qn_attempt_capture_error(qn_diagnostics, "[WARN] Failed opening QN attempt meta output.")
          io_ok = .false.
          return
       end if
-      write (qn_attempt_capture_meta_unit, '(A)') &
+      write (qn_diagnostics%attempt_capture_meta_unit, '(A)') &
          "sample_idx,attempt_idx,max_iter,n_z,n_x,n_xi,tol,initial_residual_norm,best_residual_norm,xi0_norm,converged,"// &
          "initial_eval_ok,residual_eval_count,cpu_seconds"
 
-      qn_attempt_capture_files_ready = .true.
+      qn_diagnostics%attempt_capture_files_ready = .true.
    end subroutine ensure_qn_attempt_capture_files
 
-   function join_capture_path(file_name) result(path)
+   function join_capture_path(qn_diagnostics, file_name) result(path)
       implicit none
+      type(qn_diagnostics_context_t), intent(in) :: qn_diagnostics
       character(len=*), intent(in) :: file_name
       character(len=1024) :: path
       integer :: n_dir
 
-      n_dir = len_trim(qn_attempt_capture_dir)
+      n_dir = len_trim(qn_diagnostics%attempt_capture_dir)
       if (n_dir <= 0) then
          path = trim(file_name)
-      else if (qn_attempt_capture_dir(n_dir:n_dir) == "/") then
-         path = trim(qn_attempt_capture_dir)//trim(file_name)
+      else if (qn_diagnostics%attempt_capture_dir(n_dir:n_dir) == "/") then
+         path = trim(qn_diagnostics%attempt_capture_dir)//trim(file_name)
       else
-         path = trim(qn_attempt_capture_dir)//"/"//trim(file_name)
+         path = trim(qn_diagnostics%attempt_capture_dir)//"/"//trim(file_name)
       end if
    end function join_capture_path
 
-   subroutine handle_qn_attempt_capture_error(message)
+   subroutine handle_qn_attempt_capture_error(qn_diagnostics, message)
       implicit none
+      type(qn_diagnostics_context_t), intent(inout) :: qn_diagnostics
       character(len=*), intent(in) :: message
 
-      if (.not. qn_attempt_capture_write_error) write (*, '(A)') trim(message)
-      qn_attempt_capture_write_error = .true.
+      if (.not. qn_diagnostics%attempt_capture_write_error) write (*, '(A)') trim(message)
+      qn_diagnostics%attempt_capture_write_error = .true.
    end subroutine handle_qn_attempt_capture_error
 
    integer function logical_to_int(value) result(out)

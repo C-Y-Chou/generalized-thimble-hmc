@@ -10,7 +10,8 @@ module tltm_stage1_driver
    use markovchain_phase, only: compute_phase_factor
    use hmc_constraints, only: reset_newton_eval_flow_status_counts, get_newton_eval_flow_status_counts
    use hmc_integrator_core, only: reset_reverse_gate_replay_status_counts, get_reverse_gate_replay_status_counts
-   use quasi_newton_solver_mod, only: reset_quasi_eval_flow_status_counts, get_quasi_eval_flow_status_counts
+   use quasi_newton_solver_mod, only: reset_quasi_eval_flow_status_counts, get_quasi_eval_flow_status_counts, &
+                                      qn_diagnostics_context_t, release_qn_diagnostics_context
    use tltm_types_mod, only: tltm_replica_t, allocate_tltm_replica, release_tltm_replica, record_tltm_local_transition
    use tltm_run_context_mod, only: tltm_run_context_t, release_tltm_run_context
    implicit none
@@ -24,6 +25,7 @@ contains
    subroutine execute_tltm_stage1()
       type(tltm_replica_t), allocatable :: replicas(:)
       type(tltm_run_context_t), allocatable :: run_contexts(:)
+      type(qn_diagnostics_context_t) :: qn_diagnostics_context
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file
       integer :: n_replicas, base_seed, cycle_count, local_updates, x_size
@@ -34,7 +36,7 @@ contains
 
       call read_parameters()
       call reset_newton_eval_flow_status_counts()
-      call reset_quasi_eval_flow_status_counts()
+      call reset_quasi_eval_flow_status_counts(qn_diagnostics_context)
       call reset_reverse_gate_replay_status_counts()
 
       x_size = config%state%x_size
@@ -60,6 +62,7 @@ contains
          if (.not. ok) then
             write (*, '(A,I0,A,F8.4,A)') "[ERROR][TLTM-S1] Replica ", replicas(i)%replica_id, &
                " initialization failed at flow_time=", replicas(i)%flow_time, "."
+            call release_qn_diagnostics_context(qn_diagnostics_context)
             call release_all_run_contexts(run_contexts)
             call release_all_replicas(replicas)
             error stop 1
@@ -70,7 +73,7 @@ contains
       do cycle_idx = 1, cycle_count
          do i = 1, n_replicas
             replica_t0 = wall_time_seconds()
-            call run_local_updates(replicas(i), local_updates, run_contexts(i))
+            call run_local_updates(replicas(i), local_updates, run_contexts(i), qn_diagnostics_context)
             replicas(i)%local_runtime = replicas(i)%local_runtime + (wall_time_seconds() - replica_t0)
             call measure_replica(replicas(i))
          end do
@@ -81,7 +84,8 @@ contains
       end do
       elapsed = wall_time_seconds() - run_t0
 
-      call write_stage1_summary(summary_file, replicas, cycle_count, local_updates, elapsed, base_seed)
+      call write_stage1_summary(summary_file, replicas, cycle_count, local_updates, elapsed, base_seed, qn_diagnostics_context)
+      call release_qn_diagnostics_context(qn_diagnostics_context)
       call release_all_run_contexts(run_contexts)
       call release_all_replicas(replicas)
       if (allocated(flow_ladder)) deallocate (flow_ladder)
@@ -125,10 +129,11 @@ contains
       if (allocated(x_seed)) deallocate (x_seed)
    end subroutine initialize_replica
 
-   subroutine run_local_updates(replica, local_updates, run_context)
+   subroutine run_local_updates(replica, local_updates, run_context, qn_diagnostics_context)
       type(tltm_replica_t), intent(inout) :: replica
       integer, intent(in) :: local_updates
       type(tltm_run_context_t), intent(inout) :: run_context
+      type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics_context
 
       integer :: update_idx, z_size
       real(dp), allocatable :: x_new(:)
@@ -144,7 +149,8 @@ contains
       do update_idx = 1, local_updates
          call metropolis_step(replica%x, replica%z, replica%jac, config%integrator%trajectory_length, &
                               config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
-                              context=run_context%hmc, flow_workspace=run_context%flow%workspace, qn_context=run_context%qn%workspace)
+                              context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
+                              qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context)
          if (accepted) then
             replica%x = x_new
             replica%z = z_new
@@ -263,11 +269,12 @@ contains
       call read_string_env("TLTM_STAGE1_SUMMARY_FILE", path)
    end subroutine resolve_summary_file
 
-   subroutine write_stage1_summary(summary_file, replicas, cycle_count, local_updates, elapsed, base_seed)
+   subroutine write_stage1_summary(summary_file, replicas, cycle_count, local_updates, elapsed, base_seed, qn_diagnostics_context)
       character(len=*), intent(in) :: summary_file
       type(tltm_replica_t), intent(in) :: replicas(:)
       integer, intent(in) :: cycle_count, local_updates, base_seed
       real(dp), intent(in) :: elapsed
+      type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics_context
 
       integer, parameter :: unit_summary = 77
       integer :: ios, i, total_count
@@ -328,7 +335,8 @@ contains
          " final_flow_non_strict_success=", rg_replay_final_flow_non_strict_success_count, " unknown=", rg_replay_unknown_count
       call get_quasi_eval_flow_status_counts(qn_flow_success_count, qn_flow_zero_time_count, qn_flow_stiff_rescue_count, &
                                              qn_flow_solver_assist_count, qn_flow_failure_max_steps_count, &
-                                             qn_flow_failure_invalid_count, qn_flow_failure_h_min_count, qn_flow_unknown_count)
+                                             qn_flow_failure_invalid_count, qn_flow_failure_h_min_count, qn_flow_unknown_count, &
+                                             qn_diagnostics_context)
       write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
          "# qn_eval_flow_status success=", qn_flow_success_count, " zero_time=", qn_flow_zero_time_count, &
          " stiff_rescue=", qn_flow_stiff_rescue_count, " solver_assist=", qn_flow_solver_assist_count, &

@@ -49,15 +49,18 @@ python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --
 
 Full M4 result: all guardrails passed; artifacts in `output/tests/m4_guardrails`.
 
-## Subsequent Update
+## Subsequent Updates
 
 The first QN trace/eval context slice is now implemented in
 `CV011_QN_TRACE_EVAL_CONTEXT_SLICE_20260513.md`.
 
-The remaining QN decision is capture/diagnostics ownership:
+The QN diagnostics/capture sink slice is now implemented in
+`CV011_QN_DIAGNOSTICS_CONTEXT_SLICE_20260513.md`.
 
-- QN attempt-capture files and counters;
-- QN eval-flow and global-filter counters;
-- backend policy cache and notice flags.
+The remaining QN decision is backend/watchdog policy ownership:
 
-See `CV011_QN_CAPTURE_DIAGNOSTICS_CONTEXT_DECISION_POINT_20260513.md`.
+- backend policy cache and notice flags;
+- official DFO-LS preset values;
+- watchdog policy cache and budget/force-best settings.
+
+See `CV011_QN_BACKEND_POLICY_CONTEXT_DECISION_POINT_20260513.md`.

@@ -13,7 +13,8 @@ module tltm_stage2_driver
    use hmc_constraints, only: reset_newton_eval_flow_status_counts, get_newton_eval_flow_status_counts
    use hmc_integrator_core, only: reset_reverse_gate_replay_status_counts, get_reverse_gate_replay_status_counts
    use quasi_newton_solver_mod, only: get_quasi_global_filter_stats, reset_quasi_eval_flow_status_counts, &
-                                      get_quasi_eval_flow_status_counts
+                                      get_quasi_eval_flow_status_counts, qn_diagnostics_context_t, &
+                                      release_qn_diagnostics_context
    use constraint_solver_stats_mod, only: reset_constraint_solver_stats, get_constraint_solver_stats, &
                                           get_constraint_solver_quasi_stage_stats, &
                                           get_constraint_solver_quasi_class_stats, &
@@ -103,6 +104,7 @@ contains
       type(local_accept_census_t), allocatable :: local_accept_census(:)
       type(tltm_run_context_t), allocatable :: run_contexts(:)
       type(stage2_audit_context_t) :: audit_context
+      type(qn_diagnostics_context_t) :: qn_diagnostics_context
       type(mt95_state_t) :: swap_rng_state
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file, label_trace_file
@@ -149,7 +151,7 @@ contains
       call reset_intode_fallback_stats()
       call reset_constraint_solver_stats()
       call reset_newton_eval_flow_status_counts()
-      call reset_quasi_eval_flow_status_counts()
+      call reset_quasi_eval_flow_status_counts(qn_diagnostics_context)
       call reset_reverse_gate_replay_status_counts()
 
       x_size = config%state%x_size
@@ -311,7 +313,8 @@ contains
       do cycle_idx = 1, cycle_count
          do i = 1, n_slots
             slot_t0 = wall_time_seconds()
-            call run_local_updates(slots(i), local_updates, local_accept_census(i), cycle_idx, run_contexts(i), audit_context)
+            call run_local_updates(slots(i), local_updates, local_accept_census(i), cycle_idx, run_contexts(i), audit_context, &
+                                   qn_diagnostics_context)
             slots(i)%local_runtime = slots(i)%local_runtime + (wall_time_seconds() - slot_t0)
          end do
 
@@ -393,7 +396,7 @@ contains
                                                       far_flowzr_used_success_sum, far_final_resort_used_success_sum, &
                                                       far_flowzr_used_fail_sum, far_final_resort_used_fail_sum)
       call get_quasi_global_filter_stats(global_filter_candidate_count, global_filter_pass_count, &
-                                         global_filter_reject_count)
+                                         global_filter_reject_count, qn_diagnostics_context)
       call get_constraint_solver_reverse_gate_stats(reverse_gate_candidate_counts, reverse_gate_pass_counts, &
                                                     reverse_gate_reject_counts)
       call write_stage2_summary(summary_file, slots, pair_stats, label_tracks, local_accept_census, cycle_count, local_updates, elapsed, &
@@ -413,12 +416,14 @@ contains
                                 far_flowzr_used_success_sum, far_final_resort_used_success_sum, &
                                 far_flowzr_used_fail_sum, far_final_resort_used_fail_sum, &
                                 global_filter_candidate_count, global_filter_pass_count, global_filter_reject_count, &
-                                reverse_gate_candidate_counts, reverse_gate_pass_counts, reverse_gate_reject_counts)
+                                reverse_gate_candidate_counts, reverse_gate_pass_counts, reverse_gate_reject_counts, &
+                                qn_diagnostics_context)
       call write_stage2_v1_sidecars(v1_manifest_file, v1_protocol_file, write_v1_manifest, write_v1_protocol, &
                                     v1_output_dir, write_v1_package, &
                                     summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
                                     write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
                                     local_updates, init_sigma, init_mode, swap_enabled, elapsed, slots, pair_stats, label_tracks)
+      call release_qn_diagnostics_context(qn_diagnostics_context)
       call release_all_run_contexts(run_contexts)
       call release_all_slots(slots)
       if (allocated(flow_ladder)) deallocate (flow_ladder)
@@ -502,13 +507,14 @@ contains
       if (allocated(x_seed)) deallocate (x_seed)
    end subroutine initialize_slot
 
-   subroutine run_local_updates(slot, local_updates, accept_census, cycle_idx, run_context, audit_context)
+   subroutine run_local_updates(slot, local_updates, accept_census, cycle_idx, run_context, audit_context, qn_diagnostics_context)
       type(tltm_slot_t), intent(inout) :: slot
       integer, intent(in) :: local_updates
       type(local_accept_census_t), intent(inout) :: accept_census
       integer, intent(in) :: cycle_idx
       type(tltm_run_context_t), intent(inout) :: run_context
       type(stage2_audit_context_t), intent(inout) :: audit_context
+      type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics_context
 
       integer :: update_idx, z_size
       real(dp), allocatable :: x_new(:), x_before(:), initial_momentum(:), final_momentum(:)
@@ -534,7 +540,7 @@ contains
                               h_initial_out=h_initial, h_final_out=h_final, delta_h_out=delta_h, &
                               accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
                               final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
-                              qn_context=run_context%qn%workspace)
+                              qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context)
          call snapshot_solver_counters(solver_after)
          if (accepted) then
             slot%x = x_new
@@ -1150,7 +1156,8 @@ contains
                                    far_flowzr_used_success_sum, far_final_resort_used_success_sum, &
                                    far_flowzr_used_fail_sum, far_final_resort_used_fail_sum, &
                                    global_filter_candidate_count, global_filter_pass_count, global_filter_reject_count, &
-                                   reverse_gate_candidate_counts, reverse_gate_pass_counts, reverse_gate_reject_counts)
+                                   reverse_gate_candidate_counts, reverse_gate_pass_counts, reverse_gate_reject_counts, &
+                                   qn_diagnostics_context)
       character(len=*), intent(in) :: summary_file
       type(tltm_slot_t), intent(in) :: slots(:)
       type(tltm_pair_stats_t), intent(in) :: pair_stats(:)
@@ -1180,6 +1187,7 @@ contains
       integer(int64), intent(in) :: reverse_gate_candidate_counts(:)
       integer(int64), intent(in) :: reverse_gate_pass_counts(:)
       integer(int64), intent(in) :: reverse_gate_reject_counts(:)
+      type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics_context
 
       integer, parameter :: unit_summary = 79
       integer :: ios, i, total_count
@@ -1279,7 +1287,8 @@ contains
          " final_flow_non_strict_success=", rg_replay_final_flow_non_strict_success_count, " unknown=", rg_replay_unknown_count
       call get_quasi_eval_flow_status_counts(qn_flow_success_count, qn_flow_zero_time_count, qn_flow_stiff_rescue_count, &
                                              qn_flow_solver_assist_count, qn_flow_failure_max_steps_count, &
-                                             qn_flow_failure_invalid_count, qn_flow_failure_h_min_count, qn_flow_unknown_count)
+                                             qn_flow_failure_invalid_count, qn_flow_failure_h_min_count, qn_flow_unknown_count, &
+                                             qn_diagnostics_context)
       write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
          "# qn_eval_flow_status success=", qn_flow_success_count, " zero_time=", qn_flow_zero_time_count, &
          " stiff_rescue=", qn_flow_stiff_rescue_count, " solver_assist=", qn_flow_solver_assist_count, &

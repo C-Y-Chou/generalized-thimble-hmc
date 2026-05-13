@@ -71,8 +71,22 @@ in `qn_context_t`, while shared diagnostic files/counters belong in an explicit
 driver-owned diagnostics sink. That shape can support both serial compatibility
 and future OpenMP-safe capture.
 
-## Current Stop Condition
+## Resolution
 
-Stop for user decision before migrating QN capture/counter/policy state, because
-the choice determines whether QN diagnostics remain one global stream, become
-per-replica/slot streams, or stay serial-only legacy diagnostics for now.
+User selected A on 2026-05-13 JST.
+
+Implemented in `CV011_QN_DIAGNOSTICS_CONTEXT_SLICE_20260513.md`:
+
+- `qn_diagnostics_context_t` now owns QN attempt-capture files/counters,
+  eval-flow status counters, and QN global-filter counters.
+- Stage1/Stage2 own one run-level diagnostics sink and pass it through local
+  update HMC/QN paths.
+- Legacy/direct callers keep a module fallback.
+- `test_retained_core_qn_route_contract` now includes
+  `qn_diagnostics_context_isolation`.
+
+## Follow-Up Stop Condition
+
+The remaining QN module-owned state is backend/watchdog policy cache state, not
+diagnostics output. See
+`CV011_QN_BACKEND_POLICY_CONTEXT_DECISION_POINT_20260513.md`.
