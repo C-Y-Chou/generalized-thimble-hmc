@@ -23,8 +23,9 @@ program test_odex_foundation_contract
    use param_mod, only: at, rt
    use solve_flow, only: build_nsteps, get_intode_fallback_stats, &
                          get_intode_last_failure_meta, get_intode_rescue_stats, &
-                         get_intode_solver_assist_policy, intode, &
+                         get_intode_solver_assist_policy_code, intode, &
                          intode_reason_h_min, intode_status_failure_h_min, &
+                         intode_solver_assist_policy_qn_navigation, &
                          intode_status_is_strict_success, intode_status_success, &
                          intode_status_success_solver_assist, intode_status_success_zero_time, &
                          reset_intode_fallback_stats
@@ -165,11 +166,11 @@ contains
    subroutine check_solver_assist_policy_visibility(failures)
       integer, intent(inout) :: failures
       logical :: enabled, fast_hmin_assist, ok
-      integer :: max_uses
+      integer :: max_uses, policy_code
 
-      call get_intode_solver_assist_policy(enabled, max_uses, fast_hmin_assist)
-      ok = (.not. enabled) .and. fast_hmin_assist .and. max_uses <= 0
-      write (*, '(A,L1,A,L1,A,I0,A,L1)') "[CHECK] solver_assist_policy enabled=", enabled, &
+      call get_intode_solver_assist_policy_code(policy_code, enabled, max_uses, fast_hmin_assist)
+      ok = policy_code == intode_solver_assist_policy_qn_navigation .and. enabled .and. fast_hmin_assist .and. max_uses <= 0
+      write (*, '(A,I0,A,L1,A,L1,A,I0,A,L1)') "[CHECK] solver_assist_policy policy=", policy_code, " enabled=", enabled, &
          " fast_hmin=", fast_hmin_assist, " max_uses=", max_uses, " ok=", ok
       if (.not. ok) then
          failures = failures + 1

@@ -440,6 +440,7 @@ def run_guardrails(args):
         manifest_data = json.loads(sidecar_manifest.read_text())
         env_overrides = manifest_data.get("env_overrides", {})
         required_official_env = [
+            "INTODE_SOLVER_ASSIST_POLICY",
             "QN_SOLVER_BACKEND",
             "QN_OFFICIAL_DFOLS_PRESET",
             "QN_OFFICIAL_DFOLS_NPT",

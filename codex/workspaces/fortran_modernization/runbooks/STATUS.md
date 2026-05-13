@@ -18,7 +18,7 @@ Updated: 2026-05-13 JST
 - User-confirmed alias: "code refine" means this `fortran_modernization` task, not a separate workspace.
 - Current position is now tracked by workstream matrix, not by treating M0-M6 as a linear completion ladder:
   - `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`
-  - Position: reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected -> flow/ODEX/HMC/QN flow context implemented -> official DFO-LS callback context implemented -> QN trace/eval context implemented -> QN diagnostics context implemented -> QN policy context implemented -> HMC policy/reverse-gate context implemented -> remaining diagnostics/model/config/profile state boundaries.
+  - Position: reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected -> flow/ODEX/HMC/QN flow context implemented -> official DFO-LS callback context implemented -> QN trace/eval context implemented -> QN diagnostics context implemented -> QN policy context implemented -> HMC policy/reverse-gate context implemented -> F15 navigation-assist strict-certification policy implemented -> remaining diagnostics/model/config/profile state boundaries.
 - Foundation closure decisions recorded on 2026-05-12 JST:
   - `CV-007` is closed by endpoint-only ODEX product boundary;
   - `CV-001` is closed by `official_line_kernel_correctness_gate.py`;
@@ -58,6 +58,13 @@ Updated: 2026-05-13 JST
   - `runbooks/CV011_HMC_POLICY_REVERSE_GATE_CONTEXT_SLICE_20260513.md`
   - Stage1 and Stage2 now own one run-level `hmc_policy_context_t` and one run-level `hmc_replay_diagnostics_context_t`; each per-replica/per-slot HMC context owns `hmc_replay_runtime_context_t`.
   - S1 fallback/reverse-gate policy, `qn_reverse_gate_active`, and reverse-gate replay status counters no longer live in active module globals for the Stage1/Stage2 local-update path.
+- F15 navigation-assist strict-certification policy implemented on 2026-05-13 JST:
+  - `runbooks/F15_NAVIGATION_ASSIST_IMPLEMENTATION_20260513.md`
+  - `INTODE_SOLVER_ASSIST_POLICY=qn_navigation` is now canonical default.
+  - `no_fb` sets solver assist `off`; `fb` and `fb_norefine` set `qn_navigation`.
+  - QN navigation assist may only support residual navigation; best-state rescue is re-certified through an unassisted residual before acceptance.
+  - Final proposal flow, reverse-gate acceptance, and Metropolis remain strict.
+  - Local verification passed: assist policy gate, foundation contract, retained-core QN/RG/RNG gates, and full M4 guardrails.
 - Algorithm reference bundle is collected under `references/`, including TLTM HMC, simplified Newton/RATTLE/HMC, DFO-GN/DFO-LS, Hairer ODEX, and the user original quasi-Newton projection formulation.
 - Low-level algorithm review set is complete and has already driven the first source canonicalization wave:
   - `runbooks/ODEX_FLOW_REVIEW_NOTES.md`
@@ -66,7 +73,7 @@ Updated: 2026-05-13 JST
   - `runbooks/HMC_METROPOLIS_TLTM_REVIEW_NOTES.md`
   - `runbooks/BASELINE_VERIFICATION_MATRIX.md`
   - `runbooks/PLANNING_DISCUSSION_BRIEF.md`
-- Current flow policy is ODEX primary integration with solver-internal ODE assist for NT/QN residual evaluation and strict final proposal/live-state flow.
+- Current flow policy is ODEX primary integration with typed solver-internal ODE assist: NT remains strict, QN fallback may use navigation assist, certification/final proposal/live-state flow remain strict.
 - Current p28 route is Newton -> p28 QN BTN/backflow rescue residual solved by embedded official DFO-LS -> reverse gate -> Metropolis, without post-refine or non-p28 QN families.
 - ODEX endpoint-only product boundary remains closed for dense-output/general-library scope, but the solver-assist production policy is reopened for the next handoff.  The old default-off deletion direction is superseded by `NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md`.
 

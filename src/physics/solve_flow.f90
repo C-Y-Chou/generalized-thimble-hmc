@@ -14,7 +14,7 @@ module solve_flow
                            odex_status_success_zero_time, odex_status_unknown, odex_step_sequence_iwork3, &
                            odex_stability_control_conservative, odex_stability_control_none, odex_workspace
    use perf_profile, only: perf_tic, perf_toc, PERF_INTODE, PERF_FLOW, PERF_FLOWZ, PERF_FLOWZR
-   use runtime_env_mod, only: parse_logical_env
+   use runtime_env_mod, only: parse_logical_env, read_string_env, to_lower_ascii
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    implicit none
 
@@ -52,6 +52,15 @@ module solve_flow
    integer, parameter :: intode_stage_quasi_retry = 3
    integer, parameter :: intode_stage_rattle_flow = 4
    integer, parameter :: intode_stage_external = 5
+   integer, parameter :: intode_role_unknown = 0
+   integer, parameter :: intode_role_nt_strict = 1
+   integer, parameter :: intode_role_qn_navigation = 2
+   integer, parameter :: intode_role_certification = 3
+   integer, parameter :: intode_role_final_flow = 4
+   integer, parameter :: intode_role_reverse_replay = 5
+   integer, parameter :: intode_solver_assist_policy_off = 0
+   integer, parameter :: intode_solver_assist_policy_qn_navigation = 1
+   integer, parameter :: intode_solver_assist_policy_all_navigation_diagnostic = 2
    integer, save :: intode_calls_total = 0
    integer, save :: intode_calls_integrating = 0
    integer, save :: intode_fallback_attempts = 0
@@ -64,8 +73,9 @@ module solve_flow
    integer, save :: intode_fallback_failures_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
    integer, save :: intode_rescue_success_solver_assist = 0
    integer, save :: intode_solver_assist_fail = 0
-   logical, parameter :: intode_solver_assist_enabled_default = .false.
-   logical, save :: intode_enable_solver_assist = intode_solver_assist_enabled_default
+   integer, parameter :: intode_solver_assist_policy_default = intode_solver_assist_policy_qn_navigation
+   integer, save :: intode_solver_assist_policy = intode_solver_assist_policy_default
+   logical, save :: intode_enable_solver_assist = .true.
    logical, save :: intode_solver_assist_policy_loaded = .false.
    logical, parameter :: intode_fast_hmin_assist = .true.
    logical, parameter :: intode_verbose_logs = .false.
@@ -78,6 +88,7 @@ module solve_flow
    integer, save :: intode_trace_stage = intode_stage_unknown
    integer, save :: intode_trace_newton_iter = 0
    integer, save :: intode_trace_quasi_iter = 0
+   integer, save :: intode_trace_role = intode_role_unknown
    integer, save :: intode_current_context = intode_ctx_unknown
    logical, save :: intode_capture_failures = .true.
    logical, save :: intode_last_failure_available = .false.
@@ -344,7 +355,7 @@ contains
       y_out = y_curr
 
       if (.not. intode_solver_assist_policy_allows(reason_code, intode_current_context, intode_trace_stage, &
-                                                   intode_rescue_success_solver_assist)) then
+                                                   intode_rescue_success_solver_assist, intode_trace_role)) then
          intode_solver_assist_fail = intode_solver_assist_fail + 1
          return
       end if
@@ -354,10 +365,10 @@ contains
 
       if (intode_verbose_logs) then
          if (intode_solver_assist_log_count < intode_solver_assist_log_limit) then
-            write (*, '(A,I0,A,I0,A,ES12.4,A,I0,A,I0,A,I0)') "[INTODE][ASSIST] solver_assist_accept context=", &
+            write (*, '(A,I0,A,I0,A,ES12.4,A,I0,A,I0,A,I0,A,I0)') "[INTODE][ASSIST] solver_assist_accept context=", &
                intode_current_context, " reason=", reason_code, " t_remaining=", t_remaining, &
                " rattle_step=", intode_trace_rattle_step, " substep=", intode_trace_rattle_substep, &
-               " stage=", intode_trace_stage
+               " stage=", intode_trace_stage, " role=", intode_trace_role
          else if (intode_solver_assist_log_count == intode_solver_assist_log_limit) then
             write (*, '(A)') "[INTODE][ASSIST] additional solver_assist logs suppressed."
          end if
@@ -365,24 +376,39 @@ contains
       end if
    end subroutine intode_try_solver_assist
 
-   logical function intode_solver_assist_policy_allows(reason_code, context_code, stage_code, success_count) result(allowed)
+   logical function intode_solver_assist_policy_allows(reason_code, context_code, stage_code, success_count, role_code) result(allowed)
       implicit none
       integer, intent(in) :: reason_code, context_code, stage_code, success_count
+      integer, intent(in), optional :: role_code
+      integer :: active_role
       logical :: allow_context, allow_stage
 
       call ensure_intode_solver_assist_policy()
 
       allowed = .false.
+      active_role = intode_trace_role
+      if (present(role_code)) active_role = role_code
+      if (intode_solver_assist_policy == intode_solver_assist_policy_off) return
       if (.not. intode_enable_solver_assist) return
       if (reason_code /= intode_reason_h_min) return
 
       allow_context = (context_code == intode_ctx_flowz .or. context_code == intode_ctx_flowzr)
       if (.not. allow_context) return
 
-      ! This is a solver-internal residual assist only; final proposal flow remains strict.
-      allow_stage = (stage_code == intode_stage_newton .or. stage_code == intode_stage_quasi .or. &
-                     stage_code == intode_stage_quasi_retry)
-      if (.not. allow_stage) return
+      select case (intode_solver_assist_policy)
+      case (intode_solver_assist_policy_qn_navigation)
+         allow_stage = (stage_code == intode_stage_quasi .or. stage_code == intode_stage_quasi_retry)
+         if (.not. allow_stage) return
+         if (active_role /= intode_role_qn_navigation .and. active_role /= intode_role_reverse_replay) return
+      case (intode_solver_assist_policy_all_navigation_diagnostic)
+         allow_stage = (stage_code == intode_stage_newton .or. stage_code == intode_stage_quasi .or. &
+                        stage_code == intode_stage_quasi_retry)
+         if (.not. allow_stage) return
+         if (active_role /= intode_role_nt_strict .and. active_role /= intode_role_qn_navigation .and. &
+             active_role /= intode_role_reverse_replay) return
+      case default
+         return
+      end select
 
       if (intode_solver_assist_max_uses > 0) then
          if (success_count >= intode_solver_assist_max_uses) return
@@ -558,13 +584,59 @@ contains
       fast_hmin_assist = intode_fast_hmin_assist
    end subroutine get_intode_solver_assist_policy
 
+   subroutine get_intode_solver_assist_policy_code(policy_code, enabled, max_uses, fast_hmin_assist)
+      implicit none
+      integer, intent(out) :: policy_code
+      logical, intent(out) :: enabled
+      integer, intent(out) :: max_uses
+      logical, intent(out) :: fast_hmin_assist
+
+      call ensure_intode_solver_assist_policy()
+
+      policy_code = intode_solver_assist_policy
+      enabled = intode_enable_solver_assist
+      max_uses = intode_solver_assist_max_uses
+      fast_hmin_assist = intode_fast_hmin_assist
+   end subroutine get_intode_solver_assist_policy_code
+
    subroutine ensure_intode_solver_assist_policy()
       implicit none
+      character(len=128) :: env_value, policy_token
+      logical :: env_present, legacy_present, legacy_enabled
 
       if (intode_solver_assist_policy_loaded) return
 
-      intode_enable_solver_assist = intode_solver_assist_enabled_default
-      call parse_logical_env("INTODE_SOLVER_ASSIST_ENABLED", intode_enable_solver_assist)
+      intode_solver_assist_policy = intode_solver_assist_policy_default
+      intode_enable_solver_assist = .true.
+      call read_string_env("INTODE_SOLVER_ASSIST_POLICY", env_value, env_present)
+      if (env_present) then
+         policy_token = trim(to_lower_ascii(env_value))
+         select case (policy_token)
+         case ("", "canonical", "qn_navigation", "qn-navigation", "navigation", "qnav", &
+               "nt_strict_qn_navassist_cert_strict_rg_metropolis_v1")
+            intode_solver_assist_policy = intode_solver_assist_policy_qn_navigation
+         case ("off", "disabled", "disable", "false", "0", "none", "strict")
+            intode_solver_assist_policy = intode_solver_assist_policy_off
+         case ("all_navigation_diagnostic", "all-navigation-diagnostic", "diagnostic", "all", &
+               "legacy_enabled", "nt_qn_navigation_diagnostic")
+            intode_solver_assist_policy = intode_solver_assist_policy_all_navigation_diagnostic
+         case default
+            write (*, '(A,A,A)') "[WARN] Unknown INTODE_SOLVER_ASSIST_POLICY='", trim(env_value), "'; using qn_navigation."
+            intode_solver_assist_policy = intode_solver_assist_policy_qn_navigation
+         end select
+      else
+         call read_string_env("INTODE_SOLVER_ASSIST_ENABLED", env_value, legacy_present)
+         if (legacy_present) then
+            legacy_enabled = .true.
+            call parse_logical_env("INTODE_SOLVER_ASSIST_ENABLED", legacy_enabled)
+            if (.not. legacy_enabled) then
+               intode_solver_assist_policy = intode_solver_assist_policy_off
+            else
+               intode_solver_assist_policy = intode_solver_assist_policy_all_navigation_diagnostic
+            end if
+         end if
+      end if
+      intode_enable_solver_assist = (intode_solver_assist_policy /= intode_solver_assist_policy_off)
       intode_solver_assist_policy_loaded = .true.
    end subroutine ensure_intode_solver_assist_policy
 
@@ -597,6 +669,24 @@ contains
       end if
    end subroutine set_intode_stage_trace
 
+   subroutine set_intode_residual_role_trace(role_code)
+      implicit none
+      integer, intent(in) :: role_code
+
+      if (role_code >= intode_role_unknown .and. role_code <= intode_role_reverse_replay) then
+         intode_trace_role = role_code
+      else
+         intode_trace_role = intode_role_unknown
+      end if
+   end subroutine set_intode_residual_role_trace
+
+   subroutine get_intode_residual_role_trace(role_code)
+      implicit none
+      integer, intent(out) :: role_code
+
+      role_code = intode_trace_role
+   end subroutine get_intode_residual_role_trace
+
    subroutine set_intode_newton_iter_trace(iter_idx)
       implicit none
       integer, intent(in) :: iter_idx
@@ -619,6 +709,7 @@ contains
       intode_trace_stage = intode_stage_unknown
       intode_trace_newton_iter = 0
       intode_trace_quasi_iter = 0
+      intode_trace_role = intode_role_unknown
    end subroutine clear_intode_runtime_trace
 
    subroutine reset_intode_fallback_stats()
@@ -642,6 +733,7 @@ contains
       intode_trace_stage = intode_stage_unknown
       intode_trace_newton_iter = 0
       intode_trace_quasi_iter = 0
+      intode_trace_role = intode_role_unknown
       intode_last_failure_available = .false.
       intode_last_failure_reason = intode_reason_none
       intode_last_failure_context = intode_ctx_unknown

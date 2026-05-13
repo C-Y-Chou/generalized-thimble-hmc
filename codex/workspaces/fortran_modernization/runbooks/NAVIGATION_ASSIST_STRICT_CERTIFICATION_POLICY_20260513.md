@@ -1,11 +1,19 @@
 # Navigation Assist With Strict Certification Policy
 
-Status: provisional modernization handoff
+Status: implemented and modernization-local gated
 
 Date: 2026-05-13 JST
 
 Scope: instructions for moving the solver-assist decision from the
 `tltm_production_comparison` evidence track back into the modernization tree.
+
+Implementation update, 2026-05-13 JST: this policy is now encoded in the
+modernization source tree.  `qn_navigation` is the canonical default, legacy
+`INTODE_SOLVER_ASSIST_ENABLED=0/1` maps to `off` /
+`all_navigation_diagnostic`, and Stage3 method env manifests now distinguish
+`nofb` assist-off control from fallback-on navigation assist.  The
+modernization-local M4 guardrail suite passed; production-tree sync is allowed
+after refreshing remote/job state.
 
 ## Decision
 
@@ -187,3 +195,43 @@ Metropolis strict and unassisted.
 This preserves author-faithful NT as the comparison baseline while allowing the
 modernized robust route to use the numerical machinery that production evidence
 shows is needed.
+
+## Implementation Record
+
+Implemented source contract:
+
+- `solve_flow.f90` now exposes typed assist policies: `off`,
+  `qn_navigation`, and `all_navigation_diagnostic`.
+- Residual roles are threaded through the flow call boundary:
+  `nt_strict`, `qn_navigation`, `certification`, `final_flow`, and
+  `reverse_replay`.
+- Canonical policy allows h-min assist only for QN navigation / QN retry /
+  reverse replay residual evaluations under `flowz` / `flowzr` contexts.
+- NT, unassisted certification, final proposal flow, RG, Metropolis,
+  external/unknown contexts, invalid reasons, and max-step reasons remain
+  strict.
+- `rescue_attempt_from_best` now re-evaluates the candidate through a
+  certification residual with the real Jacobian before accepting any
+  navigation-derived best state.
+- Stage2 v1 manifests record
+  `flow_policy_id=nt_strict_qn_navassist_cert_strict_rg_metropolis_v1` and
+  the `INTODE_SOLVER_ASSIST_POLICY` env key.
+- Stage3 method env overrides set `no_fb` to policy `off` and `fb` /
+  `fb_norefine` to policy `qn_navigation`.
+
+Verification passed locally:
+
+- `git diff --check`
+- `python3 -m py_compile scripts/run_stage3_3_multiseed.py scripts/run_m4_guardrails.py`
+- `make -C build FC=gfortran LDFLAGS= test_odex_assist_policy`
+- With `.venv-dfols` exported for the official package bridge:
+  `make -C build FC=gfortran LDFLAGS= test_retained_core_qn_route_contract test_retained_core_rattle_rg_contract post_b_rng_reference_anchor`
+- `make -C build FC=gfortran LDFLAGS= test_odex_foundation_contract`
+- `python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going`
+
+Production-tree handoff rule:
+
+- Sync the production tree only after the above local M4 gate is green and
+  remote state confirms no active pinned production jobs.  This implementation
+  has met the local gate; the remaining step is the production-tree
+  fast-forward/readback.

@@ -68,15 +68,21 @@ REVERSE_GATE_REPLAY_STATUS_NAMES = [
 METHOD_SPECS = {
     "no_fb": {
         "fallback_enabled": False,
-        "env_overrides": {},
+        "env_overrides": {
+            "INTODE_SOLVER_ASSIST_POLICY": "off",
+        },
     },
     "fb": {
         "fallback_enabled": True,
-        "env_overrides": {},
+        "env_overrides": {
+            "INTODE_SOLVER_ASSIST_POLICY": "qn_navigation",
+        },
     },
     "fb_norefine": {
         "fallback_enabled": True,
-        "env_overrides": {},
+        "env_overrides": {
+            "INTODE_SOLVER_ASSIST_POLICY": "qn_navigation",
+        },
     },
 }
 

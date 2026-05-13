@@ -559,9 +559,11 @@ test_odex_foundation_contract: $(BIN_DIR)/test_odex_foundation_contract prepare_
 	@set -o pipefail; $(BIN_DIR)/test_odex_foundation_contract 2>&1 | tee $(OUT_LOG_DIR)/test_odex_foundation_contract.log
 
 test_odex_assist_policy: $(BIN_DIR)/test_odex_assist_policy prepare_outputs
-	@set -o pipefail; $(BIN_DIR)/test_odex_assist_policy disabled 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_default_disabled.log
-	@set -o pipefail; INTODE_SOLVER_ASSIST_ENABLED=1 $(BIN_DIR)/test_odex_assist_policy enabled 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_enabled.log
-	@set -o pipefail; INTODE_SOLVER_ASSIST_ENABLED=0 $(BIN_DIR)/test_odex_assist_policy disabled 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_disabled.log
+	@set -o pipefail; $(BIN_DIR)/test_odex_assist_policy qn_navigation 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_default_qn_navigation.log
+	@set -o pipefail; INTODE_SOLVER_ASSIST_POLICY=off $(BIN_DIR)/test_odex_assist_policy off 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_policy_off.log
+	@set -o pipefail; INTODE_SOLVER_ASSIST_POLICY=all_navigation_diagnostic $(BIN_DIR)/test_odex_assist_policy all_navigation_diagnostic 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_policy_all_navigation_diagnostic.log
+	@set -o pipefail; INTODE_SOLVER_ASSIST_ENABLED=0 $(BIN_DIR)/test_odex_assist_policy off 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_legacy_disabled.log
+	@set -o pipefail; INTODE_SOLVER_ASSIST_ENABLED=1 $(BIN_DIR)/test_odex_assist_policy all_navigation_diagnostic 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_legacy_enabled.log
 
 test_odex_result_contract: $(BIN_DIR)/test_odex_result_contract prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_odex_result_contract 2>&1 | tee $(OUT_LOG_DIR)/test_odex_result_contract.log

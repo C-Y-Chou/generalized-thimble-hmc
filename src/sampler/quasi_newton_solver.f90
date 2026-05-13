@@ -4,7 +4,9 @@ module quasi_newton_solver_mod
    use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: iso_c_binding, only: c_associated, c_double, c_f_pointer, c_funloc, c_funptr, c_int, c_loc, c_null_ptr, c_ptr
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_value, ieee_quiet_nan
-   use solve_flow, only: flowzr, flowz, flow_workspace_t, set_intode_stage_trace, set_intode_quasi_iter_trace, intode_stage_quasi, &
+   use solve_flow, only: flowzr, flowz, flow_workspace_t, set_intode_stage_trace, set_intode_quasi_iter_trace, &
+                         set_intode_residual_role_trace, get_intode_residual_role_trace, &
+                         intode_stage_quasi, intode_role_qn_navigation, intode_role_certification, intode_role_reverse_replay, &
                          get_intode_rescue_stats, intode_status_unknown, intode_status_success, intode_status_success_zero_time, &
                          intode_status_success_stiff_rescue, intode_status_success_solver_assist, &
                          intode_status_failure_max_steps, intode_status_failure_invalid, intode_status_failure_h_min
@@ -423,8 +425,8 @@ contains
 
       if ((.not. converged) .and. residual_within_accept_tolerance(best_res_global, tol)) then
          active_context%trace_route_code = 90
-         call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best_global, best_res_global, x_new, Jl, converged, flow_workspace, &
-                                       active_context, active_policy)
+         call rescue_attempt_from_best(xt, z, del_z, jac, tol, x_best_global, Jl_best_global, best_res_global, x_new, Jl, &
+                                       converged, flow_workspace, active_context, active_diagnostics, active_policy)
       end if
       if (.not. converged) then
          best_accept_tol = tol
@@ -433,8 +435,8 @@ contains
          end if
          if (ieee_is_finite(best_res_global) .and. best_res_global < best_accept_tol) then
             active_context%trace_route_code = 91
-            call rescue_attempt_from_best(xt, z, del_z, best_accept_tol, Jl_best_global, best_res_global, x_new, Jl, &
-                                          converged, flow_workspace, active_context, active_policy)
+            call rescue_attempt_from_best(xt, z, del_z, jac, best_accept_tol, x_best_global, Jl_best_global, best_res_global, x_new, Jl, &
+                                          converged, flow_workspace, active_context, active_diagnostics, active_policy)
          end if
       end if
       if (global_filter_candidate) then
@@ -547,8 +549,8 @@ contains
                                      residual_within_accept_tolerance(initial_r_norm, tol), .true.)
 
       if (residual_within_accept_tolerance(best_r_norm, tol)) then
-         call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace, qn_context, &
-                                       qn_policy)
+         call rescue_attempt_from_best(xt, z, del_z, jac, tol, x_best, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace, &
+                                       qn_context, qn_diagnostics, qn_policy)
          if (.not. converged) x_new = xt
          if (present(x_best_out)) then
             if (size(x_best_out) == size(x_best)) x_best_out = x_best
@@ -613,8 +615,8 @@ contains
          end if
       end if
 
-      call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace, qn_context, &
-                                    qn_policy)
+      call rescue_attempt_from_best(xt, z, del_z, jac, tol, x_best, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace, &
+                                    qn_context, qn_diagnostics, qn_policy)
       if (.not. converged) then
          x_new = xt
          if (size(Jl_best) == size(Jl)) Jl = Jl_best
@@ -1141,8 +1143,8 @@ contains
          if (iter_idx >= 8 .and. no_improve_count >= stagnation_limit) exit
       end do
 
-      call rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace, qn_context, &
-                                    qn_policy)
+      call rescue_attempt_from_best(xt, z, del_z, jac, tol, x_best, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace, &
+                                    qn_context, qn_diagnostics, qn_policy)
       if (.not. converged) then
          x_new = xt
          if (size(Jl_best) == size(Jl)) Jl = Jl_best
@@ -1273,6 +1275,7 @@ contains
          eval_error = .true.
          return
       end if
+      call set_intode_residual_role_trace(intode_role_certification)
       call flowzr(xt, z_trial, eval_error, workspace=flow_workspace)
       call update_quasi_watchdog_scope(qn_context, qn_policy)
       if (qn_context%watchdog_scope_active .and. qn_context%watchdog_hit) then
@@ -1282,25 +1285,34 @@ contains
       if (.not. eval_error) z_flowed = z_trial
    end subroutine recover_converged_flowed_state
 
-   subroutine rescue_attempt_from_best(xt, z, del_z, tol, Jl_best, best_fx_norm, x_new, Jl, converged, flow_workspace, qn_context, &
-                                       qn_policy)
+   subroutine rescue_attempt_from_best(xt, z, del_z, jac, tol, xi_best, Jl_best, best_fx_norm, x_new, Jl, converged, flow_workspace, &
+                                       qn_context, qn_diagnostics, qn_policy)
       implicit none
-      real(dp), intent(in) :: xt(:), del_z(:), tol, Jl_best(:), best_fx_norm
-      complex(dp), intent(in) :: z(:)
+      real(dp), intent(in) :: xt(:), del_z(:), tol, xi_best(:), Jl_best(:), best_fx_norm
+      complex(dp), intent(in) :: z(:), jac(:, :)
       real(dp), intent(inout) :: x_new(:), Jl(:)
       logical, intent(out) :: converged
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
       type(qn_context_t), intent(inout), target :: qn_context
+      type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), target :: qn_policy
 
       logical :: eval_error
+      real(dp) :: cert_norm
+      real(dp) :: cert_res(size(del_z)), cert_jl(size(Jl))
       complex(dp) :: z_new(size(z))
 
       converged = .false.
       if (.not. residual_within_accept_tolerance(best_fx_norm, tol)) return
-      if (size(Jl_best) /= size(Jl)) return
+      if (size(xi_best) /= size(del_z) .or. size(Jl_best) /= size(Jl)) return
 
-      Jl = Jl_best
+      call evaluate_constraint_residual_certification(xt, z, xi_best, cert_res, del_z, eval_error, cert_jl, jac, flow_workspace, &
+                                                      qn_context, qn_diagnostics, qn_policy)
+      if (eval_error .or. .not. real_vector_is_finite(cert_res)) return
+      cert_norm = norm2(cert_res)
+      if (.not. residual_within_accept_tolerance(cert_norm, tol)) return
+
+      Jl = cert_jl
       call recover_converged_flowed_state(xt, z, del_z, Jl, z_new, eval_error, flow_workspace, qn_context, qn_policy)
       if (eval_error) then
          converged = .false.
@@ -1418,7 +1430,40 @@ contains
       type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
 
-      integer :: flow_status, n
+      call evaluate_constraint_residual_with_role(xt, z, xi, fq, del_z, ierr, Jl, jac, intode_role_qn_navigation, &
+                                                  flow_workspace, qn_context, qn_diagnostics, qn_policy)
+   end subroutine evaluate_constraint_residual
+
+   subroutine evaluate_constraint_residual_certification(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context, &
+                                                        qn_diagnostics, qn_policy)
+      implicit none
+      real(dp), intent(in) :: xt(:), xi(:), del_z(:)
+      complex(dp), intent(in) :: z(:), jac(:, :)
+      real(dp), intent(out) :: fq(:), Jl(:)
+      logical, intent(out) :: ierr
+      type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(qn_context_t), intent(inout), optional, target :: qn_context
+      type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
+      type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+
+      call evaluate_constraint_residual_with_role(xt, z, xi, fq, del_z, ierr, Jl, jac, intode_role_certification, &
+                                                  flow_workspace, qn_context, qn_diagnostics, qn_policy)
+   end subroutine evaluate_constraint_residual_certification
+
+   subroutine evaluate_constraint_residual_with_role(xt, z, xi, fq, del_z, ierr, Jl, jac, residual_role, flow_workspace, qn_context, &
+                                                     qn_diagnostics, qn_policy)
+      implicit none
+      real(dp), intent(in) :: xt(:), xi(:), del_z(:)
+      complex(dp), intent(in) :: z(:), jac(:, :)
+      real(dp), intent(out) :: fq(:), Jl(:)
+      logical, intent(out) :: ierr
+      integer, intent(in) :: residual_role
+      type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(qn_context_t), intent(inout), optional, target :: qn_context
+      type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
+      type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+
+      integer :: flow_status, n, active_role, prior_role
       type(qn_context_t), pointer :: active_context
       type(qn_diagnostics_context_t), pointer :: active_diagnostics
       type(qn_policy_context_t), pointer :: active_policy
@@ -1452,7 +1497,13 @@ contains
          return
       end if
 
+      active_role = residual_role
+      call get_intode_residual_role_trace(prior_role)
+      if (residual_role == intode_role_qn_navigation .and. prior_role == intode_role_reverse_replay) then
+         active_role = intode_role_reverse_replay
+      end if
       call set_intode_stage_trace(intode_stage_quasi)
+      call set_intode_residual_role_trace(active_role)
       call set_intode_quasi_iter_trace(active_context%trace_iter)
       flow_status = intode_status_unknown
       call flowzr(xt, active_context%residual_z_trial, ierr, flow_status, flow_workspace)
@@ -1472,7 +1523,7 @@ contains
 
       fq(1:n) = aimag(active_context%residual_z_trial)
       fq(n + 1:) = xi(n + 1:)
-   end subroutine evaluate_constraint_residual
+   end subroutine evaluate_constraint_residual_with_role
 
    subroutine get_quasi_newton_last_trace_r2c(available, proposal_count, z_proposed, z_flowed, residual_norm, alpha, &
                                               iter_idx, backtrack_idx, attempt_idx, accepted, eval_ok, route_code, qn_context)

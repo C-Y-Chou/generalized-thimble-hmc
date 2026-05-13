@@ -2,8 +2,10 @@ module hmc_integrator_core
    use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use runtime_env_mod, only: read_string_env
-   use solve_flow, only: flow, flowz, flowzr, flow_workspace_t, set_intode_stage_trace, set_intode_newton_iter_trace, set_intode_quasi_iter_trace, &
+   use solve_flow, only: flow, flowz, flowzr, flow_workspace_t, set_intode_stage_trace, set_intode_newton_iter_trace, &
+                         set_intode_quasi_iter_trace, set_intode_residual_role_trace, &
                          intode_stage_newton, intode_stage_quasi, intode_stage_rattle_flow, intode_stage_external, &
+                         intode_role_nt_strict, intode_role_qn_navigation, intode_role_final_flow, intode_role_reverse_replay, &
                          intode_status_success_stiff_rescue, intode_status_success_solver_assist, intode_status_failure_max_steps, &
                          intode_status_failure_invalid, intode_status_failure_h_min, &
                          get_intode_fallback_context_stats, get_intode_rescue_stats, intode_status_is_strict_success
@@ -348,6 +350,11 @@ contains
       ws%del_z = step_size*momentum - step_size**2*ws%dV
 
       call set_intode_stage_trace(intode_stage_newton)
+      if (active_hmc_replay_runtime%qn_reverse_gate_active) then
+         call set_intode_residual_role_trace(intode_role_reverse_replay)
+      else
+         call set_intode_residual_role_trace(intode_role_nt_strict)
+      end if
       call set_intode_newton_iter_trace(0)
       call set_intode_quasi_iter_trace(0)
       call solve_constraint_newton(cttol, 100, ws%temp_x, ws%temp_z, ws%del_z, step_size, has_error, ws%Jl, final_x, &
@@ -357,6 +364,11 @@ contains
       else
          if (quasi_fallback_enabled) then
             call set_intode_stage_trace(intode_stage_quasi)
+            if (active_hmc_replay_runtime%qn_reverse_gate_active) then
+               call set_intode_residual_role_trace(intode_role_reverse_replay)
+            else
+               call set_intode_residual_role_trace(intode_role_qn_navigation)
+            end if
             call set_intode_quasi_iter_trace(0)
             quasi_tol = cttol
             if (active_hmc_policy%qn_quasi_tol_override > 0.0_dp) quasi_tol = active_hmc_policy%qn_quasi_tol_override
@@ -548,6 +560,11 @@ contains
       end if
 
       call set_intode_stage_trace(intode_stage_rattle_flow)
+      if (active_hmc_replay_runtime%qn_reverse_gate_active) then
+         call set_intode_residual_role_trace(intode_role_reverse_replay)
+      else
+         call set_intode_residual_role_trace(intode_role_final_flow)
+      end if
       call set_intode_newton_iter_trace(0)
       call set_intode_quasi_iter_trace(0)
       call flow(final_x, final_z, ws%temp_jac, has_error, final_flow_status, flow_workspace)
