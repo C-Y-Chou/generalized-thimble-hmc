@@ -1,6 +1,6 @@
 # TLTM Production Comparison State Brief
 
-Updated: 2026-05-13 JST
+Updated: 2026-05-14 JST
 
 ## Boundary Status
 
@@ -32,7 +32,9 @@ Updated: 2026-05-13 JST
 - On 2026-05-13, Phase D 32seed/50k confirmation jobs `15006`-`15014` completed with `Exit_status=0`.  Under the corrected hard gate, the candidate is improved but not sufficient: assist-off tuned failures are `33872`, while same-scale assist-on `fb_norefine` is `19579`.
 - On 2026-05-13, Phase E focused full replay job `15095.anode01` completed on `C12`.  Best candidate `rho050_m1000` reached `1726/1994` replay successes, only `+20` over `rho050_m500`; parameter-only assist-off DFO-LS tuning is not plausibly enough to reach assist-on failure parity.
 - On 2026-05-13, after the user synced the production worktree to commit `6f98b5bfce60678293c163764e1cefe8307736ba`, remote production outputs/logs were cleaned for the next rerun.  The remote `output` tree now only has empty containers: `output/production_comparison`, `output/tests`, `output/logs/production_comparison`, and `output/logs/dfols_assist_off_tuning`; disk usage was `24K`.
-- On 2026-05-13, the formalized assist bridge 32seed/50k gate was submitted from commit `6f98b5bfce60678293c163764e1cefe8307736ba` on `C8`.  Job chain: preflight `15097` completed with `Exit_status=0`, chunks `15098`-`15105` are running, and merge `15106` is held on chunk completion.  Dataset id: `prodcomp_formalized_assist_bridge_6f98b5b_32seed_50k_20260513`; campaign root: `output/production_comparison/formalized_assist_bridge/formalized_assist_bridge_20260513_6f98b5b_32seed_50000cyc_t035_L2_nstep20_rg_nofb_withfb`.
+- On 2026-05-13, the formalized assist bridge 32seed/50k gate completed from commit `6f98b5bfce60678293c163764e1cefe8307736ba` on `C8`.  Jobs `15097`-`15106` all exited `0`.  Readback is negative for the current formalized policy: `fb_norefine` resolved to `qn_navigation` and has nonzero QN assist counters, but failures are `67159`, still far above assist-on `19579` and assist-off tuned `33872`.  See `runbooks/FORMALIZED_ASSIST_BRIDGE_32SEED_50K_READBACK_20260513.md`.
+- On 2026-05-14, the assist/root-cause diagnostic branch was closed by user decision.  Do not continue the ODEX, NT-assist, parameter-tuning, or `npt5` diagnostic scale-up tree as active production work.  Current production-comparison state is hold-for-modernization-fix: after the fixed modernization commit is selected, sync this tree and regenerate production from a clean namespace.  See `runbooks/TREE_CONVERGENCE_AFTER_ASSIST_RESOLUTION_20260514.md`.
+- On 2026-05-14, the RNG-v2 plus method-level `all_navigation_diagnostic` npt5_r0055 32seed/50k diagnostic completed from commit `ae777294814955f7f7935fc386a6172bcd30651f`.  It was negative as a recovery path: `withfb` failures `25881`, mean Re `0.03420261820536729`, still above the old assist-on failure reference `19579`.  This result stays diagnostic only; the modernization line now uses assist-off as the starting baseline and keeps solver assist on the deletion schedule.  See `runbooks/QN_ASSIST_NPT5_R0055_SCALE32_RNGV2_ALLNAV_READBACK_20260514.md`.
 
 ## Important Correction
 
@@ -41,7 +43,7 @@ Updated: 2026-05-13 JST
 
 ## Decoupled Worktree Model
 
-- Production comparison execution target: `tltm_production_comparison_provisional`.
+- Production comparison execution target: `tltm_production_comparison`.
 - Production comparison execution branch: `codex/tltm-production-comparison-official-dfols`.
 - Production comparison execution worktree: `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.
 - Official DFO-LS source branch to sync from: `codex/fortran-modernization`.
@@ -52,13 +54,21 @@ Updated: 2026-05-13 JST
 
 ## Next Action
 
-Active formalized assist bridge:
+Current production-comparison action:
 
-1. Monitor PBS jobs `15098`-`15106`.
-2. Chunks `15098`-`15105` are running after preflight `15097` completed with `Exit_status=0`; wait for all chunks to complete.
-3. After merge `15106`, read `output/production_comparison/formalized_assist_bridge/formalized_assist_bridge_20260513_6f98b5b_32seed_50000cyc_t035_L2_nstep20_rg_nofb_withfb/REPORT.md`.
-4. Primary readback: `mean_Ohat_re`, `mean_Ohat_im`, and unresolved failures.  Same-scale references: assist-on `fb_norefine` failures `19579`; assist-off tuned Phase D failures `33872`.
-5. Diagnostic readback: reverse-gate rejects and P68/P95.  These are not hard blockers for this bridge unless the observable means or exact-gate contract regress.
+1. Do not submit new production-comparison jobs from the current formalized-assist or diagnostic branches.
+2. Wait for the modernization fixed commit.
+3. Refresh remote worktree/job state before sync.
+4. Fast-forward/sync the production-comparison branch/worktree to the chosen modernization commit.
+5. Rebuild and rerun production from a clean post-fix namespace.
+
+Closed diagnostic evidence:
+
+- Formalized assist bridge dataset id: `prodcomp_formalized_assist_bridge_6f98b5b_32seed_50k_20260513`; `fb_norefine` failures `67159`.
+- NT+QN assist control dataset id: `qn_assist_legacy_nt_control_20260513_6f98b5b_10s10k_v2`; failures `3394` at 10seed/10k.
+- ODEX legacy-sequence control dataset id: `odex_legacy_sequence_ntqn_control_20260513_10s10k_v1`; failures `3364` at 10seed/10k.
+- RNG-v2 all-navigation diagnostic dataset id: `qn_assist_npt5_r0055_rngv2_allnav_32s50k_20260514`; `withfb` failures `25881` at 32seed/50k.
+- QN+assist preset/refinement matrix and `npt5` scale-up remain diagnostic history, not the next production path.
 
 Current assist-off tuning campaign:
 

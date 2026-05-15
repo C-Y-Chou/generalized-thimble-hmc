@@ -847,3 +847,230 @@ Use this file to append per-session notes.
 - Policy: `INTODE_SOLVER_ASSIST_POLICY=nt_strict_qn_navassist_cert_strict_rg_metropolis_v1`; legacy `INTODE_SOLVER_ASSIST_ENABLED` is unset in the chunk jobs.
 - Exact-gate contract: QN navigation assist may help find guesses, but certification residual, final flow, reverse gate, and Metropolis acceptance remain unassisted/exact.
 - Primary readback after merge: mean Re/Im and unresolved failures, with assist-on failure reference `19579` and assist-off tuned Phase D reference `33872`.
+
+## 2026-05-13 JST - Formalized Assist Bridge 32seed/50k Readback
+
+- Jobs `15097`-`15106` all completed with `Exit_status=0`.
+- Output root: `output/production_comparison/formalized_assist_bridge/formalized_assist_bridge_20260513_6f98b5b_32seed_50000cyc_t035_L2_nstep20_rg_nofb_withfb`.
+- `REPORT.md` and `combined_summary_table.csv` are present; per-method rows are `32/32`.
+- Policy audit:
+  - chunk manifests set `INTODE_SOLVER_ASSIST_POLICY=nt_strict_qn_navassist_cert_strict_rg_metropolis_v1` and unset legacy `INTODE_SOLVER_ASSIST_ENABLED`;
+  - per-seed manifest resolved `no_fb` to `off`;
+  - per-seed manifest resolved `fb_norefine` to `qn_navigation`;
+  - `fb_norefine` has nonzero QN assist counters.
+- Summary:
+  - `no_fb`: mean Re/Im `0.12850514911944863/-0.00044150817736475457`, Zmean Re/Im `8.530632030235894/-0.04653856450252538`, failures `267455`, RG rejects `15112`.
+  - `fb_norefine`: mean Re/Im `0.07133444361813597/-0.004686085466098856`, Zmean Re/Im `6.7549242962306515/-0.7868762110380288`, failures `67159`, RG rejects `15088`.
+- Hard comparison:
+  - assist-on/default same-scale `fb_norefine` failure reference: `19579`;
+  - assist-off tuned Phase D reference: `33872`;
+  - formalized bridge `fb_norefine`: `67159`, or `+47580` vs assist-on and `+33287` vs assist-off tuned.
+- Verdict: current formalized `qn_navigation` policy is not enough.  It exercised QN assist, but behaved near the assist-off stable failure scale rather than old assist-on.  Do not scale this policy as-is.
+
+## 2026-05-13 JST - QN Assist Preset Matrix Submit
+
+- Goal: test whether `QN+assist` can replace the effective role of old `NT+assist`
+  without assuming assist-off tuning rankings transfer to the assist-on residual landscape.
+- Added PBS scripts:
+  - `tasks/pbs/qn_assist_preset_matrix_10seed_10k_array_20260513.pbs`;
+  - `tasks/pbs/qn_assist_preset_matrix_10seed_10k_merge_20260513.pbs`.
+- Added runbook:
+  `runbooks/QN_ASSIST_PRESET_MATRIX_20260513.md`.
+- Remote execution scripts were copied outside the git worktree under
+  `/lustre1/home/cychou/TLTM_job_scripts/qn_assist_preset_matrix_20260513`
+  so the production worktree remains clean.
+- Dataset label:
+  `qn_assist_preset_matrix_20260513_6f98b5b_10s10k_v1`.
+- Fixed protocol: `fb_norefine` only, 10 seeds x 10000 cycles,
+  `INTODE_SOLVER_ASSIST_POLICY=nt_strict_qn_navassist_cert_strict_rg_metropolis_v1`,
+  legacy `INTODE_SOLVER_ASSIST_ENABLED` unset, certification/final/RG/Metropolis unassisted.
+- Matrix: 28 candidates scanning `npt`, `rhobeg`, `maxfun`, and two no-noise controls.
+- Submitted on `C12`:
+  - array job `15112[].anode01`;
+  - initial merge job `15113.anode01`.
+- Startup repair:
+  - original array indices `20`-`23` exited immediately with `Exit_status=127`
+    before candidate logs opened;
+  - canceled old merge `15113.anode01`;
+  - replacement jobs `15114`-`15117` cover indices `20`-`23`;
+  - replacement merge `15118.anode01` depends on `afterany:15112[]` plus the four replacements.
+- Second repair:
+  - original array indices `24`-`27` also expired with `Exit_status=127` on `cnode36`;
+  - replacements `15114`-`15117` also landed on `cnode36` and exited at startup;
+  - canceled merge `15118.anode01`;
+  - resubmitted indices `20`-`27` on `C8` as jobs `15119`-`15126`;
+  - active merge is `15127.anode01`, depending on original array plus the C8 replacements.
+
+## 2026-05-13 JST - QN Assist Preset Matrix Readback and NPT5 Refinement Submit
+
+- Fixed the QN assist preset matrix readback merge path. The original merge
+  looked under `candidate/fb_norefine/aggregated_summary_table.csv`, but
+  `run_stage3_3_multiseed.py` writes aggregate/per-seed tables directly under
+  the candidate output root.
+- Reran the fixed readback on the remote completed outputs:
+  - `28/28` candidate directories;
+  - `28/28` aggregates;
+  - `28/28` per-seed tables;
+  - fixed `REPORT.md` now reports `Rows found: 28 / expected 28`.
+- Best matrix candidate:
+  `npt5_r0050_m500`, failures `1786`, mean Re/Im
+  `+0.02644360/-0.00519660`, Zmean Re/Im `+0.5707/-0.2610`.
+- Added next-round PBS scripts:
+  - `tasks/pbs/qn_assist_npt5_refine_10seed_10k_array_20260513.pbs`;
+  - `tasks/pbs/qn_assist_npt5_refine_10seed_10k_merge_20260513.pbs`.
+- Added runbook:
+  `runbooks/QN_ASSIST_NPT5_REFINE_20260513.md`.
+- Dataset label:
+  `qn_assist_npt5_refine_20260513_6f98b5b_10s10k_v1`.
+- Refinement candidates: 12 local variants around `npt=5`, `rhobeg=0.050`,
+  plus `npt=3/7` and `maxfun=750/1000` probes.
+- Remote scripts staged under:
+  `output/pbs_scripts/qn_assist_npt5_refine_20260513`.
+- Submitted on `C8`:
+  - array job `15130[].anode01`;
+  - merge job `15131.anode01`;
+  - dependency `afterany:15130[].anode01`.
+- Initial qstat verification: all 12 array elements running on `C8`, merge held
+  normally, C8 assigned ncpus `120`.
+
+## 2026-05-13 JST - QN Assist NPT5 Refinement Readback
+
+- Refinement matrix completed and merge job `15131.anode01` exited with status
+  0.
+- Output root:
+  `output/tests/qn_assist_npt5_refine/qn_assist_npt5_refine_20260513_6f98b5b_10s10k_v1`.
+- Rows: `12/12`, missing aggregates `0`.
+- Best by failure:
+  - `npt5_r0050_m1000`: failures `1544`, mean Re/Im
+    `+0.106073/-0.058417`, Zmean Re/Im `+2.63/-2.43`, projected 32s50k
+    failures `24704`.
+  - `npt5_r0055_m500`: failures `1560`, mean Re/Im
+    `+0.003135/+0.013989`, Zmean Re/Im `+0.08/+0.94`, projected 32s50k
+    failures `24960`.
+  - `npt5_r0060_m750`: failures `1565`, mean Re/Im
+    `-0.008980/-0.014603`, Zmean Re/Im `-0.21/-0.64`, projected 32s50k
+    failures `25040`.
+- Interpretation: refinement improved failure density relative to the matrix
+  anchor `1786/100k`, but did not reach the rough old-NT-assist parity target
+  `~1224/100k`.  The lowest-failure candidate has poor mean Re/Im, while the
+  cleaner candidates still project to about `25k` failures at 32seed/50k.
+
+## 2026-05-13 JST - Legacy NT+QN Assist Baseline Control Submit
+
+- Motivation: verify that the current tree is not starting from a wrong
+  baseline by running current code with stable_gate77 and legacy-style NT+QN
+  assist enabled.
+- Added PBS script:
+  `tasks/pbs/qn_assist_legacy_nt_control_10seed_10k_20260513.pbs`.
+- Added runbook:
+  `runbooks/QN_ASSIST_LEGACY_NT_CONTROL_20260513.md`.
+- Control contract:
+  - current commit `6f98b5bfce60678293c163764e1cefe8307736ba`;
+  - method `fb_norefine`, 10 seeds x 10000 cycles;
+  - QN preset stable_gate77 (`npt=4`, `rhobeg=0.018`, `maxfun=250`);
+  - `INTODE_SOLVER_ASSIST_POLICY=all_navigation_diagnostic`;
+  - `INTODE_SOLVER_ASSIST_ENABLED=1`.
+- Important implementation detail: `run_stage3_3_multiseed.py` normally
+  overrides `fb_norefine` to `INTODE_SOLVER_ASSIST_POLICY=qn_navigation`, so
+  the control wrapper monkeypatches the runner method spec before invoking
+  `main()`. This is a wrapper-only change to pass the intended env to Stage2.
+- Two initial `v1` submissions failed before scientific work:
+  - `15132.anode01`: precheck rejected pre-created output root;
+  - `15133.anode01`: wrapper argv still had an unexpanded `--jobs` token.
+- Active clean label:
+  `qn_assist_legacy_nt_control_20260513_6f98b5b_10s10k_v2`.
+- Active job:
+  `15134.anode01`, running on `C8` / `cnode24/0*10`.
+
+## 2026-05-13 JST - Legacy NT+QN Assist Baseline Readback
+
+- Job `15134.anode01` completed with `Exit_status=0`.
+- Output root:
+  `output/tests/qn_assist_legacy_nt_control/qn_assist_legacy_nt_control_20260513_6f98b5b_10s10k_v2`.
+- Rows: `10/10` per-seed rows; aggregate/report present.
+- Manifest confirms:
+  - `INTODE_SOLVER_ASSIST_POLICY=all_navigation_diagnostic`;
+  - `INTODE_SOLVER_ASSIST_ENABLED=1`;
+  - stable_gate77 (`npt=4`, `rhobeg=0.018`, `maxfun=250`).
+- Summary:
+  - failures `3394`;
+  - projected 32seed/50k failures `54304`;
+  - mean Re/Im `+0.0830396450/+0.0065988950`;
+  - Zmean Re/Im `+3.5798/+0.2886`;
+  - RG rejects `988`;
+  - NT assist count `663829`;
+  - QN assist count `2043`.
+- Comparison: current stable QN-navigation anchor had failures `4055` and
+  projected `64880`, with NT assist count `0` and QN assist count `3735`.
+- Interpretation: enabling NT assist in current code does improve stable_gate77
+  failure density, and NT assist is definitely exercised, but it does not
+  reproduce old assist-on density.  The old assist-on advantage is not
+  explained by "NT assist on" alone under current stable_gate77.
+
+## 2026-05-13 JST - Split ODEX Sequence Control And NPT5 Scale-Up
+
+- Implemented an ODEX sequence control switch in an independent remote worktree:
+  `TLTM_ODEX_STEP_SEQUENCE=legacy` restores `2,4,6,12,18,36,...`; default
+  remains the current IWORK3 sequence. Local package-contract tests passed for
+  both default and legacy env mode.
+- Remote ODEX control worktree:
+  `/lustre1/home/cychou/TLTM_worktrees/tltm_odex_legacy_sequence_control`,
+  branch `codex/odex-legacy-sequence-control`, commit
+  `9fc3b80c9555a3892deb9486b809814292e6d326`.
+- Submitted ODEX jobs:
+  - preflight `15142.anode01`, completed `Exit_status=0`;
+  - control `15143.anode01`, running on `C8`.
+- Submitted npt5 scale-up for `npt5_r0055_m500`, 32 seeds x 50000 cycles,
+  `fb_norefine` only, current default ODEX sequence:
+  - active chunks `15149-15152.anode01`;
+  - merge/readback `15153.anode01`, held afterok on chunks.
+- Two npt5 wrapper attempts are explicitly discarded:
+  - `15137-15140` exited before science and did not capture stdout;
+  - `15144-15147` captured FileNotFoundError for unsynced
+    `docs/production_comparison_formalized_assist_bridge_32seed_50k_nofb_withfb.json`.
+    v3 uses the existing
+    `docs/production_comparison_official_dfols_20260511_32seed_50k_nofb_withfb.json`.
+- Runbook:
+  `runbooks/SPLIT_ODEX_SEQUENCE_AND_NPT5_SCALEUP_20260513.md`.
+
+## 2026-05-13 JST - ODEX Legacy Sequence Control Readback
+
+- Job `15143.anode01` completed with `Exit_status=0`.
+- Output root:
+  `output/tests/odex_legacy_sequence_control/odex_legacy_sequence_ntqn_control_20260513_10s10k_v1`.
+- Rows: `10/10`; aggregate, per-seed table, and report are present.
+- Result:
+  - failures `3364`;
+  - RG rejects `823`;
+  - mean Re/Im `+0.0855276962/-0.0200646225`;
+  - Zmean Re/Im `+2.465072/-0.681683`;
+  - mean runtime `1347.606s`.
+- Baseline comparison: current IWORK3 NT+QN assist control had failures `3394`,
+  RG rejects `988`, and mean Re/Im `+0.0830396450/+0.0065988950`.
+- Interpretation: reverting ODEX nstep/ak sequence to `2,4,6,12,18,36,...`
+  does not recover old assist-on density.  It changes details slightly, but is
+  not the missing effect.
+
+## 2026-05-14 JST - Production hold after assist resolution
+
+- User reported the assist discrepancy/root-cause problem is solved and selected
+  a tree-convergence plan.
+- Keep the assist/QN/ODEX/npt5 readbacks as diagnostic evidence, but do not
+  continue that diagnostic scale-up tree as the active production path.
+- Active production-comparison state is hold-for-modernization-fix.
+- Next production action: after modernization is fixed, refresh job/worktree
+  state, sync the production-comparison tree to the selected fixed commit, then
+  regenerate production from a clean namespace.
+
+## 2026-05-15 JST - Codex State Cleanup After Assist Deletion Baseline
+
+- Remote queue is empty and the production-comparison worktree is clean at
+  commit `ae777294814955f7f7935fc386a6172bcd30651f`.
+- The old `qn_assist_npt5_r0055_scale32_20260513_6f98b5b_32s50k_v3` row is no
+  longer active; it was archived under `pre_rngv2_qn_assist_20260514` and
+  superseded by the RNG-v2 diagnostics.
+- The RNG-v2 all-navigation npt5_r0055 32seed/50k diagnostic is recorded as
+  negative recovery evidence: `withfb` failures `25881`, mean Re
+  `0.03420261820536729`, above the old assist-on failure reference `19579`.
+- Current source line is modernization assist deletion against the official
+  DFO-LS npt5_r0055 assist-off baseline, not continued assist scale-up.

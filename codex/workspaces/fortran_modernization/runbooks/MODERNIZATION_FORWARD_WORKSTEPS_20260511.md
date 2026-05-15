@@ -33,6 +33,7 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 - `CV-009`: closed for the pre-redo gate. Retained Newton/RATTLE/QN/HMC/RG cores now have deterministic guardrails for Newton replay, successful RATTLE/RG pass replay, BTN residual reconstruction, official package-success route census, stub no-fallback behavior, RG reject stay-put identity, failure-as-rejection accounting, and a branch/measure harness recorded by `f14_complete_pre_redo_gate.py`.
 - `CV-010`: closed for the pre-redo gate. Local transition accounting now uses `tltm_local_transition_event_t`, `F4_LOCAL_TRANSITION_AUDIT_V1` freezes the typed audit context, and M4 validates audit row invariants plus reverse-gate counter identities.
 - `CV-011`: route-B RNG streams and the first top-level HMC context slice are implemented; full OpenMP/thread-safe productization is still unfinished productization foundation.
+- `CV-012`: active handwritten-algorithm detail signoff caveat.  Reference-backed core mapping, deterministic guardrails, F8/M4, and production readbacks do not prove every hand-authored controller/detail branch against the defining papers.  Use `HANDWRITTEN_ALGORITHM_DETAIL_AUDIT_GAP_REPORT_20260514.md`, `ODEX_CONTROLLER_DETAIL_AUDIT_20260514.md`, and `HANDWRITTEN_ALGORITHM_CURRENT_ANALYSIS_REPORT_20260514.md` before making paper-level implementation claims or changing controller constants/branches as cleanup.
 
 ## Forward Queue
 
@@ -54,6 +55,7 @@ This queue supersedes any interpretation that M2/M6 means the numerical/software
 | F12 | unified wrapper/product interface | gated | after-F14-redo-scope | wrapper runs same Stage2/Stage3 protocol with v1 sidecars | no public behavior replacement without compatibility layer |
 | F13 | RNG/reentrancy/module workspace migration | active | yes | route-B per-replica/per-slot RNG streams and post-B deterministic reference anchor are implemented; `decompose2`, QN linear-solver, and Newton hidden scratch workspaces are migrated; user selected top-level TLTM run context route A; first HMC context slice is threaded through Stage1/Stage2 local updates | deterministic serial/reentrant comparisons exist |
 | F14 | publication-grade production regeneration | external_redo_tree | no, outside modernization | F3/F4/F7/F8 pre-redo gates pass, CV-001 kernel correctness is closed, CV-006 claim policy is closed, and modernization can provide a frozen commit/contract | production redo scope/scale, target commit/worktree, and CV-002 promotion boundary stay in `tltm_production_comparison` |
+| F17 | handwritten algorithm detail audit | active | yes | Audit body is now present: `ODEX_CONTROLLER_DETAIL_AUDIT_20260514.md` completes the first ODEX controller pass and `HANDWRITTEN_ALGORITHM_CURRENT_ANALYSIS_REPORT_20260514.md` records the current project-wide classification | convert ODEX controller open-needs-proof surfaces into deterministic tests and explicit accept/patch decisions, then continue BTN/QN, RATTLE, Stage2, and diagnostics detail packets |
 
 ## What Can Continue Before Pre-Redo
 
