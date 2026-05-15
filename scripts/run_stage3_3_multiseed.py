@@ -1335,7 +1335,16 @@ def method_item(name):
     spec = METHOD_SPECS.get(name)
     if spec is None:
         raise ValueError("Unknown method: {0}".format(name))
-    return (name, bool(spec["fallback_enabled"]), dict(spec.get("env_overrides", {})))
+    env_overrides = dict(spec.get("env_overrides", {}))
+    assist_policy_override = os.environ.get("TLTM_STAGE3_METHOD_ASSIST_POLICY", "").strip()
+    assist_enabled_override = os.environ.get("TLTM_STAGE3_METHOD_ASSIST_ENABLED", "").strip()
+    if assist_policy_override:
+        env_overrides["INTODE_SOLVER_ASSIST_POLICY"] = assist_policy_override
+        env_overrides.pop("INTODE_SOLVER_ASSIST_ENABLED", None)
+    elif assist_enabled_override:
+        env_overrides["INTODE_SOLVER_ASSIST_ENABLED"] = assist_enabled_override
+        env_overrides.pop("INTODE_SOLVER_ASSIST_POLICY", None)
+    return (name, bool(spec["fallback_enabled"]), env_overrides)
 
 
 def selected_method_names(methods):
