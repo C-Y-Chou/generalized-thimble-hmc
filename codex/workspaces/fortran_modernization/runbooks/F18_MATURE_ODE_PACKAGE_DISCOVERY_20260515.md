@@ -334,6 +334,60 @@ After these jobs completed, the remote worktree no longer needed to stay
 pinned at `a1c5704`; it should be fast-forwarded through `6d322cd` or the
 latest local docs/source head before new source/PBS work.
 
+## Post-Readback Remote Sync
+
+After both CVODE comparison jobs reached `Exit_status=0`, the remote
+modernization worktree was fast-forwarded to:
+
+```text
+7dac27df46e0bcd8323e4c037f20a3480198ecf8
+```
+
+The worktree was clean and no PBS jobs were active at refresh.
+
+The enabled CVODE binaries were rebuilt after fast-forward. A clean rebuild
+first exposed that the cluster's system Python 3.11 runtime has
+`/lib64/libpython3.11.so.1.0` but no installed Python 3.11 development headers
+under `/usr/include/python3.11`. To make clean rebuilds reproducible without
+changing TLTM source, a CPython 3.11.11 source/configure header tree was placed
+under the external dependency area:
+
+```text
+/lustre1/home/cychou/TLTM/.deps/src/Python-3.11.11/Include
+/lustre1/home/cychou/TLTM/.deps/build/python-3.11.11-headers
+```
+
+Remote enabled rebuild invocation:
+
+```text
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+PYTHON_EMBED_CFLAGS="-I/lustre1/home/cychou/TLTM/.deps/src/Python-3.11.11/Include -I/lustre1/home/cychou/TLTM/.deps/build/python-3.11.11-headers"
+PYTHON_EMBED_LDFLAGS="/lib64/libpython3.11.so.1.0 -lpthread -ldl -lutil -lm -Xlinker -export-dynamic"
+
+make -C build ENABLE_SUNDIALS_CVODE=1 \
+  SUNDIALS_PREFIX=/lustre1/home/cychou/TLTM/.deps/sundials-7.7.0-cvode-serial \
+  PYTHON_EMBED_CFLAGS="${PYTHON_EMBED_CFLAGS}" \
+  PYTHON_EMBED_LDFLAGS="${PYTHON_EMBED_LDFLAGS}" \
+  ../bin/evaluate_expectations ../bin/test_sundials_cvode_backend_contract
+```
+
+The rebuilt `bin/run_tltm_stage2`, `bin/evaluate_expectations`, and
+`bin/test_sundials_cvode_backend_contract` link against `/lib64/libpython3.11`
+and the SUNDIALS CVODE/fixed-point/nvec/core libraries under the SUNDIALS
+prefix. The enabled contract passed again:
+
+```text
+sundials_cvode_available=T
+endpoint accuracy ok, err 6.5314E-12, steps 64
+forward/backward ok, err 2.0542E-11
+context endpoint ok, err 3.9269E-12
+zero-time ok
+```
+
 ## Local Post-Implementation Gate
 
 At local source head `6d322cd`:

@@ -40,9 +40,9 @@ Updated: 2026-05-15 JST
 - The remote target is now semantically `fortran_modernization`, with branch `codex/fortran-modernization` and worktree `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`.
 - The old `qn_error_handling_validation` remote path/branch is historical and should not be the active target for new modernization work.
 - Latest refresh shows no active PBS jobs. The remote modernization worktree
-  is clean at `a1c57044620c5624e7f467bf1ac3fbed35337863`; before new source or
-  PBS work, fast-forward it through the local docs/source head and rebuild
-  enabled CVODE binaries only if another CVODE run is needed.
+  is clean at `7dac27df46e0bcd8323e4c037f20a3480198ecf8`; enabled CVODE
+  binaries were rebuilt after the fast-forward and the enabled CVODE contract
+  passed again.
 - Embedded official DFO-LS is now the only active QN backend. `QN_SOLVER_BACKEND=internal` is no longer supported; active source warns and uses `official_dfols`.
 - Official DFO-LS backend replacement F2 is accepted for the current representative scope: representative embedded 10seed x 10k gate passed with 1000 captured attempts, 923 embedded-converged attempts, 0 float64 failures, 0 missing replay rows, and 0 embedded-converged regressions.
 - Official DFO-LS production-comparison evidence exists as a completed provisional artifact: `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`, 256 seeds x 200000 cycles for both `nofb` and `withfb`, generated under production-comparison commit `c0e4021`. This artifact predates the latest modernization HEAD and must not be interpreted as a rerun after updating production to the current modernization state.
@@ -165,9 +165,8 @@ campaign
 completed with `no_fb` job `15459.anode01` and `fb_norefine` job
 `15460.anode01`, both `Exit_status=0`. Decide whether CVODE remains
 comparison-only, needs tolerance/backend tuning, or advances to retained-core
-and affected-baseline gates. Before new source/PBS work, fast-forward the
-remote worktree through the local docs/source head. Keep F20 precision/GPU
-readiness as a modernization closeout requirement after the double-precision
-package-backend route is understood. Feedback-kernel measure correctness
-remains a separate audit. Production redo remains owned by the separate
+and affected-baseline gates. Keep F20 precision/GPU readiness as a
+modernization closeout requirement after the double-precision package-backend
+route is understood. Feedback-kernel measure correctness remains a separate
+audit. Production redo remains owned by the separate
 `tltm_production_comparison` tree.
