@@ -1,9 +1,10 @@
 module solve_flow
    use param_mod, only: at, rt
+   use runtime_env_mod, only: read_string_env
    use utils, only: dp, complex_to_real, map_to_complex, real_to_complex
    use model, only: ds, hessian_vec
    use odex_backend, only: build_nsteps, ensure_odex_workspace_object, ode_rhs, ode_rhs_context, &
-                           odex_apply_runtime_backend_options, odex_backend_default_options => odex_default_options, &
+                           odex_apply_backend_name, odex_backend_default_options => odex_default_options, &
                            odex_integrate_endpoint, odex_integrate_endpoint_context, odex_k_max, odex_k_min, odex_max_steps_default, &
                            odex_options, odex_reason_h_min, odex_reason_invalid, odex_reason_max_steps, &
                            odex_reason_none, odex_result, odex_result_mark_failure, odex_result_mark_success, &
@@ -95,9 +96,12 @@ contains
    subroutine odex_default_options(options)
       implicit none
       type(odex_options), intent(out) :: options
+      character(len=128) :: backend_token
+      logical :: has_backend
 
       call odex_backend_default_options(options, at, rt)
-      call odex_apply_runtime_backend_options(options)
+      call read_string_env("TLTM_ODE_BACKEND", backend_token, has_backend)
+      if (has_backend) call odex_apply_backend_name(options, backend_token)
    end subroutine odex_default_options
 
    subroutine intode(f, y, t, res, error_flag, status)

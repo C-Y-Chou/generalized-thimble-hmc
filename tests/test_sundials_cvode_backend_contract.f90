@@ -35,6 +35,7 @@ program test_sundials_cvode_backend_contract
    use odex_backend, only: odex_backend_kind_sundials_cvode, odex_default_options, odex_integrate_endpoint, &
                            odex_integrate_endpoint_context, odex_options, odex_result, odex_status_success, &
                            odex_status_success_zero_time, odex_sundials_cvode_available, odex_workspace
+   use runtime_env_mod, only: parse_logical_env
    use test_sundials_cvode_backend_rhs, only: exp_lambda, rhs_context_t, rhs_exp, rhs_exp_context
    use utils, only: dp
    implicit none
@@ -43,7 +44,8 @@ program test_sundials_cvode_backend_contract
    logical :: expect_available
 
    failures = 0
-   expect_available = env_is_enabled("TLTM_EXPECT_SUNDIALS_CVODE")
+   expect_available = .false.
+   call parse_logical_env("TLTM_EXPECT_SUNDIALS_CVODE", expect_available)
 
    write (*, '(A)') "[INIT] SUNDIALS CVODE backend contract starts."
    write (*, '(A,L1)') "[CHECK] sundials_cvode_available=", odex_sundials_cvode_available()
@@ -179,35 +181,5 @@ contains
          write (*, '(A)') "[FAIL] SUNDIALS CVODE zero-time contract failed."
       end if
    end subroutine check_zero_time
-
-   logical function env_is_enabled(name) result(enabled)
-      character(len=*), intent(in) :: name
-      character(len=32) :: env_text
-      integer :: env_len, env_status
-
-      enabled = .false.
-      env_text = ""
-      call get_environment_variable(name, env_text, length=env_len, status=env_status)
-      if (env_status /= 0 .or. env_len <= 0) return
-
-      select case (trim(to_lower_ascii(adjustl(env_text(1:min(env_len, len(env_text)))))))
-      case ("1", "true", "t", "yes", "y", "on")
-         enabled = .true.
-      case default
-         enabled = .false.
-      end select
-   end function env_is_enabled
-
-   pure function to_lower_ascii(text) result(lower)
-      character(len=*), intent(in) :: text
-      character(len=len(text)) :: lower
-      integer :: i, code
-
-      lower = text
-      do i = 1, len(text)
-         code = iachar(text(i:i))
-         if (code >= iachar("A") .and. code <= iachar("Z")) lower(i:i) = achar(code + iachar("a") - iachar("A"))
-      end do
-   end function to_lower_ascii
 
 end program test_sundials_cvode_backend_contract

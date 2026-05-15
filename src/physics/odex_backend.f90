@@ -116,7 +116,7 @@ module odex_backend
    public :: ode_rhs_context
 
    public :: build_nsteps
-   public :: odex_apply_runtime_backend_options
+   public :: odex_apply_backend_name
    public :: odex_backend_name
    public :: odex_default_options
    public :: ensure_odex_workspace_object
@@ -155,13 +155,9 @@ contains
       options%stability_growth_limit = 4.0_dp
    end subroutine odex_default_options
 
-   subroutine odex_apply_runtime_backend_options(options)
+   subroutine odex_apply_backend_name(options, backend_token)
       type(odex_options), intent(inout) :: options
-      character(len=128) :: backend_token
-      logical :: has_backend
-
-      call odex_read_env_token("TLTM_ODE_BACKEND", backend_token, has_backend)
-      if (.not. has_backend) return
+      character(len=*), intent(in) :: backend_token
 
       select case (trim(odex_to_lower_ascii(backend_token)))
       case ("odex", "internal", "default")
@@ -171,7 +167,7 @@ contains
       case default
          options%backend = -1
       end select
-   end subroutine odex_apply_runtime_backend_options
+   end subroutine odex_apply_backend_name
 
    function odex_backend_name(backend) result(name)
       integer, intent(in) :: backend
@@ -1291,24 +1287,6 @@ contains
          end if
       end do
    end function vector_has_invalid
-
-   subroutine odex_read_env_token(name, value, found)
-      character(len=*), intent(in) :: name
-      character(len=*), intent(out) :: value
-      logical, intent(out) :: found
-      integer :: env_len, env_status, copy_len
-      character(len=len(value)) :: env_text
-
-      value = ""
-      env_text = ""
-      found = .false.
-      call get_environment_variable(name, env_text, length=env_len, status=env_status)
-      if ((env_status == 0 .or. env_status == -1) .and. env_len > 0) then
-         copy_len = min(env_len, len(value))
-         value = adjustl(env_text(1:copy_len))
-         found = (len_trim(value) > 0)
-      end if
-   end subroutine odex_read_env_token
 
    pure function odex_to_lower_ascii(text) result(lower)
       character(len=*), intent(in) :: text
