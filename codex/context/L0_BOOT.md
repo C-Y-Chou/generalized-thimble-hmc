@@ -1,6 +1,6 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-15T16:02:12+09:00
+Generated: 2026-05-15T16:12:26+09:00
 Remote refreshed: 2026-05-15T15:58:24+09:00
 
 ## Canonical Entry
@@ -27,7 +27,7 @@ Remote refreshed: 2026-05-15T15:58:24+09:00
 
 ## Active Local Risk
 
-- `local_legacy_diagnostic_checkout`: branch `codex/tltm-observable-regression-10k-isolation`, commit `9d9e13c11a403cfa70c5f34af8fdfbd8bdbdc758`, dirty `14`, ahead `0`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
+- No local worktree risk recorded in `codex/state/LOCAL_WORKTREES.tsv`.
 
 ## Active/Pending Jobs
 
