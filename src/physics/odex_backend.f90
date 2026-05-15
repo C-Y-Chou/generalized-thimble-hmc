@@ -147,6 +147,11 @@ module odex_backend
    public :: ensure_odex_workspace_object
    public :: odex_integrate_endpoint
    public :: odex_integrate_endpoint_context
+   public :: odex_observe_controller_estimate
+   public :: odex_observe_h_min
+   public :: odex_observe_initial_step
+   public :: odex_observe_large_error_threshold
+   public :: odex_observe_stability_reject
    public :: odex_result_reset
    public :: odex_result_mark_success
    public :: odex_result_mark_failure
@@ -1137,6 +1142,75 @@ contains
          nsteps(i) = odex_iwork3_nstep(i)
       end do
    end subroutine build_nsteps
+
+   subroutine odex_observe_h_min(options, t, h_min, h_min_fp, h_min_tol, h_min_span)
+      type(odex_options), intent(in) :: options
+      real(dp), intent(in) :: t
+      real(dp), intent(out) :: h_min
+      real(dp), intent(out), optional :: h_min_fp, h_min_tol, h_min_span
+      type(odex_options) :: opts
+      real(dp) :: fp_component, tol_component, span_component
+
+      opts = options
+      call odex_normalize_options(opts)
+      fp_component = opts%h_min_c_fp*epsilon(1.0_dp)*max(1.0_dp, abs(t))
+      tol_component = opts%h_min_c_tol*max(opts%abs_tol, opts%rel_tol, epsilon(1.0_dp))
+      span_component = opts%h_min_c_span*abs(t)
+      h_min = max(fp_component, min(tol_component, span_component))
+      if (present(h_min_fp)) h_min_fp = fp_component
+      if (present(h_min_tol)) h_min_tol = tol_component
+      if (present(h_min_span)) h_min_span = span_component
+   end subroutine odex_observe_h_min
+
+   function odex_observe_initial_step(options, t) result(h_initial)
+      type(odex_options), intent(in) :: options
+      real(dp), intent(in) :: t
+      type(odex_options) :: opts
+      real(dp) :: h_initial, h_min
+
+      opts = options
+      call odex_normalize_options(opts)
+      call odex_observe_h_min(opts, t, h_min)
+      h_initial = t*opts%initial_step_fraction
+      if (h_initial == 0.0_dp) h_initial = sign(h_min, t)
+   end function odex_observe_initial_step
+
+   subroutine odex_observe_controller_estimate(workspace, h, er1, k, h_candidate, work_estimate)
+      type(odex_workspace), intent(in) :: workspace
+      real(dp), intent(in) :: h, er1
+      integer, intent(in) :: k
+      real(dp), intent(out) :: h_candidate, work_estimate
+      integer :: kc
+
+      kc = max(1, k)
+      if (.not. workspace%tables_ready .or. workspace%table_k < kc) then
+         h_candidate = 0.0_dp
+         work_estimate = huge(1.0_dp)
+         return
+      end if
+
+      h_candidate = calculate_hk(h, er1, kc, workspace)
+      work_estimate = calculate_wk(h, er1, kc, workspace)
+   end subroutine odex_observe_controller_estimate
+
+   function odex_observe_large_error_threshold(k) result(threshold)
+      integer, intent(in) :: k
+      integer :: kc
+      real(dp) :: threshold
+
+      kc = max(1, k)
+      threshold = real((kc*kc + 1)**2, dp)
+   end function odex_observe_large_error_threshold
+
+   logical function odex_observe_stability_reject(values, prev_norm, dt, options) result(reject)
+      real(dp), intent(in) :: values(:), prev_norm, dt
+      type(odex_options), intent(in) :: options
+      type(odex_options) :: opts
+
+      opts = options
+      call odex_normalize_options(opts)
+      reject = odex_stability_reject(values, prev_norm, dt, opts)
+   end function odex_observe_stability_reject
 
    integer function odex_iwork3_nstep(idx) result(nstep)
       integer, intent(in) :: idx

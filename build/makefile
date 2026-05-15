@@ -204,6 +204,7 @@ SOURCES_TEST_ODEX_ASSIST_POLICY := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_assis
 SOURCES_TEST_ODEX_RESULT := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_result_contract.f90
 SOURCES_TEST_ODEX_FLOW_JAC := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_flow_jacobian_contract.f90
 SOURCES_TEST_ODEX_BACKEND_PACKAGE := $(call mk_src,core/utils core/lapack_fallback physics/odex_backend) $(TEST_DIR)/test_odex_backend_package_contract.f90
+SOURCES_TEST_ODEX_CONTROLLER_OBSERVATION := $(call mk_src,core/utils core/lapack_fallback physics/odex_backend) $(TEST_DIR)/test_odex_controller_observation_contract.f90
 SOURCES_TEST_SUNDIALS_CVODE_BACKEND := $(call mk_src,core/utils core/lapack_fallback config/runtime_env_mod physics/odex_backend) $(TEST_DIR)/test_sundials_cvode_backend_contract.f90
 SOURCES_TEST_OFFICIAL_DFOLS_PRESET := $(SOURCES_COMMON) $(TEST_DIR)/test_official_dfols_preset_contract.f90
 SOURCES_TEST_TLTM_SWAP := $(SOURCES_COMMON) $(TEST_DIR)/test_tltm_swap_kernel_contract.f90
@@ -249,6 +250,8 @@ OBJECTS_TEST_ODEX_FLOW_JAC := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOUR
                               $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_ODEX_FLOW_JAC))) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_TEST_ODEX_BACKEND_PACKAGE := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_ODEX_BACKEND_PACKAGE))) \
                                      $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_ODEX_BACKEND_PACKAGE)))
+OBJECTS_TEST_ODEX_CONTROLLER_OBSERVATION := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_ODEX_CONTROLLER_OBSERVATION))) \
+                                            $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_ODEX_CONTROLLER_OBSERVATION)))
 OBJECTS_TEST_SUNDIALS_CVODE_BACKEND := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_SUNDIALS_CVODE_BACKEND))) \
                                        $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_SUNDIALS_CVODE_BACKEND)))
 OBJECTS_TEST_OFFICIAL_DFOLS_PRESET := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_OFFICIAL_DFOLS_PRESET))) \
@@ -287,6 +290,7 @@ OBJECTS_TEST_ODEX_ASSIST_POLICY += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST_ODEX_RESULT += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST_ODEX_FLOW_JAC += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST_ODEX_BACKEND_PACKAGE += $(SUNDIALS_CVODE_C_OBJECT)
+OBJECTS_TEST_ODEX_CONTROLLER_OBSERVATION += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST_SUNDIALS_CVODE_BACKEND += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST_OFFICIAL_DFOLS_PRESET += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST_TLTM_SWAP += $(SUNDIALS_CVODE_C_OBJECT)
@@ -304,7 +308,8 @@ SOURCES_DEP := $(sort $(SOURCES_STEP2) $(SOURCES_STEP3) $(SOURCES_STEP9) $(SOURC
                 $(SOURCES_STEP10) $(SOURCES_TEST1) $(SOURCES_TEST2) $(SOURCES_TEST_ODEX) \
                 $(SOURCES_TEST_ODEX_FOUNDATION) $(SOURCES_TEST_ODEX_ASSIST_POLICY) \
                 $(SOURCES_TEST_ODEX_RESULT) $(SOURCES_TEST_ODEX_FLOW_JAC) \
-                $(SOURCES_TEST_ODEX_BACKEND_PACKAGE) $(SOURCES_TEST_SUNDIALS_CVODE_BACKEND) \
+                $(SOURCES_TEST_ODEX_BACKEND_PACKAGE) $(SOURCES_TEST_ODEX_CONTROLLER_OBSERVATION) \
+                $(SOURCES_TEST_SUNDIALS_CVODE_BACKEND) \
                 $(SOURCES_TEST_OFFICIAL_DFOLS_PRESET) $(SOURCES_TEST_TLTM_SWAP) $(SOURCES_TEST_MT95_STATE) \
                 $(SOURCES_TEST_TLTM_RNG) \
                 $(SOURCES_TEST_PERF_PROFILE) $(SOURCES_TEST_HMC_REVERSIBILITY) $(SOURCES_TEST_NEWTON_FLOW_STATUS) \
@@ -327,7 +332,8 @@ BINARIES     = generate_markov_chain evaluate_expectations \
                evaluate_btn_residual_case \
                test_program test_program2 test_odex_solver test_odex_foundation_contract \
                test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract \
-               test_odex_backend_package_contract test_sundials_cvode_backend_contract \
+               test_odex_backend_package_contract test_odex_controller_observation_contract \
+               test_sundials_cvode_backend_contract \
                test_official_dfols_preset_contract test_tltm_swap_kernel_contract \
                test_mt95_state_contract test_tltm_rng_contract \
                test_perf_profile_context_contract test_hmc_reversibility_context_contract \
@@ -342,7 +348,7 @@ EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 .DEFAULT_GOAL := all
 override FFLAGS := $(FFLAGS_OPT) $(FFLAGS_INC)
 
-.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_sundials_cvode_backend_contract test_official_dfols_preset_contract evaluate_btn_residual_case test_tltm_swap_kernel_contract test_mt95_state_contract test_tltm_rng_contract test_perf_profile_context_contract test_hmc_reversibility_context_contract test_newton_eval_flow_status_context_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails f14_pre_redo_complete_gate official_line_kernel_correctness_gate post_b_rng_reference_anchor stage2_rng_v2_anchor script_evidence_audit_gate FORCE \
+.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_odex_controller_observation_contract test_sundials_cvode_backend_contract test_official_dfols_preset_contract evaluate_btn_residual_case test_tltm_swap_kernel_contract test_mt95_state_contract test_tltm_rng_contract test_perf_profile_context_contract test_hmc_reversibility_context_contract test_newton_eval_flow_status_context_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails f14_pre_redo_complete_gate official_line_kernel_correctness_gate post_b_rng_reference_anchor stage2_rng_v2_anchor script_evidence_audit_gate FORCE \
         test1_fb_on test1_fb_off test2_fb_on test2_fb_off test_fb_matrix \
         prepare_outputs clean_outputs clean veryclean
 all: regen_model_derivatives $(EXECUTABLES)
@@ -422,6 +428,9 @@ $(BIN_DIR)/test_odex_flow_jacobian_contract: $(OBJECTS_TEST_ODEX_FLOW_JAC) $(OFF
 $(BIN_DIR)/test_odex_backend_package_contract: $(OBJECTS_TEST_ODEX_BACKEND_PACKAGE) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
 
+$(BIN_DIR)/test_odex_controller_observation_contract: $(OBJECTS_TEST_ODEX_CONTROLLER_OBSERVATION) | $(BIN_DIR)
+	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
+
 $(BIN_DIR)/test_sundials_cvode_backend_contract: $(OBJECTS_TEST_SUNDIALS_CVODE_BACKEND) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
 
@@ -496,6 +505,7 @@ help:
 	@echo "  make test_odex_result_contract - run ODEX result/workspace/status contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_odex_flow_jacobian_contract - run ODEX flow/Jacobian deterministic contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_odex_backend_package_contract - run standalone ODEX backend package contract test (log -> $(OUT_LOG_DIR))"
+	@echo "  make test_odex_controller_observation_contract - run ODEX controller observation contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_sundials_cvode_backend_contract - run SUNDIALS CVODE backend contract test, skipping if the bridge is stubbed (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_official_dfols_preset_contract - run official DFO-LS backend/preset policy contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make evaluate_btn_residual_case - build offline BTN residual bridge for external DFO-LS comparison"
@@ -674,6 +684,9 @@ test_odex_flow_jacobian_contract: $(BIN_DIR)/test_odex_flow_jacobian_contract pr
 
 test_odex_backend_package_contract: $(BIN_DIR)/test_odex_backend_package_contract prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_odex_backend_package_contract 2>&1 | tee $(OUT_LOG_DIR)/test_odex_backend_package_contract.log
+
+test_odex_controller_observation_contract: $(BIN_DIR)/test_odex_controller_observation_contract prepare_outputs
+	@set -o pipefail; $(BIN_DIR)/test_odex_controller_observation_contract 2>&1 | tee $(OUT_LOG_DIR)/test_odex_controller_observation_contract.log
 
 test_sundials_cvode_backend_contract: $(BIN_DIR)/test_sundials_cvode_backend_contract prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_sundials_cvode_backend_contract 2>&1 | tee $(OUT_LOG_DIR)/test_sundials_cvode_backend_contract.log

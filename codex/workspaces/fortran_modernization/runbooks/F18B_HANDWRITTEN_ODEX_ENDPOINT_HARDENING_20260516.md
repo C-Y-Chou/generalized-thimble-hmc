@@ -3,7 +3,8 @@
 Date: 2026-05-16 JST
 Scope: `src/physics/odex_backend.f90`, the `solve_flow:intode*` endpoint
 wrapper path, and deterministic endpoint-flow tests.
-Status: active plan; source unchanged in this decision packet.
+Status: F18b.0/F18b.1 source map and observation contract implemented; no
+production ODEX integration behavior change intended.
 
 ## Decision
 
@@ -77,6 +78,93 @@ The list above is not yet accepted TLTM policy.  It is the decision surface:
 first observe and test current behavior, then explicitly decide whether each
 item is accepted as TLTM endpoint policy, patched toward Hairer-style behavior,
 or deferred behind a product-scope boundary.
+
+## F18b.0 Source Map
+
+This map records where controller behavior currently lives.  It is evidence
+for later decisions, not a claim that the choices are already paper-correct.
+
+| Surface | Source owner | Current behavior | F18b status |
+| --- | --- | --- | --- |
+| Runtime knobs | `odex_options` | Stores backend, tolerance, order limits, max steps, CVODE knobs, `h_min_*`, `initial_step_fraction`, and optional conservative stability knobs. | observe first |
+| Result/status contract | `odex_result`, `odex_result_mark_*`, `odex_result_to_intode_status` | Reports endpoint success, zero-time success, max-step failure, invalid failure, h-min failure, counters, final order/step, and CVODE diagnostics. | observe first |
+| Workspace tables | `odex_workspace`, `ensure_odex_workspace_object`, `ensure_odex_tables` | Owns extrapolation tableaux, midpoint state buffers, `nsteps`, `ak`, inverse exponents, and ratios. | observe first |
+| Endpoint controller | `odex_integrate_endpoint*` | Normalizes options, handles zero time, selects ODEX vs CVODE, computes h-min, initializes `h = t * initial_step_fraction`, truncates the final step, accepts on `er1 < 1`, rejects otherwise, and classifies max-step/h-min/invalid failure. | observe first |
+| Step controller | `odex_step*` | Builds midpoint/extrapolation rows, applies optional conservative stability rejection, evaluates order branches, and returns signed next `h`, order, result, and normalized error estimate. | observe first |
+| Step sequence | `build_nsteps`, `odex_iwork3_nstep` | Hairer `IWORK(3)=3` sequence `2,4,6,8,12,16,24,32,...`. | freeze as TLTM endpoint policy |
+| Work estimate | `calculate_ak`, `calculate_wk` | `ak` uses the same `IWORK(3)=3` helper; `wk` is positive through `abs(h)`. | observe first |
+| Step estimate | `calculate_hk` | Candidate step keeps the sign of the current interval and uses the `1.0e-14` error floor. | observe first |
+| Observation seam | `odex_observe_*` helpers | Public test/readback helpers expose current h-min, first step, controller estimate, large-error threshold, and stability predicate without changing the production integration path. | F18b.1 guardrail |
+
+## F18b.0 Decision Table
+
+| Controller surface | Classification now | Behavior-changing if patched? | Required gate before patch |
+| --- | --- | --- | --- |
+| Hairer `IWORK(3)=3` sequence | `freeze_as_TLTM_policy` | yes | F8 statement, focused ODEX tests, M4, affected baseline |
+| `h0 = t * initial_step_fraction` | `test_current_behavior_first` | yes | F18b.2 decision, F8 statement, focused ODEX tests, M4, affected baseline |
+| h-min floor and h-min failure status | `test_current_behavior_first` | yes | F18b.2 decision, F8 statement, focused ODEX tests, M4, affected baseline |
+| explicit growth/shrink step-size bounds | `candidate_behavior_change` | yes | F18b.2 decision plus smallest useful affected-baseline screen |
+| order promotion/demotion predicates | `test_current_behavior_first` | yes | F18b.2 decision, branch tests, M4, affected baseline |
+| rejected-step controller behavior | `test_current_behavior_first` | yes | F18b.2 decision, failure/rejection tests, M4, affected baseline |
+| large-error demotion threshold `(k*k + 1)**2` | `test_current_behavior_first` | yes | F18b.2 decision, branch tests, M4, affected baseline |
+| controller error floor `1.0e-14` | `test_current_behavior_first` | yes | F18b.2 decision, tolerance/precision impact statement, M4, affected baseline |
+| signed interval with positive work estimate | `test_current_behavior_first` | yes | F18b.2 decision, forward/backward endpoint tests, M4, affected baseline |
+| default no-stability-control policy | `test_current_behavior_first` | yes | F18b.2 decision, stability tests, M4, affected baseline |
+| optional conservative stability branch | `defer_to_product_scope` unless selected | yes | explicit product-policy decision and affected-baseline screen |
+
+## F18b.1 Observation Contract
+
+Implemented `test_odex_controller_observation_contract`, wired into
+`build/makefile` and M4.  The focused test freezes the current behavior at the
+controller-observation level:
+
+- `h0` helper reports `0.01 * t` for short and long signed intervals;
+- h-min observation matches the current `fp`, `tol`, and `span` component
+  formula;
+- `build_nsteps` reports `2,4,6,8,12,16` for the first six rows;
+- signed `calculate_hk` and positive `calculate_wk` behavior is observable;
+- the `1.0e-14` controller error floor and large-error threshold are frozen;
+- negative endpoint integration preserves a negative final step;
+- max-step failure classifies as `odex_status_failure_max_steps`;
+- invalid RHS rejection classifies through h-min failure after repeated
+  rejection;
+- default stability control does not reject, while the conservative predicate
+  rejects only when both size and growth conditions are met.
+
+This test is a current-behavior freeze.  It does not decide whether the open
+surfaces are accepted TLTM endpoint policy or candidates for a later
+behavior-changing patch.
+
+Focused readback:
+
+```text
+make -C build FC=gfortran LDFLAGS= test_odex_controller_observation_contract
+```
+
+Result:
+
+- `h0_hmin_observation ok=T`, with `h_short=2.5000E-03`,
+  `h_long=-5.0000E-02`, and `h_min=2.5000E-13`;
+- `sequence_work_observation ok=T`, with signed `h_candidate=-1.3469E-01`
+  and positive `work=1.5592E+02`;
+- `signed_endpoint_observation ok=T`, status `0`, negative final step, and
+  endpoint error `4.9960E-16`;
+- `max_steps_failure_observation ok=T`, status `101`, accepted steps `1`,
+  and `t_remaining=7.5000E-01`;
+- `hmin_failure_observation ok=T`, status `103`, rejected steps `35`;
+- `stability_observation ok=T`, default `none=F`, conservative `large=T`,
+  and `small_dt=F`.
+
+Full local guardrail:
+
+```text
+PYTHON="$PWD/.venv-dfols/bin/python" \
+TLTM_OFFICIAL_DFOLS_PYTHONPATH="$($PWD/.venv-dfols/bin/python -c 'import site; print(site.getsitepackages()[0])')" \
+python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --keep-going
+```
+
+Result: `[M4][SUMMARY] all guardrails passed`, artifacts under
+`output/tests/m4_guardrails`.
 
 ## Hard Rules For This Slice
 

@@ -1133,3 +1133,21 @@
   freeze current `h0`, h-min, step/order, rejection, signed-interval, and
   stability behavior as evidence for later decisions, not as already-set
   policy.
+
+## 2026-05-16 JST - F18b.0/F18b.1 ODEX controller observation implemented
+
+- Added behavior-neutral `odex_observe_*` helpers for h-min, first-step,
+  controller step/work estimates, large-error threshold, and conservative
+  stability predicate.
+- Added `test_odex_controller_observation_contract` and wired it into the
+  build plus M4.
+- The focused contract freezes current `h0 = 0.01*t`, h-min component formula,
+  `IWORK(3)=3` rows, signed `h`/positive work estimate, `1.0e-14` error floor,
+  max-step failure, NaN-RHS rejection-to-h-min behavior, and default/off vs
+  conservative stability predicate behavior.
+- Updated the F18b runbook, workstream matrix, state brief, and open items so
+  the next step is F18b.2 accept/patch/defer decision work before any
+  behavior-changing ODEX controller patch.
+- Verification passed: focused controller observation target, `python3 -m
+  py_compile scripts/run_m4_guardrails.py scripts/fortran_module_deps.py`,
+  `git diff --check`, and full M4 with official DFO-LS venv.
