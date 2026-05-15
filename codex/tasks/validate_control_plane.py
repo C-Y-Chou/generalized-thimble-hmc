@@ -168,13 +168,13 @@ def main() -> int:
         fail("HANDOFF_MIN.txt does not mark New project/TLTM_repo as legacy", errors)
     local_targets = read_tsv(root / "codex/state/LOCAL_TARGETS.tsv")
     if not any(
-        row.get("target_id") == "local_canonical_official_dfols"
+        row.get("target_id") == "local_fortran_modernization"
         and row.get("path") == "/Users/ccy/Documents/TLTM_qn_error_handling"
         for row in local_targets
     ):
         fail("LOCAL_TARGETS.tsv does not contain canonical official-DFO-LS local target", errors)
     if not any(
-        row.get("target_id") == "local_legacy_control_plane_checkout"
+        row.get("target_id") == "local_legacy_diagnostic_checkout"
         and "Legacy" in row.get("purpose", "")
         for row in local_targets
     ):
@@ -188,7 +188,7 @@ def main() -> int:
     ):
         fail("REMOTE_TARGETS.tsv does not contain canonical fortran_modernization execution target", errors)
     if not any(
-        row.get("target_id") == "tltm_production_comparison_provisional"
+        row.get("target_id") == "tltm_production_comparison"
         and row.get("worktree_path") == "/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison"
         and row.get("branch") == "codex/tltm-production-comparison-official-dfols"
         for row in remote_targets

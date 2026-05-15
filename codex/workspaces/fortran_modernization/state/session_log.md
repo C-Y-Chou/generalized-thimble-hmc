@@ -1078,3 +1078,12 @@
 - Full M4 build/smoke/science checks passed on the first attempt; M4 correctly failed governance because new source/script files were still untracked and must be staged before final evidence acceptance.
 - After intentional staging, full M4 guardrails passed with the new source/script files included.
 - The production-comparison branch/worktree was synchronized to the committed Stage2 RNG v2 modernization state; production should next regenerate from a clean namespace, not from the historical assist-diagnostic outputs.
+
+## 2026-05-16 JST - CVODE max-step fail-fast rejected
+
+- Implemented CVODE-only fail-fast controls at `1d750409`: `TLTM_CVODE_MAX_STEPS`, `TLTM_CVODE_MIN_STEP`, `TLTM_CVODE_MAX_ERR_TEST_FAILS`, `TLTM_CVODE_MAX_CONV_FAILS`, and `TLTM_CVODE_MAX_NONLIN_ITERS`.
+- Local/default validation passed: SUNDIALS stub contract, Stage2/eval build, Stage3 driver py_compile, `git diff --check`, and full M4 guardrails. Remote enabled CVODE build and contract passed, including the deliberate max-step failure case.
+- Ran the 1k fail-fast screen and selected only `TLTM_CVODE_MAX_STEPS=320` for 10seed/10k scale-up; `s100` was pathological, and `s160`/`s240`/combo had unacceptable 1k drift.
+- Ran `cvode_failfast_s320_true_rngv2_assistoff_dfols_npt5_r0055_10seed_10k_20260516T000908_1d750409cf3e`: jobs `15496.anode01` (`no_fb`) and `15497.anode01` (`fb_norefine`) both completed with `Exit_status=0`.
+- Readback is negative despite faster runtime: `no_fb` runtime `696.20`, proposal failures `14941`, mean Re `-0.1730188`, Zmean Re `-3.892`; `fb_norefine` runtime `734.52`, proposal failures `14833`, mean Re `-0.1782486`, Zmean Re `-4.220`.
+- Conclusion: strict CVODE remains disabled-by-default comparison-only; do not scale max-step fail-fast further unless a different package route or non-kernel-changing performance path is explicitly selected.

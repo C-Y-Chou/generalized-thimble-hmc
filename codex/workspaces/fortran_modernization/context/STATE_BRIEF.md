@@ -1,6 +1,6 @@
 # Fortran Modernization State Brief
 
-Updated: 2026-05-15 JST
+Updated: 2026-05-16 JST
 
 ## Read Before Next Solver-Policy Step
 
@@ -32,7 +32,7 @@ Updated: 2026-05-15 JST
 
 ## Current Position
 
-- Current position is `Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected -> flow/ODEX/HMC/QN flow context implemented -> official DFO-LS callback context implemented -> QN trace/eval context implemented -> QN diagnostics context implemented -> QN policy context implemented -> HMC policy/reverse-gate context implemented -> F15 navigation-assist evidence demoted -> profile context implemented -> HMC reversibility diagnostics context implemented -> Newton eval-flow status context implemented -> Stage2 RNG v2 implemented -> assist-off start gate protected -> all-handwritten paper-correctness/numerical-soundness audit complete with explicit non-paper-exact surfaces -> mature ODE backend route selected for ODEX-controller risk -> F19 official DFO-LS thin bridge cleanup implemented through internal-backend deletion -> F15b solver-assist deletion implemented -> F18 SUNDIALS CVODE disabled-by-default backend implemented, local M4-gated, 10seed/10k comparison read back, and fixed-point tuning slice completed with m>0 rejected -> remaining constraint/flow/model/config state boundaries`.
+- Current position is `Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected -> flow/ODEX/HMC/QN flow context implemented -> official DFO-LS callback context implemented -> QN trace/eval context implemented -> QN diagnostics context implemented -> QN policy context implemented -> HMC policy/reverse-gate context implemented -> F15 navigation-assist evidence demoted -> profile context implemented -> HMC reversibility diagnostics context implemented -> Newton eval-flow status context implemented -> Stage2 RNG v2 implemented -> assist-off start gate protected -> all-handwritten paper-correctness/numerical-soundness audit complete with explicit non-paper-exact surfaces -> mature ODE backend route selected for ODEX-controller risk -> F19 official DFO-LS thin bridge cleanup implemented through internal-backend deletion -> F15b solver-assist deletion implemented -> F18 SUNDIALS CVODE disabled-by-default backend implemented, local M4-gated, 10seed/10k comparison read back, fixed-point m>0 rejected, and max-step fail-fast s320 rejected at 10seed/10k -> remaining constraint/flow/model/config state boundaries`.
 - M6 is not "modernization complete" and is not proof that the numerical/software foundation is complete; it is the accepted behavior baseline before larger source refactors resume.
 - The compact source of truth for this positioning is `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`; the reset source of truth for foundation gaps is `runbooks/FOUNDATION_COMPLETENESS_RESET_20260511.md`.
 - M3/M4/M5 modernization infrastructure work is treated as completed, partial, or explicitly deferred by workstream in that matrix.
@@ -40,9 +40,10 @@ Updated: 2026-05-15 JST
 - The remote target is now semantically `fortran_modernization`, with branch `codex/fortran-modernization` and worktree `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`.
 - The old `qn_error_handling_validation` remote path/branch is historical and should not be the active target for new modernization work.
 - Latest refresh shows no active PBS jobs. The remote modernization worktree
-  was fast-forwarded for the CVODE tuning instrumentation at
-  `d9e817fbd5bb8c9ae854a0dc2c38076a446785a6`; enabled CVODE binaries rebuilt
-  and the enabled CVODE contract passed again before the tuning matrix.
+  was fast-forwarded to
+  `1d750409cf3e4b7f15ccb203958a685aa922bf2c`; enabled CVODE binaries rebuilt
+  and the enabled CVODE contract passed, including the deliberate max-step
+  failure case, before the 10seed/10k `s320` fail-fast check.
 - Embedded official DFO-LS is now the only active QN backend. `QN_SOLVER_BACKEND=internal` is no longer supported; active source warns and uses `official_dfols`.
 - Official DFO-LS backend replacement F2 is accepted for the current representative scope: representative embedded 10seed x 10k gate passed with 1000 captured attempts, 923 embedded-converged attempts, 0 float64 failures, 0 missing replay rows, and 0 embedded-converged regressions.
 - Official DFO-LS production-comparison evidence exists as a completed provisional artifact: `official_dfols_gate_20260511_256seed_200k_p28_rg_nofb_withfb`, 256 seeds x 200000 cycles for both `nofb` and `withfb`, generated under production-comparison commit `c0e4021`. This artifact predates the latest modernization HEAD and must not be interpreted as a rerun after updating production to the current modernization state.
@@ -73,7 +74,7 @@ Updated: 2026-05-15 JST
 - Remaining CV-011 state is not just scratch storage: constraint-solver aggregate/reverse-gate path/failure-capture counters, flow/ODEX counters/traces/last-failure snapshot, model tape cache, and config mirror still need migration or explicit product boundaries.
 - Legacy dead-trigger and strange-name cleanup is modernization work when behavior is preserved: audit `eo`, `istest`, `testmom`, `rattle2`, and `decompose2` under F9/W11 with F8 guardrails. Deferred F16 is only for candidate bugs whose fix may intentionally change output, counters, route selection, or public schema meaning.
 - Modernization is not at automatic production-regeneration approval, but the user-selected conservative F3/F4/F7/F8 pre-redo gates are now implemented without reduced-scope acceptance.
-- CV-012 is active but all-handwritten audited: `HANDWRITTEN_ALGORITHM_CURRENT_HEAD_AUDIT_20260515.md` inspected the post-correction source at committed source head `3d63d4c`, and `HANDWRITTEN_ALGORITHM_PAPER_CORRECTNESS_AUDIT_20260515.md` performed the stronger all-handwritten paper-correctness/numerical-soundness audit. No immediate current-route source bug was found. Universal paper-correctness remains blocked. ODEX-controller risk is now routed through `MATURE_ODE_BACKEND_DECISION_20260515.md`: evaluate a mature package backend, with SUNDIALS CVODE primary and ODEPACK fallback, while keeping the handwritten endpoint-only ODEX as the baseline until F8/M4 and affected-baseline gates pass. `F18_MATURE_ODE_PACKAGE_DISCOVERY_20260515.md` records the F18 spike and first implementation: no preinstalled SUNDIALS/ODEPACK was found, remote SUNDIALS v7.7.0 serial CVODE was built under `.deps`, the disabled-by-default CVODE backend was implemented, local/default M4 passed at `d9e817f`, remote CVODE 10seed/10k comparison completed cleanly, and the parallel 10seed/1k fixed-point sweep rejected `TLTM_CVODE_FIXEDPOINT_M=2/4/8`; keep `m=0` as the default optional CVODE setting.
+- CV-012 is active but all-handwritten audited: `HANDWRITTEN_ALGORITHM_CURRENT_HEAD_AUDIT_20260515.md` inspected the post-correction source at committed source head `3d63d4c`, and `HANDWRITTEN_ALGORITHM_PAPER_CORRECTNESS_AUDIT_20260515.md` performed the stronger all-handwritten paper-correctness/numerical-soundness audit. No immediate current-route source bug was found. Universal paper-correctness remains blocked. ODEX-controller risk is now routed through `MATURE_ODE_BACKEND_DECISION_20260515.md`: evaluate a mature package backend, with SUNDIALS CVODE primary and ODEPACK fallback, while keeping the handwritten endpoint-only ODEX as the baseline until F8/M4 and affected-baseline gates pass. `F18_MATURE_ODE_PACKAGE_DISCOVERY_20260515.md` records the F18 spike and implementation/readbacks: no preinstalled SUNDIALS/ODEPACK was found, remote SUNDIALS v7.7.0 serial CVODE was built under `.deps`, the disabled-by-default CVODE backend was implemented, local/default M4 passed, remote CVODE 10seed/10k comparison completed cleanly, the parallel 10seed/1k fixed-point sweep rejected `TLTM_CVODE_FIXEDPOINT_M=2/4/8`, and the `TLTM_CVODE_MAX_STEPS=320` fail-fast 10seed/10k check was rejected because it caused large proposal/failure-surface and observable drift.
 - F20 precision/GPU readiness is active as a modernization closeout requirement. Strict double precision remains the canonical correctness baseline; future single/mixed precision or weaker tolerances must be a separately certified GPU/performance mode and must not be mixed into F18 SUNDIALS/CVODE correctness comparison.
 - Integrated plan: `INTEGRATED_ALGORITHM_MODERNIZATION_PLAN_20260515.md` is the active execution sequence. `OFFICIAL_DFOLS_THIN_BRIDGE_BRANCH_MAP_20260515.md` is the active F19 source map. `F19_OFFICIAL_DFOLS_CERTIFICATION_RENAME_20260515.md`, `F19_OFFICIAL_DFOLS_POLICY_ISOLATION_20260515.md`, and `F19_INTERNAL_DFO_BACKEND_DELETION_20260515.md` record the implemented F19 thin bridge cleanup. `F15_SOLVER_ASSIST_DELETION_20260515.md` records the implemented solver-assist deletion. Keep RATTLE failure-as-rejection as the accepted MCMC policy; next continue mature ODE backend evaluation and the remaining explicit-state/productization queue.
 - F3/CV-009 is closed for the pre-redo gate: retained-core tests cover Newton replay, successful one-step RATTLE/RG pass replay, BTN residual reconstruction, official package-success route census, stub no-fallback route behavior, RG reject/live-state identity, and failure-as-rejection accounting; `f14_complete_pre_redo_gate.py` records the branch/measure harness.
@@ -159,13 +160,15 @@ Updated: 2026-05-15 JST
 
 Start the next modernization patch from `/Users/ccy/Documents/TLTM_qn_error_handling` on `codex/fortran-modernization`, not from the legacy diagnostic checkout. F15b source deletion and M4 are complete; before production-comparison sync/regeneration from this patch, rerun the direct `npt5_r0055` 10seed/10k PBS wrapper from `ASSIST_DELETION_NPT5_ASSISTOFF_BASELINE_20260515.md` at the clean selected commit, or explicitly record a narrower affected-baseline decision.
 
-The next operational step is F18 decision/tuning after the first fixed-point
-sweep: the 10seed/1k parallel campaign
-`cvode_tuning_parallel_true_rngv2_assistoff_dfols_npt5_r0055_10seed_1k_20260515T230436_d9e817fbd5bb`
-completed all eight matrix jobs, and `TLTM_CVODE_FIXEDPOINT_M=2/4/8` should
-not be scaled to 10k. Keep `TLTM_CVODE_FIXEDPOINT_M=0`; decide whether a
-narrow max-order/tolerance/profile sweep is worth running, or stop F18 tuning
-and leave CVODE comparison-only pending retained-core/affected-baseline gates.
+The next operational step is after the negative F18 fail-fast readback: the
+10seed/10k campaign
+`cvode_failfast_s320_true_rngv2_assistoff_dfols_npt5_r0055_10seed_10k_20260516T000908_1d750409cf3e`
+completed both jobs with `Exit_status=0`, but `TLTM_CVODE_MAX_STEPS=320`
+produced unacceptable observable drift and proposal-failure inflation. Do not
+scale the fixed-point `m>0` branch or the max-step fail-fast branch further.
+Keep strict CVODE as a disabled-by-default comparison backend only unless an
+explicitly different package route or non-kernel-changing performance path is
+selected.
 Keep F20 precision/GPU readiness as a modernization closeout requirement after
 the double-precision package-backend route is understood. Feedback-kernel
 measure correctness remains a separate audit. Production redo remains owned by

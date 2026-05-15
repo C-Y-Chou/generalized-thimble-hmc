@@ -492,3 +492,96 @@ Current F18 position after this sweep:
   or tolerance/profile behavior, if the performance budget still justifies it;
 - do not run the expensive 10seed/10k extension for a candidate unless the 1k
   evidence shows a plausible runtime or correctness win.
+
+## CVODE Fail-Fast Max-Step Sweep
+
+The next test answered whether CVODE can be made to fail fast in a controlled
+way.  Source head `1d750409cf3e4b7f15ccb203958a685aa922bf2c` added
+disabled-by-default, CVODE-only knobs:
+
+- `TLTM_CVODE_MAX_STEPS`;
+- `TLTM_CVODE_MIN_STEP`;
+- `TLTM_CVODE_MAX_ERR_TEST_FAILS`;
+- `TLTM_CVODE_MAX_CONV_FAILS`;
+- `TLTM_CVODE_MAX_NONLIN_ITERS`.
+
+These are passed through `odex_options` and the SUNDIALS C bridge.  Defaults
+are zero/off, so the handwritten ODEX baseline is unchanged unless
+`TLTM_ODE_BACKEND=sundials_cvode` is selected.
+
+Local/default validation at `1d750409`:
+
+```text
+make -C build ../bin/test_sundials_cvode_backend_contract
+./bin/test_sundials_cvode_backend_contract
+make -C build ../bin/run_tltm_stage2 ../bin/evaluate_expectations
+python3 -m py_compile scripts/run_stage3_3_multiseed.py
+git diff --check
+python3 scripts/run_m4_guardrails.py
+```
+
+The remote enabled CVODE contract also passed after fast-forwarding the
+modernization worktree to `1d750409`; the contract included a deliberate
+`cvode_max_steps=1` failure case with `status=101`.
+
+First fail-fast screen:
+
+```text
+campaign: cvode_failfast_true_rngv2_assistoff_dfols_npt5_r0055_10seed_1k_20260515T235342_1d750409cf3e
+output root: /lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/production_comparison/observable_regression/cvode_failfast_true_rngv2_assistoff_dfols_npt5_r0055_10seed_1k_20260515T235342_1d750409cf3e
+log root:    /lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/production_comparison/observable_regression/cvode_failfast_true_rngv2_assistoff_dfols_npt5_r0055_10seed_1k_20260515T235342_1d750409cf3e
+```
+
+Compact 1k readback:
+
+| label | method | mean runtime, 1k | naive 10k x10 | pair0 accept | unresolved | proposal failures | Zmean Re/Im | mean Re/Im |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| base | no_fb | 106.94 | 1069.4 | 0.4390 | 880 | 880 | 0.954 / 0.400 | 0.159435 / 0.052948 |
+| base | fb_norefine | 282.38 | 2823.8 | 0.4366 | 15 | 15 | 0.517 / 1.087 | 0.073014 / 0.113468 |
+| s320 | no_fb | 67.28 | 672.8 | 0.4288 | 714 | 1524 | -0.692 / -0.076 | -0.124125 / -0.005780 |
+| s320 | fb_norefine | 86.80 | 868.0 | 0.4292 | 703 | 1520 | -0.597 / 0.010 | -0.106228 / 0.000773 |
+| s240 | no_fb | 61.52 | 615.2 | 0.4200 | 514 | 2586 | -1.576 / -0.576 | -0.385437 / -0.083326 |
+| s240 | fb_norefine | 78.39 | 783.9 | 0.4196 | 519 | 2587 | -1.516 / -0.503 | -0.353469 / -0.072479 |
+| s160 | no_fb | 52.83 | 528.3 | 0.3780 | 414 | 4952 | -3.182 / -1.366 | -0.668498 / -0.163056 |
+| s160 | fb_norefine | 64.19 | 641.9 | 0.3780 | 413 | 4950 | -3.180 / -1.302 | -0.667970 / -0.156159 |
+
+The `s100` jobs were cancelled after they became pathological, and
+`s160_h1e8_e4_c4_i2` behaved like the too-aggressive `s160` branch.  Only
+`s320` had a runtime projection worth a 10k check, but even at 1k it already
+showed suspicious acceptance and observable drift.
+
+The selected 10k extension was:
+
+```text
+campaign: cvode_failfast_s320_true_rngv2_assistoff_dfols_npt5_r0055_10seed_10k_20260516T000908_1d750409cf3e
+jobs:     15496.anode01 no_fb, 15497.anode01 fb_norefine
+backend:  TLTM_ODE_BACKEND=sundials_cvode
+knobs:    TLTM_CVODE_FIXEDPOINT_M=0, TLTM_CVODE_MAX_STEPS=320
+result:   both jobs Exit_status=0
+walltime: no_fb 00:11:56, fb_norefine 00:12:46
+```
+
+10k readback against the strict CVODE comparison and the ODEX baseline:
+
+| label | method | runtime | unresolved | proposal failures | pair0 accept | Zmean Re/Im | mean Re/Im |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| ODEX baseline | no_fb | 586.99 | 8390 | 8388 | 0.44036 | 0.269 / -0.816 | 0.015219 / -0.034490 |
+| strict CVODE | no_fb | 854.68 | 8295 | 8295 | 0.44012 | 0.072 / -0.686 | 0.004167 / -0.030939 |
+| s320 fail-fast | no_fb | 696.20 | 6983 | 14941 | 0.43248 | -3.892 / -0.781 | -0.173019 / -0.030689 |
+| ODEX baseline | fb_norefine | 983.94 | 173 | 173 | 0.44040 | 0.326 / 0.043 | 0.018126 / 0.001527 |
+| strict CVODE | fb_norefine | 2101.61 | 165 | 165 | 0.44134 | -0.085 / -0.271 | -0.004616 / -0.009260 |
+| s320 fail-fast | fb_norefine | 734.52 | 6742 | 14833 | 0.43254 | -4.220 / -1.032 | -0.178249 / -0.039115 |
+
+Conclusion:
+
+- The new CVODE fail-fast controls work technically and fail through the normal
+  TLTM rejection/RG path.
+- `TLTM_CVODE_MAX_STEPS=320` is not an acceptable production or canonical
+  candidate.  It is faster, especially for `fb_norefine`, but it changes the
+  proposal/failure surface and gives large observable drift at 10seed/10k.
+- Do not scale `s100`, `s160`, `s240`, `s160_h1e8_e4_c4_i2`, or `s320`
+  max-step fail-fast settings further.
+- Keep strict CVODE as a disabled-by-default comparison backend only.  If F18
+  continues, the next question should be an explicitly different package route
+  or a non-kernel-changing performance path, not a looser max-step fail-fast
+  budget.
