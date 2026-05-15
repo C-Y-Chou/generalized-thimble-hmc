@@ -1,10 +1,14 @@
 module odex_backend
    use utils, only: dp
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+   use, intrinsic :: iso_c_binding, only: c_associated, c_double, c_f_pointer, c_funloc, c_funptr, c_int, &
+                                          c_null_ptr, c_ptr
    implicit none
    private
 
    integer, parameter, public :: odex_max_steps_default = 200000
+   integer, parameter, public :: odex_backend_kind_odex = 0
+   integer, parameter, public :: odex_backend_kind_sundials_cvode = 1
    integer, parameter, public :: odex_k_min = 4
    integer, parameter, public :: odex_k_max = 10
    integer, parameter, public :: odex_cache_size = odex_k_max + 1
@@ -21,10 +25,15 @@ module odex_backend
    integer, parameter, public :: odex_step_sequence_iwork3 = 3
    integer, parameter, public :: odex_stability_control_none = 0
    integer, parameter, public :: odex_stability_control_conservative = 1
+   integer(c_int), parameter :: sundials_cvode_status_success = 0_c_int
+   integer(c_int), parameter :: sundials_cvode_status_max_steps = 1_c_int
+   integer(c_int), parameter :: sundials_cvode_status_invalid = 2_c_int
+   integer(c_int), parameter :: sundials_cvode_status_unavailable = 10_c_int
 
    type, public :: odex_options
       real(dp) :: abs_tol = 0.0_dp
       real(dp) :: rel_tol = 0.0_dp
+      integer :: backend = odex_backend_kind_odex
       integer :: k_min = odex_k_min
       integer :: k_max = odex_k_max
       integer :: max_steps = odex_max_steps_default
@@ -73,10 +82,42 @@ module odex_backend
          real(dp) :: dy(size(y))
       end function ode_rhs_context
    end interface
+
+   interface
+      integer(c_int) function tltm_sundials_cvode_available() bind(C, name="tltm_sundials_cvode_available")
+         import :: c_int
+      end function tltm_sundials_cvode_available
+
+      integer(c_int) function tltm_sundials_cvode_integrate(n, y0, t_final, abs_tol, rel_tol, max_steps, &
+                                                            y_out, num_steps_out, last_step_out, t_reached_out, &
+                                                            user_ctx, rhs_cb) &
+         bind(C, name="tltm_sundials_cvode_integrate")
+         import :: c_double, c_funptr, c_int, c_ptr
+         integer(c_int), value :: n
+         real(c_double), intent(in) :: y0(*)
+         real(c_double), value :: t_final, abs_tol, rel_tol
+         integer(c_int), value :: max_steps
+         real(c_double), intent(out) :: y_out(*)
+         integer(c_int), intent(out) :: num_steps_out
+         real(c_double), intent(out) :: last_step_out
+         real(c_double), intent(out) :: t_reached_out
+         type(c_ptr), value :: user_ctx
+         type(c_funptr), value :: rhs_cb
+      end function tltm_sundials_cvode_integrate
+   end interface
+
+   procedure(ode_rhs), pointer, save :: cvode_active_rhs => null()
+   procedure(ode_rhs_context), pointer, save :: cvode_active_rhs_context => null()
+   class(*), pointer, save :: cvode_active_rhs_context_data => null()
+   integer, save :: cvode_active_rhs_mode = 0
+   logical, save :: cvode_callback_active = .false.
+
    public :: ode_rhs
    public :: ode_rhs_context
 
    public :: build_nsteps
+   public :: odex_apply_runtime_backend_options
+   public :: odex_backend_name
    public :: odex_default_options
    public :: ensure_odex_workspace_object
    public :: odex_integrate_endpoint
@@ -88,6 +129,7 @@ module odex_backend
    public :: odex_status_from_failure_reason
    public :: odex_status_is_failure
    public :: odex_status_is_mechanism_status
+   public :: odex_sundials_cvode_available
 
 contains
 
@@ -99,6 +141,7 @@ contains
       options%rel_tol = 0.0_dp
       if (present(abs_tol)) options%abs_tol = abs_tol
       if (present(rel_tol)) options%rel_tol = rel_tol
+      options%backend = odex_backend_kind_odex
       options%k_min = odex_k_min
       options%k_max = odex_k_max
       options%max_steps = odex_max_steps_default
@@ -111,6 +154,42 @@ contains
       options%initial_step_fraction = 0.01_dp
       options%stability_growth_limit = 4.0_dp
    end subroutine odex_default_options
+
+   subroutine odex_apply_runtime_backend_options(options)
+      type(odex_options), intent(inout) :: options
+      character(len=128) :: backend_token
+      logical :: has_backend
+
+      call odex_read_env_token("TLTM_ODE_BACKEND", backend_token, has_backend)
+      if (.not. has_backend) return
+
+      select case (trim(odex_to_lower_ascii(backend_token)))
+      case ("odex", "internal", "default")
+         options%backend = odex_backend_kind_odex
+      case ("sundials", "sundials_cvode", "cvode")
+         options%backend = odex_backend_kind_sundials_cvode
+      case default
+         options%backend = -1
+      end select
+   end subroutine odex_apply_runtime_backend_options
+
+   function odex_backend_name(backend) result(name)
+      integer, intent(in) :: backend
+      character(len=32) :: name
+
+      select case (backend)
+      case (odex_backend_kind_odex)
+         name = "odex"
+      case (odex_backend_kind_sundials_cvode)
+         name = "sundials_cvode"
+      case default
+         name = "invalid"
+      end select
+   end function odex_backend_name
+
+   logical function odex_sundials_cvode_available() result(available)
+      available = (tltm_sundials_cvode_available() == 1_c_int)
+   end function odex_sundials_cvode_available
 
    subroutine odex_integrate_endpoint(f, y, t, res, error_flag, result_state, workspace, options)
       procedure(ode_rhs) :: f
@@ -141,7 +220,7 @@ contains
          return
       end if
 
-      if (opts%step_sequence /= odex_step_sequence_iwork3 .or. opts%max_steps <= 0) then
+      if (opts%max_steps <= 0) then
          call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, t)
          return
       end if
@@ -149,6 +228,22 @@ contains
       if (t == 0.0_dp) then
          error_flag = .false.
          call odex_result_mark_success(result_state, odex_status_success_zero_time, 0, 0, 0.0_dp)
+         return
+      end if
+
+      select case (opts%backend)
+      case (odex_backend_kind_sundials_cvode)
+         call odex_sundials_integrate_endpoint(f, y, t, res, error_flag, result_state, opts)
+         return
+      case (odex_backend_kind_odex)
+         continue
+      case default
+         call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, t)
+         return
+      end select
+
+      if (opts%step_sequence /= odex_step_sequence_iwork3) then
+         call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, t)
          return
       end if
 
@@ -230,7 +325,7 @@ contains
       type(odex_result), intent(out) :: result_state
       type(odex_workspace), intent(inout) :: workspace
       type(odex_options), intent(in), optional :: options
-      class(*), intent(inout) :: rhs_context
+      class(*), intent(inout), target :: rhs_context
 
       type(odex_options) :: opts
       real(dp) :: h, tc, er1, h_min, t_new, h_step
@@ -252,7 +347,7 @@ contains
          return
       end if
 
-      if (opts%step_sequence /= odex_step_sequence_iwork3 .or. opts%max_steps <= 0) then
+      if (opts%max_steps <= 0) then
          call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, t)
          return
       end if
@@ -260,6 +355,22 @@ contains
       if (t == 0.0_dp) then
          error_flag = .false.
          call odex_result_mark_success(result_state, odex_status_success_zero_time, 0, 0, 0.0_dp)
+         return
+      end if
+
+      select case (opts%backend)
+      case (odex_backend_kind_sundials_cvode)
+         call odex_sundials_integrate_endpoint_context(f, y, t, res, error_flag, result_state, opts, rhs_context)
+         return
+      case (odex_backend_kind_odex)
+         continue
+      case default
+         call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, t)
+         return
+      end select
+
+      if (opts%step_sequence /= odex_step_sequence_iwork3) then
+         call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, t)
          return
       end if
 
@@ -332,6 +443,154 @@ contains
       result_state%rejected_steps = rejected_steps
       result_state%stability_rejects = stability_rejects
    end subroutine odex_integrate_endpoint_context
+
+   subroutine odex_sundials_integrate_endpoint(f, y, t, res, error_flag, result_state, opts)
+      procedure(ode_rhs) :: f
+      real(dp), intent(in) :: y(:), t
+      real(dp), intent(out) :: res(:)
+      logical, intent(out) :: error_flag
+      type(odex_result), intent(inout) :: result_state
+      type(odex_options), intent(in) :: opts
+
+      integer(c_int) :: c_status, c_steps
+      real(c_double) :: c_last_step, c_t_reached
+      integer :: state_size
+
+      state_size = size(y)
+      res = y
+      error_flag = .true.
+
+      if (.not. odex_sundials_cvode_available()) then
+         call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 0, 0, 0.0_dp, t)
+         return
+      end if
+      if (cvode_callback_active) then
+         call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 0, 0, 0.0_dp, t)
+         return
+      end if
+
+      cvode_callback_active = .true.
+      cvode_active_rhs_mode = 1
+      cvode_active_rhs => f
+
+      c_status = tltm_sundials_cvode_integrate(int(state_size, c_int), y, real(t, c_double), &
+                                               real(opts%abs_tol, c_double), real(opts%rel_tol, c_double), &
+                                               int(opts%max_steps, c_int), res, c_steps, c_last_step, c_t_reached, &
+                                               c_null_ptr, c_funloc(odex_cvode_rhs_dispatch))
+
+      call odex_cvode_clear_callback()
+      call odex_sundials_status_to_result(c_status, c_steps, c_last_step, c_t_reached, t, error_flag, result_state)
+   end subroutine odex_sundials_integrate_endpoint
+
+   subroutine odex_sundials_integrate_endpoint_context(f, y, t, res, error_flag, result_state, opts, rhs_context)
+      procedure(ode_rhs_context) :: f
+      real(dp), intent(in) :: y(:), t
+      real(dp), intent(out) :: res(:)
+      logical, intent(out) :: error_flag
+      type(odex_result), intent(inout) :: result_state
+      type(odex_options), intent(in) :: opts
+      class(*), intent(inout), target :: rhs_context
+
+      integer(c_int) :: c_status, c_steps
+      real(c_double) :: c_last_step, c_t_reached
+      integer :: state_size
+
+      state_size = size(y)
+      res = y
+      error_flag = .true.
+
+      if (.not. odex_sundials_cvode_available()) then
+         call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 0, 0, 0.0_dp, t)
+         return
+      end if
+      if (cvode_callback_active) then
+         call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 0, 0, 0.0_dp, t)
+         return
+      end if
+
+      cvode_callback_active = .true.
+      cvode_active_rhs_mode = 2
+      cvode_active_rhs_context => f
+      cvode_active_rhs_context_data => rhs_context
+
+      c_status = tltm_sundials_cvode_integrate(int(state_size, c_int), y, real(t, c_double), &
+                                               real(opts%abs_tol, c_double), real(opts%rel_tol, c_double), &
+                                               int(opts%max_steps, c_int), res, c_steps, c_last_step, c_t_reached, &
+                                               c_null_ptr, c_funloc(odex_cvode_rhs_dispatch))
+
+      call odex_cvode_clear_callback()
+      call odex_sundials_status_to_result(c_status, c_steps, c_last_step, c_t_reached, t, error_flag, result_state)
+   end subroutine odex_sundials_integrate_endpoint_context
+
+   subroutine odex_sundials_status_to_result(c_status, c_steps, c_last_step, c_t_reached, t_final, error_flag, result_state)
+      integer(c_int), intent(in) :: c_status, c_steps
+      real(c_double), intent(in) :: c_last_step, c_t_reached
+      real(dp), intent(in) :: t_final
+      logical, intent(out) :: error_flag
+      type(odex_result), intent(inout) :: result_state
+      integer :: accepted_steps
+      real(dp) :: t_remaining
+
+      accepted_steps = max(0, int(c_steps))
+      t_remaining = t_final - real(c_t_reached, dp)
+
+      select case (c_status)
+      case (sundials_cvode_status_success)
+         error_flag = .false.
+         call odex_result_mark_success(result_state, odex_status_success, accepted_steps, 0, real(c_last_step, dp))
+      case (sundials_cvode_status_max_steps)
+         error_flag = .true.
+         call odex_result_mark_failure(result_state, odex_reason_max_steps, accepted_steps, 0, 0, real(c_last_step, dp), t_remaining)
+      case (sundials_cvode_status_invalid, sundials_cvode_status_unavailable)
+         error_flag = .true.
+         call odex_result_mark_failure(result_state, odex_reason_invalid, accepted_steps, 0, 0, real(c_last_step, dp), t_remaining)
+      case default
+         error_flag = .true.
+         call odex_result_mark_failure(result_state, odex_reason_invalid, accepted_steps, 0, 0, real(c_last_step, dp), t_remaining)
+      end select
+   end subroutine odex_sundials_status_to_result
+
+   integer(c_int) function odex_cvode_rhs_dispatch(user_ctx, n_c, t_c, y_ptr, ydot_ptr) result(status_code) bind(C)
+      type(c_ptr), value :: user_ctx
+      integer(c_int), value :: n_c
+      real(c_double), value :: t_c
+      type(c_ptr), value :: y_ptr, ydot_ptr
+      real(dp), pointer :: y(:), ydot(:)
+      integer :: n
+
+      status_code = 1_c_int
+      n = int(n_c)
+      if (n <= 0) return
+      if (.not. c_associated(y_ptr) .or. .not. c_associated(ydot_ptr)) return
+      if (c_associated(user_ctx)) continue
+      if (t_c /= t_c) return
+
+      call c_f_pointer(y_ptr, y, [n])
+      call c_f_pointer(ydot_ptr, ydot, [n])
+
+      select case (cvode_active_rhs_mode)
+      case (1)
+         if (.not. associated(cvode_active_rhs)) return
+         ydot(1:n) = cvode_active_rhs(y(1:n))
+      case (2)
+         if (.not. associated(cvode_active_rhs_context)) return
+         if (.not. associated(cvode_active_rhs_context_data)) return
+         ydot(1:n) = cvode_active_rhs_context(y(1:n), cvode_active_rhs_context_data)
+      case default
+         return
+      end select
+
+      if (vector_has_invalid(ydot(1:n))) return
+      status_code = 0_c_int
+   end function odex_cvode_rhs_dispatch
+
+   subroutine odex_cvode_clear_callback()
+      nullify (cvode_active_rhs)
+      nullify (cvode_active_rhs_context)
+      nullify (cvode_active_rhs_context_data)
+      cvode_active_rhs_mode = 0
+      cvode_callback_active = .false.
+   end subroutine odex_cvode_clear_callback
 
    subroutine odex_step(f, y, h, k, res, err, workspace, opts, stability_rejected)
       procedure(ode_rhs) :: f
@@ -1032,5 +1291,37 @@ contains
          end if
       end do
    end function vector_has_invalid
+
+   subroutine odex_read_env_token(name, value, found)
+      character(len=*), intent(in) :: name
+      character(len=*), intent(out) :: value
+      logical, intent(out) :: found
+      integer :: env_len, env_status, copy_len
+      character(len=len(value)) :: env_text
+
+      value = ""
+      env_text = ""
+      found = .false.
+      call get_environment_variable(name, env_text, length=env_len, status=env_status)
+      if ((env_status == 0 .or. env_status == -1) .and. env_len > 0) then
+         copy_len = min(env_len, len(value))
+         value = adjustl(env_text(1:copy_len))
+         found = (len_trim(value) > 0)
+      end if
+   end subroutine odex_read_env_token
+
+   pure function odex_to_lower_ascii(text) result(lower)
+      character(len=*), intent(in) :: text
+      character(len=len(text)) :: lower
+      integer :: i, code
+
+      lower = text
+      do i = 1, len(text)
+         code = iachar(text(i:i))
+         if (code >= iachar("A") .and. code <= iachar("Z")) then
+            lower(i:i) = achar(code + iachar("a") - iachar("A"))
+         end if
+      end do
+   end function odex_to_lower_ascii
 
 end module odex_backend
