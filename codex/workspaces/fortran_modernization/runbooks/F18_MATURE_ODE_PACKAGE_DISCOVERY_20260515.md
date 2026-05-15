@@ -661,3 +661,22 @@ Conclusion:
   routes.  Keep strict CVODE as disabled-by-default comparison-only unless F18
   switches to an explicitly different mature package path or a
   non-kernel-changing performance strategy.
+
+## Follow-up Route Decision
+
+After this negative package-tuning readback, the user selected returning to
+handwritten ODEX hardening instead of continuing CVODE tuning.
+
+Active follow-up:
+
+- `F18B_HANDWRITTEN_ODEX_ENDPOINT_HARDENING_20260516.md`
+
+Interpretation:
+
+- SUNDIALS CVODE remains implemented and useful as disabled-by-default
+  comparison-only evidence.
+- The canonical ODE-controller route is again the handwritten TLTM endpoint
+  ODEX/GBS backend with Hairer `IWORK(3)=3`, explicit TLTM policy
+  documentation, deterministic controller tests, and F8/M4 affected-baseline
+  gates for behavior-changing patches.
+- Do not claim full Hairer ODEX paper correctness.

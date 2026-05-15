@@ -146,3 +146,19 @@ Do not patch `solve_flow` directly first.  Start with an evaluation spike:
 3. add a disabled-by-default backend flag;
 4. run endpoint-only comparison tests against current ODEX;
 5. write the F8 behavior statement before any canonical route switch.
+
+## 2026-05-16 Addendum
+
+The package-evaluation route was executed through F18 and then parked as
+comparison-only evidence.
+
+SUNDIALS CVODE was built and integrated as a disabled-by-default backend.
+Strict CVODE completed the 10seed/10k comparison but was too slow for the
+current TLTM production route.  Fixed-point `m>0`, max-step fail-fast, and
+non-max-step fail-fast tuning were rejected as canonical/performance routes.
+
+The active ODE-controller modernization route is now
+`F18B_HANDWRITTEN_ODEX_ENDPOINT_HARDENING_20260516.md`: harden the handwritten
+TLTM endpoint ODEX backend, keep the claim scoped to endpoint ODEX/GBS with
+Hairer `IWORK(3)=3`, and require deterministic controller tests plus F8/M4
+affected-baseline gates before any behavior-changing controller patch.

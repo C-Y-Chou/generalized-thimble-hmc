@@ -1115,3 +1115,19 @@
   knobs are rejected as canonical/performance routes. Strict CVODE stays
   disabled-by-default comparison-only unless F18 switches to a different mature
   package route or a non-kernel-changing performance strategy.
+
+## 2026-05-16 JST - F18b handwritten endpoint ODEX hardening opened
+
+- User selected returning to handwritten ODEX hardening after the negative F18
+  CVODE tuning readback.
+- Added `runbooks/F18B_HANDWRITTEN_ODEX_ENDPOINT_HARDENING_20260516.md`.
+- New claim boundary: TLTM endpoint ODEX/GBS with Hairer `IWORK(3)=3`,
+  documented TLTM controller policy, deterministic branch tests, and
+  affected-baseline gates for behavior-changing patches.
+- Explicitly blocked claim: full Hairer ODEX paper correctness.
+- SUNDIALS CVODE remains disabled-by-default comparison-only evidence; no more
+  fail-fast package tuning is active.
+- Immediate next step is F18b.0/F18b.1: create the behavior-free source
+  map/decision table and add deterministic controller-policy tests that freeze
+  current `h0`, h-min, step/order, rejection, signed-interval, and stability
+  behavior before any behavior-changing controller patch.
