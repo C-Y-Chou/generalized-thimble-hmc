@@ -1087,3 +1087,31 @@
 - Ran `cvode_failfast_s320_true_rngv2_assistoff_dfols_npt5_r0055_10seed_10k_20260516T000908_1d750409cf3e`: jobs `15496.anode01` (`no_fb`) and `15497.anode01` (`fb_norefine`) both completed with `Exit_status=0`.
 - Readback is negative despite faster runtime: `no_fb` runtime `696.20`, proposal failures `14941`, mean Re `-0.1730188`, Zmean Re `-3.892`; `fb_norefine` runtime `734.52`, proposal failures `14833`, mean Re `-0.1782486`, Zmean Re `-4.220`.
 - Conclusion: strict CVODE remains disabled-by-default comparison-only; do not scale max-step fail-fast further unless a different package route or non-kernel-changing performance path is explicitly selected.
+
+## 2026-05-16 JST - CVODE non-max-step fail-fast sweep rejected
+
+- Tested the remaining CVODE fail-fast knobs at `d24acef` using official DFO-LS
+  `npt5_r0055`, true Stage2 RNG v2, assist off, strict tolerance,
+  `TLTM_CVODE_FIXEDPOINT_M=0`, and both `no_fb` / `fb_norefine`.
+- Round 1 `20260516T003745`: `h1e8`, `h1e6`, `err4`, `conv4`, `iter2`, jobs
+  `15498-15507.anode01`. `h1e6` hard-failed initialization; `h1e8` changed
+  the `fb_norefine` proposal/failure surface; `err4` was no useful effect;
+  `conv4` was clean at 1k; `iter2` had no clean payoff.
+- Round 2 `20260516T004754`: `conv2`, `conv6`, `conv4_iter2`, `err2`, `h1e9`,
+  jobs `15508-15517.anode01`. `err2` and `h1e9` changed `fb_norefine`;
+  `conv2` was clean at 1k; `conv6` was no useful gain; `conv4_iter2` was not
+  clean for `fb_norefine`.
+- Round 3 `20260516T005611`: `conv1`, jobs `15518-15519.anode01`, was clean at
+  1k and selected for 10k because it was the strongest clean convergence-limit
+  candidate.
+- Ran `cvode_failfast_conv1_true_rngv2_assistoff_dfols_npt5_r0055_10seed_10k_20260516T010335_d24acef0e890`:
+  jobs `15520.anode01` (`no_fb`) and `15521.anode01` (`fb_norefine`) both
+  completed with `Exit_status=0`.
+- Readback: `TLTM_CVODE_MAX_CONV_FAILS=1` matched strict CVODE exactly for
+  pair0 accept, unresolved failures, proposal failures, RG rejects, means, and
+  Zmean at 10seed/10k, but was slower (`1.085x` no_fb and `1.120x`
+  `fb_norefine`).
+- Conclusion: not only max steps can fail fast, but all tested CVODE fail-fast
+  knobs are rejected as canonical/performance routes. Strict CVODE stays
+  disabled-by-default comparison-only unless F18 switches to a different mature
+  package route or a non-kernel-changing performance strategy.

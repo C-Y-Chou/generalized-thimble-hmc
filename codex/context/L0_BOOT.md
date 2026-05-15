@@ -1,7 +1,7 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-16T00:30:25+09:00
-Remote refreshed: 2026-05-16T00:30:18+09:00
+Generated: 2026-05-16T01:55:38+09:00
+Remote refreshed: 2026-05-16T01:55:29+09:00
 
 ## Canonical Entry
 
@@ -27,7 +27,7 @@ Remote refreshed: 2026-05-16T00:30:18+09:00
 
 ## Active Local Risk
 
-- `local_fortran_modernization`: branch `codex/fortran-modernization`, commit `1d750409cf3e4b7f15ccb203958a685aa922bf2c`, dirty `9`, ahead `0`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
+- `local_fortran_modernization`: branch `codex/fortran-modernization`, commit `d24acef0e890487fda766a1bdf18414337d45ee8`, dirty `11`, ahead `0`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
 
 ## Active/Pending Jobs
 
@@ -47,16 +47,16 @@ Remote refreshed: 2026-05-16T00:30:18+09:00
 - `CP-012` status `active` tltm_production_comparison: Maintain provisional-vs-final production boundary Next: Official DFO-LS c0e4021 256seed/200k production-comparison artifact has completed and merged, but it is not a rerun after the latest modernization HEAD and remains provisional until final wrapper/schema/naming/counter conventions are frozen or final regeneration is scheduled
 - `FM-001` status `active` fortran_modernization: Reset modernization around foundation completeness Next: Treat M6 as a behavior baseline, not completed foundation; use FOUNDATION_COMPLETENESS_RESET_20260511 before any source modernization step
 - `FM-011` status `active` fortran_modernization: Maintain all-handwritten algorithm claim boundary Next: Post-correction current-head audit is complete in HANDWRITTEN_ALGORITHM_CURRENT_HEAD_AUDIT_20260515.md, and the stronger all-handwritten paper-correctness/numerical-soundness audit is complete in HANDWRITTEN_ALGORITHM_PAPER_CORRECTNESS_AUDIT_20260515.md; universal paper-correctness remains blocked until the listed surfaces are closed or explicitly scoped.
-- `FM-012` status `active` fortran_modernization: Evaluate mature ODE package backend Next: SUNDIALS CVODE is buildable on the remote target as `/lustre1/home/cychou/TLTM/.deps/sundials-7.7.0-cvode-serial`; the disabled-by-default backend is implemented, local/default M4 passed, the first 10seed/10k comparison completed cleanly, the parallel 10seed/1k fixed-point sweep rejected `TLTM_CVODE_FIXEDPOINT_M=2/4/8`, and the `TLTM_CVODE_MAX_STEPS=320` fail-fast 10seed/10k check was rejected for proposal/failure-surface and observable drift; keep strict CVODE comparison-only unless a different package route or non-kernel-changing performance path is selected.
+- `FM-012` status `active` fortran_modernization: Evaluate mature ODE package backend Next: SUNDIALS CVODE is buildable on the remote target as `/lustre1/home/cychou/TLTM/.deps/sundials-7.7.0-cvode-serial`; the disabled-by-default backend is implemented, local/default M4 passed, the first 10seed/10k comparison completed cleanly, the parallel 10seed/1k fixed-point sweep rejected `TLTM_CVODE_FIXEDPOINT_M=2/4/8`, the `TLTM_CVODE_MAX_STEPS=320` fail-fast 10seed/10k check was rejected for proposal/failure-surface and observable drift, and the non-max-step fail-fast sweep found `TLTM_CVODE_MAX_CONV_FAILS=1` exact vs strict CVODE at 10seed/10k but slower; keep strict CVODE comparison-only unless a different package route or non-kernel-changing performance path is selected.
 
 ## Recent Decisions
 
-- 2026-05-15 `fortran_modernization`: Use integrated algorithm modernization plan after all-handwritten audit
 - 2026-05-15 `fortran_modernization`: Delete internal DFO-like QN backend from active source
 - 2026-05-15 `fortran_modernization`: Delete solver assist from active source
 - 2026-05-15 `fortran_modernization`: Finish precision/GPU readiness before modernization closeout
 - 2026-05-15 `fortran_modernization`: Keep CVODE fixed-point m=0 after first tuning sweep
 - 2026-05-16 `fortran_modernization`: Reject CVODE max-step fail-fast as canonical candidate
+- 2026-05-16 `fortran_modernization`: Reject tested CVODE non-max-step fail-fast tuning as performance route
 
 ## Pointers
 

@@ -585,3 +585,79 @@ Conclusion:
   continues, the next question should be an explicitly different package route
   or a non-kernel-changing performance path, not a looser max-step fail-fast
   budget.
+
+## CVODE Non-Max-Step Fail-Fast Sweep
+
+The remaining fail-fast knobs were tested in isolated 10seed/1k screens, using
+the same official DFO-LS `npt5_r0055`, true Stage2 RNG v2, assist-off,
+`TLTM_CVODE_FIXEDPOINT_M=0`, strict tolerance, and reverse-gate policy:
+
+```text
+round 1 stamp: 20260516T003745
+labels: h1e8, h1e6, err4, conv4, iter2
+jobs:   15498-15507.anode01
+
+round 2 stamp: 20260516T004754
+labels: conv2, conv6, conv4_iter2, err2, h1e9
+jobs:   15508-15517.anode01
+
+round 3 stamp: 20260516T005611
+label:  conv1
+jobs:   15518-15519.anode01
+```
+
+The compact 1k readback, compared with the same 1k base row:
+
+| label | method | runtime ratio vs base | surface result | readback |
+| --- | --- | ---: | --- | --- |
+| h1e6 | both | n/a | hard fail | Stage2 initialization failed with CVODE `hmin` / repeated error-test failures at `t=0, h=1e-6` |
+| h1e8 | no_fb | 0.690 | near base | unresolved `879` vs base `880`, mean Re `0.132587` vs `0.159435` |
+| h1e8 | fb_norefine | 0.330 | rejected | unresolved/proposal failures `870` vs base `15`, mean Re `0.157700` vs `0.073014` |
+| h1e9 | no_fb | 0.733 | small drift | unresolved `882` vs base `880`, mean Re `0.166942` vs `0.159435` |
+| h1e9 | fb_norefine | 0.603 | rejected | unresolved/proposal failures `405` vs base `15`, mean Re `0.139013` vs `0.073014` |
+| err4 | both | 1.031 / 1.016 | no effect | aggregate identical to base but slightly slower |
+| err2 | no_fb | 0.754 | near base | unresolved `879` vs base `880`, aggregate means unchanged |
+| err2 | fb_norefine | 0.342 | rejected | unresolved/proposal failures `878` vs base `15`, mean Re `0.157700` vs `0.073014` |
+| iter2 | no_fb | 1.010 | no useful gain | aggregate identical but slower |
+| iter2 | fb_norefine | 0.943 | not clean | unresolved/proposal failures `16` vs base `15`, mean Im shifted by about `-0.0108` |
+| conv6 | both | 1.010 / 0.992 | no useful gain | aggregate identical to base |
+| conv4_iter2 | no_fb | 0.933 | clean | aggregate identical to base |
+| conv4_iter2 | fb_norefine | 0.928 | not clean | unresolved/proposal failures `16` vs base `15`, mean Im shifted by about `-0.0108` |
+| conv4 | both | 0.922 / 0.920 | clean at 1k | aggregate identical to base |
+| conv2 | both | 0.928 / 0.918 | clean at 1k | aggregate identical to base |
+| conv1 | both | 0.856 / 0.880 | clean at 1k | aggregate identical to base |
+
+Only the convergence-failure limit family was worth a 10k check.  The selected
+extension was the strongest clean 1k candidate:
+
+```text
+campaign: cvode_failfast_conv1_true_rngv2_assistoff_dfols_npt5_r0055_10seed_10k_20260516T010335_d24acef0e890
+jobs:     15520.anode01 no_fb, 15521.anode01 fb_norefine
+knobs:    TLTM_CVODE_FIXEDPOINT_M=0, TLTM_CVODE_MAX_CONV_FAILS=1
+result:   both jobs Exit_status=0
+walltime: no_fb 00:16:04, fb_norefine 00:41:15
+```
+
+10k readback:
+
+| label | method | runtime | unresolved | proposal failures | pair0 accept | Zmean Re/Im | mean Re/Im |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| strict CVODE | no_fb | 854.68 | 8295 | 8295 | 0.44012 | 0.072 / -0.686 | 0.004167 / -0.030939 |
+| conv1 | no_fb | 927.57 | 8295 | 8295 | 0.44012 | 0.072 / -0.686 | 0.004167 / -0.030939 |
+| strict CVODE | fb_norefine | 2101.61 | 165 | 165 | 0.44134 | -0.085 / -0.271 | -0.004616 / -0.009260 |
+| conv1 | fb_norefine | 2353.62 | 165 | 165 | 0.44134 | -0.085 / -0.271 | -0.004616 / -0.009260 |
+
+Conclusion:
+
+- `TLTM_CVODE_MAX_CONV_FAILS=1` is output-surface preserving at 10seed/10k
+  relative to strict CVODE, but it is slower (`1.085x` no_fb and `1.120x`
+  fb_norefine).  It is not a performance candidate.
+- `TLTM_CVODE_MIN_STEP` and aggressive `TLTM_CVODE_MAX_ERR_TEST_FAILS` settings
+  are rejected because they change `fb_norefine` proposal/failure behavior or
+  fail initialization.
+- `TLTM_CVODE_MAX_NONLIN_ITERS=2` and mixed convergence/nonlinear-iteration
+  settings do not give a clean enough payoff.
+- All tested CVODE fail-fast knobs are now rejected as canonical/performance
+  routes.  Keep strict CVODE as disabled-by-default comparison-only unless F18
+  switches to an explicitly different mature package path or a
+  non-kernel-changing performance strategy.
