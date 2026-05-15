@@ -412,3 +412,83 @@ Blocked claims remain blocked:
 - this does not prove the handwritten ODEX controller is full Hairer ODEX;
 - this does not prove SUNDIALS preserves TLTM outputs;
 - this does not switch the canonical backend.
+
+## CVODE Tuning Instrumentation and Fixed-Point Sweep
+
+After the first 10seed/10k CVODE comparison showed a significant runtime
+cost, source head `d9e817f` added CVODE tuning/status instrumentation without
+changing the default ODEX output path:
+
+- `TLTM_CVODE_FIXEDPOINT_M` selects the fixed-point nonlinear solver iteration
+  limit used by the optional CVODE backend;
+- `TLTM_CVODE_MAX_ORDER` can cap CVODE order for later tuning;
+- Stage2 summaries and the multiseed aggregator now report CVODE call,
+  step, RHS, error-test, nonlinear-iteration, nonlinear-convergence-failure,
+  step-solve-failure, and final-order statistics when the CVODE backend is
+  active;
+- default non-CVODE runs omit the new CVODE lines, so the ODEX baseline summary
+  hash remains unchanged.
+
+Local/default validation at `d9e817f`:
+
+```text
+python3 -m py_compile scripts/run_stage3_3_multiseed.py
+make -C build ../bin/test_sundials_cvode_backend_contract
+./bin/test_sundials_cvode_backend_contract
+make -C build ../bin/run_tltm_stage2 ../bin/evaluate_expectations
+python3 scripts/run_m4_guardrails.py
+```
+
+The enabled remote CVODE build and contract also passed after fast-forward to
+`d9e817f`.
+
+The requested first tuning slice was run as a parallel 10seed/1k matrix rather
+than a sequential campaign:
+
+```text
+campaign: cvode_tuning_parallel_true_rngv2_assistoff_dfols_npt5_r0055_10seed_1k_20260515T230436_d9e817fbd5bb
+output root: /lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/production_comparison/observable_regression/cvode_tuning_parallel_true_rngv2_assistoff_dfols_npt5_r0055_10seed_1k_20260515T230436_d9e817fbd5bb
+log root:    /lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/production_comparison/observable_regression/cvode_tuning_parallel_true_rngv2_assistoff_dfols_npt5_r0055_10seed_1k_20260515T230436_d9e817fbd5bb
+jobs:        15469.anode01 on C12; 15477-15483.anode01 on C16
+```
+
+All eight matrix jobs completed and wrote `aggregated_summary_table.csv`.
+
+Compact readback:
+
+| fixedpoint_m | method | mean runtime, 1k | naive 10k x10 | unresolved | pair0 accept | rhs/call | steps/call | nonlinear iters/call | errtest/call |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 | no_fb | 86.51 | 865.07 | 880 | 0.4390 | 262.84 | 131.36 | 260.84 | 11.67 |
+| 2 | no_fb | 115.39 | 1153.94 | 878 | 0.4392 | 263.27 | 131.74 | 261.27 | 11.74 |
+| 4 | no_fb | 115.77 | 1157.68 | 878 | 0.4392 | 263.27 | 131.74 | 261.27 | 11.74 |
+| 8 | no_fb | 117.32 | 1173.21 | 878 | 0.4392 | 263.27 | 131.74 | 261.27 | 11.74 |
+| 0 | fb_norefine | 283.12 | 2831.16 | 15 | 0.4366 | 317.46 | 164.56 | 315.39 | 11.47 |
+| 2 | fb_norefine | 299.98 | 2999.84 | 17 | 0.4392 | 321.64 | 166.56 | 319.56 | 11.87 |
+| 4 | fb_norefine | 302.85 | 3028.46 | 17 | 0.4392 | 321.64 | 166.56 | 319.56 | 11.87 |
+| 8 | fb_norefine | 305.65 | 3056.51 | 17 | 0.4392 | 321.64 | 166.56 | 319.56 | 11.87 |
+
+Interpretation:
+
+- `fixedpoint_m > 0` does not improve the current CVODE candidate. It reduces
+  some nonlinear-convergence-failure counters but increases wall time and does
+  not improve the TLTM acceptance/failure surface enough to matter.
+- For `fb_norefine`, all fixed-point candidates ran on C16 and `m=0` is still
+  the fastest. For `no_fb`, `m=0` ran on C12 while the others ran on C16, so
+  the exact speed ratio is queue-confounded, but the CVODE per-call statistics
+  also do not suggest a useful `m>0` route.
+- The `m=0` 1k `no_fb` x10 estimate, about 865 s, is consistent with the
+  earlier 10seed/10k CVODE `no_fb` runtime of about 855 s. The `fb_norefine`
+  1k x10 estimate overstates the earlier 10seed/10k runtime, about 2102 s,
+  but `m=0` remains the best fixed-point setting in this slice.
+- Do not scale `m=2`, `m=4`, or `m=8` to 10k. The fixed-point tuning branch is
+  rejected for now.
+
+Current F18 position after this sweep:
+
+- keep `TLTM_CVODE_FIXEDPOINT_M=0` as the default optional CVODE setting;
+- keep CVODE as a viable mature-backend comparison candidate, not as the
+  canonical backend;
+- continue only with a narrowly chosen next tuning question, such as max-order
+  or tolerance/profile behavior, if the performance budget still justifies it;
+- do not run the expensive 10seed/10k extension for a candidate unless the 1k
+  evidence shows a plausible runtime or correctness win.
