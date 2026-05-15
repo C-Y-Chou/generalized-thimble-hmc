@@ -70,6 +70,25 @@ Remote evidence:
 - compact summary:
   `output/production_comparison/observable_regression/true_rngv2_10seed_10k_backend_candidate_method_summary_20260515.md`
 
+## Current-HEAD Start-Gate Confirmation
+
+After the start-gate cleanup, the remote modernization worktree was
+fast-forwarded and rerun at:
+
+- run commit: `71af06f55c240a0c20fc7a38c1353219be805930`
+- jobs: `15455.anode01` (`no_fb`), `15456.anode01` (`fb_norefine`)
+- campaign:
+  `output/production_comparison/observable_regression/observable_regression_true_rngv2_assistoff_dfols_npt5_r0055_10seed_10k_20260515T165333_71af06f55c24`
+- manifest relation:
+  `BASELINE_RUNTIME_SOURCE_RELATION=runtime_source_matches_baseline_evidence`
+
+Readback:
+
+| method | mean Re | mean Im | Zmean Re | Zmean Im | failures | RG rejects | QN assist |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| nofb | -0.002818340294982019 | -0.02465681851224433 | -0.048084031438805575 | -0.5895676378972808 | 8340 | 1150 | 0 |
+| withfb | 0.02974362444598664 | -0.002988766099182953 | 0.5326497008388138 | -0.08040456379425769 | 167 | 1324 | 0 |
+
 ## Direct Rerun
 
 From the remote modernization worktree:
