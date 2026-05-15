@@ -7,10 +7,10 @@ module quasi_newton_solver_mod
    use solve_flow, only: flowzr, flowz, flow_workspace_t, set_intode_stage_trace, set_intode_quasi_iter_trace, &
                          set_intode_residual_role_trace, get_intode_residual_role_trace, &
                          intode_stage_quasi, intode_role_qn_navigation, intode_role_certification, intode_role_reverse_replay, &
-                         get_intode_rescue_stats, intode_status_unknown, intode_status_success, intode_status_success_zero_time, &
+                         intode_status_unknown, intode_status_success, intode_status_success_zero_time, &
                          intode_status_success_stiff_rescue, intode_status_success_solver_assist, &
                          intode_status_failure_max_steps, intode_status_failure_invalid, intode_status_failure_h_min
-   use quasi_newton_linear_solver_mod, only: solve_linear_direction, initial_guess_from_jacobian
+   use quasi_newton_linear_solver_mod, only: initial_guess_from_jacobian
    implicit none
 
    type :: qn_context_t
@@ -28,15 +28,6 @@ module quasi_newton_solver_mod
       logical :: eval_has_flowed = .false.
       logical :: eval_flowed_is_inverse = .false.
       integer :: trace_route_code = 0
-      logical :: watchdog_scope_active = .false.
-      integer :: watchdog_start_solver_assist = 0
-      integer :: watchdog_used_solver_assist = 0
-      integer :: watchdog_used_accepted_iter = 0
-      logical :: watchdog_hit = .false.
-      logical :: watchdog_last_hit = .false.
-      integer :: watchdog_last_used = 0
-      integer :: watchdog_last_used_accepted_iter = 0
-      integer :: watchdog_hit_total = 0
       integer(int64) :: current_attempt_eval_count = 0_int64
    end type qn_context_t
 
@@ -72,17 +63,9 @@ module quasi_newton_solver_mod
 
    type(qn_diagnostics_context_t), target, save :: module_qn_diagnostics_context
 
-   integer, parameter :: quasi_solver_assist_budget_default = 20000
-   integer, parameter :: quasi_accepted_iter_budget_default = 0
-   integer, parameter :: qn_backend_internal = 1
    integer, parameter :: qn_backend_official_dfols = 2
 
    type :: qn_policy_context_t
-      integer :: quasi_solver_assist_budget = quasi_solver_assist_budget_default
-      integer :: quasi_accepted_iter_budget = quasi_accepted_iter_budget_default
-      logical :: qn_force_best_proposal_enabled = .false.
-      real(dp) :: qn_force_best_proposal_tol = -1.0_dp
-      logical :: quasi_watchdog_policy_loaded = .false.
       logical :: qn_backend_policy_loaded = .false.
       integer :: qn_solver_backend = qn_backend_official_dfols
       logical :: qn_backend_notice_printed = .false.
@@ -198,15 +181,6 @@ contains
       context%eval_has_flowed = .false.
       context%eval_flowed_is_inverse = .false.
       context%trace_route_code = 0
-      context%watchdog_scope_active = .false.
-      context%watchdog_start_solver_assist = 0
-      context%watchdog_used_solver_assist = 0
-      context%watchdog_used_accepted_iter = 0
-      context%watchdog_hit = .false.
-      context%watchdog_last_hit = .false.
-      context%watchdog_last_used = 0
-      context%watchdog_last_used_accepted_iter = 0
-      context%watchdog_hit_total = 0
       context%current_attempt_eval_count = 0_int64
    end subroutine release_qn_context
 
@@ -250,11 +224,6 @@ contains
       implicit none
       type(qn_policy_context_t), intent(inout) :: context
 
-      context%quasi_solver_assist_budget = quasi_solver_assist_budget_default
-      context%quasi_accepted_iter_budget = quasi_accepted_iter_budget_default
-      context%qn_force_best_proposal_enabled = .false.
-      context%qn_force_best_proposal_tol = -1.0_dp
-      context%quasi_watchdog_policy_loaded = .false.
       context%qn_backend_policy_loaded = .false.
       context%qn_solver_backend = qn_backend_official_dfols
       context%qn_backend_notice_printed = .false.
@@ -304,17 +273,13 @@ contains
       type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
 
-      real(dp), parameter :: promising_first_pass_res = 1.0e-2_dp
-      real(dp), parameter :: probe_priority_pass_trigger_res = 1.0e-3_dp
-      real(dp), parameter :: probe_global_rescue_trigger_res = 4.3e-3_dp
+      real(dp), parameter :: official_global_filter_trigger_res = 4.3e-3_dp
 
       integer :: n, attempt_idx
-      logical :: converged, stage_converged, run_priority_pass
+      logical :: converged, stage_converged
       logical :: global_filter_candidate
-      real(dp) :: best_res_first, best_res_try, best_res_global
-      real(dp) :: best_accept_tol
-      real(dp), allocatable :: x0_guess(:), x_best_first(:), x_stage_best(:), x_stage_seed(:), x_best_global(:)
-      real(dp), allocatable :: x_try(:), Jl_try(:), Jl_best_global(:)
+      real(dp) :: best_res_first, best_res_global
+      real(dp), allocatable :: x0_guess(:), x_best_first(:), x_best_global(:), Jl_best_global(:)
       type(qn_context_t), pointer :: active_context
       type(qn_diagnostics_context_t), pointer :: active_diagnostics
       type(qn_policy_context_t), pointer :: active_policy
@@ -323,11 +288,9 @@ contains
       call resolve_qn_context(qn_context, active_context)
       call resolve_qn_diagnostics(qn_diagnostics, active_diagnostics)
       call resolve_qn_policy(qn_policy, active_policy)
-      allocate (x0_guess(n), x_best_first(n), x_stage_best(n), x_stage_seed(n), x_try(n), x_best_global(n), &
-                Jl_try(n), Jl_best_global(n))
+      allocate (x0_guess(n), x_best_first(n), x_best_global(n), Jl_best_global(n))
       call reset_quasi_last_trace(active_context, size(z))
-      call reset_quasi_watchdog_last_status(active_context)
-      call begin_quasi_watchdog_scope(active_context, active_policy)
+      call load_qn_backend_policy(active_policy)
 
       call initial_guess_from_jacobian(jac, del_z, x0_guess)
       if (present(x_seed_override)) then
@@ -340,104 +303,31 @@ contains
       best_res_first = huge(1.0_dp)
       best_res_global = huge(1.0_dp)
       x_best_first = x0_guess
-      x_stage_seed = x0_guess
       x_best_global = x0_guess
       if (max_iter > 32) global_filter_candidate = .true.
       Jl = 0.0_dp
-      Jl_try = 0.0_dp
       Jl_best_global = 0.0_dp
       x_new = xt
-      x_try = xt
-
-      call load_qn_backend_policy(active_policy)
-      if (active_policy%qn_solver_backend == qn_backend_official_dfols) then
-         attempt_idx = 1
-         active_context%trace_route_code = 10
-         call run_official_dfols_attempt(tol, attempt_idx, xt, z, del_z, jac, x0_guess, stage_converged, Jl, x_new, &
-                                         x_best_out=x_best_first, best_res_out=best_res_first, flow_workspace=flow_workspace, &
-                                         qn_context=active_context, qn_diagnostics=active_diagnostics, qn_policy=active_policy)
-         best_res_global = best_res_first
-         Jl_best_global = Jl
-         x_best_global = x_best_first
-         converged = stage_converged
-         if ((.not. converged) .and. ieee_is_finite(best_res_global) .and. &
-             best_res_global <= probe_global_rescue_trigger_res) then
-            global_filter_candidate = .true.
-         end if
-         if (global_filter_candidate) call record_quasi_global_filter(active_diagnostics, converged)
-         if (.not. converged) then
-            x_new = xt
-            Jl = Jl_best_global
-         end if
-         ierr = .not. converged
-         if (present(x_best_solution)) then
-            if (size(x_best_solution) == n) x_best_solution = x_best_global
-         end if
-         call end_quasi_watchdog_scope(active_context, active_policy)
-         deallocate (x0_guess, x_best_first, x_stage_best, x_stage_seed, x_try, x_best_global, Jl_try, Jl_best_global)
-         return
-      end if
 
       attempt_idx = 1
-      active_context%trace_route_code = 1
-      call run_dfo_ls_attempt(f, tol, max_iter, attempt_idx, xt, z, del_z, jac, x0_guess, stage_converged, Jl, x_new, &
-                              x_best_out=x_best_first, best_res_out=best_res_first, flow_workspace=flow_workspace, &
-                              qn_context=active_context, qn_diagnostics=active_diagnostics, qn_policy=active_policy)
-      if (best_res_first < best_res_global) then
-         best_res_global = best_res_first
-         Jl_best_global = Jl
-         x_best_global = x_best_first
-      end if
-      x_stage_seed = x_best_first
+      active_context%trace_route_code = 10
+      call run_official_dfols_attempt(tol, attempt_idx, xt, z, del_z, jac, x0_guess, stage_converged, Jl, x_new, &
+                                      x_best_out=x_best_first, best_res_out=best_res_first, flow_workspace=flow_workspace, &
+                                      qn_context=active_context, qn_diagnostics=active_diagnostics, qn_policy=active_policy)
+      best_res_global = best_res_first
+      Jl_best_global = Jl
+      x_best_global = x_best_first
       converged = stage_converged
 
-      ! Priority pass for near-solution stalls: if the first pass gets close,
-      ! spend one longer local DFO-LS run from the first-pass best state.
-      run_priority_pass = (.not. converged) .and. (best_res_first <= promising_first_pass_res)
-      if (run_priority_pass .and. max_iter <= 32) then
-         run_priority_pass = (best_res_first <= probe_priority_pass_trigger_res)
-      end if
-      if (run_priority_pass) then
-         best_res_try = huge(1.0_dp)
-         x_stage_best = x_stage_seed
-         x_try = xt
-         Jl_try = Jl
-         attempt_idx = attempt_idx + 1
-         active_context%trace_route_code = 2
-         call run_dfo_ls_attempt(f, tol, 2*max_iter, attempt_idx, xt, z, del_z, jac, x_stage_seed, stage_converged, &
-                                 Jl_try, x_try, x_best_out=x_stage_best, best_res_out=best_res_try, flow_workspace=flow_workspace, &
-                                 qn_context=active_context, qn_diagnostics=active_diagnostics, qn_policy=active_policy)
-         if (best_res_try < best_res_global) then
-            best_res_global = best_res_try
-            Jl_best_global = Jl_try
-            x_best_global = x_stage_best
-         end if
-         x_stage_seed = x_stage_best
-         Jl = Jl_try
-         x_new = x_try
-         if (stage_converged) converged = .true.
-      end if
-
       if ((.not. converged) .and. ieee_is_finite(best_res_global) .and. &
-          best_res_global <= probe_global_rescue_trigger_res) then
+          best_res_global <= official_global_filter_trigger_res) then
          global_filter_candidate = .true.
       end if
 
       if ((.not. converged) .and. residual_within_accept_tolerance(best_res_global, tol)) then
          active_context%trace_route_code = 90
-         call rescue_attempt_from_best(xt, z, del_z, jac, tol, x_best_global, Jl_best_global, best_res_global, x_new, Jl, &
-                                       converged, flow_workspace, active_context, active_diagnostics, active_policy)
-      end if
-      if (.not. converged) then
-         best_accept_tol = tol
-         if (active_policy%qn_force_best_proposal_enabled .and. active_policy%qn_force_best_proposal_tol > 0.0_dp) then
-            best_accept_tol = active_policy%qn_force_best_proposal_tol
-         end if
-         if (ieee_is_finite(best_res_global) .and. best_res_global < best_accept_tol) then
-            active_context%trace_route_code = 91
-            call rescue_attempt_from_best(xt, z, del_z, jac, best_accept_tol, x_best_global, Jl_best_global, best_res_global, x_new, Jl, &
-                                          converged, flow_workspace, active_context, active_diagnostics, active_policy)
-         end if
+         call certify_candidate_if_within_tol(xt, z, del_z, jac, tol, x_best_global, Jl_best_global, best_res_global, x_new, Jl, &
+                                              converged, flow_workspace, active_context, active_diagnostics, active_policy)
       end if
       if (global_filter_candidate) then
          call record_quasi_global_filter(active_diagnostics, converged)
@@ -451,8 +341,7 @@ contains
       if (present(x_best_solution)) then
          if (size(x_best_solution) == n) x_best_solution = x_best_global
       end if
-      call end_quasi_watchdog_scope(active_context, active_policy)
-      deallocate (x0_guess, x_best_first, x_stage_best, x_stage_seed, x_try, x_best_global, Jl_try, Jl_best_global)
+      deallocate (x0_guess, x_best_first, x_best_global, Jl_best_global)
    end subroutine solve_constraint_quasi_newton
 
    subroutine record_quasi_global_filter(qn_diagnostics, local_success)
@@ -549,8 +438,8 @@ contains
                                      residual_within_accept_tolerance(initial_r_norm, tol), .true.)
 
       if (residual_within_accept_tolerance(best_r_norm, tol)) then
-         call rescue_attempt_from_best(xt, z, del_z, jac, tol, x_best, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace, &
-                                       qn_context, qn_diagnostics, qn_policy)
+         call certify_candidate_if_within_tol(xt, z, del_z, jac, tol, x_best, Jl_best, best_r_norm, x_new, Jl, converged, &
+                                              flow_workspace, qn_context, qn_diagnostics, qn_policy)
          if (.not. converged) x_new = xt
          if (present(x_best_out)) then
             if (size(x_best_out) == size(x_best)) x_best_out = x_best
@@ -615,8 +504,8 @@ contains
          end if
       end if
 
-      call rescue_attempt_from_best(xt, z, del_z, jac, tol, x_best, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace, &
-                                    qn_context, qn_diagnostics, qn_policy)
+      call certify_candidate_if_within_tol(xt, z, del_z, jac, tol, x_best, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace, &
+                                           qn_context, qn_diagnostics, qn_policy)
       if (.not. converged) then
          x_new = xt
          if (size(Jl_best) == size(Jl)) Jl = Jl_best
@@ -800,448 +689,6 @@ contains
          " flag=", flag, "; QN attempt will be rejected without internal fallback."
    end subroutine warn_official_dfols_failure
 
-   subroutine run_dfo_ls_attempt(f, tol, max_iter, attempt_idx, xt, z, del_z, jac, x_init, converged, Jl, x_new, &
-                                 x_best_out, best_res_out, flow_workspace, qn_context, qn_diagnostics, qn_policy)
-      implicit none
-      integer, intent(in) :: max_iter
-      integer, intent(in) :: attempt_idx
-      real(dp), intent(in) :: tol
-      real(dp), intent(in) :: xt(:), del_z(:), x_init(:)
-      complex(dp), intent(in) :: z(:), jac(:, :)
-      logical, intent(out) :: converged
-      real(dp), intent(out) :: Jl(:), x_new(:)
-      real(dp), intent(out), optional :: x_best_out(:)
-      real(dp), intent(out), optional :: best_res_out
-      type(flow_workspace_t), intent(inout), optional :: flow_workspace
-      type(qn_context_t), intent(inout), target :: qn_context
-      type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics
-      type(qn_policy_context_t), intent(inout), target :: qn_policy
-
-      interface
-         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context, qn_diagnostics, qn_policy)
-            use, intrinsic :: iso_fortran_env, only: real64
-            use solve_flow, only: flow_workspace_t
-            import :: qn_context_t, qn_diagnostics_context_t, qn_policy_context_t
-            integer, parameter :: dp = real64
-            real(dp), intent(in) :: xt(:), xi(:), del_z(:)
-            complex(dp), intent(in) :: z(:), jac(:, :)
-            real(dp), intent(out) :: fq(:), Jl(:)
-            logical, intent(out) :: ierr
-            type(flow_workspace_t), intent(inout), optional :: flow_workspace
-            type(qn_context_t), intent(inout), optional, target :: qn_context
-            type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
-            type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
-         end subroutine f
-      end interface
-
-      real(dp), parameter :: trust_radius_min = 1.0e-6_dp
-      real(dp), parameter :: trust_radius_max = 5.0_dp
-      real(dp), parameter :: eta_accept = 1.0e-2_dp
-      real(dp), parameter :: eta_expand = 0.80_dp
-      real(dp), parameter :: eta_shrink = 0.20_dp
-      real(dp), parameter :: lambda_min = 1.0e-10_dp
-      real(dp), parameter :: lambda_max = 1.0e12_dp
-      real(dp), parameter :: stagnation_rel = 2.0e-3_dp
-      real(dp), parameter :: weak_progress_rel = 5.0e-4_dp
-      real(dp), parameter :: escape_len_floor = 5.0e-3_dp
-      real(dp), parameter :: escape_len_scale = 5.0e-3_dp
-      real(dp), parameter :: escape_improve_rel = 2.0e-3_dp
-      integer, parameter :: escape_trigger_score = 6
-
-      integer :: n, iter_idx, i, solve_try, stagnation_limit, no_improve_count
-      integer :: stall_score, escape_try, axis_idx
-      real(dp) :: trust_radius, lambda, lambda_trial, step_norm
-      real(dp) :: r_norm, r_trial_norm, initial_r_norm, best_r_norm, prev_best_r_norm
-      real(dp) :: f_obj, f_obj_trial, ared, pred, ratio, alpha_ratio
-      real(dp) :: prev_r_norm, g_norm, escape_len, escape_len_base, x_norm
-      real(dp) :: attempt_cpu_start, attempt_cpu_seconds
-      logical :: eval_error, lin_error, accepted, escaped, escape_accept
-
-      real(dp), allocatable :: x(:), x_trial(:), x_seed(:), r(:), r_trial(:)
-      real(dp), allocatable :: Jm(:, :), Hm(:, :), Bm(:, :), g(:), step(:), hs(:)
-      real(dp), allocatable :: Jl_trial(:), x_best(:), Jl_best(:)
-
-      n = 2*size(z)
-      converged = .false.
-      x_new = xt
-      if (size(x_new) /= size(xt) .or. size(Jl) /= size(del_z)) return
-
-      allocate (x(n), x_trial(n), x_seed(n), r(n), r_trial(n), Jm(n, n), Hm(n, n), Bm(n, n), g(n), step(n), hs(n), &
-                Jl_trial(n), x_best(n), Jl_best(n))
-
-      if (size(x_init) == n) then
-         x = x_init
-      else
-         x = 0.0_dp
-      end if
-
-      qn_context%trace_iter = 0
-      qn_context%current_attempt_eval_count = 0_int64
-      call cpu_time(attempt_cpu_start)
-      call count_qn_attempt_eval(qn_context)
-      call f(xt, z, x, r, del_z, eval_error, Jl, jac, flow_workspace, qn_context, qn_diagnostics, qn_policy)
-      if (eval_error .or. .not. real_vector_is_finite(r)) then
-         x = 0.0_dp
-         qn_context%trace_iter = 0
-         call count_qn_attempt_eval(qn_context)
-         call f(xt, z, x, r, del_z, eval_error, Jl, jac, flow_workspace, qn_context, qn_diagnostics, qn_policy)
-      end if
-      if (eval_error .or. .not. real_vector_is_finite(r)) then
-         call append_quasi_trace_sample(qn_context, qn_policy, 0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
-         attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
-         call capture_qn_attempt(xt, z, del_z, x, attempt_idx, max_iter, tol, huge(1.0_dp), huge(1.0_dp), .false., .false., &
-                                 qn_context%current_attempt_eval_count, attempt_cpu_seconds, qn_diagnostics)
-         deallocate (x, x_trial, x_seed, r, r_trial, Jm, Hm, Bm, g, step, hs, Jl_trial, x_best, Jl_best)
-         return
-      end if
-
-      x_seed = x
-      r_norm = norm2(r)
-      if (.not. ieee_is_finite(r_norm)) then
-         call append_quasi_trace_sample(qn_context, qn_policy, 0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
-         attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
-         call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, max_iter, tol, r_norm, huge(1.0_dp), .false., .false., &
-                                 qn_context%current_attempt_eval_count, attempt_cpu_seconds, qn_diagnostics)
-         deallocate (x, x_trial, x_seed, r, r_trial, Jm, Hm, Bm, g, step, hs, Jl_trial, x_best, Jl_best)
-         return
-      end if
-
-      initial_r_norm = r_norm
-      call append_quasi_trace_sample(qn_context, qn_policy, 0.0_dp, 0, 0, attempt_idx, r_norm, .false., .true.)
-      best_r_norm = r_norm
-      prev_best_r_norm = best_r_norm
-      x_best = x
-      Jl_best = Jl
-      trust_radius = max(trust_radius_min, min(trust_radius_max, max(0.25_dp, norm2(x))))
-      lambda = max(lambda_min, 1.0e-4_dp*max(1.0_dp, r_norm))
-      if (r_norm <= 1.0e-4_dp) then
-         trust_radius = min(trust_radius, 8.0e-2_dp)
-         lambda = max(lambda, 5.0e-3_dp)
-      end if
-      if (r_norm <= 1.0e-6_dp) then
-         trust_radius = min(trust_radius, 3.0e-2_dp)
-         lambda = max(lambda, 2.0e-2_dp)
-      end if
-      no_improve_count = 0
-      stall_score = 0
-      stagnation_limit = max(16, min(40, max_iter/2))
-
-      do iter_idx = 1, max_iter
-         if (qn_context%watchdog_scope_active .and. qn_context%watchdog_hit) exit
-         if (residual_within_accept_tolerance(r_norm, tol)) exit
-         prev_r_norm = r_norm
-
-         call build_dfo_gn_jacobian(f, xt, z, del_z, jac, x, r, trust_radius, iter_idx, Jm, flow_workspace, qn_context, &
-                                    qn_diagnostics, qn_policy)
-         Hm = matmul(transpose(Jm), Jm)
-         g = matmul(transpose(Jm), r)
-         if (.not. real_vector_is_finite(g)) then
-            call append_quasi_trace_sample(qn_context, qn_policy, 0.0_dp, iter_idx, 0, attempt_idx, huge(1.0_dp), .false., .false.)
-            trust_radius = max(trust_radius_min, 0.5_dp*trust_radius)
-            lambda = min(lambda_max, max(10.0_dp*lambda, 1.0e-6_dp))
-            cycle
-         end if
-
-         accepted = .false.
-         lambda_trial = lambda
-         do solve_try = 1, 8
-            Bm = Hm
-            do i = 1, n
-               Bm(i, i) = Bm(i, i) + lambda_trial*max(1.0_dp, Hm(i, i))
-            end do
-            call solve_linear_direction(g, Bm, step, lin_error)
-            if (lin_error .or. .not. real_vector_is_finite(step)) then
-               lambda_trial = min(lambda_max, 10.0_dp*lambda_trial)
-               cycle
-            end if
-
-            step_norm = norm2(step)
-            if (.not. ieee_is_finite(step_norm) .or. step_norm <= tiny(1.0_dp)) then
-               lin_error = .true.
-               lambda_trial = min(lambda_max, 10.0_dp*lambda_trial)
-               cycle
-            end if
-            if (step_norm > trust_radius) then
-               step = step*(trust_radius/step_norm)
-               step_norm = trust_radius
-            end if
-
-            x_trial = x + step
-            qn_context%trace_iter = iter_idx
-            call count_qn_attempt_eval(qn_context)
-            call f(xt, z, x_trial, r_trial, del_z, eval_error, Jl_trial, jac, flow_workspace, qn_context, qn_diagnostics, &
-                   qn_policy)
-            if (eval_error .or. .not. real_vector_is_finite(r_trial)) then
-               call append_quasi_trace_sample(qn_context, qn_policy, 0.0_dp, iter_idx, 0, attempt_idx, huge(1.0_dp), .false., .false.)
-               trust_radius = max(trust_radius_min, 0.5_dp*trust_radius)
-               lambda_trial = min(lambda_max, 4.0_dp*lambda_trial)
-               cycle
-            end if
-
-            r_trial_norm = norm2(r_trial)
-            if (.not. ieee_is_finite(r_trial_norm)) then
-               call append_quasi_trace_sample(qn_context, qn_policy, 0.0_dp, iter_idx, 0, attempt_idx, huge(1.0_dp), .false., .false.)
-               trust_radius = max(trust_radius_min, 0.5_dp*trust_radius)
-               lambda_trial = min(lambda_max, 4.0_dp*lambda_trial)
-               cycle
-            end if
-
-            hs = matmul(Hm, step)
-            f_obj = 0.5_dp*r_norm*r_norm
-            f_obj_trial = 0.5_dp*r_trial_norm*r_trial_norm
-            ared = f_obj - f_obj_trial
-            pred = -(dot_product(g, step) + 0.5_dp*dot_product(step, hs))
-            if ((.not. ieee_is_finite(pred)) .or. pred <= tiny(1.0_dp)) then
-               pred = max(1.0e-16_dp, 0.5_dp*lambda_trial*dot_product(step, step))
-            end if
-            ratio = ared/max(pred, tiny(1.0_dp))
-            accepted = residual_within_accept_tolerance(r_trial_norm, tol) .or. &
-                       (ieee_is_finite(ared) .and. ared > 0.0_dp .and. ieee_is_finite(ratio) .and. ratio >= eta_accept)
-
-            alpha_ratio = min(1.0_dp, step_norm/max(trust_radius, tiny(1.0_dp)))
-            call append_quasi_trace_sample(qn_context, qn_policy, alpha_ratio, iter_idx, 0, attempt_idx, r_trial_norm, accepted, .true.)
-
-            if (accepted) then
-               x = x_trial
-               r = r_trial
-               r_norm = r_trial_norm
-               Jl = Jl_trial
-               if (r_norm < best_r_norm) then
-                  best_r_norm = r_norm
-                  x_best = x
-                  Jl_best = Jl
-               end if
-
-               if (ieee_is_finite(ratio)) then
-                  if (ratio >= eta_expand .and. step_norm >= 0.8_dp*trust_radius) then
-                     trust_radius = min(trust_radius_max, 1.8_dp*trust_radius)
-                  else if (ratio < eta_shrink) then
-                     trust_radius = max(trust_radius_min, 0.5_dp*trust_radius)
-                  end if
-               end if
-               if (.not. ieee_is_finite(ratio)) then
-                  lambda = min(lambda_max, max(lambda_trial, 2.5_dp*lambda))
-               else if (ratio >= 0.90_dp) then
-                  lambda = max(lambda_min, 0.35_dp*lambda_trial)
-               else if (ratio >= 0.50_dp) then
-                  lambda = max(lambda_min, 0.65_dp*lambda_trial)
-               else if (ratio < 0.10_dp) then
-                  lambda = min(lambda_max, max(2.5_dp*lambda_trial, lambda))
-               else
-                  lambda = min(lambda_max, max(1.2_dp*lambda_trial, lambda_min))
-               end if
-               if (r_norm <= prev_r_norm*(1.0_dp - weak_progress_rel)) then
-                  stall_score = max(0, stall_score - 1)
-               else
-                  stall_score = stall_score + 1
-               end if
-               exit
-            else
-               trust_radius = max(trust_radius_min, 0.5_dp*trust_radius)
-               lambda_trial = min(lambda_max, 4.0_dp*lambda_trial)
-            end if
-         end do
-
-         if (.not. accepted) then
-            lambda = min(lambda_max, max(lambda_trial, 4.0_dp*lambda))
-            stall_score = stall_score + 2
-         end if
-
-         escaped = .false.
-         if (iter_idx >= 5 .and. stall_score >= escape_trigger_score) then
-            g_norm = norm2(g)
-            x_norm = norm2(x)
-            escape_len_base = min(trust_radius_max, max(6.0_dp*trust_radius, escape_len_floor, escape_len_scale*max(1.0_dp, x_norm)))
-            do escape_try = 1, 4
-               step = 0.0_dp
-               select case (escape_try)
-               case (1)
-                  if (ieee_is_finite(g_norm) .and. g_norm > tiny(1.0_dp)) then
-                     step = -g/g_norm
-                  else
-                     axis_idx = 1 + mod(iter_idx + attempt_idx - 1, n)
-                     step(axis_idx) = 1.0_dp
-                  end if
-               case (2)
-                  if (ieee_is_finite(g_norm) .and. g_norm > tiny(1.0_dp)) then
-                     step = g/g_norm
-                  else
-                     axis_idx = 1 + mod(iter_idx + attempt_idx - 1, n)
-                     step(axis_idx) = -1.0_dp
-                  end if
-               case (3)
-                  axis_idx = 1 + mod(2*iter_idx + attempt_idx - 1, n)
-                  step(axis_idx) = 1.0_dp
-               case default
-                  axis_idx = 1 + mod(2*iter_idx + attempt_idx - 1, n)
-                  step(axis_idx) = -1.0_dp
-               end select
-               select case (escape_try)
-               case (1)
-                  escape_len = escape_len_base
-               case (2)
-                  escape_len = min(trust_radius_max, 2.5_dp*escape_len_base)
-               case (3)
-                  escape_len = min(trust_radius_max, 7.0_dp*escape_len_base)
-               case default
-                  escape_len = min(trust_radius_max, max(18.0_dp*escape_len_base, 0.15_dp + 0.08_dp*x_norm))
-               end select
-
-               x_trial = x + escape_len*step
-               qn_context%trace_iter = iter_idx
-               call count_qn_attempt_eval(qn_context)
-               call f(xt, z, x_trial, r_trial, del_z, eval_error, Jl_trial, jac, flow_workspace, qn_context, qn_diagnostics, &
-                      qn_policy)
-               if (eval_error .or. .not. real_vector_is_finite(r_trial)) then
-                  call append_quasi_trace_sample(qn_context, qn_policy, 0.0_dp, iter_idx, 100 + escape_try, attempt_idx, &
-                                                 huge(1.0_dp), .false., .false.)
-                  cycle
-               end if
-
-               r_trial_norm = norm2(r_trial)
-               if (.not. ieee_is_finite(r_trial_norm)) then
-                  call append_quasi_trace_sample(qn_context, qn_policy, 0.0_dp, iter_idx, 100 + escape_try, attempt_idx, &
-                                                 huge(1.0_dp), .false., .false.)
-                  cycle
-               end if
-
-               escape_accept = residual_within_accept_tolerance(r_trial_norm, tol) .or. &
-                               (r_trial_norm <= r_norm*(1.0_dp - escape_improve_rel))
-               alpha_ratio = min(1.0_dp, escape_len/max(trust_radius, tiny(1.0_dp)))
-               call append_quasi_trace_sample(qn_context, qn_policy, alpha_ratio, iter_idx, 100 + escape_try, attempt_idx, &
-                                              r_trial_norm, escape_accept, .true.)
-               if (.not. escape_accept) cycle
-
-               x = x_trial
-               r = r_trial
-               r_norm = r_trial_norm
-               Jl = Jl_trial
-               if (r_norm < best_r_norm) then
-                  best_r_norm = r_norm
-                  x_best = x
-                  Jl_best = Jl
-               end if
-               trust_radius = min(trust_radius_max, max(trust_radius, 0.75_dp*escape_len))
-               lambda = max(lambda_min, 0.60_dp*lambda)
-               stall_score = 0
-               accepted = .true.
-               escaped = .true.
-               exit
-            end do
-         end if
-
-         if (.not. accepted) then
-            if (trust_radius <= 1.05_dp*trust_radius_min .and. .not. escaped) exit
-         end if
-
-         if (best_r_norm <= prev_best_r_norm*(1.0_dp - stagnation_rel)) then
-            no_improve_count = 0
-         else
-            no_improve_count = no_improve_count + 1
-         end if
-         prev_best_r_norm = min(prev_best_r_norm, best_r_norm)
-         if (iter_idx >= 8 .and. no_improve_count >= stagnation_limit) exit
-      end do
-
-      call rescue_attempt_from_best(xt, z, del_z, jac, tol, x_best, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace, &
-                                    qn_context, qn_diagnostics, qn_policy)
-      if (.not. converged) then
-         x_new = xt
-         if (size(Jl_best) == size(Jl)) Jl = Jl_best
-      end if
-      if (present(x_best_out)) then
-         if (size(x_best_out) == size(x_best)) x_best_out = x_best
-      end if
-      if (present(best_res_out)) best_res_out = best_r_norm
-      attempt_cpu_seconds = qn_attempt_elapsed_seconds(attempt_cpu_start)
-      call capture_qn_attempt(xt, z, del_z, x_seed, attempt_idx, max_iter, tol, initial_r_norm, best_r_norm, converged, .true., &
-                              qn_context%current_attempt_eval_count, attempt_cpu_seconds, qn_diagnostics)
-
-      deallocate (x, x_trial, x_seed, r, r_trial, Jm, Hm, Bm, g, step, hs, Jl_trial, x_best, Jl_best)
-   end subroutine run_dfo_ls_attempt
-
-   subroutine build_dfo_gn_jacobian(f, xt, z, del_z, jac, x, r, trust_radius, iter_idx, Jm, flow_workspace, qn_context, &
-                                    qn_diagnostics, qn_policy)
-      implicit none
-      real(dp), intent(in) :: xt(:), del_z(:), x(:), r(:), trust_radius
-      complex(dp), intent(in) :: z(:), jac(:, :)
-      integer, intent(in) :: iter_idx
-      real(dp), intent(out) :: Jm(:, :)
-      type(flow_workspace_t), intent(inout), optional :: flow_workspace
-      type(qn_context_t), intent(inout), target :: qn_context
-      type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics
-      type(qn_policy_context_t), intent(inout), target :: qn_policy
-
-      interface
-         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context, qn_diagnostics, qn_policy)
-            use, intrinsic :: iso_fortran_env, only: real64
-            use solve_flow, only: flow_workspace_t
-            import :: qn_context_t, qn_diagnostics_context_t, qn_policy_context_t
-            integer, parameter :: dp = real64
-            real(dp), intent(in) :: xt(:), xi(:), del_z(:)
-            complex(dp), intent(in) :: z(:), jac(:, :)
-            real(dp), intent(out) :: fq(:), Jl(:)
-            logical, intent(out) :: ierr
-            type(flow_workspace_t), intent(inout), optional :: flow_workspace
-            type(qn_context_t), intent(inout), optional, target :: qn_context
-            type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
-            type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
-         end subroutine f
-      end interface
-
-      integer :: n, i
-      real(dp) :: h, h_floor, h_ceil, denom
-      logical :: eval_error, eval_plus_ok, eval_minus_ok
-      real(dp), allocatable :: x_probe(:), r_plus(:), r_minus(:), Jl_probe(:)
-
-      n = size(x)
-      Jm = 0.0_dp
-      if (size(r) /= n .or. size(Jm, 1) /= n .or. size(Jm, 2) /= n) return
-
-      allocate (x_probe(n), r_plus(n), r_minus(n), Jl_probe(n))
-
-      do i = 1, n
-         h_floor = max(1.0e-8_dp, sqrt(epsilon(1.0_dp))*max(1.0_dp, abs(x(i))))
-         h_floor = max(h_floor, 0.02_dp*max(trust_radius, 1.0e-6_dp))
-         h_ceil = max(1.0e-5_dp, 0.30_dp*max(trust_radius, 1.0e-6_dp))
-         h = min(max(h_floor, 1.0e-7_dp), h_ceil)
-
-         eval_plus_ok = .false.
-         x_probe = x
-         x_probe(i) = x_probe(i) + h
-         qn_context%trace_iter = iter_idx
-         call count_qn_attempt_eval(qn_context)
-         call f(xt, z, x_probe, r_plus, del_z, eval_error, Jl_probe, jac, flow_workspace, qn_context, qn_diagnostics, qn_policy)
-         if (.not. eval_error .and. real_vector_is_finite(r_plus)) eval_plus_ok = .true.
-
-         eval_minus_ok = .false.
-         x_probe = x
-         x_probe(i) = x_probe(i) - h
-         qn_context%trace_iter = iter_idx
-         call count_qn_attempt_eval(qn_context)
-         call f(xt, z, x_probe, r_minus, del_z, eval_error, Jl_probe, jac, flow_workspace, qn_context, qn_diagnostics, qn_policy)
-         if (.not. eval_error .and. real_vector_is_finite(r_minus)) eval_minus_ok = .true.
-
-         if (eval_plus_ok .and. eval_minus_ok) then
-            denom = 2.0_dp*h
-            Jm(:, i) = (r_plus - r_minus)/denom
-         else if (eval_plus_ok) then
-            denom = h
-            Jm(:, i) = (r_plus - r)/denom
-         else if (eval_minus_ok) then
-            denom = h
-            Jm(:, i) = (r - r_minus)/denom
-         else
-            Jm(:, i) = 0.0_dp
-            cycle
-         end if
-
-         if (.not. real_vector_is_finite(Jm(:, i))) Jm(:, i) = 0.0_dp
-      end do
-
-      deallocate (x_probe, r_plus, r_minus, Jl_probe)
-   end subroutine build_dfo_gn_jacobian
-
    subroutine recover_converged_flowed_state(xt, z, del_z, Jl, z_flowed, eval_error, flow_workspace, qn_context, qn_policy)
       implicit none
       real(dp), intent(in) :: xt(:), del_z(:), Jl(:)
@@ -1270,23 +717,13 @@ contains
 
       call real_to_complex(del_z + Jl, z_trial)
       z_trial = z + z_trial
-      call update_quasi_watchdog_scope(qn_context, qn_policy)
-      if (qn_context%watchdog_scope_active .and. qn_context%watchdog_hit) then
-         eval_error = .true.
-         return
-      end if
       call set_intode_residual_role_trace(intode_role_certification)
       call flowzr(xt, z_trial, eval_error, workspace=flow_workspace)
-      call update_quasi_watchdog_scope(qn_context, qn_policy)
-      if (qn_context%watchdog_scope_active .and. qn_context%watchdog_hit) then
-         eval_error = .true.
-         return
-      end if
       if (.not. eval_error) z_flowed = z_trial
    end subroutine recover_converged_flowed_state
 
-   subroutine rescue_attempt_from_best(xt, z, del_z, jac, tol, xi_best, Jl_best, best_fx_norm, x_new, Jl, converged, flow_workspace, &
-                                       qn_context, qn_diagnostics, qn_policy)
+   subroutine certify_candidate_if_within_tol(xt, z, del_z, jac, tol, xi_best, Jl_best, best_fx_norm, x_new, Jl, converged, &
+                                              flow_workspace, qn_context, qn_diagnostics, qn_policy)
       implicit none
       real(dp), intent(in) :: xt(:), del_z(:), tol, xi_best(:), Jl_best(:), best_fx_norm
       complex(dp), intent(in) :: z(:), jac(:, :)
@@ -1321,7 +758,7 @@ contains
       x_new = xt
       x_new(2:) = real(z_new, dp)
       converged = .true.
-   end subroutine rescue_attempt_from_best
+   end subroutine certify_candidate_if_within_tol
 
    pure logical function residual_within_accept_tolerance(res_norm, tol)
       implicit none
@@ -1466,11 +903,9 @@ contains
       integer :: flow_status, n, active_role, prior_role
       type(qn_context_t), pointer :: active_context
       type(qn_diagnostics_context_t), pointer :: active_diagnostics
-      type(qn_policy_context_t), pointer :: active_policy
 
       call resolve_qn_context(qn_context, active_context)
       call resolve_qn_diagnostics(qn_diagnostics, active_diagnostics)
-      call resolve_qn_policy(qn_policy, active_policy)
       n = size(z)
       if (size(xt) /= n + 1 .or. size(xi) /= 2*n .or. size(del_z) /= 2*n .or. size(fq) /= 2*n .or. size(Jl) /= 2*n) then
          call mark_constraint_eval_invalid(fq, Jl, ierr, active_context)
@@ -1491,11 +926,6 @@ contains
       active_context%eval_z_proposed(1:n) = active_context%residual_z_trial(1:n)
       active_context%eval_has_flowed = .false.
       active_context%eval_flowed_is_inverse = .false.
-      call update_quasi_watchdog_scope(active_context, active_policy)
-      if (active_context%watchdog_scope_active .and. active_context%watchdog_hit) then
-         call mark_constraint_eval_invalid(fq, Jl, ierr, active_context)
-         return
-      end if
 
       active_role = residual_role
       call get_intode_residual_role_trace(prior_role)
@@ -1509,11 +939,6 @@ contains
       call flowzr(xt, active_context%residual_z_trial, ierr, flow_status, flow_workspace)
       call record_quasi_eval_flow_status(active_diagnostics, flow_status)
       if (ierr) then
-         call mark_constraint_eval_invalid(fq, Jl, ierr, active_context)
-         return
-      end if
-      call update_quasi_watchdog_scope(active_context, active_policy)
-      if (active_context%watchdog_scope_active .and. active_context%watchdog_hit) then
          call mark_constraint_eval_invalid(fq, Jl, ierr, active_context)
          return
       end if
@@ -1752,16 +1177,6 @@ contains
       context%last_trace_accepted(k) = accepted
       context%last_trace_eval_ok(k) = eval_ok
       context%last_trace_count = k
-
-      if (context%watchdog_scope_active .and. accepted .and. eval_ok) then
-         context%watchdog_used_accepted_iter = context%watchdog_used_accepted_iter + 1
-         if ((.not. context%watchdog_hit) .and. qn_policy%quasi_accepted_iter_budget > 0) then
-            if (context%watchdog_used_accepted_iter > qn_policy%quasi_accepted_iter_budget) then
-               context%watchdog_hit = .true.
-               context%watchdog_hit_total = context%watchdog_hit_total + 1
-            end if
-         end if
-      end if
    end subroutine append_quasi_trace_sample
 
    subroutine grow_complex_trace(buf, n_dim, n_keep, n_new)
@@ -1810,110 +1225,6 @@ contains
       call move_alloc(tmp, buf)
    end subroutine grow_logical_trace
 
-   subroutine reset_quasi_watchdog_last_status(context)
-      implicit none
-      type(qn_context_t), intent(inout) :: context
-
-      context%watchdog_last_hit = .false.
-      context%watchdog_last_used = 0
-      context%watchdog_last_used_accepted_iter = 0
-   end subroutine reset_quasi_watchdog_last_status
-
-   subroutine begin_quasi_watchdog_scope(context, qn_policy)
-      implicit none
-      type(qn_context_t), intent(inout) :: context
-      type(qn_policy_context_t), intent(inout) :: qn_policy
-
-      call load_quasi_watchdog_policy(qn_policy)
-      context%watchdog_scope_active = (qn_policy%quasi_solver_assist_budget > 0 .or. qn_policy%quasi_accepted_iter_budget > 0)
-      context%watchdog_hit = .false.
-      context%watchdog_used_solver_assist = 0
-      context%watchdog_used_accepted_iter = 0
-      context%watchdog_start_solver_assist = current_solver_assist_success_count()
-      call reset_quasi_watchdog_last_status(context)
-   end subroutine begin_quasi_watchdog_scope
-
-   subroutine end_quasi_watchdog_scope(context, qn_policy)
-      implicit none
-      type(qn_context_t), intent(inout) :: context
-      type(qn_policy_context_t), intent(inout) :: qn_policy
-
-      call update_quasi_watchdog_scope(context, qn_policy)
-      context%watchdog_last_hit = context%watchdog_hit
-      context%watchdog_last_used = context%watchdog_used_solver_assist
-      context%watchdog_last_used_accepted_iter = context%watchdog_used_accepted_iter
-      context%watchdog_scope_active = .false.
-   end subroutine end_quasi_watchdog_scope
-
-   subroutine update_quasi_watchdog_scope(context, qn_policy)
-      implicit none
-      type(qn_context_t), intent(inout) :: context
-      type(qn_policy_context_t), intent(inout) :: qn_policy
-      integer :: current_solver_assist_success
-
-      if (.not. context%watchdog_scope_active) return
-      current_solver_assist_success = current_solver_assist_success_count()
-      context%watchdog_used_solver_assist = max(0, current_solver_assist_success - context%watchdog_start_solver_assist)
-      if ((.not. context%watchdog_hit) .and. qn_policy%quasi_solver_assist_budget > 0) then
-         if (context%watchdog_used_solver_assist > qn_policy%quasi_solver_assist_budget) then
-            context%watchdog_hit = .true.
-            context%watchdog_hit_total = context%watchdog_hit_total + 1
-         end if
-      end if
-      if ((.not. context%watchdog_hit) .and. qn_policy%quasi_accepted_iter_budget > 0) then
-         if (context%watchdog_used_accepted_iter > qn_policy%quasi_accepted_iter_budget) then
-            context%watchdog_hit = .true.
-            context%watchdog_hit_total = context%watchdog_hit_total + 1
-         end if
-      end if
-   end subroutine update_quasi_watchdog_scope
-
-   subroutine get_quasi_newton_watchdog_status(budget_hit, budget_used, budget_limit, qn_context, qn_policy)
-      implicit none
-      logical, intent(out) :: budget_hit
-      integer, intent(out) :: budget_used, budget_limit
-      type(qn_context_t), intent(inout), optional, target :: qn_context
-      type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
-      type(qn_context_t), pointer :: active_context
-      type(qn_policy_context_t), pointer :: active_policy
-
-      call resolve_qn_context(qn_context, active_context)
-      call resolve_qn_policy(qn_policy, active_policy)
-      call load_quasi_watchdog_policy(active_policy)
-      if (active_context%watchdog_scope_active) call update_quasi_watchdog_scope(active_context, active_policy)
-      if (active_context%watchdog_scope_active) then
-         budget_hit = active_context%watchdog_hit
-         if (active_policy%quasi_solver_assist_budget > 0) then
-            budget_used = active_context%watchdog_used_solver_assist
-         else
-            budget_used = active_context%watchdog_used_accepted_iter
-         end if
-      else
-         budget_hit = active_context%watchdog_last_hit
-         if (active_policy%quasi_solver_assist_budget > 0) then
-            budget_used = active_context%watchdog_last_used
-         else
-            budget_used = active_context%watchdog_last_used_accepted_iter
-         end if
-      end if
-      if (active_policy%quasi_solver_assist_budget > 0) then
-         budget_limit = active_policy%quasi_solver_assist_budget
-      else
-         budget_limit = active_policy%quasi_accepted_iter_budget
-      end if
-   end subroutine get_quasi_newton_watchdog_status
-
-   integer function current_solver_assist_success_count() result(solver_assist_success)
-      implicit none
-      integer :: success_radau_adaptive, success_radau_adaptive_robust
-      integer :: success_radau_fixed_tol, success_radau_chunked
-      integer :: fail_radau_adaptive_robust, fail_radau_fixed_tol, fail_radau_chunked, fail_final_resort
-
-      call get_intode_rescue_stats(success_radau_adaptive, success_radau_adaptive_robust, &
-                                   success_radau_fixed_tol, success_radau_chunked, solver_assist_success, &
-                                   fail_radau_adaptive_robust, fail_radau_fixed_tol, fail_radau_chunked, fail_final_resort)
-   end function current_solver_assist_success_count
-
    subroutine load_qn_backend_policy(qn_policy)
       implicit none
       type(qn_policy_context_t), intent(inout) :: qn_policy
@@ -1932,7 +1243,9 @@ contains
          case ("official", "official_dfols", "official-dfols", "dfols", "external_dfols")
             qn_policy%qn_solver_backend = qn_backend_official_dfols
          case ("internal", "inhouse", "in_house", "legacy")
-            qn_policy%qn_solver_backend = qn_backend_internal
+            write (*, '(A,A,A)') "[WARN] QN_SOLVER_BACKEND='", trim(env_value), &
+               "' is no longer supported; using official_dfols."
+            qn_policy%qn_solver_backend = qn_backend_official_dfols
          case default
             write (*, '(A,A,A)') "[WARN] Unknown QN_SOLVER_BACKEND='", trim(env_value), "'; using official_dfols."
             qn_policy%qn_solver_backend = qn_backend_official_dfols
@@ -2033,99 +1346,19 @@ contains
    subroutine print_qn_backend_policy_once(qn_policy)
       implicit none
       type(qn_policy_context_t), intent(inout) :: qn_policy
-      character(len=32) :: backend_name
 
       if (qn_policy%qn_backend_notice_printed) return
       qn_policy%qn_backend_notice_printed = .true.
-      if (qn_policy%qn_solver_backend == qn_backend_internal) then
-         backend_name = "internal"
-      else
-         backend_name = "official_dfols"
-      end if
-      write (*, '(A,A)') "[INFO] QN solver backend=", trim(backend_name)
-      if (qn_policy%qn_solver_backend == qn_backend_official_dfols) then
-         write (*, '(A,I0,1X,A,I0,1X,A,L1,1X,A,ES10.3,1X,A,ES10.3)') &
-            "[INFO] official DFO-LS preset npt=", qn_policy%qn_official_dfols_npt, &
-            "maxfun=", qn_policy%qn_official_dfols_maxfun, &
-            "noise=", qn_policy%qn_official_dfols_objfun_has_noise, &
-            "rhobeg=", qn_policy%qn_official_dfols_rhobeg, "rhoend=", qn_policy%qn_official_dfols_rhoend
-         write (*, '(A,ES10.3,1X,A,ES10.3)') &
-            "[INFO] official DFO-LS model.abs_tol=", qn_policy%qn_official_dfols_model_abs_tol, &
-            "model.rel_tol=", qn_policy%qn_official_dfols_model_rel_tol
-      end if
+      write (*, '(A)') "[INFO] QN solver backend=official_dfols"
+      write (*, '(A,I0,1X,A,I0,1X,A,L1,1X,A,ES10.3,1X,A,ES10.3)') &
+         "[INFO] official DFO-LS preset npt=", qn_policy%qn_official_dfols_npt, &
+         "maxfun=", qn_policy%qn_official_dfols_maxfun, &
+         "noise=", qn_policy%qn_official_dfols_objfun_has_noise, &
+         "rhobeg=", qn_policy%qn_official_dfols_rhobeg, "rhoend=", qn_policy%qn_official_dfols_rhoend
+      write (*, '(A,ES10.3,1X,A,ES10.3)') &
+         "[INFO] official DFO-LS model.abs_tol=", qn_policy%qn_official_dfols_model_abs_tol, &
+         "model.rel_tol=", qn_policy%qn_official_dfols_model_rel_tol
    end subroutine print_qn_backend_policy_once
-
-   subroutine load_quasi_watchdog_policy(qn_policy)
-      implicit none
-      type(qn_policy_context_t), intent(inout) :: qn_policy
-      character(len=64) :: env_value
-      integer :: ios, parsed_value
-      logical :: env_present
-
-      if (qn_policy%quasi_watchdog_policy_loaded) return
-      qn_policy%quasi_watchdog_policy_loaded = .true.
-      qn_policy%quasi_solver_assist_budget = quasi_solver_assist_budget_default
-      qn_policy%quasi_accepted_iter_budget = quasi_accepted_iter_budget_default
-      qn_policy%qn_force_best_proposal_enabled = .false.
-      qn_policy%qn_force_best_proposal_tol = -1.0_dp
-
-      call read_string_env("QN_SOLVER_ASSIST_BUDGET", env_value, env_present)
-      if (env_present) then
-         read (env_value, *, iostat=ios) parsed_value
-         if (ios == 0) qn_policy%quasi_solver_assist_budget = parsed_value
-      else
-         ! Legacy alias retained for existing Stage3 scripts and historical run manifests.
-         call read_string_env("QUASI_FINAL_RESORT_BUDGET", env_value, env_present)
-         if (env_present) then
-            read (env_value, *, iostat=ios) parsed_value
-            if (ios == 0) qn_policy%quasi_solver_assist_budget = parsed_value
-         end if
-      end if
-
-      call read_string_env("QN_ACCEPTED_ITER_BUDGET", env_value, env_present)
-      if (env_present) then
-         read (env_value, *, iostat=ios) parsed_value
-         if (ios == 0) qn_policy%quasi_accepted_iter_budget = max(0, parsed_value)
-      else
-         call read_string_env("QUASI_ACCEPTED_ITER_BUDGET", env_value, env_present)
-         if (env_present) then
-            read (env_value, *, iostat=ios) parsed_value
-            if (ios == 0) qn_policy%quasi_accepted_iter_budget = max(0, parsed_value)
-         end if
-      end if
-
-      call read_string_env("QN_FORCE_BEST_PROPOSAL_ENABLED", env_value, env_present)
-      if (env_present) then
-         select case (trim(adjustl(env_value)))
-         case ("0", "false", "FALSE", "False", "no", "NO", "No", "off", "OFF", "Off")
-            qn_policy%qn_force_best_proposal_enabled = .false.
-         case default
-            qn_policy%qn_force_best_proposal_enabled = .true.
-         end select
-      end if
-
-      call read_string_env("QN_FORCE_BEST_PROPOSAL_TOL", env_value, env_present)
-      if (env_present) then
-         read (env_value, *, iostat=ios) qn_policy%qn_force_best_proposal_tol
-         if (ios /= 0 .or. qn_policy%qn_force_best_proposal_tol <= 0.0_dp) then
-            qn_policy%qn_force_best_proposal_tol = -1.0_dp
-            write (*, '(A)') "[WARN] Invalid QN_FORCE_BEST_PROPOSAL_TOL; using quasi tol."
-         end if
-      end if
-
-      if (qn_policy%quasi_solver_assist_budget > 0) then
-         write (*, '(A,I0)') "[INFO] quasi solver-assist watchdog budget=", qn_policy%quasi_solver_assist_budget
-      else
-         write (*, '(A)') "[INFO] quasi solver-assist watchdog budget=disabled"
-      end if
-      if (qn_policy%quasi_accepted_iter_budget > 0) then
-         write (*, '(A,I0)') "[INFO] quasi accepted-iter watchdog budget=", qn_policy%quasi_accepted_iter_budget
-      else
-         write (*, '(A)') "[INFO] quasi accepted-iter watchdog budget=disabled"
-      end if
-      write (*, '(A,L1,1X,A,ES10.3)') "[INFO] force best proposal enabled=", qn_policy%qn_force_best_proposal_enabled, &
-         "tol=", qn_policy%qn_force_best_proposal_tol
-   end subroutine load_quasi_watchdog_policy
 
    subroutine get_quasi_global_filter_stats(candidate_count, pass_count, reject_count, qn_diagnostics)
       implicit none

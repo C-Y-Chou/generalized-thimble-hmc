@@ -124,3 +124,16 @@ direction is:
    correctness proof; audit feedback-kernel measure preservation separately.
 4. Remove solver-assist policy/machinery only after the deletion patch preserves
    the intended assist-off contract and does not silently reintroduce assist.
+
+## Post-Deletion Source Patch
+
+The active-source deletion is recorded in:
+
+- `F15_SOLVER_ASSIST_DELETION_20260515.md`
+
+That patch removes the active solver-assist branch/env parser, makes legacy
+assist enable envs inert, keeps compatibility readers off/zero, and passed the
+focused ODEX/QN/RG contracts plus full M4 guardrails. Before using the patch as
+a production-comparison regeneration source, rerun the direct 10seed/10k PBS
+wrapper at the clean selected commit or explicitly record a narrower
+affected-baseline decision.

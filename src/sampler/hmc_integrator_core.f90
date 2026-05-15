@@ -22,8 +22,6 @@ module hmc_integrator_core
                                            record_constraint_solver_quasi_success, &
                                            record_constraint_solver_fail, &
                                            record_constraint_near_fail_candidate, record_constraint_far_fail, &
-                                           record_constraint_near_rescue_attempt, &
-                                           record_constraint_near_rescue_success, &
                                            record_constraint_near_unusable, &
                                            record_constraint_solver_far_investment, &
                                            record_constraint_solver_quasi_class, &
@@ -33,7 +31,7 @@ module hmc_integrator_core
                                            record_constraint_solver_reverse_gate, &
                                            push_constraint_solver_stats_suppression, &
                                            pop_constraint_solver_stats_suppression, &
-                                           constraint_quasi_stage_probe, constraint_quasi_stage_full, &
+                                           constraint_quasi_stage_probe, &
                                            constraint_quasi_class_local, constraint_quasi_class_mid, &
                                            constraint_quasi_class_global, &
                                            constraint_quasi_far_route_skip, &
@@ -61,21 +59,13 @@ module hmc_integrator_core
    integer, parameter :: hmc_step_status_final_flow_non_strict_success = 12
    integer, parameter :: hmc_step_status_unknown = -1
 
-   integer, parameter :: s1_probe_max_iter_default = 28
-   integer, parameter :: s1_near_full_max_iter_default = 100
-   integer, parameter :: s1_non_near_cheap_full_max_iter_default = 36
+   integer, parameter :: official_dfols_stage_marker_iter = 28
    real(dp), parameter :: qn_reverse_gate_tol_default = 1.0e-8_dp
 
    type :: hmc_policy_context_t
-      logical :: s1_fallback_policy_loaded = .false.
-      integer :: s1_probe_max_iter = s1_probe_max_iter_default
-      integer :: s1_near_full_max_iter = s1_near_full_max_iter_default
-      integer :: s1_non_near_cheap_full_max_iter = s1_non_near_cheap_full_max_iter_default
-      logical :: s1_near_rescue_enabled = .false.
-      logical :: s1_nonnear_rescue_enabled = .false.
+      logical :: hmc_policy_loaded = .false.
       logical :: qn_reverse_gate_enabled = .false.
       real(dp) :: qn_reverse_gate_tol = qn_reverse_gate_tol_default
-      real(dp) :: qn_quasi_tol_override = -1.0_dp
    end type hmc_policy_context_t
 
    type :: hmc_replay_runtime_context_t
@@ -325,7 +315,7 @@ contains
       end if
 
       call ensure_rattle_step_workspace(ws, size(state_x), n_state, size(jaci, 1), size(jaci, 2))
-      call load_s1_fallback_policy(active_hmc_policy)
+      call load_hmc_bridge_policy(active_hmc_policy)
       if (active_hmc_policy%qn_reverse_gate_enabled .and. (.not. active_hmc_replay_runtime%qn_reverse_gate_active)) then
          allocate (initial_momentum_for_gate(size(momentum)))
          initial_momentum_for_gate = momentum
@@ -373,7 +363,6 @@ contains
             end if
             call set_intode_quasi_iter_trace(0)
             quasi_tol = cttol
-            if (active_hmc_policy%qn_quasi_tol_override > 0.0_dp) quasi_tol = active_hmc_policy%qn_quasi_tol_override
             trace_stats_available = .false.
             trace_all_eval_ok = .false.
             trace_count = 0
@@ -391,8 +380,8 @@ contains
             near_rescue_done = .false.
             near_rescue_started = .false.
 
-            ! S1-only fallback path: probe -> classify -> one stage-1 rescue pass.
-            call try_quasi_stage(quasi_tol, active_hmc_policy%s1_probe_max_iter, constraint_quasi_stage_probe, ws, has_error, final_x, &
+            ! Official DFO-LS bridge: one package attempt, then classify failures for reject/RG diagnostics.
+            call try_quasi_stage(quasi_tol, official_dfols_stage_marker_iter, constraint_quasi_stage_probe, ws, has_error, final_x, &
                                  flow_workspace, qn_context, qn_diagnostics, qn_policy)
             if (.not. has_error) then
                quasi_solved_ok = .true.
@@ -423,13 +412,9 @@ contains
                end select
                is_near_case = (quasi_case == quasi_case_near)
 
-               call run_s1_rescue_path(quasi_tol, quasi_case, &
-                                                trace_stats_available, trace_valid_fraction, &
-                                                trace_progress_ratio, trace_regress_ratio, trace_best_over_tol, &
-                                                step_size, ws, has_error, final_x, near_rescue_started, near_rescue_done, &
-                                                quasi_solved_ok, reverse_gate_used_full_stage, &
-                                                reverse_gate_used_nonnear_route, reverse_gate_far_route, flow_workspace, qn_context, &
-                                                qn_diagnostics, qn_policy, active_hmc_policy)
+               call record_official_route_no_rescue_diagnostics(quasi_case, trace_stats_available, trace_valid_fraction, &
+                                                                trace_progress_ratio, trace_regress_ratio, trace_best_over_tol, &
+                                                                reverse_gate_far_route)
 
                reverse_gate_used_near_rescue = near_rescue_started
                select case (reverse_gate_far_route)
@@ -742,116 +727,27 @@ contains
       end if
    end subroutine try_quasi_stage
 
-   subroutine refresh_quasi_trace_gate_state(quasi_tol, trace_available, trace_valid_fraction, &
-                                             trace_progress_ratio, trace_regress_ratio, trace_best_over_tol, qn_context)
+   subroutine record_official_route_no_rescue_diagnostics(quasi_case, trace_stats_available, trace_valid_fraction, &
+                                                          trace_progress_ratio, trace_regress_ratio, trace_best_over_tol, &
+                                                          far_route_used)
       implicit none
-      real(dp), intent(in) :: quasi_tol
-      logical, intent(out) :: trace_available
-      real(dp), intent(out) :: trace_valid_fraction
-      real(dp), intent(out) :: trace_progress_ratio, trace_regress_ratio, trace_best_over_tol
-      integer :: trace_count, trace_valid_count
-      real(dp) :: trace_first_res, trace_best_res, trace_last_res
-      real(dp) :: class2_retry_res_threshold, near_case_res_threshold
-      logical :: trace_all_eval_ok
-      type(qn_context_t), intent(inout), optional, target :: qn_context
-
-      trace_available = .false.
-      trace_valid_fraction = 0.0_dp
-      trace_progress_ratio = huge(1.0_dp)
-      trace_regress_ratio = huge(1.0_dp)
-      trace_best_over_tol = -1.0_dp
-      trace_count = 0
-      trace_valid_count = 0
-      trace_first_res = huge(1.0_dp)
-      trace_best_res = huge(1.0_dp)
-      trace_last_res = huge(1.0_dp)
-      trace_all_eval_ok = .false.
-      class2_retry_res_threshold = huge(1.0_dp)
-      near_case_res_threshold = huge(1.0_dp)
-
-      call get_quasi_newton_last_trace_stats(trace_available, trace_count, trace_first_res, trace_best_res, trace_last_res, &
-                                             trace_all_eval_ok, trace_valid_count, trace_valid_fraction, qn_context=qn_context)
-      if (trace_available) then
-         call update_quasi_trace_gate_metrics(trace_available, trace_first_res, trace_best_res, trace_last_res, &
-                                              quasi_tol, trace_progress_ratio, trace_regress_ratio, &
-                                              class2_retry_res_threshold, near_case_res_threshold)
-      end if
-      if (trace_available .and. quasi_tol > 0.0_dp) then
-         trace_best_over_tol = trace_best_res/quasi_tol
-      end if
-   end subroutine refresh_quasi_trace_gate_state
-
-   subroutine run_s1_rescue_path(quasi_tol, quasi_case, &
-                                          trace_stats_available, trace_valid_fraction, trace_progress_ratio, &
-                                          trace_regress_ratio, trace_best_over_tol, &
-                                          step_size, ws, has_error, final_x, near_rescue_started, near_rescue_done, &
-                                          quasi_solved_ok, used_full_stage, &
-                                          used_nonnear_route, far_route_used, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
-                                          hmc_policy)
-      implicit none
-      real(dp), intent(in) :: quasi_tol
-      real(dp), intent(in) :: step_size
       integer, intent(in) :: quasi_case
-      logical, intent(inout) :: trace_stats_available
-      real(dp), intent(inout) :: trace_valid_fraction, trace_progress_ratio, trace_regress_ratio, trace_best_over_tol
-      type(rattle_step_workspace_t), intent(inout) :: ws
-      logical, intent(inout) :: has_error
-      real(dp), intent(inout) :: final_x(:)
-      logical, intent(inout) :: near_rescue_started
-      logical, intent(inout) :: near_rescue_done
-      logical, intent(inout) :: quasi_solved_ok
-      logical, intent(inout) :: used_full_stage
-      logical, intent(inout) :: used_nonnear_route
+      logical, intent(in) :: trace_stats_available
+      real(dp), intent(in) :: trace_valid_fraction, trace_progress_ratio, trace_regress_ratio, trace_best_over_tol
       integer, intent(inout) :: far_route_used
-      type(flow_workspace_t), intent(inout), optional :: flow_workspace
-      type(qn_context_t), intent(inout), optional, target :: qn_context
-      type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
-      type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
-      type(hmc_policy_context_t), intent(in) :: hmc_policy
       integer :: far_route
 
-      if (.not. has_error) return
-
       if (quasi_case == quasi_case_near) then
-         if (.not. hmc_policy%s1_near_rescue_enabled) then
-            call record_constraint_near_unusable()
-            return
-         end if
-         near_rescue_started = .true.
-         call record_constraint_near_rescue_attempt()
-         used_full_stage = .true.
-         call try_quasi_stage(quasi_tol, hmc_policy%s1_near_full_max_iter, constraint_quasi_stage_full, ws, has_error, final_x, &
-                              flow_workspace, qn_context, qn_diagnostics, qn_policy)
-         if (.not. has_error) then
-            near_rescue_done = .true.
-            call record_constraint_near_rescue_success()
-            quasi_solved_ok = .true.
-            return
-         end if
-
-         call refresh_quasi_trace_gate_state(quasi_tol, trace_stats_available, trace_valid_fraction, &
-                                             trace_progress_ratio, trace_regress_ratio, trace_best_over_tol, qn_context)
          call record_constraint_near_unusable()
          return
       end if
 
-      far_route = classify_far_rescue_route(trace_stats_available, trace_valid_fraction, &
+      far_route = classify_far_failure_route(trace_stats_available, trace_valid_fraction, &
                                             trace_progress_ratio, trace_regress_ratio, trace_best_over_tol)
       far_route_used = far_route
       call record_constraint_solver_far_route(far_route)
-      if (hmc_policy%s1_nonnear_rescue_enabled .and. far_route >= constraint_quasi_far_route_light) then
-         used_full_stage = .true.
-         used_nonnear_route = .true.
-         call try_quasi_stage(quasi_tol, hmc_policy%s1_non_near_cheap_full_max_iter, constraint_quasi_stage_full, ws, has_error, final_x, &
-                              flow_workspace, qn_context, qn_diagnostics, qn_policy)
-      end if
-      if (has_error) then
-         call refresh_quasi_trace_gate_state(quasi_tol, trace_stats_available, trace_valid_fraction, &
-                                             trace_progress_ratio, trace_regress_ratio, trace_best_over_tol, qn_context)
-      end if
-      call record_constraint_solver_far_investment((.not. has_error), .false., 0, 0)
-      if (.not. has_error) quasi_solved_ok = .true.
-   end subroutine run_s1_rescue_path
+      call record_constraint_solver_far_investment(.false., .false., 0, 0)
+   end subroutine record_official_route_no_rescue_diagnostics
 
    integer function classify_quasi_failure_case(trace_available, trace_valid_count, trace_valid_fraction, trace_best_res, quasi_tol, &
                                                 near_case_res_threshold, class2_retry_res_threshold, &
@@ -924,7 +820,7 @@ contains
       end select
    end function map_quasi_case_to_online_class
 
-   integer function classify_far_rescue_route(trace_available, trace_valid_fraction, trace_progress_ratio, &
+   integer function classify_far_failure_route(trace_available, trace_valid_fraction, trace_progress_ratio, &
                                               trace_regress_ratio, trace_best_over_tol)
       implicit none
       logical, intent(in) :: trace_available
@@ -940,14 +836,14 @@ contains
       real(dp), parameter :: far_light_regress_gate = 256.0_dp
       real(dp), parameter :: far_light_best_over_tol_gate = 1.0e14_dp
 
-      classify_far_rescue_route = constraint_quasi_far_route_skip
+      classify_far_failure_route = constraint_quasi_far_route_skip
       if ((.not. trace_available) .or. (trace_best_over_tol <= 0.0_dp)) return
 
       if ((trace_valid_fraction >= far_anchor_valid_fraction_gate) .and. &
           (trace_progress_ratio <= far_anchor_progress_gate) .and. &
           (trace_regress_ratio <= far_anchor_regress_gate) .and. &
           (trace_best_over_tol <= far_anchor_best_over_tol_gate)) then
-         classify_far_rescue_route = constraint_quasi_far_route_anchor
+         classify_far_failure_route = constraint_quasi_far_route_anchor
          return
       end if
 
@@ -955,9 +851,9 @@ contains
           (trace_progress_ratio <= far_light_progress_gate) .and. &
           (trace_regress_ratio <= far_light_regress_gate) .and. &
           (trace_best_over_tol <= far_light_best_over_tol_gate)) then
-         classify_far_rescue_route = constraint_quasi_far_route_light
+         classify_far_failure_route = constraint_quasi_far_route_light
       end if
-   end function classify_far_rescue_route
+   end function classify_far_failure_route
 
    subroutine update_quasi_trace_gate_metrics(trace_available, trace_first_res, trace_best_res, trace_last_res, &
                                               quasi_tol, trace_progress_ratio, trace_regress_ratio, &
@@ -1030,74 +926,17 @@ contains
       end if
    end subroutine resolve_hmc_replay_diagnostics
 
-   subroutine load_s1_fallback_policy(hmc_policy)
+   subroutine load_hmc_bridge_policy(hmc_policy)
       implicit none
       type(hmc_policy_context_t), intent(inout) :: hmc_policy
       character(len=64) :: env_value
       logical :: env_present
-      integer :: parsed_value, ios
+      integer :: ios
 
-      if (hmc_policy%s1_fallback_policy_loaded) return
-      hmc_policy%s1_fallback_policy_loaded = .true.
-      hmc_policy%s1_probe_max_iter = s1_probe_max_iter_default
-      hmc_policy%s1_near_full_max_iter = s1_near_full_max_iter_default
-      hmc_policy%s1_non_near_cheap_full_max_iter = s1_non_near_cheap_full_max_iter_default
-      hmc_policy%s1_near_rescue_enabled = .false.
-      hmc_policy%s1_nonnear_rescue_enabled = .false.
+      if (hmc_policy%hmc_policy_loaded) return
+      hmc_policy%hmc_policy_loaded = .true.
       hmc_policy%qn_reverse_gate_enabled = .false.
       hmc_policy%qn_reverse_gate_tol = qn_reverse_gate_tol_default
-      hmc_policy%qn_quasi_tol_override = -1.0_dp
-
-
-      call read_string_env("QN_S1_PROBE_MAX_ITER", env_value, env_present)
-      if (env_present) then
-         read (env_value, *, iostat=ios) parsed_value
-         if (ios == 0 .and. parsed_value >= 1) then
-            hmc_policy%s1_probe_max_iter = parsed_value
-         else
-            write (*, '(A)') "[WARN] Invalid QN_S1_PROBE_MAX_ITER; using default 28."
-         end if
-      end if
-
-      call read_string_env("QN_S1_NEAR_FULL_MAX_ITER", env_value, env_present)
-      if (env_present) then
-         read (env_value, *, iostat=ios) parsed_value
-         if (ios == 0 .and. parsed_value >= 1) then
-            hmc_policy%s1_near_full_max_iter = parsed_value
-         else
-            write (*, '(A)') "[WARN] Invalid QN_S1_NEAR_FULL_MAX_ITER; using default 100."
-         end if
-      end if
-
-      call read_string_env("QN_S1_NONNEAR_CHEAP_MAX_ITER", env_value, env_present)
-      if (env_present) then
-         read (env_value, *, iostat=ios) parsed_value
-         if (ios == 0 .and. parsed_value >= 1) then
-            hmc_policy%s1_non_near_cheap_full_max_iter = parsed_value
-         else
-            write (*, '(A)') "[WARN] Invalid QN_S1_NONNEAR_CHEAP_MAX_ITER; using default 36."
-         end if
-      end if
-
-      call read_string_env("QN_S1_NONNEAR_RESCUE_ENABLED", env_value, env_present)
-      if (env_present) then
-         select case (trim(adjustl(env_value)))
-         case ("0", "false", "FALSE", "False", "off", "OFF", "Off", "no", "NO", "No")
-            hmc_policy%s1_nonnear_rescue_enabled = .false.
-         case default
-            hmc_policy%s1_nonnear_rescue_enabled = .true.
-         end select
-      end if
-
-      call read_string_env("QN_S1_NEAR_RESCUE_ENABLED", env_value, env_present)
-      if (env_present) then
-         select case (trim(adjustl(env_value)))
-         case ("0", "false", "FALSE", "False", "off", "OFF", "Off", "no", "NO", "No")
-            hmc_policy%s1_near_rescue_enabled = .false.
-         case default
-            hmc_policy%s1_near_rescue_enabled = .true.
-         end select
-      end if
 
       call read_string_env("QN_REVERSE_GATE_ENABLED", env_value, env_present)
       if (env_present) then
@@ -1118,24 +957,9 @@ contains
          end if
       end if
 
-      call read_string_env("QN_QUASI_TOL_OVERRIDE", env_value, env_present)
-      if (env_present) then
-         read (env_value, *, iostat=ios) hmc_policy%qn_quasi_tol_override
-         if (ios /= 0 .or. hmc_policy%qn_quasi_tol_override <= 0.0_dp) then
-            hmc_policy%qn_quasi_tol_override = -1.0_dp
-            write (*, '(A)') "[WARN] Invalid QN_QUASI_TOL_OVERRIDE; using cttol."
-         end if
-      end if
-
-      write (*, *) "[INFO] s1 fallback controls: probe_iter=", hmc_policy%s1_probe_max_iter, &
-         " near_full_iter=", hmc_policy%s1_near_full_max_iter, &
-         " nonnear_cheap_iter=", hmc_policy%s1_non_near_cheap_full_max_iter, &
-         " near_rescue_enabled=", hmc_policy%s1_near_rescue_enabled, &
-         " nonnear_rescue_enabled=", hmc_policy%s1_nonnear_rescue_enabled, &
-         " reverse_gate_enabled=", hmc_policy%qn_reverse_gate_enabled, &
-         " reverse_gate_tol=", hmc_policy%qn_reverse_gate_tol, &
-         " quasi_tol_override=", hmc_policy%qn_quasi_tol_override
-   end subroutine load_s1_fallback_policy
+      write (*, *) "[INFO] official DFO-LS bridge controls: reverse_gate_enabled=", hmc_policy%qn_reverse_gate_enabled, &
+         " reverse_gate_tol=", hmc_policy%qn_reverse_gate_tol
+   end subroutine load_hmc_bridge_policy
 
    real(dp) function max_abs_real_local(vals) result(out)
       implicit none

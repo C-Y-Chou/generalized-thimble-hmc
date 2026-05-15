@@ -25,7 +25,7 @@ program test_odex_foundation_contract
                          get_intode_last_failure_meta, get_intode_rescue_stats, &
                          get_intode_solver_assist_policy_code, intode, &
                          intode_reason_h_min, intode_status_failure_h_min, &
-                         intode_solver_assist_policy_qn_navigation, &
+                         intode_solver_assist_policy_off, &
                          intode_status_is_strict_success, intode_status_success, &
                          intode_status_success_solver_assist, intode_status_success_zero_time, &
                          reset_intode_fallback_stats
@@ -150,7 +150,7 @@ contains
 
       ok = failed .and. status == intode_status_failure_h_min .and. fallback_attempts == 1 .and. &
            fallback_success == 0 .and. fallback_failure == 1 .and. fallback_h_min == 1 .and. &
-           success_solver_assist == 0 .and. fail_solver_assist >= 1 .and. available .and. &
+           success_solver_assist == 0 .and. fail_solver_assist == 0 .and. available .and. &
            reason_code == intode_reason_h_min .and. context_code == 0 .and. state_dim == 1
       write (*, '(A,L1,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') "[CHECK] unknown_context_failure ok=", ok, &
          " status=", status, " attempts=", fallback_attempts, " success=", fallback_success, &
@@ -169,12 +169,12 @@ contains
       integer :: max_uses, policy_code
 
       call get_intode_solver_assist_policy_code(policy_code, enabled, max_uses, fast_hmin_assist)
-      ok = policy_code == intode_solver_assist_policy_qn_navigation .and. enabled .and. fast_hmin_assist .and. max_uses <= 0
+      ok = policy_code == intode_solver_assist_policy_off .and. .not. enabled .and. .not. fast_hmin_assist .and. max_uses == 0
       write (*, '(A,I0,A,L1,A,L1,A,I0,A,L1)') "[CHECK] solver_assist_policy policy=", policy_code, " enabled=", enabled, &
          " fast_hmin=", fast_hmin_assist, " max_uses=", max_uses, " ok=", ok
       if (.not. ok) then
          failures = failures + 1
-         write (*, '(A)') "[FAIL] solver-assist policy visibility changed."
+         write (*, '(A)') "[FAIL] deleted solver-assist policy is visible as active."
       end if
    end subroutine check_solver_assist_policy_visibility
 

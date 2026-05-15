@@ -14,7 +14,6 @@ module solve_flow
                            odex_status_success_zero_time, odex_status_unknown, odex_step_sequence_iwork3, &
                            odex_stability_control_conservative, odex_stability_control_none, odex_workspace
    use perf_profile, only: perf_tic, perf_toc, PERF_INTODE, PERF_FLOW, PERF_FLOWZ, PERF_FLOWZR
-   use runtime_env_mod, only: parse_logical_env, read_string_env, to_lower_ascii
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    implicit none
 
@@ -59,8 +58,6 @@ module solve_flow
    integer, parameter :: intode_role_final_flow = 4
    integer, parameter :: intode_role_reverse_replay = 5
    integer, parameter :: intode_solver_assist_policy_off = 0
-   integer, parameter :: intode_solver_assist_policy_qn_navigation = 1
-   integer, parameter :: intode_solver_assist_policy_all_navigation_diagnostic = 2
    integer, save :: intode_calls_total = 0
    integer, save :: intode_calls_integrating = 0
    integer, save :: intode_fallback_attempts = 0
@@ -71,18 +68,7 @@ module solve_flow
    integer, save :: intode_fallback_h_min = 0
    integer, save :: intode_fallback_attempts_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
    integer, save :: intode_fallback_failures_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
-   integer, save :: intode_rescue_success_solver_assist = 0
-   integer, save :: intode_solver_assist_fail = 0
-   integer, parameter :: intode_solver_assist_policy_default = intode_solver_assist_policy_qn_navigation
-   integer, save :: intode_solver_assist_policy = intode_solver_assist_policy_default
-   logical, save :: intode_enable_solver_assist = .true.
-   logical, save :: intode_solver_assist_policy_loaded = .false.
-   logical, parameter :: intode_fast_hmin_assist = .true.
    logical, parameter :: intode_verbose_logs = .false.
-   ! <= 0 means unlimited solver-assist uses (still context-gated).
-   integer, parameter :: intode_solver_assist_max_uses = 0
-   integer, save :: intode_solver_assist_log_count = 0
-   integer, parameter :: intode_solver_assist_log_limit = 20
    integer, save :: intode_trace_rattle_step = 0
    integer, save :: intode_trace_rattle_substep = 0
    integer, save :: intode_trace_stage = intode_stage_unknown
@@ -122,7 +108,7 @@ contains
       integer, intent(out), optional :: status
 
       integer :: state_size, failure_reason
-      logical :: rescue_failed, solver_assist_ok
+      logical :: rescue_failed
       real(dp) :: t_remaining
       type(odex_options) :: integration_options
       type(odex_result) :: integration_result
@@ -179,19 +165,6 @@ contains
       end select
       call record_intode_fallback_attempt_context(intode_current_context)
 
-      if (failure_reason == intode_reason_h_min .and. intode_fast_hmin_assist) then
-         call intode_try_solver_assist(local_workspace%intode_yc(1:state_size), t_remaining, failure_reason, &
-                                       local_workspace%intode_yf(1:state_size), solver_assist_ok)
-         if (solver_assist_ok) then
-            intode_fallback_success = intode_fallback_success + 1
-            res = local_workspace%intode_yf(1:state_size)
-            error_flag = .false.
-            call set_intode_status(status, intode_status_success_solver_assist)
-            call perf_toc(PERF_INTODE, t_prof)
-            return
-         end if
-      end if
-
       call intode_stiff_rescue(f, local_workspace%intode_yc(1:state_size), t_remaining, local_workspace%intode_yf(1:state_size), rescue_failed)
       if (.not. rescue_failed) then
          intode_fallback_success = intode_fallback_success + 1
@@ -199,21 +172,12 @@ contains
          error_flag = .false.
          call set_intode_status(status, intode_status_success_stiff_rescue)
       else
-         call intode_try_solver_assist(local_workspace%intode_yc(1:state_size), t_remaining, failure_reason, &
-                                       local_workspace%intode_yf(1:state_size), solver_assist_ok)
-         if (solver_assist_ok) then
-            intode_fallback_success = intode_fallback_success + 1
-            res = local_workspace%intode_yf(1:state_size)
-            error_flag = .false.
-            call set_intode_status(status, intode_status_success_solver_assist)
-         else
-            intode_fallback_failure = intode_fallback_failure + 1
-            call record_intode_fallback_failure_context(intode_current_context)
-            call record_intode_last_failure(local_workspace%intode_yc(1:state_size), t_remaining, failure_reason)
-            res = local_workspace%intode_yc(1:state_size)
-            error_flag = .true.
-            call set_intode_status(status, odex_result_to_intode_status(integration_result))
-         end if
+         intode_fallback_failure = intode_fallback_failure + 1
+         call record_intode_fallback_failure_context(intode_current_context)
+         call record_intode_last_failure(local_workspace%intode_yc(1:state_size), t_remaining, failure_reason)
+         res = local_workspace%intode_yc(1:state_size)
+         error_flag = .true.
+         call set_intode_status(status, odex_result_to_intode_status(integration_result))
       end if
       call perf_toc(PERF_INTODE, t_prof)
    end subroutine intode
@@ -228,7 +192,7 @@ contains
       type(flow_workspace_t), intent(inout) :: workspace
 
       integer :: state_size, failure_reason
-      logical :: rescue_failed, solver_assist_ok
+      logical :: rescue_failed
       real(dp) :: t_remaining
       type(odex_options) :: integration_options
       type(odex_result) :: integration_result
@@ -284,19 +248,6 @@ contains
       end select
       call record_intode_fallback_attempt_context(intode_current_context)
 
-      if (failure_reason == intode_reason_h_min .and. intode_fast_hmin_assist) then
-         call intode_try_solver_assist(workspace%intode_yc(1:state_size), t_remaining, failure_reason, &
-                                       workspace%intode_yf(1:state_size), solver_assist_ok)
-         if (solver_assist_ok) then
-            intode_fallback_success = intode_fallback_success + 1
-            res = workspace%intode_yf(1:state_size)
-            error_flag = .false.
-            call set_intode_status(status, intode_status_success_solver_assist)
-            call perf_toc(PERF_INTODE, t_prof)
-            return
-         end if
-      end if
-
       call intode_stiff_rescue_context(f, workspace%intode_yc(1:state_size), t_remaining, workspace%intode_yf(1:state_size), &
                                        rescue_failed, workspace)
       if (.not. rescue_failed) then
@@ -305,21 +256,12 @@ contains
          error_flag = .false.
          call set_intode_status(status, intode_status_success_stiff_rescue)
       else
-         call intode_try_solver_assist(workspace%intode_yc(1:state_size), t_remaining, failure_reason, &
-                                       workspace%intode_yf(1:state_size), solver_assist_ok)
-         if (solver_assist_ok) then
-            intode_fallback_success = intode_fallback_success + 1
-            res = workspace%intode_yf(1:state_size)
-            error_flag = .false.
-            call set_intode_status(status, intode_status_success_solver_assist)
-         else
-            intode_fallback_failure = intode_fallback_failure + 1
-            call record_intode_fallback_failure_context(intode_current_context)
-            call record_intode_last_failure(workspace%intode_yc(1:state_size), t_remaining, failure_reason)
-            res = workspace%intode_yc(1:state_size)
-            error_flag = .true.
-            call set_intode_status(status, odex_result_to_intode_status(integration_result))
-         end if
+         intode_fallback_failure = intode_fallback_failure + 1
+         call record_intode_fallback_failure_context(intode_current_context)
+         call record_intode_last_failure(workspace%intode_yc(1:state_size), t_remaining, failure_reason)
+         res = workspace%intode_yc(1:state_size)
+         error_flag = .true.
+         call set_intode_status(status, odex_result_to_intode_status(integration_result))
       end if
       call perf_toc(PERF_INTODE, t_prof)
    end subroutine intode_with_context
@@ -344,77 +286,12 @@ contains
       end select
    end function intode_status_is_strict_success
 
-   subroutine intode_try_solver_assist(y_curr, t_remaining, reason_code, y_out, accepted)
-      implicit none
-      real(dp), intent(in) :: y_curr(:), t_remaining
-      integer, intent(in) :: reason_code
-      real(dp), intent(out) :: y_out(:)
-      logical, intent(out) :: accepted
-
-      accepted = .false.
-      y_out = y_curr
-
-      if (.not. intode_solver_assist_policy_allows(reason_code, intode_current_context, intode_trace_stage, &
-                                                   intode_rescue_success_solver_assist, intode_trace_role)) then
-         intode_solver_assist_fail = intode_solver_assist_fail + 1
-         return
-      end if
-
-      accepted = .true.
-      intode_rescue_success_solver_assist = intode_rescue_success_solver_assist + 1
-
-      if (intode_verbose_logs) then
-         if (intode_solver_assist_log_count < intode_solver_assist_log_limit) then
-            write (*, '(A,I0,A,I0,A,ES12.4,A,I0,A,I0,A,I0,A,I0)') "[INTODE][ASSIST] solver_assist_accept context=", &
-               intode_current_context, " reason=", reason_code, " t_remaining=", t_remaining, &
-               " rattle_step=", intode_trace_rattle_step, " substep=", intode_trace_rattle_substep, &
-               " stage=", intode_trace_stage, " role=", intode_trace_role
-         else if (intode_solver_assist_log_count == intode_solver_assist_log_limit) then
-            write (*, '(A)') "[INTODE][ASSIST] additional solver_assist logs suppressed."
-         end if
-         intode_solver_assist_log_count = intode_solver_assist_log_count + 1
-      end if
-   end subroutine intode_try_solver_assist
-
    logical function intode_solver_assist_policy_allows(reason_code, context_code, stage_code, success_count, role_code) result(allowed)
       implicit none
       integer, intent(in) :: reason_code, context_code, stage_code, success_count
       integer, intent(in), optional :: role_code
-      integer :: active_role
-      logical :: allow_context, allow_stage
-
-      call ensure_intode_solver_assist_policy()
 
       allowed = .false.
-      active_role = intode_trace_role
-      if (present(role_code)) active_role = role_code
-      if (intode_solver_assist_policy == intode_solver_assist_policy_off) return
-      if (.not. intode_enable_solver_assist) return
-      if (reason_code /= intode_reason_h_min) return
-
-      allow_context = (context_code == intode_ctx_flowz .or. context_code == intode_ctx_flowzr)
-      if (.not. allow_context) return
-
-      select case (intode_solver_assist_policy)
-      case (intode_solver_assist_policy_qn_navigation)
-         allow_stage = (stage_code == intode_stage_quasi .or. stage_code == intode_stage_quasi_retry)
-         if (.not. allow_stage) return
-         if (active_role /= intode_role_qn_navigation .and. active_role /= intode_role_reverse_replay) return
-      case (intode_solver_assist_policy_all_navigation_diagnostic)
-         allow_stage = (stage_code == intode_stage_newton .or. stage_code == intode_stage_quasi .or. &
-                        stage_code == intode_stage_quasi_retry)
-         if (.not. allow_stage) return
-         if (active_role /= intode_role_nt_strict .and. active_role /= intode_role_qn_navigation .and. &
-             active_role /= intode_role_reverse_replay) return
-      case default
-         return
-      end select
-
-      if (intode_solver_assist_max_uses > 0) then
-         if (success_count >= intode_solver_assist_max_uses) return
-      end if
-
-      allowed = .true.
    end function intode_solver_assist_policy_allows
 
    subroutine record_intode_fallback_attempt_context(ctx_code)
@@ -551,8 +428,8 @@ contains
       real(dp), intent(out) :: res(:)
       logical, intent(out) :: error_flag
 
-      ! Radau/JFNK rescue was a legacy secondary integrator stack.  It is
-      ! intentionally disabled; solver-internal assist is handled separately.
+      ! Radau/JFNK rescue was a legacy secondary integrator stack. It is
+      ! intentionally disabled; solver-internal assist has been deleted.
       res = y
       error_flag = .true.
    end subroutine intode_stiff_rescue
@@ -565,8 +442,8 @@ contains
       logical, intent(out) :: error_flag
       type(flow_workspace_t), intent(inout) :: workspace
 
-      ! Radau/JFNK rescue was a legacy secondary integrator stack.  It is
-      ! intentionally disabled; solver-internal assist is handled separately.
+      ! Radau/JFNK rescue was a legacy secondary integrator stack. It is
+      ! intentionally disabled; solver-internal assist has been deleted.
       res = y
       error_flag = .true.
    end subroutine intode_stiff_rescue_context
@@ -577,11 +454,9 @@ contains
       integer, intent(out) :: max_uses
       logical, intent(out) :: fast_hmin_assist
 
-      call ensure_intode_solver_assist_policy()
-
-      enabled = intode_enable_solver_assist
-      max_uses = intode_solver_assist_max_uses
-      fast_hmin_assist = intode_fast_hmin_assist
+      enabled = .false.
+      max_uses = 0
+      fast_hmin_assist = .false.
    end subroutine get_intode_solver_assist_policy
 
    subroutine get_intode_solver_assist_policy_code(policy_code, enabled, max_uses, fast_hmin_assist)
@@ -591,54 +466,11 @@ contains
       integer, intent(out) :: max_uses
       logical, intent(out) :: fast_hmin_assist
 
-      call ensure_intode_solver_assist_policy()
-
-      policy_code = intode_solver_assist_policy
-      enabled = intode_enable_solver_assist
-      max_uses = intode_solver_assist_max_uses
-      fast_hmin_assist = intode_fast_hmin_assist
+      policy_code = intode_solver_assist_policy_off
+      enabled = .false.
+      max_uses = 0
+      fast_hmin_assist = .false.
    end subroutine get_intode_solver_assist_policy_code
-
-   subroutine ensure_intode_solver_assist_policy()
-      implicit none
-      character(len=128) :: env_value, policy_token
-      logical :: env_present, legacy_present, legacy_enabled
-
-      if (intode_solver_assist_policy_loaded) return
-
-      intode_solver_assist_policy = intode_solver_assist_policy_default
-      intode_enable_solver_assist = .true.
-      call read_string_env("INTODE_SOLVER_ASSIST_POLICY", env_value, env_present)
-      if (env_present) then
-         policy_token = trim(to_lower_ascii(env_value))
-         select case (policy_token)
-         case ("", "canonical", "qn_navigation", "qn-navigation", "navigation", "qnav", &
-               "nt_strict_qn_navassist_cert_strict_rg_metropolis_v1")
-            intode_solver_assist_policy = intode_solver_assist_policy_qn_navigation
-         case ("off", "disabled", "disable", "false", "0", "none", "strict")
-            intode_solver_assist_policy = intode_solver_assist_policy_off
-         case ("all_navigation_diagnostic", "all-navigation-diagnostic", "diagnostic", "all", &
-               "legacy_enabled", "nt_qn_navigation_diagnostic")
-            intode_solver_assist_policy = intode_solver_assist_policy_all_navigation_diagnostic
-         case default
-            write (*, '(A,A,A)') "[WARN] Unknown INTODE_SOLVER_ASSIST_POLICY='", trim(env_value), "'; using qn_navigation."
-            intode_solver_assist_policy = intode_solver_assist_policy_qn_navigation
-         end select
-      else
-         call read_string_env("INTODE_SOLVER_ASSIST_ENABLED", env_value, legacy_present)
-         if (legacy_present) then
-            legacy_enabled = .true.
-            call parse_logical_env("INTODE_SOLVER_ASSIST_ENABLED", legacy_enabled)
-            if (.not. legacy_enabled) then
-               intode_solver_assist_policy = intode_solver_assist_policy_off
-            else
-               intode_solver_assist_policy = intode_solver_assist_policy_all_navigation_diagnostic
-            end if
-         end if
-      end if
-      intode_enable_solver_assist = (intode_solver_assist_policy /= intode_solver_assist_policy_off)
-      intode_solver_assist_policy_loaded = .true.
-   end subroutine ensure_intode_solver_assist_policy
 
    subroutine get_intode_final_resort_policy(enabled, max_uses, fast_hmin_bypass)
       implicit none
@@ -725,9 +557,6 @@ contains
       intode_fallback_h_min = 0
       intode_fallback_attempts_ctx = 0
       intode_fallback_failures_ctx = 0
-      intode_rescue_success_solver_assist = 0
-      intode_solver_assist_fail = 0
-      intode_solver_assist_log_count = 0
       intode_trace_rattle_step = 0
       intode_trace_rattle_substep = 0
       intode_trace_stage = intode_stage_unknown
@@ -792,11 +621,11 @@ contains
       success_radau_adaptive_robust = 0
       success_radau_fixed_tol = 0
       success_radau_chunked = 0
-      success_final_resort = intode_rescue_success_solver_assist
+      success_final_resort = 0
       fail_radau_adaptive_robust = 0
       fail_radau_fixed_tol = 0
       fail_radau_chunked = 0
-      fail_final_resort = intode_solver_assist_fail
+      fail_final_resort = 0
    end subroutine get_intode_rescue_stats
 
    subroutine get_intode_radau_diag_stats(adapt_newton_fail, adapt_linear_fail, adapt_error_reject, adapt_hmin_hit)

@@ -413,7 +413,7 @@ help:
 	@echo "  make OMP=1    - enable OpenMP (Intel path also enables parallel MKL)"
 	@echo "  make FC=<compiler> PYTHON=<python> - override auto-detected toolchain"
 	@echo "  make ENABLE_OFFICIAL_DFOLS=1 - build the embedded official DFO-LS backend (default)"
-	@echo "  make ENABLE_OFFICIAL_DFOLS=0 - build a stub bridge; set QN_SOLVER_BACKEND=internal for legacy in-house runs"
+	@echo "  make ENABLE_OFFICIAL_DFOLS=0 - build a stub bridge for package-off route tests"
 	@echo "  make GNU_LINALG_LIBS='-lopenblas'   - optionally link external BLAS/LAPACK on GNU"
 	@echo "  make regen_model_derivatives - regenerate src/physics/model_generated.f90 (GEN_BACKEND=auto|symbolic|tape|st_auto|st_tapenade|st_enzyme; default=auto)"
 	@echo "    uses ST_TAPENADE_CMD if set; otherwise auto-detects ~/tools/tapenade-3.16-v2/bin/tapenade"
@@ -432,7 +432,7 @@ help:
 	@echo "  make test2    - run action derivative test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_odex_solver - run analytic ODEX/status smoke test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_odex_foundation_contract - run ODEX foundation contract test (log -> $(OUT_LOG_DIR))"
-	@echo "  make test_odex_assist_policy - run ODEX assist on/off policy gate (log -> $(OUT_LOG_DIR))"
+	@echo "  make test_odex_assist_policy - run ODEX assist deletion policy gate (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_odex_result_contract - run ODEX result/workspace/status contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_odex_flow_jacobian_contract - run ODEX flow/Jacobian deterministic contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_odex_backend_package_contract - run standalone ODEX backend package contract test (log -> $(OUT_LOG_DIR))"
@@ -599,11 +599,11 @@ test_odex_foundation_contract: $(BIN_DIR)/test_odex_foundation_contract prepare_
 	@set -o pipefail; $(BIN_DIR)/test_odex_foundation_contract 2>&1 | tee $(OUT_LOG_DIR)/test_odex_foundation_contract.log
 
 test_odex_assist_policy: $(BIN_DIR)/test_odex_assist_policy prepare_outputs
-	@set -o pipefail; $(BIN_DIR)/test_odex_assist_policy qn_navigation 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_default_qn_navigation.log
-	@set -o pipefail; INTODE_SOLVER_ASSIST_POLICY=off $(BIN_DIR)/test_odex_assist_policy off 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_policy_off.log
-	@set -o pipefail; INTODE_SOLVER_ASSIST_POLICY=all_navigation_diagnostic $(BIN_DIR)/test_odex_assist_policy all_navigation_diagnostic 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_policy_all_navigation_diagnostic.log
-	@set -o pipefail; INTODE_SOLVER_ASSIST_ENABLED=0 $(BIN_DIR)/test_odex_assist_policy off 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_legacy_disabled.log
-	@set -o pipefail; INTODE_SOLVER_ASSIST_ENABLED=1 $(BIN_DIR)/test_odex_assist_policy all_navigation_diagnostic 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_legacy_enabled.log
+	@set -o pipefail; $(BIN_DIR)/test_odex_assist_policy default 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_default_deleted.log
+	@set -o pipefail; INTODE_SOLVER_ASSIST_POLICY=off $(BIN_DIR)/test_odex_assist_policy env_off 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_policy_off.log
+	@set -o pipefail; INTODE_SOLVER_ASSIST_POLICY=all_navigation_diagnostic $(BIN_DIR)/test_odex_assist_policy env_policy_ignored 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_policy_ignored.log
+	@set -o pipefail; INTODE_SOLVER_ASSIST_ENABLED=0 $(BIN_DIR)/test_odex_assist_policy legacy_disabled_ignored 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_legacy_disabled_ignored.log
+	@set -o pipefail; INTODE_SOLVER_ASSIST_ENABLED=1 $(BIN_DIR)/test_odex_assist_policy legacy_enabled_ignored 2>&1 | tee $(OUT_LOG_DIR)/test_odex_assist_policy_legacy_enabled_ignored.log
 
 test_odex_result_contract: $(BIN_DIR)/test_odex_result_contract prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_odex_result_contract 2>&1 | tee $(OUT_LOG_DIR)/test_odex_result_contract.log
