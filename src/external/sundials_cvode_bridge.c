@@ -17,6 +17,8 @@ enum {
 
 #include <cvode/cvode.h>
 #include <nvector/nvector_serial.h>
+#include <sunnonlinsol/sunnonlinsol_fixedpoint.h>
+#include <sundials/sundials_nonlinearsolver.h>
 #include <sundials/sundials_context.h>
 #include <sundials/sundials_types.h>
 
@@ -76,6 +78,7 @@ int tltm_sundials_cvode_integrate(int n,
 {
     SUNContext sunctx = NULL;
     N_Vector y = NULL;
+    SUNNonlinearSolver nls = NULL;
     void *cvode_mem = NULL;
     double *y_storage = NULL;
     sunrealtype t_reached_sun = 0.0;
@@ -114,6 +117,12 @@ int tltm_sundials_cvode_integrate(int n,
     retval = CVodeInit(cvode_mem, tltm_cvode_rhs, 0.0, y);
     if (retval != CV_SUCCESS) goto cvode_failure;
 
+    nls = SUNNonlinSol_FixedPoint(y, 0, sunctx);
+    if (nls == NULL) goto cleanup;
+
+    retval = CVodeSetNonlinearSolver(cvode_mem, nls);
+    if (retval != CV_SUCCESS) goto cvode_failure;
+
     retval = CVodeSStolerances(cvode_mem, (sunrealtype)rel_tol, (sunrealtype)abs_tol);
     if (retval != CV_SUCCESS) goto cvode_failure;
 
@@ -150,6 +159,7 @@ cvode_failure:
 
 cleanup:
     if (cvode_mem != NULL) CVodeFree(&cvode_mem);
+    if (nls != NULL) (void)SUNNonlinSolFree(nls);
     if (y != NULL) N_VDestroy_Serial(y);
     if (sunctx != NULL) (void)SUNContext_Free(&sunctx);
     free(y_storage);

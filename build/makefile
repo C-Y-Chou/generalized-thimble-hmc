@@ -82,7 +82,7 @@ else
 SUNDIALS_CFLAGS ?=
 SUNDIALS_LDFLAGS ?=
 endif
-SUNDIALS_LIBS ?= -lsundials_cvode -lsundials_nvecserial -lsundials_core -lm
+SUNDIALS_LIBS ?= -lsundials_cvode -lsundials_sunnonlinsolfixedpoint -lsundials_nvecserial -lsundials_core -lm
 ifneq ($(filter 1 yes true on,$(ENABLE_SUNDIALS_CVODE)),)
 LDLIBS += $(SUNDIALS_LDFLAGS) $(SUNDIALS_LIBS)
 SUNDIALS_CVODE_C_MODE := enabled
