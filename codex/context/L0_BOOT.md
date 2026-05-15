@@ -1,6 +1,6 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-16T02:06:42+09:00
+Generated: 2026-05-16T02:43:03+09:00
 Remote refreshed: 2026-05-16T02:06:34+09:00
 
 ## Canonical Entry
@@ -27,7 +27,7 @@ Remote refreshed: 2026-05-16T02:06:34+09:00
 
 ## Active Local Risk
 
-- `local_fortran_modernization`: branch `codex/fortran-modernization`, commit `0adf9ec8d0459f83e06a0a93c018a8f11dc034d2`, dirty `10`, ahead `0`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
+- `local_fortran_modernization`: branch `codex/fortran-modernization`, commit `2e5c8637d9bbee32a64a05e6de3df56bf28cb98d`, dirty `8`, ahead `0`, behind `0`, stashes `1`, safe_to_pull `no_dirty_worktree`.
 
 ## Active/Pending Jobs
 
@@ -47,7 +47,7 @@ Remote refreshed: 2026-05-16T02:06:34+09:00
 - `CP-012` status `active` tltm_production_comparison: Maintain provisional-vs-final production boundary Next: Official DFO-LS c0e4021 256seed/200k production-comparison artifact has completed and merged, but it is not a rerun after the latest modernization HEAD and remains provisional until final wrapper/schema/naming/counter conventions are frozen or final regeneration is scheduled
 - `FM-001` status `active` fortran_modernization: Reset modernization around foundation completeness Next: Treat M6 as a behavior baseline, not completed foundation; use FOUNDATION_COMPLETENESS_RESET_20260511 before any source modernization step
 - `FM-011` status `active` fortran_modernization: Maintain all-handwritten algorithm claim boundary Next: Post-correction current-head audit is complete in HANDWRITTEN_ALGORITHM_CURRENT_HEAD_AUDIT_20260515.md, and the stronger all-handwritten paper-correctness/numerical-soundness audit is complete in HANDWRITTEN_ALGORITHM_PAPER_CORRECTNESS_AUDIT_20260515.md; universal paper-correctness remains blocked until the listed surfaces are closed or explicitly scoped.
-- `FM-015` status `active` fortran_modernization: Harden handwritten endpoint ODEX backend Next: F18b is the selected ODE-controller route after negative CVODE tuning: keep the claim to TLTM endpoint ODEX/GBS with `IWORK(3)=3`, freeze current controller behavior with deterministic tests, document TLTM-specific `h0`/h-min/step/order/stability policies, and require F8/M4 plus affected-baseline gates for behavior-changing controller patches.
+- `FM-015` status `active` fortran_modernization: Harden handwritten endpoint ODEX backend Next: F18b is the selected ODE-controller route after negative CVODE tuning: keep the claim to TLTM endpoint ODEX/GBS with `IWORK(3)=3`; treat `h0`, h-min, step/order, rejection, signed interval, and stability as undecided decision surfaces; first observe/freeze current behavior with deterministic tests, then decide accept/patch/defer with F8/M4 and affected-baseline gates for behavior-changing controller patches.
 
 ## Recent Decisions
 

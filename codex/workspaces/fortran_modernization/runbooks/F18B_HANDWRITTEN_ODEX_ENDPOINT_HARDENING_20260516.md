@@ -18,8 +18,9 @@ The target claim is:
 ```text
 TLTM uses a paper-aware endpoint extrapolation backend in the Hairer ODEX/GBS
 family, with the Hairer IWORK(3)=3 sequence, explicit TLTM endpoint-only
-product scope, documented controller policy, deterministic branch tests, and
-affected-baseline gates for any behavior-changing controller patch.
+product scope, explicitly unresolved controller decision surfaces,
+deterministic branch tests, and affected-baseline gates for any
+behavior-changing controller patch.
 ```
 
 Blocked claim:
@@ -61,7 +62,7 @@ Currently matched or intentionally scoped:
 
 Open-needs-proof or TLTM-specific:
 
-- first-step `h0` policy: current default is `t * initial_step_fraction`;
+- first-step `h0` behavior: current default is `t * initial_step_fraction`;
 - h-min floor and failure classification;
 - missing explicit Hairer-style `WORK(4)` / `WORK(5)` step-size bounds;
 - order promotion/demotion thresholds and branch predicates;
@@ -71,6 +72,11 @@ Open-needs-proof or TLTM-specific:
 - optional conservative stability branch and default no-stability policy;
 - ODEX/flow counters, traces, and last-failure snapshots still mixed with
   broader hidden state/productization work.
+
+The list above is not yet accepted TLTM policy.  It is the decision surface:
+first observe and test current behavior, then explicitly decide whether each
+item is accepted as TLTM endpoint policy, patched toward Hairer-style behavior,
+or deferred behind a product-scope boundary.
 
 ## Hard Rules For This Slice
 
@@ -103,13 +109,15 @@ Gate:
 
 - docs/control-plane validation only; no source behavior change.
 
-### F18b.1 - Behavior-Free Deterministic Controller Tests
+### F18b.1 - Behavior-Free Deterministic Controller Observation Tests
 
-Goal: freeze the current controller behavior before debating patches.
+Goal: observe and freeze the current controller behavior before accepting or
+patching any undecided surface.
 
 Deliverables:
 
-- `test_odex_controller_policy_contract` or equivalent focused tests covering:
+- `test_odex_controller_observation_contract` or equivalent focused tests
+  covering:
   - `IWORK(3)=3` step sequence and work-estimate positivity;
   - first-step initialization for short and long endpoint intervals;
   - signed `h` preservation and negative-interval work estimates;
@@ -123,23 +131,26 @@ Gate:
 - `git diff --check`;
 - M4 guardrails if public test/build manifests change.
 
-### F18b.2 - Explicit TLTM Policy Wording
+### F18b.2 - Controller Decision Packet
 
-Goal: decide which controller details are accepted project policy rather than
-paper-equivalent implementation.
+Goal: decide which controller details are accepted as TLTM endpoint policy,
+which should be patched toward Hairer-style behavior, and which remain deferred
+behind product scope.
 
 Decision points:
 
-- keep `h0 = 0.01 * t` as TLTM endpoint policy, or introduce a Hairer-inspired
-  initial-step estimate as a behavior-changing candidate;
-- keep current h-min floor policy, or replace with a more paper-aligned
+- decide whether to accept current `h0 = 0.01 * t` as TLTM endpoint policy, or
+  introduce a Hairer-inspired initial-step estimate as a behavior-changing
+  candidate;
+- decide whether to accept current h-min floor policy, or replace it with a
+  more paper-aligned
   min-step policy;
-- accept current order thresholds, or align decrease/increase thresholds with
-  Hairer-style defaults;
-- add explicit growth/shrink bounds, or document why endpoint TLTM truncation
-  and failure-as-rejection are the chosen policy;
-- keep conservative stability control disabled by default, or add a stricter
-  default only after affected-baseline evidence.
+- decide whether to accept current order thresholds, or align
+  decrease/increase thresholds with Hairer-style defaults;
+- decide whether to add explicit growth/shrink bounds, or document why
+  endpoint TLTM truncation and failure-as-rejection are the chosen policy;
+- decide whether to keep conservative stability control disabled by default, or
+  add a stricter default only after affected-baseline evidence.
 
 Gate:
 
@@ -186,10 +197,11 @@ Gate:
 
 Start with F18b.0/F18b.1, not a behavior-changing source patch.
 
-The first source-facing patch should add a focused deterministic ODEX controller
-policy contract that observes and freezes current behavior.  If the test needs
-small helper accessors for pure controller helpers, add them without changing
-the production integration path.
+The first source-facing patch should add a focused deterministic ODEX
+controller observation contract.  It should observe and freeze current behavior
+without endorsing those choices as final policy.  If the test needs small
+helper accessors for pure controller helpers, add them without changing the
+production integration path.
 
 After that test exists, decide whether `h0`, h-min, step-size bounds, order
 thresholds, and stability policy are accepted TLTM endpoint policy or candidates

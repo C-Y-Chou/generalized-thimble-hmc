@@ -1121,13 +1121,15 @@
 - User selected returning to handwritten ODEX hardening after the negative F18
   CVODE tuning readback.
 - Added `runbooks/F18B_HANDWRITTEN_ODEX_ENDPOINT_HARDENING_20260516.md`.
-- New claim boundary: TLTM endpoint ODEX/GBS with Hairer `IWORK(3)=3`,
-  documented TLTM controller policy, deterministic branch tests, and
-  affected-baseline gates for behavior-changing patches.
+- New claim boundary: TLTM endpoint ODEX/GBS with Hairer `IWORK(3)=3`.
+  `h0`, h-min, step/order, rejection, signed interval, and stability are not
+  yet decided; they must first be observed/frozen by deterministic tests and
+  then accepted, patched, or deferred by explicit decision.
 - Explicitly blocked claim: full Hairer ODEX paper correctness.
 - SUNDIALS CVODE remains disabled-by-default comparison-only evidence; no more
   fail-fast package tuning is active.
 - Immediate next step is F18b.0/F18b.1: create the behavior-free source
-  map/decision table and add deterministic controller-policy tests that freeze
-  current `h0`, h-min, step/order, rejection, signed-interval, and stability
-  behavior before any behavior-changing controller patch.
+  map/decision table and add deterministic controller observation tests that
+  freeze current `h0`, h-min, step/order, rejection, signed-interval, and
+  stability behavior as evidence for later decisions, not as already-set
+  policy.
