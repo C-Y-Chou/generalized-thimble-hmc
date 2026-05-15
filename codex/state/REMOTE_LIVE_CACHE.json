@@ -7,7 +7,7 @@
         "worktrees": {
           "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization": {
             "branch": "codex/fortran-modernization",
-            "commit": "8fd67666e6274a569367c0a7e317e58847f11081",
+            "commit": "982a1bc432e11de6608c22df770428837ed6c38e",
             "dirty_count": "0",
             "exists": "1",
             "worktree_path": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization"
@@ -25,7 +25,7 @@
       "stderr": ""
     }
   },
-  "refreshed_at_jst": "2026-05-16T03:25:56+09:00",
+  "refreshed_at_jst": "2026-05-16T03:58:17+09:00",
   "targets": [
     {
       "branch": "codex/fortran-modernization",
