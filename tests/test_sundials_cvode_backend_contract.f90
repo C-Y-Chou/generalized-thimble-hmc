@@ -83,6 +83,8 @@ contains
 
       call odex_default_options(options, 1.0e-12_dp, 1.0e-12_dp)
       options%backend = odex_backend_kind_sundials_cvode
+      options%cvode_fixedpoint_m = 2
+      options%cvode_max_order = 8
       exp_lambda = -2.0_dp
       y0 = [1.0_dp, -0.25_dp]
 
@@ -91,9 +93,11 @@ contains
       y_exact = y0*exp(exp_lambda)
       err = maxval(abs(y_out - y_exact))
       ok = (.not. failed) .and. result_state%status == odex_status_success .and. &
-           result_state%endpoint_available .and. err <= 1.0e-9_dp
-      write (*, '(A,L1,A,I0,A,ES12.4,A,I0)') "[CHECK] cvode_endpoint_accuracy ok=", ok, &
-         " status=", result_state%status, " err=", err, " steps=", result_state%accepted_steps
+           result_state%endpoint_available .and. result_state%cvode_backend_used .and. &
+           result_state%cvode_rhs_evals > 0 .and. result_state%final_order > 0 .and. err <= 1.0e-9_dp
+      write (*, '(A,L1,A,I0,A,ES12.4,A,I0,A,I0,A,I0)') "[CHECK] cvode_endpoint_accuracy ok=", ok, &
+         " status=", result_state%status, " err=", err, " steps=", result_state%accepted_steps, &
+         " rhs_evals=", result_state%cvode_rhs_evals, " final_order=", result_state%final_order
       if (.not. ok) then
          failures = failures + 1
          write (*, '(A)') "[FAIL] SUNDIALS CVODE endpoint accuracy contract failed."

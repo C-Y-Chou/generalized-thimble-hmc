@@ -37,6 +37,8 @@ module odex_backend
       integer :: k_min = odex_k_min
       integer :: k_max = odex_k_max
       integer :: max_steps = odex_max_steps_default
+      integer :: cvode_fixedpoint_m = 0
+      integer :: cvode_max_order = 0
       integer :: step_sequence = odex_step_sequence_iwork3
       integer :: stability_control = odex_stability_control_none
       logical :: endpoint_only = .true.
@@ -66,6 +68,12 @@ module odex_backend
       real(dp) :: final_step_size = 0.0_dp
       real(dp) :: t_remaining = 0.0_dp
       logical :: endpoint_available = .false.
+      logical :: cvode_backend_used = .false.
+      integer :: cvode_rhs_evals = 0
+      integer :: cvode_error_test_fails = 0
+      integer :: cvode_nonlinear_iters = 0
+      integer :: cvode_nonlinear_conv_fails = 0
+      integer :: cvode_step_solve_fails = 0
    end type odex_result
 
    abstract interface
@@ -89,18 +97,27 @@ module odex_backend
       end function tltm_sundials_cvode_available
 
       integer(c_int) function tltm_sundials_cvode_integrate(n, y0, t_final, abs_tol, rel_tol, max_steps, &
+                                                            fixedpoint_m, max_order, &
                                                             y_out, num_steps_out, last_step_out, t_reached_out, &
+                                                            rhs_evals_out, error_test_fails_out, nonlinear_iters_out, &
+                                                            nonlinear_conv_fails_out, step_solve_fails_out, last_order_out, &
                                                             user_ctx, rhs_cb) &
          bind(C, name="tltm_sundials_cvode_integrate")
          import :: c_double, c_funptr, c_int, c_ptr
          integer(c_int), value :: n
          real(c_double), intent(in) :: y0(*)
          real(c_double), value :: t_final, abs_tol, rel_tol
-         integer(c_int), value :: max_steps
+         integer(c_int), value :: max_steps, fixedpoint_m, max_order
          real(c_double), intent(out) :: y_out(*)
          integer(c_int), intent(out) :: num_steps_out
          real(c_double), intent(out) :: last_step_out
          real(c_double), intent(out) :: t_reached_out
+         integer(c_int), intent(out) :: rhs_evals_out
+         integer(c_int), intent(out) :: error_test_fails_out
+         integer(c_int), intent(out) :: nonlinear_iters_out
+         integer(c_int), intent(out) :: nonlinear_conv_fails_out
+         integer(c_int), intent(out) :: step_solve_fails_out
+         integer(c_int), intent(out) :: last_order_out
          type(c_ptr), value :: user_ctx
          type(c_funptr), value :: rhs_cb
       end function tltm_sundials_cvode_integrate
@@ -145,6 +162,8 @@ contains
       options%k_min = odex_k_min
       options%k_max = odex_k_max
       options%max_steps = odex_max_steps_default
+      options%cvode_fixedpoint_m = 0
+      options%cvode_max_order = 0
       options%step_sequence = odex_step_sequence_iwork3
       options%stability_control = odex_stability_control_none
       options%endpoint_only = .true.
@@ -449,6 +468,8 @@ contains
       type(odex_options), intent(in) :: opts
 
       integer(c_int) :: c_status, c_steps
+      integer(c_int) :: c_rhs_evals, c_error_test_fails, c_nonlinear_iters
+      integer(c_int) :: c_nonlinear_conv_fails, c_step_solve_fails, c_last_order
       real(c_double) :: c_last_step, c_t_reached
       integer :: state_size
 
@@ -471,11 +492,16 @@ contains
 
       c_status = tltm_sundials_cvode_integrate(int(state_size, c_int), y, real(t, c_double), &
                                                real(opts%abs_tol, c_double), real(opts%rel_tol, c_double), &
-                                               int(opts%max_steps, c_int), res, c_steps, c_last_step, c_t_reached, &
+                                               int(opts%max_steps, c_int), int(opts%cvode_fixedpoint_m, c_int), &
+                                               int(opts%cvode_max_order, c_int), res, c_steps, c_last_step, c_t_reached, &
+                                               c_rhs_evals, c_error_test_fails, c_nonlinear_iters, &
+                                               c_nonlinear_conv_fails, c_step_solve_fails, c_last_order, &
                                                c_null_ptr, c_funloc(odex_cvode_rhs_dispatch))
 
       call odex_cvode_clear_callback()
-      call odex_sundials_status_to_result(c_status, c_steps, c_last_step, c_t_reached, t, error_flag, result_state)
+      call odex_sundials_status_to_result(c_status, c_steps, c_last_step, c_t_reached, c_rhs_evals, &
+                                          c_error_test_fails, c_nonlinear_iters, c_nonlinear_conv_fails, &
+                                          c_step_solve_fails, c_last_order, t, error_flag, result_state)
    end subroutine odex_sundials_integrate_endpoint
 
    subroutine odex_sundials_integrate_endpoint_context(f, y, t, res, error_flag, result_state, opts, rhs_context)
@@ -488,6 +514,8 @@ contains
       class(*), intent(inout), target :: rhs_context
 
       integer(c_int) :: c_status, c_steps
+      integer(c_int) :: c_rhs_evals, c_error_test_fails, c_nonlinear_iters
+      integer(c_int) :: c_nonlinear_conv_fails, c_step_solve_fails, c_last_order
       real(c_double) :: c_last_step, c_t_reached
       integer :: state_size
 
@@ -511,15 +539,24 @@ contains
 
       c_status = tltm_sundials_cvode_integrate(int(state_size, c_int), y, real(t, c_double), &
                                                real(opts%abs_tol, c_double), real(opts%rel_tol, c_double), &
-                                               int(opts%max_steps, c_int), res, c_steps, c_last_step, c_t_reached, &
+                                               int(opts%max_steps, c_int), int(opts%cvode_fixedpoint_m, c_int), &
+                                               int(opts%cvode_max_order, c_int), res, c_steps, c_last_step, c_t_reached, &
+                                               c_rhs_evals, c_error_test_fails, c_nonlinear_iters, &
+                                               c_nonlinear_conv_fails, c_step_solve_fails, c_last_order, &
                                                c_null_ptr, c_funloc(odex_cvode_rhs_dispatch))
 
       call odex_cvode_clear_callback()
-      call odex_sundials_status_to_result(c_status, c_steps, c_last_step, c_t_reached, t, error_flag, result_state)
+      call odex_sundials_status_to_result(c_status, c_steps, c_last_step, c_t_reached, c_rhs_evals, &
+                                          c_error_test_fails, c_nonlinear_iters, c_nonlinear_conv_fails, &
+                                          c_step_solve_fails, c_last_order, t, error_flag, result_state)
    end subroutine odex_sundials_integrate_endpoint_context
 
-   subroutine odex_sundials_status_to_result(c_status, c_steps, c_last_step, c_t_reached, t_final, error_flag, result_state)
+   subroutine odex_sundials_status_to_result(c_status, c_steps, c_last_step, c_t_reached, c_rhs_evals, c_error_test_fails, &
+                                             c_nonlinear_iters, c_nonlinear_conv_fails, c_step_solve_fails, c_last_order, &
+                                             t_final, error_flag, result_state)
       integer(c_int), intent(in) :: c_status, c_steps
+      integer(c_int), intent(in) :: c_rhs_evals, c_error_test_fails, c_nonlinear_iters
+      integer(c_int), intent(in) :: c_nonlinear_conv_fails, c_step_solve_fails, c_last_order
       real(c_double), intent(in) :: c_last_step, c_t_reached
       real(dp), intent(in) :: t_final
       logical, intent(out) :: error_flag
@@ -533,17 +570,27 @@ contains
       select case (c_status)
       case (sundials_cvode_status_success)
          error_flag = .false.
-         call odex_result_mark_success(result_state, odex_status_success, accepted_steps, 0, real(c_last_step, dp))
+         call odex_result_mark_success(result_state, odex_status_success, accepted_steps, max(0, int(c_last_order)), &
+                                       real(c_last_step, dp))
       case (sundials_cvode_status_max_steps)
          error_flag = .true.
-         call odex_result_mark_failure(result_state, odex_reason_max_steps, accepted_steps, 0, 0, real(c_last_step, dp), t_remaining)
+         call odex_result_mark_failure(result_state, odex_reason_max_steps, accepted_steps, 0, max(0, int(c_last_order)), &
+                                       real(c_last_step, dp), t_remaining)
       case (sundials_cvode_status_invalid, sundials_cvode_status_unavailable)
          error_flag = .true.
-         call odex_result_mark_failure(result_state, odex_reason_invalid, accepted_steps, 0, 0, real(c_last_step, dp), t_remaining)
+         call odex_result_mark_failure(result_state, odex_reason_invalid, accepted_steps, 0, max(0, int(c_last_order)), &
+                                       real(c_last_step, dp), t_remaining)
       case default
          error_flag = .true.
-         call odex_result_mark_failure(result_state, odex_reason_invalid, accepted_steps, 0, 0, real(c_last_step, dp), t_remaining)
+         call odex_result_mark_failure(result_state, odex_reason_invalid, accepted_steps, 0, max(0, int(c_last_order)), &
+                                       real(c_last_step, dp), t_remaining)
       end select
+      result_state%cvode_backend_used = .true.
+      result_state%cvode_rhs_evals = max(0, int(c_rhs_evals))
+      result_state%cvode_error_test_fails = max(0, int(c_error_test_fails))
+      result_state%cvode_nonlinear_iters = max(0, int(c_nonlinear_iters))
+      result_state%cvode_nonlinear_conv_fails = max(0, int(c_nonlinear_conv_fails))
+      result_state%cvode_step_solve_fails = max(0, int(c_step_solve_fails))
    end subroutine odex_sundials_status_to_result
 
    integer(c_int) function odex_cvode_rhs_dispatch(user_ctx, n_c, t_c, y_ptr, ydot_ptr) result(status_code) bind(C)
@@ -1150,6 +1197,12 @@ contains
       result_state%final_step_size = 0.0_dp
       result_state%t_remaining = 0.0_dp
       result_state%endpoint_available = .false.
+      result_state%cvode_backend_used = .false.
+      result_state%cvode_rhs_evals = 0
+      result_state%cvode_error_test_fails = 0
+      result_state%cvode_nonlinear_iters = 0
+      result_state%cvode_nonlinear_conv_fails = 0
+      result_state%cvode_step_solve_fails = 0
    end subroutine odex_result_reset
 
    subroutine odex_result_mark_success(result_state, status_code, accepted_steps, final_order, final_step_size)
@@ -1241,6 +1294,8 @@ contains
       options%k_min = max(odex_k_min, options%k_min)
       options%k_max = max(options%k_min, options%k_max)
       options%max_steps = max(0, options%max_steps)
+      options%cvode_fixedpoint_m = max(0, options%cvode_fixedpoint_m)
+      options%cvode_max_order = max(0, options%cvode_max_order)
       options%h_min_c_fp = max(options%h_min_c_fp, 0.0_dp)
       options%h_min_c_tol = max(options%h_min_c_tol, 0.0_dp)
       options%h_min_c_span = max(options%h_min_c_span, 0.0_dp)

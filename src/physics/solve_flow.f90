@@ -1,6 +1,6 @@
 module solve_flow
    use param_mod, only: at, rt
-   use runtime_env_mod, only: read_string_env
+   use runtime_env_mod, only: parse_int_env, read_string_env
    use utils, only: dp, complex_to_real, map_to_complex, real_to_complex
    use model, only: ds, hessian_vec
    use odex_backend, only: build_nsteps, ensure_odex_workspace_object, ode_rhs, ode_rhs_context, &
@@ -16,6 +16,7 @@ module solve_flow
                            odex_stability_control_conservative, odex_stability_control_none, odex_workspace
    use perf_profile, only: perf_tic, perf_toc, PERF_INTODE, PERF_FLOW, PERF_FLOWZ, PERF_FLOWZR
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+   use, intrinsic :: iso_fortran_env, only: int64
    implicit none
 
    type :: flow_workspace_t
@@ -69,6 +70,24 @@ module solve_flow
    integer, save :: intode_fallback_h_min = 0
    integer, save :: intode_fallback_attempts_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
    integer, save :: intode_fallback_failures_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
+   integer(int64), save :: intode_cvode_calls = 0_int64
+   integer(int64), save :: intode_cvode_success = 0_int64
+   integer(int64), save :: intode_cvode_failure = 0_int64
+   integer(int64), save :: intode_cvode_steps_sum = 0_int64
+   integer(int64), save :: intode_cvode_rhs_evals_sum = 0_int64
+   integer(int64), save :: intode_cvode_error_test_fails_sum = 0_int64
+   integer(int64), save :: intode_cvode_nonlinear_iters_sum = 0_int64
+   integer(int64), save :: intode_cvode_nonlinear_conv_fails_sum = 0_int64
+   integer(int64), save :: intode_cvode_step_solve_fails_sum = 0_int64
+   integer(int64), save :: intode_cvode_final_order_sum = 0_int64
+   integer(int64), save :: intode_cvode_max_final_order = 0_int64
+   integer(int64), save :: intode_cvode_calls_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+   integer(int64), save :: intode_cvode_steps_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+   integer(int64), save :: intode_cvode_rhs_evals_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+   integer(int64), save :: intode_cvode_error_test_fails_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+   integer(int64), save :: intode_cvode_nonlinear_iters_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+   integer(int64), save :: intode_cvode_nonlinear_conv_fails_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+   integer(int64), save :: intode_cvode_step_solve_fails_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
    logical, parameter :: intode_verbose_logs = .false.
    integer, save :: intode_trace_rattle_step = 0
    integer, save :: intode_trace_rattle_substep = 0
@@ -102,6 +121,8 @@ contains
       call odex_backend_default_options(options, at, rt)
       call read_string_env("TLTM_ODE_BACKEND", backend_token, has_backend)
       if (has_backend) call odex_apply_backend_name(options, backend_token)
+      call parse_int_env("TLTM_CVODE_FIXEDPOINT_M", options%cvode_fixedpoint_m)
+      call parse_int_env("TLTM_CVODE_MAX_ORDER", options%cvode_max_order)
    end subroutine odex_default_options
 
    subroutine intode(f, y, t, res, error_flag, status)
@@ -141,6 +162,7 @@ contains
       call odex_default_options(integration_options)
       call odex_integrate_endpoint(f, y, t, local_workspace%intode_yf(1:state_size), error_flag, &
                                    integration_result, local_workspace%intode_odex_workspace, integration_options)
+      call record_intode_cvode_result(integration_result)
       if (.not. error_flag) then
          res = local_workspace%intode_yf(1:state_size)
          call set_intode_status(status, odex_result_to_intode_status(integration_result))
@@ -224,6 +246,7 @@ contains
       call odex_default_options(integration_options)
       call odex_integrate_endpoint_context(f, y, t, workspace%intode_yf(1:state_size), error_flag, &
                                            integration_result, workspace%intode_odex_workspace, integration_options, workspace)
+      call record_intode_cvode_result(integration_result)
       if (.not. error_flag) then
          res = workspace%intode_yf(1:state_size)
          call set_intode_status(status, odex_result_to_intode_status(integration_result))
@@ -316,6 +339,44 @@ contains
       idx = normalize_context_code(ctx_code)
       intode_fallback_failures_ctx(idx) = intode_fallback_failures_ctx(idx) + 1
    end subroutine record_intode_fallback_failure_context
+
+   subroutine record_intode_cvode_result(result_state)
+      implicit none
+      type(odex_result), intent(in) :: result_state
+      integer :: idx
+
+      if (.not. result_state%cvode_backend_used) return
+
+      idx = normalize_context_code(intode_current_context)
+      intode_cvode_calls = intode_cvode_calls + 1_int64
+      intode_cvode_calls_ctx(idx) = intode_cvode_calls_ctx(idx) + 1_int64
+      if (result_state%status == odex_status_success) then
+         intode_cvode_success = intode_cvode_success + 1_int64
+      else
+         intode_cvode_failure = intode_cvode_failure + 1_int64
+      end if
+
+      intode_cvode_steps_sum = intode_cvode_steps_sum + int(max(0, result_state%accepted_steps), int64)
+      intode_cvode_rhs_evals_sum = intode_cvode_rhs_evals_sum + int(max(0, result_state%cvode_rhs_evals), int64)
+      intode_cvode_error_test_fails_sum = intode_cvode_error_test_fails_sum + int(max(0, result_state%cvode_error_test_fails), int64)
+      intode_cvode_nonlinear_iters_sum = intode_cvode_nonlinear_iters_sum + int(max(0, result_state%cvode_nonlinear_iters), int64)
+      intode_cvode_nonlinear_conv_fails_sum = intode_cvode_nonlinear_conv_fails_sum + &
+         int(max(0, result_state%cvode_nonlinear_conv_fails), int64)
+      intode_cvode_step_solve_fails_sum = intode_cvode_step_solve_fails_sum + int(max(0, result_state%cvode_step_solve_fails), int64)
+      intode_cvode_final_order_sum = intode_cvode_final_order_sum + int(max(0, result_state%final_order), int64)
+      intode_cvode_max_final_order = max(intode_cvode_max_final_order, int(max(0, result_state%final_order), int64))
+
+      intode_cvode_steps_ctx(idx) = intode_cvode_steps_ctx(idx) + int(max(0, result_state%accepted_steps), int64)
+      intode_cvode_rhs_evals_ctx(idx) = intode_cvode_rhs_evals_ctx(idx) + int(max(0, result_state%cvode_rhs_evals), int64)
+      intode_cvode_error_test_fails_ctx(idx) = intode_cvode_error_test_fails_ctx(idx) + &
+         int(max(0, result_state%cvode_error_test_fails), int64)
+      intode_cvode_nonlinear_iters_ctx(idx) = intode_cvode_nonlinear_iters_ctx(idx) + &
+         int(max(0, result_state%cvode_nonlinear_iters), int64)
+      intode_cvode_nonlinear_conv_fails_ctx(idx) = intode_cvode_nonlinear_conv_fails_ctx(idx) + &
+         int(max(0, result_state%cvode_nonlinear_conv_fails), int64)
+      intode_cvode_step_solve_fails_ctx(idx) = intode_cvode_step_solve_fails_ctx(idx) + &
+         int(max(0, result_state%cvode_step_solve_fails), int64)
+   end subroutine record_intode_cvode_result
 
    integer function normalize_context_code(ctx_code) result(ctx_norm)
       implicit none
@@ -562,6 +623,24 @@ contains
       intode_fallback_h_min = 0
       intode_fallback_attempts_ctx = 0
       intode_fallback_failures_ctx = 0
+      intode_cvode_calls = 0_int64
+      intode_cvode_success = 0_int64
+      intode_cvode_failure = 0_int64
+      intode_cvode_steps_sum = 0_int64
+      intode_cvode_rhs_evals_sum = 0_int64
+      intode_cvode_error_test_fails_sum = 0_int64
+      intode_cvode_nonlinear_iters_sum = 0_int64
+      intode_cvode_nonlinear_conv_fails_sum = 0_int64
+      intode_cvode_step_solve_fails_sum = 0_int64
+      intode_cvode_final_order_sum = 0_int64
+      intode_cvode_max_final_order = 0_int64
+      intode_cvode_calls_ctx = 0_int64
+      intode_cvode_steps_ctx = 0_int64
+      intode_cvode_rhs_evals_ctx = 0_int64
+      intode_cvode_error_test_fails_ctx = 0_int64
+      intode_cvode_nonlinear_iters_ctx = 0_int64
+      intode_cvode_nonlinear_conv_fails_ctx = 0_int64
+      intode_cvode_step_solve_fails_ctx = 0_int64
       intode_trace_rattle_step = 0
       intode_trace_rattle_substep = 0
       intode_trace_stage = intode_stage_unknown
@@ -597,6 +676,45 @@ contains
       fallback_invalid = intode_fallback_invalid
       fallback_h_min = intode_fallback_h_min
    end subroutine get_intode_fallback_stats
+
+   subroutine get_intode_cvode_stats(calls, success, failure, steps_sum, rhs_evals_sum, error_test_fails_sum, &
+                                     nonlinear_iters_sum, nonlinear_conv_fails_sum, step_solve_fails_sum, &
+                                     final_order_sum, max_final_order)
+      implicit none
+      integer(int64), intent(out) :: calls, success, failure, steps_sum, rhs_evals_sum
+      integer(int64), intent(out) :: error_test_fails_sum, nonlinear_iters_sum, nonlinear_conv_fails_sum
+      integer(int64), intent(out) :: step_solve_fails_sum, final_order_sum, max_final_order
+
+      calls = intode_cvode_calls
+      success = intode_cvode_success
+      failure = intode_cvode_failure
+      steps_sum = intode_cvode_steps_sum
+      rhs_evals_sum = intode_cvode_rhs_evals_sum
+      error_test_fails_sum = intode_cvode_error_test_fails_sum
+      nonlinear_iters_sum = intode_cvode_nonlinear_iters_sum
+      nonlinear_conv_fails_sum = intode_cvode_nonlinear_conv_fails_sum
+      step_solve_fails_sum = intode_cvode_step_solve_fails_sum
+      final_order_sum = intode_cvode_final_order_sum
+      max_final_order = intode_cvode_max_final_order
+   end subroutine get_intode_cvode_stats
+
+   subroutine get_intode_cvode_context_stats(context_code, calls, steps_sum, rhs_evals_sum, error_test_fails_sum, &
+                                            nonlinear_iters_sum, nonlinear_conv_fails_sum, step_solve_fails_sum)
+      implicit none
+      integer, intent(in) :: context_code
+      integer(int64), intent(out) :: calls, steps_sum, rhs_evals_sum, error_test_fails_sum
+      integer(int64), intent(out) :: nonlinear_iters_sum, nonlinear_conv_fails_sum, step_solve_fails_sum
+      integer :: idx
+
+      idx = normalize_context_code(context_code)
+      calls = intode_cvode_calls_ctx(idx)
+      steps_sum = intode_cvode_steps_ctx(idx)
+      rhs_evals_sum = intode_cvode_rhs_evals_ctx(idx)
+      error_test_fails_sum = intode_cvode_error_test_fails_ctx(idx)
+      nonlinear_iters_sum = intode_cvode_nonlinear_iters_ctx(idx)
+      nonlinear_conv_fails_sum = intode_cvode_nonlinear_conv_fails_ctx(idx)
+      step_solve_fails_sum = intode_cvode_step_solve_fails_ctx(idx)
+   end subroutine get_intode_cvode_context_stats
 
    subroutine get_intode_fallback_context_stats(attempt_flowz, attempt_flowzr, attempt_flow, attempt_unknown, &
                                                 fail_flowz, fail_flowzr, fail_flow, fail_unknown)

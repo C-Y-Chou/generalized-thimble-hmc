@@ -4,6 +4,8 @@ module tltm_stage2_driver
    use runtime_env_mod, only: parse_int_env, parse_real_env, parse_logical_env, read_string_env, parse_real_list, to_lower_ascii
    use utils, only: dp, log_determinant, wall_time_seconds, x_set_flow_time, x_set_seed_real
    use solve_flow, only: flow, reset_intode_fallback_stats, get_intode_fallback_stats, &
+                         get_intode_cvode_stats, get_intode_cvode_context_stats, &
+                         intode_ctx_unknown, intode_ctx_flowz, intode_ctx_flowzr, intode_ctx_flow, &
                          intode_status_unknown, intode_status_is_strict_success
    use model, only: grand, calculate_action
    use mt95, only: getseed, grnd, mt95_get_state, mt95_seed_state, mt95_set_state, mt95_state_t, sgrnd
@@ -1241,6 +1243,20 @@ contains
          " far_anchor=", reverse_gate_count_at(counts, constraint_reverse_gate_path_far_anchor)
    end subroutine write_reverse_gate_route_counts
 
+   subroutine write_cvode_context_stats(unit_summary, line_prefix, context_code)
+      integer, intent(in) :: unit_summary, context_code
+      character(len=*), intent(in) :: line_prefix
+      integer(int64) :: calls, steps_sum, rhs_evals_sum, error_test_fails_sum
+      integer(int64) :: nonlinear_iters_sum, nonlinear_conv_fails_sum, step_solve_fails_sum
+
+      call get_intode_cvode_context_stats(context_code, calls, steps_sum, rhs_evals_sum, error_test_fails_sum, &
+                                          nonlinear_iters_sum, nonlinear_conv_fails_sum, step_solve_fails_sum)
+      write (unit_summary, '(A,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
+         trim(line_prefix), " calls=", calls, " steps=", steps_sum, " rhs_evals=", rhs_evals_sum, &
+         " error_test_fails=", error_test_fails_sum, " nonlinear_iters=", nonlinear_iters_sum, &
+         " nonlinear_conv_fails=", nonlinear_conv_fails_sum, " step_solve_fails=", step_solve_fails_sum
+   end subroutine write_cvode_context_stats
+
    integer(int64) function reverse_gate_count_at(counts, idx) result(count_value)
       integer(int64), intent(in) :: counts(:)
       integer, intent(in) :: idx
@@ -1323,6 +1339,10 @@ contains
       integer(int64) :: qn_flow_success_count, qn_flow_zero_time_count, qn_flow_stiff_rescue_count
       integer(int64) :: qn_flow_solver_assist_count, qn_flow_failure_max_steps_count, qn_flow_failure_invalid_count
       integer(int64) :: qn_flow_failure_h_min_count, qn_flow_unknown_count
+      integer(int64) :: cvode_call_count, cvode_success_count, cvode_failure_count
+      integer(int64) :: cvode_steps_sum, cvode_rhs_evals_sum, cvode_error_test_fails_sum
+      integer(int64) :: cvode_nonlinear_iters_sum, cvode_nonlinear_conv_fails_sum, cvode_step_solve_fails_sum
+      integer(int64) :: cvode_final_order_sum, cvode_max_final_order
 
       open (unit=unit_summary, file=trim(summary_file), status='replace', action='write', iostat=ios)
       if (ios /= 0) then
@@ -1344,6 +1364,22 @@ contains
          "# fallback_stats calls_total=", calls_total, " calls_integrating=", calls_integrating, &
          " attempts=", fallback_attempts, " success=", fallback_success, " failure=", fallback_failure, &
          " max_steps=", fallback_max_steps, " invalid=", fallback_invalid, " h_min=", fallback_h_min
+      call get_intode_cvode_stats(cvode_call_count, cvode_success_count, cvode_failure_count, cvode_steps_sum, &
+                                  cvode_rhs_evals_sum, cvode_error_test_fails_sum, cvode_nonlinear_iters_sum, &
+                                  cvode_nonlinear_conv_fails_sum, cvode_step_solve_fails_sum, cvode_final_order_sum, &
+                                  cvode_max_final_order)
+      if (cvode_call_count > 0_int64) then
+         write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
+            "# cvode_stats calls=", cvode_call_count, " success=", cvode_success_count, " failure=", cvode_failure_count, &
+            " steps=", cvode_steps_sum, " rhs_evals=", cvode_rhs_evals_sum, &
+            " error_test_fails=", cvode_error_test_fails_sum, " nonlinear_iters=", cvode_nonlinear_iters_sum, &
+            " nonlinear_conv_fails=", cvode_nonlinear_conv_fails_sum, " step_solve_fails=", cvode_step_solve_fails_sum, &
+            " final_order_sum=", cvode_final_order_sum, " max_final_order=", cvode_max_final_order
+         call write_cvode_context_stats(unit_summary, "# cvode_context_unknown", intode_ctx_unknown)
+         call write_cvode_context_stats(unit_summary, "# cvode_context_flowz", intode_ctx_flowz)
+         call write_cvode_context_stats(unit_summary, "# cvode_context_flowzr", intode_ctx_flowzr)
+         call write_cvode_context_stats(unit_summary, "# cvode_context_flow", intode_ctx_flow)
+      end if
       write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,F9.5,A,F9.5,A,F9.5)') &
          "# constraint_stats total=", solver_total_count, " newton=", solver_newton_count, " quasi=", solver_quasi_count, &
          " failed=", solver_failed_count, " ratio_newton=", solver_newton_ratio, " ratio_quasi=", solver_quasi_ratio, &

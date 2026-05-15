@@ -65,6 +65,20 @@ REVERSE_GATE_REPLAY_STATUS_NAMES = [
     "unknown",
 ]
 
+CVODE_STAT_NAMES = [
+    "calls",
+    "success",
+    "failure",
+    "steps",
+    "rhs_evals",
+    "error_test_fails",
+    "nonlinear_iters",
+    "nonlinear_conv_fails",
+    "step_solve_fails",
+    "final_order_sum",
+    "max_final_order",
+]
+
 METHOD_SPECS = {
     "no_fb": {
         "fallback_enabled": False,
@@ -144,6 +158,19 @@ def reverse_gate_replay_status_count_columns():
 
 def reverse_gate_replay_status_aggregate_columns():
     return ["total_{0}".format(column) for column in reverse_gate_replay_status_count_columns()]
+
+
+def cvode_stat_columns():
+    return ["cvode_{0}".format(name) for name in CVODE_STAT_NAMES]
+
+
+def cvode_aggregate_columns():
+    return ["total_{0}".format(column) for column in cvode_stat_columns()] + [
+        "mean_cvode_rhs_per_call",
+        "mean_cvode_steps_per_call",
+        "mean_cvode_nonlinear_iters_per_call",
+        "mean_cvode_error_test_fails_per_call",
+    ]
 
 
 def parse_args():
@@ -538,9 +565,11 @@ def selected_manifest_env(env):
         "VECLIB_MAXIMUM_THREADS",
         "NUMEXPR_NUM_THREADS",
         "TLTM_OFFICIAL_DFOLS_PYTHONPATH",
+        "TLTM_ODE_BACKEND",
     }
     prefixes = (
         "INTODE_",
+        "TLTM_CVODE_",
         "TLTM_LOCAL_",
         "TLTM_RG_",
         "TLTM_STAGE2_",
@@ -641,6 +670,7 @@ def parse_stage2_summary(summary_path):
     newton_eval_flow_status_stats = {name: 0 for name in NEWTON_EVAL_FLOW_STATUS_NAMES}
     qn_eval_flow_status_stats = {name: 0 for name in QN_EVAL_FLOW_STATUS_NAMES}
     reverse_gate_replay_status_stats = {name: 0 for name in REVERSE_GATE_REPLAY_STATUS_NAMES}
+    cvode_stats = {name: 0 for name in CVODE_STAT_NAMES}
     reverse_gate_route_stats = {
         "candidate": {route_name: 0 for route_name in REVERSE_GATE_ROUTE_NAMES},
         "pass": {route_name: 0 for route_name in REVERSE_GATE_ROUTE_NAMES},
@@ -682,6 +712,12 @@ def parse_stage2_summary(summary_path):
             continue
         if line.startswith("# total_round_trip="):
             total_round_trip = int(line.split("=", 1)[1].strip())
+            continue
+        if line.startswith("# cvode_stats "):
+            kv = parse_key_value_ints(line[len("# cvode_stats ") :])
+            for key in cvode_stats:
+                if key in kv:
+                    cvode_stats[key] = int(kv[key])
             continue
         if line.startswith("# constraint_stats "):
             kv = parse_key_value_ints(line[len("# constraint_stats ") :])
@@ -879,6 +915,7 @@ def parse_stage2_summary(summary_path):
             "reverse_gate_replay_{0}_count".format(name): reverse_gate_replay_status_stats[name]
             for name in REVERSE_GATE_REPLAY_STATUS_NAMES
         },
+        **{"cvode_{0}".format(name): cvode_stats[name] for name in CVODE_STAT_NAMES},
         **{"local_{0}_count".format(name): local_transition_stats[name] for name in LOCAL_TRANSITION_NAMES},
         "accepted_local_total": accepted_local_census["accepted_total"],
         "accepted_local_newton_only_count": accepted_local_census["newton_only"],
@@ -1261,6 +1298,7 @@ def run_one_seed(
         **{column: stage2_metrics[column] for column in newton_eval_flow_status_count_columns()},
         **{column: stage2_metrics[column] for column in qn_eval_flow_status_count_columns()},
         **{column: stage2_metrics[column] for column in reverse_gate_replay_status_count_columns()},
+        **{column: stage2_metrics[column] for column in cvode_stat_columns()},
         **{column: stage2_metrics[column] for column in local_transition_count_columns()},
         "accepted_local_total": stage2_metrics["accepted_local_total"],
         "accepted_local_newton_only_count": stage2_metrics["accepted_local_newton_only_count"],
@@ -1469,6 +1507,19 @@ def aggregate_rows(rows, observable_exact_re=0.0, observable_exact_im=0.0):
             agg["total_{0}".format(column)] = int(sum(as_finite_number(r.get(column)) or 0.0 for r in group))
         for column in reverse_gate_count_columns():
             agg["total_{0}".format(column)] = int(sum(as_finite_number(r.get(column)) or 0.0 for r in group))
+        for column in cvode_stat_columns():
+            agg["total_{0}".format(column)] = int(sum(as_finite_number(r.get(column)) or 0.0 for r in group))
+        cvode_calls = agg.get("total_cvode_calls", 0)
+        if cvode_calls > 0:
+            agg["mean_cvode_rhs_per_call"] = agg.get("total_cvode_rhs_evals", 0) / float(cvode_calls)
+            agg["mean_cvode_steps_per_call"] = agg.get("total_cvode_steps", 0) / float(cvode_calls)
+            agg["mean_cvode_nonlinear_iters_per_call"] = agg.get("total_cvode_nonlinear_iters", 0) / float(cvode_calls)
+            agg["mean_cvode_error_test_fails_per_call"] = agg.get("total_cvode_error_test_fails", 0) / float(cvode_calls)
+        else:
+            agg["mean_cvode_rhs_per_call"] = float("nan")
+            agg["mean_cvode_steps_per_call"] = float("nan")
+            agg["mean_cvode_nonlinear_iters_per_call"] = float("nan")
+            agg["mean_cvode_error_test_fails_per_call"] = float("nan")
         out.append(agg)
     return out
 
@@ -1869,6 +1920,7 @@ def main():
         *newton_eval_flow_status_count_columns(),
         *qn_eval_flow_status_count_columns(),
         *reverse_gate_replay_status_count_columns(),
+        *cvode_stat_columns(),
         *local_transition_count_columns(),
         "accepted_local_total",
         "accepted_local_newton_only_count",
@@ -1951,6 +2003,7 @@ def main():
         *newton_eval_flow_status_aggregate_columns(),
         *qn_eval_flow_status_aggregate_columns(),
         *reverse_gate_replay_status_aggregate_columns(),
+        *cvode_aggregate_columns(),
         *local_transition_aggregate_columns(),
     ]
 
