@@ -824,3 +824,11 @@ Use this file to append per-session notes.
 - Updated `scripts/generate_model_generated.py` so generated `model_generated.f90` uses explicit `model_tape_ad` imports and repo-relative source headers.
 - Regenerated `src/physics/model_generated.f90`.
 - Verified with `py_compile`, deterministic regeneration, `git diff --check`, `evaluate_expectations` build, `test2`, and `test_odex_solver`.
+
+## 2026-05-16 JST
+- Recorded the F18b.3 ODEX/flow state and behavior-correction boundary in the
+  modernization control plane.
+- Next source patch is F18b.3a behavior-preserving INTODE/ODEX diagnostics and
+  runtime-trace context ownership; public diagnostic/schema semantic fixes or
+  endpoint/proposal behavior changes require separate decision packets and
+  affected-baseline gates.

@@ -79,3 +79,11 @@ the user explicitly selects one of the candidate patch families above.  The
 lower-risk next modernization slice is F18b.3: ODEX/flow state productization
 for counters, traces, and last-failure snapshots, preserving the current
 solver kernel and output contracts.
+
+The F18b.3 decision packet is
+`F18B3_ODEX_FLOW_STATE_AND_BEHAVIOR_CORRECTION_DECISION_20260516.md`.  Its
+behavior-correction rule is: state migration is allowed only if it preserves
+current public counters/status/output; any discovered counter/schema/status
+semantic fix must stop and become a separate F4/F7/F8 behavior-correction
+packet; any endpoint/final-flow/reverse-gate/proposal change remains a separate
+numerical behavior change.

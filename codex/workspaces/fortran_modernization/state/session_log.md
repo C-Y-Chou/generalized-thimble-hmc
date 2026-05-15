@@ -1169,3 +1169,22 @@
 - Updated F18b runbook, workstream matrix, state brief, and open items so the
   next ODEX source-facing slice is F18b.3 state productization unless a
   behavior-changing controller patch is explicitly selected.
+
+## 2026-05-16 JST - F18b.3 ODEX/flow behavior-correction boundary
+
+- Added
+  `F18B3_ODEX_FLOW_STATE_AND_BEHAVIOR_CORRECTION_DECISION_20260516.md`.
+- Decision: the next ODEX/flow source slice is behavior-preserving state
+  productization, not an ODEX controller behavior patch.
+- Selected implementation shape: split runtime trace/context attribution from
+  run-level INTODE/ODEX diagnostics; move fallback counters, context bins,
+  disabled-by-default CVODE counters, and last-failure snapshots into an
+  explicit run diagnostics context with legacy module fallback.
+- Behavior-correction rule: if implementation reveals a public
+  counter/status/schema semantic issue, stop and write a separate F4/F7/F8
+  packet; endpoint, final-flow, reverse-gate, or proposal behavior changes
+  remain separate numerical behavior changes requiring explicit approval,
+  M4, and affected-baseline evidence.
+- Updated F18b runbooks, workstream matrix, state brief, open items, and
+  decision registry so the next operational source patch is F18b.3a
+  diagnostics/runtime-trace context ownership.

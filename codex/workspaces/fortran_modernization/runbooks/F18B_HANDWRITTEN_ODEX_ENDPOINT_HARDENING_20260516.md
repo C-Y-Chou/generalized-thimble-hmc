@@ -4,7 +4,8 @@ Date: 2026-05-16 JST
 Scope: `src/physics/odex_backend.f90`, the `solve_flow:intode*` endpoint
 wrapper path, and deterministic endpoint-flow tests.
 Status: F18b.0/F18b.1 source map and observation contract implemented;
-F18b.2 decision packet added; no production ODEX integration behavior change
+F18b.2 controller decision packet added; F18b.3 state/behavior-correction
+decision packet added; no production ODEX integration behavior change
 intended.
 
 ## Decision
@@ -190,6 +191,28 @@ does not close universal paper-correctness.  The next low-risk source-facing
 slice is F18b.3 ODEX/flow state productization for counters, traces, and
 last-failure snapshots.
 
+## F18b.3 State And Behavior-Correction Decision
+
+The state/behavior-correction packet is
+`F18B3_ODEX_FLOW_STATE_AND_BEHAVIOR_CORRECTION_DECISION_20260516.md`.
+
+Summary:
+
+- continue with ODEX/flow state productization, not a controller behavior
+  patch;
+- split per-call runtime trace/context state from run-level diagnostics;
+- add a run-owned INTODE/ODEX diagnostics context for fallback counters,
+  context bins, disabled-by-default CVODE comparison counters, and
+  last-failure snapshots;
+- keep legacy module fallback for direct callers and compatibility tests;
+- preserve current public counter/status/output values unless an explicit
+  behavior-correction packet says otherwise;
+- if implementation reveals a wrong public diagnostic definition, stop and
+  decide it under F4/F7/F8 before changing output/schema semantics;
+- any endpoint solver, final-flow, reverse-gate, or Metropolis behavior change
+  remains outside F18b.3 and needs explicit approval plus affected-baseline
+  evidence.
+
 ## Hard Rules For This Slice
 
 - Do not change physics/output in an ordinary cleanup commit.
@@ -275,11 +298,13 @@ Goal: continue modernization without altering the solver kernel.
 
 Deliverables:
 
-- migrate ODEX/flow counters, traces, and last-failure snapshots out of active
-  module state into explicit run/workspace context, or document a product
-  boundary for legacy direct callers;
-- preserve current status/counter output unless a schema change is explicitly
-  approved.
+- migrate ODEX/flow counters and last-failure snapshots into a run-owned
+  diagnostics context;
+- move active runtime trace/context attribution off shared module state on the
+  Stage1/Stage2 product path;
+- preserve legacy direct-call compatibility through module fallback;
+- preserve current status/counter output unless a schema or diagnostic behavior
+  correction is explicitly approved.
 
 Gate:
 
@@ -308,17 +333,14 @@ Gate:
 
 ## Immediate Next Step
 
-Start with F18b.0/F18b.1, not a behavior-changing source patch.
+Start F18b.3a, not a behavior-changing ODEX controller patch.
 
-The first source-facing patch should add a focused deterministic ODEX
-controller observation contract.  It should observe and freeze current behavior
-without endorsing those choices as final policy.  If the test needs small
-helper accessors for pure controller helpers, add them without changing the
-production integration path.
-
-After that test exists, decide whether `h0`, h-min, step-size bounds, order
-thresholds, and stability policy are accepted TLTM endpoint policy or candidates
-for a separate behavior-changing patch.
+The first source-facing patch should add explicit INTODE/ODEX diagnostics
+context ownership and focused context-isolation tests while preserving the
+current solver kernel, status mapping, public counters, and output summaries.
+If implementation reveals that a public diagnostic/status definition itself is
+wrong, stop and write a separate F4/F7/F8 behavior-correction packet before
+changing semantics.
 
 ## Relationship To Other Workstreams
 
