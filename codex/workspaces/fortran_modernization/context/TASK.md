@@ -9,11 +9,16 @@
 
 ## Read Before Next Solver-Policy Step
 
-- The previous solver-assist default-off / later-deletion direction is superseded for the next solver-policy slice.
-- Before changing solver assist, deleting assist code, changing defaults, or continuing source work that touches `flowz` / `flowzr`, QN residual evaluation, final `flow(...)`, reverse gate, or Metropolis, read:
-  - `runbooks/NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md`
-- Current handoff policy: `nofb` remains author-faithful comparison/control; canonical fallback-on candidate is `strict NT -> QN navigation assist -> unassisted certification -> strict final flow -> RG -> Metropolis`.
-- NT assist is not canonical in this handoff; NT+QN assist is diagnostic-only unless the user explicitly approves a new policy.
+- Solver assist is scheduled for deletion, not promotion.  The canonical handoff
+  is official DFO-LS `npt5_r0055`, true Stage2 RNG v2, and method-level assist
+  off.
+- Before changing solver assist, deleting assist code, changing defaults, or
+  continuing source work that touches `flowz` / `flowzr`, QN residual
+  evaluation, final `flow(...)`, reverse gate, or Metropolis, read:
+  - `runbooks/ASSIST_DELETION_NPT5_ASSISTOFF_BASELINE_20260515.md`
+- `runbooks/NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md` is
+  historical diagnostic context only after the 2026-05-15 assist-deletion
+  decision.
 
 ## Cluster/PBS Scheduling Responsibility
 

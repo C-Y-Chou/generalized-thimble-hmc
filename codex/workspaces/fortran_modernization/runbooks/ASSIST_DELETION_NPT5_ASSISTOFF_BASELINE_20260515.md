@@ -15,14 +15,30 @@ This does not by itself approve the `withfb` feedback kernel as physically
 correct. The 10seed/10k readback shows that reducing failures can still shift
 the observable, so feedback-kernel correctness must be audited separately.
 
-## Reproducible Baseline
+## Evidence Baseline And Rerun Contract
 
 Canonical source tree:
 
 - local: `/Users/ccy/Documents/TLTM_qn_error_handling`
 - remote: `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`
 - branch: `codex/fortran-modernization`
-- commit: `e83892f7744ca197505c283ceaf0db47ff566531`
+- evidence commit: `e83892f7744ca197505c283ceaf0db47ff566531`
+
+The evidence commit is the source SHA that produced the readback below. It is
+not a silent product pin. The PBS wrapper must be submitted with an explicit
+`TLTM_EXPECTED_GIT_COMMIT=$(git rev-parse HEAD)` for the source tree being run,
+and it records both the current run SHA and the baseline evidence SHA in
+`method_manifest.env`.
+
+Start-readiness rule:
+
+- Governance/doc/entrypoint commits after the evidence SHA may be used as the
+  modernization starting point only when `src/`, `scripts/`, `build/`, `tests/`,
+  and `docs/` remain unchanged against the evidence SHA, or when the changed
+  patch has its own F8/M4 affected-baseline comparison.
+- Diagnostic work from `/Users/ccy/Documents/New project/TLTM_repo` is not part
+  of this canonical source line unless explicitly promoted by a separate,
+  reviewed productization decision.
 
 Run contract:
 
@@ -60,18 +76,21 @@ From the remote modernization worktree:
 
 ```bash
 cd /lustre1/home/cychou/TLTM_worktrees/fortran_modernization
+EXPECTED_COMMIT="$(git rev-parse HEAD)"
 
 qsub -q C12 -N n55a0n \
-  -v TLTM_METHOD=no_fb,TLTM_CANONICAL_METHOD=nofb \
+  -v TLTM_EXPECTED_GIT_COMMIT="${EXPECTED_COMMIT}",TLTM_METHOD=no_fb,TLTM_CANONICAL_METHOD=nofb \
   codex/workspaces/fortran_modernization/tasks/pbs/official_dfols_npt5_assistoff_10seed_10k_20260515.pbs
 
 qsub -q C12 -N n55a0w \
-  -v TLTM_METHOD=fb_norefine,TLTM_CANONICAL_METHOD=withfb \
+  -v TLTM_EXPECTED_GIT_COMMIT="${EXPECTED_COMMIT}",TLTM_METHOD=fb_norefine,TLTM_CANONICAL_METHOD=withfb \
   codex/workspaces/fortran_modernization/tasks/pbs/official_dfols_npt5_assistoff_10seed_10k_20260515.pbs
 ```
 
 The PBS wrapper refuses to run on the wrong branch/commit or with a dirty
-tracked worktree. It writes `method_manifest.env` with the contract above.
+tracked worktree. It writes `method_manifest.env` with the contract above, the
+submitted expected SHA, the actual run SHA, the evidence SHA, and whether the
+runtime source surface still matches the evidence SHA.
 
 ## Closure Rule
 

@@ -1,6 +1,6 @@
 # Fortran Modernization State Brief
 
-Updated: 2026-05-14 JST
+Updated: 2026-05-15 JST
 
 ## Read Before Next Solver-Policy Step
 
@@ -8,6 +8,7 @@ Updated: 2026-05-14 JST
 - Required read before any assist deletion/default-off cleanup or source work that touches solver assist, `flowz` / `flowzr`, QN residual evaluation, final `flow(...)`, reverse gate, or Metropolis:
   `runbooks/ASSIST_DELETION_NPT5_ASSISTOFF_BASELINE_20260515.md`.
 - Correct modernization starting point for this slice is official DFO-LS `npt5_r0055`, true Stage2 RNG v2, method-level assist off.  The 10seed/10k readback is: `nofb` failures `8340`, mean Re `-0.002818340294982019`; `withfb` failures `167`, mean Re `0.02974362444598664`.
+- The assist-off PBS wrapper now requires an explicit `TLTM_EXPECTED_GIT_COMMIT` for the source tree being submitted, records the evidence commit separately, and labels the output campaign with the current run SHA.  Do not conflate the 2026-05-15 evidence commit with later governance-only HEADs.
 - `withfb` failure reduction remains numerically interesting but is not proof that the feedback kernel preserves the target measure.  Audit feedback-kernel correctness separately from assist deletion.
 - `runbooks/NAVIGATION_ASSIST_STRICT_CERTIFICATION_POLICY_20260513.md` remains historical context for the previous F15 candidate only.
 - 2026-05-14 update: the assist/root-cause diagnostic tree is no longer active production work.  Keep the diagnostic evidence, but converge active work back to `fortran_modernization` and `tltm_production_comparison`: finish the modernization fix first, then sync production-comparison and regenerate production.
@@ -19,7 +20,7 @@ Updated: 2026-05-14 JST
 
 ## Current Position
 
-- Current position is `Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected -> flow/ODEX/HMC/QN flow context implemented -> official DFO-LS callback context implemented -> QN trace/eval context implemented -> QN diagnostics context implemented -> QN policy context implemented -> HMC policy/reverse-gate context implemented -> F15 navigation-assist strict-certification policy implemented -> profile context implemented -> HMC reversibility diagnostics context implemented -> Newton eval-flow status context implemented -> remaining constraint/flow/model/config state boundaries`.
+- Current position is `Reference-audited core + accepted M6 behavior baseline -> CV-011 route-B RNG streams implemented -> post-B RNG anchor added -> top-level TLTM run context selected -> flow/ODEX/HMC/QN flow context implemented -> official DFO-LS callback context implemented -> QN trace/eval context implemented -> QN diagnostics context implemented -> QN policy context implemented -> HMC policy/reverse-gate context implemented -> F15 navigation-assist evidence demoted -> profile context implemented -> HMC reversibility diagnostics context implemented -> Newton eval-flow status context implemented -> assist-off baseline protected -> remaining constraint/flow/model/config state boundaries`.
 - M6 is not "modernization complete" and is not proof that the numerical/software foundation is complete; it is the accepted behavior baseline before larger source refactors resume.
 - The compact source of truth for this positioning is `runbooks/WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`; the reset source of truth for foundation gaps is `runbooks/FOUNDATION_COMPLETENESS_RESET_20260511.md`.
 - M3/M4/M5 modernization infrastructure work is treated as completed, partial, or explicitly deferred by workstream in that matrix.
@@ -128,6 +129,6 @@ Updated: 2026-05-14 JST
 
 ## Next Action
 
-F15 is implemented, locally gated, pushed, and synchronized to the production-comparison branch/worktree after remote state refresh confirmed no active pinned production jobs. The profiler, HMC reversibility diagnostics, Newton eval-flow status context, and Stage2 RNG v2 slices are implemented locally. Next CV-011 work can continue on remaining behavior-bearing state boundaries: constraint-solver aggregate/reverse-gate path/failure-capture counters, flow/ODEX counters/traces/last-failure snapshots, model tape/cache state, or config mirror. CV-012 audit body is now present; next CV-012 work should convert the ODEX controller open-needs-proof surfaces into deterministic tests and explicit accept/patch decisions, then continue BTN/QN, RATTLE, Stage2 swap/RNG, and diagnostics detail packets. Production redo remains owned by the separate `tltm_production_comparison` tree and should sync to the committed RNG v2 modernization patch before regenerating from a clean namespace.
+Start the next modernization patch from `/Users/ccy/Documents/TLTM_qn_error_handling` on `codex/fortran-modernization`, not from the legacy diagnostic checkout. Before deleting solver-assist paths or changing adjacent QN/final-flow/reverse-gate code, preserve the assist-off `npt5_r0055` baseline with the direct rerun commands in `ASSIST_DELETION_NPT5_ASSISTOFF_BASELINE_20260515.md`; the job must pin the current submitted SHA with `TLTM_EXPECTED_GIT_COMMIT`.
 
-Treat obvious dead triggers and strange internal names as active modernization cleanup when they can be changed without output drift.  Use `MODERNIZATION_LEGACY_TRIGGER_NAMING_CLEANUP_20260513.md` for that lane; reserve deferred F16 for evidence-backed correctness fixes that may intentionally change behavior.
+After that baseline is preserved, the active source work is solver-assist deletion/default-off cleanup under F8/M4, with feedback-kernel measure correctness kept as a separate audit. Production redo remains owned by the separate `tltm_production_comparison` tree and should only sync from a clean modernization commit that has passed the affected-baseline gate.

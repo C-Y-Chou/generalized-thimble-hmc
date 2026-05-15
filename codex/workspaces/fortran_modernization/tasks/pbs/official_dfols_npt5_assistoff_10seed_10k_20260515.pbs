@@ -22,7 +22,8 @@ module load mkl/2025.3
 
 : "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization}"
 : "${TLTM_EXPECTED_GIT_BRANCH:=codex/fortran-modernization}"
-: "${TLTM_EXPECTED_GIT_COMMIT:=e83892f7744ca197505c283ceaf0db47ff566531}"
+: "${TLTM_BASELINE_EVIDENCE_GIT_COMMIT:=e83892f7744ca197505c283ceaf0db47ff566531}"
+: "${TLTM_BASELINE_EVIDENCE_CAMPAIGN:=observable_regression_true_rngv2_assistoff_dfols_npt5_r0055_10seed_10k_20260515_e83892f}"
 : "${TLTM_CONFIG_JSON:=docs/production_comparison_official_dfols_20260511_10seed_10k_nofb_withfb.json}"
 : "${TLTM_METHOD:=no_fb}"
 : "${TLTM_MAX_SEEDS:=10}"
@@ -45,6 +46,8 @@ cd "${TLTM_WORKTREE}"
 
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 CURRENT_COMMIT="$(git rev-parse HEAD)"
+CURRENT_SHORT="$(git rev-parse --short=12 HEAD)"
+: "${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required; pass the submitted git rev-parse HEAD explicitly}"
 if [ "${CURRENT_BRANCH}" != "${TLTM_EXPECTED_GIT_BRANCH}" ]; then
   echo "[ERROR] expected branch ${TLTM_EXPECTED_GIT_BRANCH}, got ${CURRENT_BRANCH}" >&2
   exit 2
@@ -65,6 +68,15 @@ fi
 if [ ! -x .venv-dfols/bin/python ]; then
   echo "[ERROR] missing .venv-dfols" >&2
   exit 4
+fi
+
+BASELINE_RUNTIME_SOURCE_RELATION="baseline_evidence_commit_not_found"
+if git cat-file -e "${TLTM_BASELINE_EVIDENCE_GIT_COMMIT}^{commit}" 2>/dev/null; then
+  if git diff --quiet "${TLTM_BASELINE_EVIDENCE_GIT_COMMIT}" "${CURRENT_COMMIT}" -- src scripts build tests docs; then
+    BASELINE_RUNTIME_SOURCE_RELATION="runtime_source_matches_baseline_evidence"
+  else
+    BASELINE_RUNTIME_SOURCE_RELATION="runtime_source_differs_from_baseline_evidence"
+  fi
 fi
 
 case "${TLTM_METHOD}:${TLTM_CANONICAL_METHOD}" in
@@ -115,7 +127,7 @@ unset TLTM_STAGE3_METHOD_ASSIST_ENABLED || true
 ASSIST_LABEL="INTODE_SOLVER_ASSIST_POLICY=off"
 
 RUN_STAMP="${TLTM_RUN_STAMP:-$(date +%Y%m%dT%H%M%S)}"
-: "${TLTM_CAMPAIGN:=observable_regression_true_rngv2_assistoff_dfols_npt5_r0055_10seed_10k_${RUN_STAMP}_e83892f}"
+: "${TLTM_CAMPAIGN:=observable_regression_true_rngv2_assistoff_dfols_npt5_r0055_10seed_10k_${RUN_STAMP}_${CURRENT_SHORT}}"
 
 ROOT_SUBDIR="output/production_comparison/observable_regression/${TLTM_CAMPAIGN}"
 ROOT_LOG_SUBDIR="output/logs/production_comparison/observable_regression/${TLTM_CAMPAIGN}"
@@ -136,6 +148,10 @@ exec > "${LOG_SUBDIR}/pbs_boot.log" 2>&1
   echo "RUNNER=codex"
   echo "GIT_BRANCH=${CURRENT_BRANCH}"
   echo "GIT_COMMIT=${CURRENT_COMMIT}"
+  echo "EXPECTED_GIT_COMMIT=${TLTM_EXPECTED_GIT_COMMIT}"
+  echo "BASELINE_EVIDENCE_GIT_COMMIT=${TLTM_BASELINE_EVIDENCE_GIT_COMMIT}"
+  echo "BASELINE_EVIDENCE_CAMPAIGN=${TLTM_BASELINE_EVIDENCE_CAMPAIGN}"
+  echo "BASELINE_RUNTIME_SOURCE_RELATION=${BASELINE_RUNTIME_SOURCE_RELATION}"
   echo "CONFIG_JSON=${TLTM_CONFIG_JSON}"
   echo "CAMPAIGN=${TLTM_CAMPAIGN}"
   echo "DFOLS_CANDIDATE=npt5_r0055"
