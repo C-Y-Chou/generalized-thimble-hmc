@@ -44,9 +44,9 @@ contains
 
    subroutine integrate_hmc_proposal(state_x, state_z, step_size, num_steps, &
                                      final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok, &
-                                     proposal_status, initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, &
-                                     qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, &
-                                     newton_flow_status, momentum_rng_state)
+	                                     proposal_status, initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, &
+	                                     qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, &
+	                                     newton_flow_status, momentum_rng_state, momentum_in)
       implicit none
       real(dp), intent(in) :: state_x(:)
       complex(dp), intent(in) :: state_z(:)
@@ -68,15 +68,16 @@ contains
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
       type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
       type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
-      type(hmc_reversibility_context_t), intent(inout), optional, target :: hmc_reversibility
-      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
-      type(mt95_state_t), intent(inout), optional :: momentum_rng_state
-      logical :: local_ok
-      integer :: local_status
+	      type(hmc_reversibility_context_t), intent(inout), optional, target :: hmc_reversibility
+	      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
+	      type(mt95_state_t), intent(inout), optional :: momentum_rng_state
+	      real(dp), intent(in), optional :: momentum_in(:)
+	      logical :: local_ok
+	      integer :: local_status
 
-      call rattle(state_x, state_z, step_size, num_steps, final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, &
-                  local_ok, local_status, initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, qn_diagnostics, &
-                  qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, momentum_rng_state)
+	      call rattle(state_x, state_z, step_size, num_steps, final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, &
+	                  local_ok, local_status, initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, qn_diagnostics, &
+	                  qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, momentum_rng_state, momentum_in)
       if (present(proposal_ok)) proposal_ok = local_ok
       if (present(proposal_status)) proposal_status = local_status
    end subroutine integrate_hmc_proposal
@@ -112,8 +113,8 @@ contains
 
    subroutine rattle(state_x, state_z, step_size, num_steps, &
                      final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, proposal_ok, proposal_status, &
-                     initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
-                     hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, momentum_rng_state)
+	                     initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
+	                     hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, momentum_rng_state, momentum_in)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -137,9 +138,10 @@ contains
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
       type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
       type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
-      type(hmc_reversibility_context_t), intent(inout), optional, target :: hmc_reversibility
-      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
-      type(mt95_state_t), intent(inout), optional :: momentum_rng_state
+	      type(hmc_reversibility_context_t), intent(inout), optional, target :: hmc_reversibility
+	      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
+	      type(mt95_state_t), intent(inout), optional :: momentum_rng_state
+	      real(dp), intent(in), optional :: momentum_in(:)
 
       integer :: step, state_size
       real(dp) :: integration_step_size
@@ -172,13 +174,22 @@ contains
       call clear_optional_momentum(initial_momentum_out)
       call clear_optional_momentum(final_momentum_out)
 
-      if (size(final_x) /= size(state_x) .or. size(final_z) /= state_size) then
-         proposal_status = hmc_proposal_status_output_size_mismatch
-         jacf = jaci
-         return
-      end if
+	      if (size(final_x) /= size(state_x) .or. size(final_z) /= state_size) then
+	         proposal_status = hmc_proposal_status_output_size_mismatch
+	         jacf = jaci
+	         return
+	      end if
+	      if (present(momentum_in)) then
+	         if (size(momentum_in) /= 2*state_size) then
+	            proposal_status = hmc_proposal_status_output_size_mismatch
+	            final_x = state_x
+	            final_z = state_z
+	            jacf = jaci
+	            return
+	         end if
+	      end if
 
-      allocate (momentum(2*state_size))
+	      allocate (momentum(2*state_size))
       allocate (momentumuv(2*state_size), momentumu(2*state_size), momentumv(2*state_size))
       allocate (temp_x(size(state_x)), temp_z(state_size))
       allocate (temp_jac(size(jaci, 1), size(jaci, 2)))
@@ -190,10 +201,12 @@ contains
       final_z = state_z
       temp_jac = jaci
 
-      if (present(momentum_rng_state)) then
-         call mt95_set_state(momentum_rng_state)
-         call grand(momentum)
-         call mt95_get_state(momentum_rng_state)
+	      if (present(momentum_in)) then
+	         momentum = momentum_in
+	      else if (present(momentum_rng_state)) then
+	         call mt95_set_state(momentum_rng_state)
+	         call grand(momentum)
+	         call mt95_get_state(momentum_rng_state)
       else
          call grand(momentum)
       end if

@@ -21,8 +21,9 @@ contains
 
    subroutine metropolis_step(x, z, j, total_step_size, num_steps, x_new, z_new, j_new, accept, proposal_failed, transition_status, &
                               h_initial_out, h_final_out, delta_h_out, accept_probability_out, &
-                              initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
-                              hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, momentum_rng_state, accept_rng_state)
+	                              initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
+	                              hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, momentum_rng_state, accept_rng_state, &
+	                              momentum_in, accept_uniform)
       implicit none
 
       real(dp), intent(in) :: x(:)
@@ -46,10 +47,12 @@ contains
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
       type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
       type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
-      type(hmc_reversibility_context_t), intent(inout), optional, target :: hmc_reversibility
-      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
-      type(mt95_state_t), intent(inout), optional :: momentum_rng_state
-      type(mt95_state_t), intent(inout), optional :: accept_rng_state
+	      type(hmc_reversibility_context_t), intent(inout), optional, target :: hmc_reversibility
+	      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
+	      type(mt95_state_t), intent(inout), optional :: momentum_rng_state
+	      type(mt95_state_t), intent(inout), optional :: accept_rng_state
+	      real(dp), intent(in), optional :: momentum_in(:)
+	      real(dp), intent(in), optional :: accept_uniform
 
       real(dp) :: h_initial
       real(dp) :: h_final
@@ -83,10 +86,10 @@ contains
       z_new = z
       j_new = j
 
-      call integrate_hmc_proposal(x, z, total_step_size, num_steps, x_new, z_new, h_initial, h_final, j, j_new, &
-                                  proposal_ok, hmc_status, initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, &
-                                  qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, &
-                                  momentum_rng_state)
+	      call integrate_hmc_proposal(x, z, total_step_size, num_steps, x_new, z_new, h_initial, h_final, j, j_new, &
+	                                  proposal_ok, hmc_status, initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, &
+	                                  qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, &
+	                                  momentum_rng_state, momentum_in)
       call publish_metropolis_diagnostics(h_initial, h_final, delta_h, accept_probability, &
                                           h_initial_out, h_final_out, delta_h_out, accept_probability_out)
 
@@ -131,9 +134,11 @@ contains
       call publish_metropolis_diagnostics(h_initial, h_final, delta_h, accept_probability, &
                                           h_initial_out, h_final_out, delta_h_out, accept_probability_out)
 
-      if (present(accept_rng_state)) then
-         call mt95_set_state(accept_rng_state)
-         rand = grnd()
+	      if (present(accept_uniform)) then
+	         rand = accept_uniform
+	      else if (present(accept_rng_state)) then
+	         call mt95_set_state(accept_rng_state)
+	         rand = grnd()
          call mt95_get_state(accept_rng_state)
       else
          rand = grnd()

@@ -178,6 +178,129 @@ def find_uncentralized_env_reads(repo_root):
     return hits
 
 
+def collect_fortran_call_block(lines, start_idx):
+    block = []
+    idx = start_idx
+    while idx < len(lines):
+        block.append(lines[idx])
+        if not lines[idx].rstrip().endswith("&"):
+            break
+        idx += 1
+    return block
+
+
+def previous_nonempty_line(lines, start_idx):
+    idx = start_idx - 1
+    while idx >= 0:
+        stripped = lines[idx].strip().lower()
+        if stripped and not stripped.startswith("!"):
+            return stripped
+        idx -= 1
+    return ""
+
+
+def find_stage2_diagnostic_observer_contract_violations(repo_root):
+    """Static guardrail for F4/CV-011 observer noninterference.
+
+    Local-transition audit is allowed to request momentum/Hamiltonian
+    diagnostics, but only in the explicit capture branch.  The default
+    production call shape must remain free of diagnostic optional outputs.
+    """
+    path = repo_root / "src" / "sampler" / "tltm_stage2_driver.f90"
+    if not path.exists():
+        return ["missing {0}".format(path)]
+
+    lines = path.read_text(errors="replace").splitlines()
+    diagnostic_tokens = (
+        "h_initial_out",
+        "h_final_out",
+        "delta_h_out",
+        "accept_probability_out",
+        "initial_momentum_out",
+        "final_momentum_out",
+    )
+    violations = []
+    diagnostic_call_count = 0
+    production_call_count = 0
+
+    for idx, line in enumerate(lines):
+        lower = line.lower()
+        if "call metropolis_step" in lower:
+            block = collect_fortran_call_block(lines, idx)
+            block_text = "\n".join(block).lower()
+            has_diagnostics = any(token in block_text for token in diagnostic_tokens)
+            previous = previous_nonempty_line(lines, idx)
+            if has_diagnostics:
+                diagnostic_call_count += 1
+                if "if (capture_local_transition_audit) then" not in previous:
+                    violations.append(
+                        "{0}:{1}: diagnostic metropolis_step call is not gated by capture_local_transition_audit".format(
+                            path.relative_to(repo_root), idx + 1
+                        )
+                    )
+            else:
+                production_call_count += 1
+
+        if "allocate" in lower and "initial_momentum" in lower and "final_momentum" in lower:
+            if "capture_local_transition_audit" not in lower:
+                violations.append(
+                    "{0}:{1}: audit momentum buffers must be allocated only when capture_local_transition_audit is true".format(
+                        path.relative_to(repo_root), idx + 1
+                    )
+                )
+
+        if "call record_local_transition_audit" in lower:
+            previous = previous_nonempty_line(lines, idx)
+            if "if (capture_local_transition_audit) then" not in previous:
+                violations.append(
+                    "{0}:{1}: record_local_transition_audit must be gated by capture_local_transition_audit".format(
+                        path.relative_to(repo_root), idx + 1
+                    )
+                )
+
+    if diagnostic_call_count < 1:
+        violations.append("no gated diagnostic metropolis_step call found")
+    if production_call_count < 1:
+        violations.append("no production metropolis_step call without diagnostic outputs found")
+    return violations
+
+
+def find_stage2_rng_v2_contract_violations(repo_root):
+    """Static guardrail that official Stage2 RNG v2 is not seeded-MT transport."""
+    path = repo_root / "src" / "sampler" / "tltm_stage2_driver.f90"
+    if not path.exists():
+        return ["missing {0}".format(path)]
+
+    text = path.read_text(errors="replace")
+    lower = text.lower()
+    violations = []
+    forbidden_tokens = (
+        "tltm_seed_kernel_state",
+        "momentum_rng_state",
+        "accept_rng_state",
+        "swap_accept_rng_state",
+    )
+    for token in forbidden_tokens:
+        if token in lower:
+            violations.append(
+                "{0}: Stage2 driver must not use {1} for stage2_kernel_rng_v2; use counter-based RNG injection".format(
+                    path.relative_to(repo_root), token
+                )
+            )
+    required_tokens = (
+        "tltm_rng_fill_normal",
+        "tltm_rng_uniform",
+        "momentum_in=kernel_momentum",
+        "accept_uniform=accept_uniform",
+        "tltm_rng_domain_stage2_swap_accept",
+    )
+    for token in required_tokens:
+        if token not in lower:
+            violations.append(
+                "{0}: missing required counter-based RNG v2 token: {1}".format(path.relative_to(repo_root), token)
+            )
+    return violations
+
 def make_cmd(repo_root, args, targets):
     cmd = ["make", "-C", str(repo_root / "build")]
     if args.fc:
@@ -334,6 +457,23 @@ def run_guardrails(args):
         failures,
         args.keep_going,
     )
+    stage2_diagnostic_contract_hits = find_stage2_diagnostic_observer_contract_violations(repo_root)
+    assert_condition(
+        "Stage2 local-transition audit is opt-in observer",
+        not stage2_diagnostic_contract_hits,
+        "Stage2 diagnostic observer contract violations:\n"
+        + "\n".join(stage2_diagnostic_contract_hits[:50]),
+        failures,
+        args.keep_going,
+    )
+    stage2_rng_v2_contract_hits = find_stage2_rng_v2_contract_violations(repo_root)
+    assert_condition(
+        "Stage2 RNG v2 is counter-based, not seeded-MT transport",
+        not stage2_rng_v2_contract_hits,
+        "Stage2 RNG v2 contract violations:\n" + "\n".join(stage2_rng_v2_contract_hits[:50]),
+        failures,
+        args.keep_going,
+    )
 
     if not args.skip_build:
         run_step(
@@ -353,6 +493,7 @@ def run_guardrails(args):
                     "test_official_dfols_preset_contract",
                     "test_tltm_swap_kernel_contract",
                     "test_mt95_state_contract",
+                    "test_tltm_rng_contract",
                     "test_perf_profile_context_contract",
                     "test_hmc_reversibility_context_contract",
                     "test_newton_eval_flow_status_context_contract",

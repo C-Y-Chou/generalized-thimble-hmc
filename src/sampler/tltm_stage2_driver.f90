@@ -9,7 +9,7 @@ module tltm_stage2_driver
    use mt95, only: getseed, grnd, mt95_get_state, mt95_seed_state, mt95_set_state, mt95_state_t, sgrnd
    use tltm_rng, only: tltm_rng_domain_stage2_init, tltm_rng_domain_stage2_local_accept, &
                        tltm_rng_domain_stage2_local_momentum, tltm_rng_domain_stage2_swap_accept, &
-                       tltm_seed_kernel_state
+                       tltm_rng_fill_normal, tltm_rng_uniform
    use markovchain_mod, only: adaptive_preflow_to_target
    use markovchain_metropolis, only: metropolis_step
    use markovchain_phase, only: compute_phase_factor
@@ -489,7 +489,6 @@ contains
       logical :: flow_failed
       logical :: preflow_success
       integer :: attempt, flow_status, stage_count
-      type(mt95_state_t) :: init_rng_state
 
       ok = .false.
       allocate (x_seed(max(1, size(slot%x) - 1)))
@@ -503,9 +502,7 @@ contains
 
       do attempt = 1, max_attempts
          if (trim(rng_stream_contract) == stage2_rng_kernel_v2) then
-            call tltm_seed_kernel_state(init_rng_state, tltm_rng_domain_stage2_init, base_seed, 0, slot%slot_id, attempt)
-            call mt95_set_state(init_rng_state)
-            call grand(x_seed)
+            call tltm_rng_fill_normal(x_seed, tltm_rng_domain_stage2_init, base_seed, 0, slot%slot_id, attempt)
          else
             call grand(x_seed)
          end if
@@ -565,17 +562,20 @@ contains
       integer, intent(in) :: base_seed
 
       integer :: update_idx, z_size
-      real(dp), allocatable :: x_new(:), x_before(:), initial_momentum(:), final_momentum(:)
+      real(dp), allocatable :: x_new(:), x_before(:), initial_momentum(:), final_momentum(:), kernel_momentum(:)
       complex(dp), allocatable :: z_new(:), j_new(:, :), z_before(:), j_before(:, :)
       logical :: accepted, proposal_failed
       integer :: transition_status
       type(solver_counter_snapshot_t) :: solver_before, solver_after
-      type(mt95_state_t) :: momentum_rng_state, accept_rng_state
-      real(dp) :: h_initial, h_final, delta_h, accept_probability
+      real(dp) :: h_initial, h_final, delta_h, accept_probability, accept_uniform
+      logical :: capture_local_transition_audit
 
       z_size = size(slot%z)
+      call load_local_transition_audit_config(audit_context)
+      capture_local_transition_audit = audit_context%local_transition_audit_enabled
       allocate (x_new(size(slot%x)), x_before(size(slot%x)))
-      allocate (initial_momentum(2*z_size), final_momentum(2*z_size))
+      if (capture_local_transition_audit) allocate (initial_momentum(2*z_size), final_momentum(2*z_size))
+      if (trim(rng_stream_contract) == stage2_rng_kernel_v2) allocate (kernel_momentum(2*z_size))
       allocate (z_new(z_size), z_before(z_size), j_new(z_size, z_size), j_before(z_size, z_size))
 
       if (trim(rng_stream_contract) == stage2_rng_per_replica_v1) call mt95_set_state(slot%rng_state)
@@ -585,30 +585,50 @@ contains
          j_before = slot%jac
          call snapshot_solver_counters(solver_before)
          if (trim(rng_stream_contract) == stage2_rng_kernel_v2) then
-            call tltm_seed_kernel_state(momentum_rng_state, tltm_rng_domain_stage2_local_momentum, &
-                                        base_seed, cycle_idx, slot%slot_id, update_idx)
-            call tltm_seed_kernel_state(accept_rng_state, tltm_rng_domain_stage2_local_accept, &
-                                        base_seed, cycle_idx, slot%slot_id, update_idx)
-            call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
-                                 config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
-                                 h_initial_out=h_initial, h_final_out=h_final, delta_h_out=delta_h, &
-                                 accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
-                                 final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
-                                 qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
-                                 hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
-                                 hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
-                                 newton_flow_status=newton_flow_status_context, momentum_rng_state=momentum_rng_state, &
-                                 accept_rng_state=accept_rng_state)
+            call tltm_rng_fill_normal(kernel_momentum, tltm_rng_domain_stage2_local_momentum, &
+                                      base_seed, cycle_idx, slot%slot_id, update_idx)
+            accept_uniform = tltm_rng_uniform(tltm_rng_domain_stage2_local_accept, base_seed, cycle_idx, slot%slot_id, update_idx, 1)
+            if (capture_local_transition_audit) then
+               call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
+                                    config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
+                                    h_initial_out=h_initial, h_final_out=h_final, delta_h_out=delta_h, &
+                                    accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
+                                    final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
+                                    qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
+                                    hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
+                                    hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
+                                    newton_flow_status=newton_flow_status_context, momentum_in=kernel_momentum, &
+                                    accept_uniform=accept_uniform)
+            else
+               call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
+                                    config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
+                                    context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
+                                    qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
+                                    hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
+                                    hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
+                                    newton_flow_status=newton_flow_status_context, momentum_in=kernel_momentum, &
+                                    accept_uniform=accept_uniform)
+            end if
          else
-            call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
-                                 config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
-                                 h_initial_out=h_initial, h_final_out=h_final, delta_h_out=delta_h, &
-                                 accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
-                                 final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
-                                 qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
-                                 hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
-                                 hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
-                                 newton_flow_status=newton_flow_status_context)
+            if (capture_local_transition_audit) then
+               call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
+                                    config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
+                                    h_initial_out=h_initial, h_final_out=h_final, delta_h_out=delta_h, &
+                                    accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
+                                    final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
+                                    qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
+                                    hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
+                                    hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
+                                    newton_flow_status=newton_flow_status_context)
+            else
+               call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
+                                    config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
+                                    context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
+                                    qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
+                                    hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
+                                    hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
+                                    newton_flow_status=newton_flow_status_context)
+            end if
          end if
          call snapshot_solver_counters(solver_after)
          if (accepted) then
@@ -621,9 +641,11 @@ contains
          call record_rg_reject_audit(audit_context, cycle_idx, slot%slot_id, update_idx, x_before, z_before, j_before, &
                                      slot%x, slot%z, slot%jac, x_new, z_new, j_new, accepted, proposal_failed, &
                                      transition_status, solver_before, solver_after)
-         call record_local_transition_audit(audit_context, cycle_idx, slot%slot_id, update_idx, accepted, proposal_failed, transition_status, &
-                                            h_initial, h_final, delta_h, accept_probability, x_before, x_new, slot%x, &
-                                            j_before, j_new, initial_momentum, final_momentum, solver_before, solver_after)
+         if (capture_local_transition_audit) then
+            call record_local_transition_audit(audit_context, cycle_idx, slot%slot_id, update_idx, accepted, proposal_failed, transition_status, &
+                                               h_initial, h_final, delta_h, accept_probability, x_before, x_new, slot%x, &
+                                               j_before, j_new, initial_momentum, final_momentum, solver_before, solver_after)
+         end if
       end do
       if (trim(rng_stream_contract) == stage2_rng_per_replica_v1) call mt95_get_state(slot%rng_state)
 
@@ -631,6 +653,7 @@ contains
       if (allocated(x_before)) deallocate (x_before)
       if (allocated(initial_momentum)) deallocate (initial_momentum)
       if (allocated(final_momentum)) deallocate (final_momentum)
+      if (allocated(kernel_momentum)) deallocate (kernel_momentum)
       if (allocated(z_new)) deallocate (z_new)
       if (allocated(z_before)) deallocate (z_before)
       if (allocated(j_new)) deallocate (j_new)
@@ -980,7 +1003,6 @@ contains
       logical :: ok_a, ok_b, ok_ap, ok_bp, accept
       integer :: flow_status_ap, flow_status_bp, label_tmp
       character(len=32) :: rng_contract_local
-      type(mt95_state_t) :: swap_accept_rng_state
       real(dp), allocatable :: x_ap(:), x_bp(:)
       complex(dp), allocatable :: z_ap(:), z_bp(:), j_ap(:, :), j_bp(:, :)
 
@@ -1037,10 +1059,7 @@ contains
             write (*, '(A)') "[ERROR][TLTM-S2] stage2_kernel_rng_v2 swap requires base_seed and cycle_idx."
             error stop 1
          end if
-         call tltm_seed_kernel_state(swap_accept_rng_state, tltm_rng_domain_stage2_swap_accept, &
-                                     base_seed, cycle_idx, stats%pair_id, 0)
-         call mt95_set_state(swap_accept_rng_state)
-         accept = (grnd() <= acc_prob)
+         accept = (tltm_rng_uniform(tltm_rng_domain_stage2_swap_accept, base_seed, cycle_idx, stats%pair_id, 0, 1) <= acc_prob)
       case (stage2_rng_legacy_global_v0)
          accept = (grnd() <= acc_prob)
       case default
@@ -2091,7 +2110,7 @@ contains
       call write_json_string_field(unit_protocol, "proposal", "exchange base configurations between adjacent fixed flow-time slots", .true., 4)
       call write_json_string_field(unit_protocol, "acceptance_probability", "min(1, exp(-[(E_a(y)+E_b(x))-(E_a(x)+E_b(y))]))", .true., 4)
       call write_json_string_field(unit_protocol, "invalid_reflow_semantics", "reject swap; live slot states and labels unchanged", .true., 4)
-      call write_json_string_field(unit_protocol, "rng_stream", "contract-selected; stage2_kernel_rng_v2 uses domain-separated swap_accept keys", .true., 4)
+      call write_json_string_field(unit_protocol, "rng_stream", "contract-selected; stage2_kernel_rng_v2 uses counter-based swap_accept keys", .true., 4)
       call write_json_string_field(unit_protocol, "rng_draw_boundary", "draw from swap stream only after finite current and proposed swap energies are available", .false., 4)
       write (unit_protocol, '(A)') '  },'
 
@@ -2459,7 +2478,7 @@ contains
 
       select case (trim(rng_stream_contract))
       case (stage2_rng_kernel_v2)
-         policy_text = "CHAIN_RNG_SEED base seed plus domain-separated stage2 kernel invocation keys"
+         policy_text = "CHAIN_RNG_SEED base seed plus Philox4x32-10 counter keys for each Stage2 draw"
       case (stage2_rng_legacy_global_v0)
          policy_text = "CHAIN_RNG_SEED base seed restored after initialization; local updates and swaps use shared serial MT95 stream"
       case default
