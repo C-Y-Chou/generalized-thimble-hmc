@@ -39,6 +39,11 @@ module odex_backend
       integer :: max_steps = odex_max_steps_default
       integer :: cvode_fixedpoint_m = 0
       integer :: cvode_max_order = 0
+      integer :: cvode_max_steps = 0
+      integer :: cvode_max_err_test_fails = 0
+      integer :: cvode_max_conv_fails = 0
+      integer :: cvode_max_nonlin_iters = 0
+      real(dp) :: cvode_min_step = 0.0_dp
       integer :: step_sequence = odex_step_sequence_iwork3
       integer :: stability_control = odex_stability_control_none
       logical :: endpoint_only = .true.
@@ -97,7 +102,8 @@ module odex_backend
       end function tltm_sundials_cvode_available
 
       integer(c_int) function tltm_sundials_cvode_integrate(n, y0, t_final, abs_tol, rel_tol, max_steps, &
-                                                            fixedpoint_m, max_order, &
+                                                            fixedpoint_m, max_order, cvode_max_steps, min_step, &
+                                                            max_err_test_fails, max_conv_fails, max_nonlin_iters, &
                                                             y_out, num_steps_out, last_step_out, t_reached_out, &
                                                             rhs_evals_out, error_test_fails_out, nonlinear_iters_out, &
                                                             nonlinear_conv_fails_out, step_solve_fails_out, last_order_out, &
@@ -107,7 +113,9 @@ module odex_backend
          integer(c_int), value :: n
          real(c_double), intent(in) :: y0(*)
          real(c_double), value :: t_final, abs_tol, rel_tol
-         integer(c_int), value :: max_steps, fixedpoint_m, max_order
+         integer(c_int), value :: max_steps, fixedpoint_m, max_order, cvode_max_steps
+         real(c_double), value :: min_step
+         integer(c_int), value :: max_err_test_fails, max_conv_fails, max_nonlin_iters
          real(c_double), intent(out) :: y_out(*)
          integer(c_int), intent(out) :: num_steps_out
          real(c_double), intent(out) :: last_step_out
@@ -164,6 +172,11 @@ contains
       options%max_steps = odex_max_steps_default
       options%cvode_fixedpoint_m = 0
       options%cvode_max_order = 0
+      options%cvode_max_steps = 0
+      options%cvode_max_err_test_fails = 0
+      options%cvode_max_conv_fails = 0
+      options%cvode_max_nonlin_iters = 0
+      options%cvode_min_step = 0.0_dp
       options%step_sequence = odex_step_sequence_iwork3
       options%stability_control = odex_stability_control_none
       options%endpoint_only = .true.
@@ -493,7 +506,12 @@ contains
       c_status = tltm_sundials_cvode_integrate(int(state_size, c_int), y, real(t, c_double), &
                                                real(opts%abs_tol, c_double), real(opts%rel_tol, c_double), &
                                                int(opts%max_steps, c_int), int(opts%cvode_fixedpoint_m, c_int), &
-                                               int(opts%cvode_max_order, c_int), res, c_steps, c_last_step, c_t_reached, &
+                                               int(opts%cvode_max_order, c_int), int(opts%cvode_max_steps, c_int), &
+                                               real(opts%cvode_min_step, c_double), &
+                                               int(opts%cvode_max_err_test_fails, c_int), &
+                                               int(opts%cvode_max_conv_fails, c_int), &
+                                               int(opts%cvode_max_nonlin_iters, c_int), &
+                                               res, c_steps, c_last_step, c_t_reached, &
                                                c_rhs_evals, c_error_test_fails, c_nonlinear_iters, &
                                                c_nonlinear_conv_fails, c_step_solve_fails, c_last_order, &
                                                c_null_ptr, c_funloc(odex_cvode_rhs_dispatch))
@@ -540,7 +558,12 @@ contains
       c_status = tltm_sundials_cvode_integrate(int(state_size, c_int), y, real(t, c_double), &
                                                real(opts%abs_tol, c_double), real(opts%rel_tol, c_double), &
                                                int(opts%max_steps, c_int), int(opts%cvode_fixedpoint_m, c_int), &
-                                               int(opts%cvode_max_order, c_int), res, c_steps, c_last_step, c_t_reached, &
+                                               int(opts%cvode_max_order, c_int), int(opts%cvode_max_steps, c_int), &
+                                               real(opts%cvode_min_step, c_double), &
+                                               int(opts%cvode_max_err_test_fails, c_int), &
+                                               int(opts%cvode_max_conv_fails, c_int), &
+                                               int(opts%cvode_max_nonlin_iters, c_int), &
+                                               res, c_steps, c_last_step, c_t_reached, &
                                                c_rhs_evals, c_error_test_fails, c_nonlinear_iters, &
                                                c_nonlinear_conv_fails, c_step_solve_fails, c_last_order, &
                                                c_null_ptr, c_funloc(odex_cvode_rhs_dispatch))
@@ -1296,6 +1319,11 @@ contains
       options%max_steps = max(0, options%max_steps)
       options%cvode_fixedpoint_m = max(0, options%cvode_fixedpoint_m)
       options%cvode_max_order = max(0, options%cvode_max_order)
+      options%cvode_max_steps = max(0, options%cvode_max_steps)
+      options%cvode_max_err_test_fails = max(0, options%cvode_max_err_test_fails)
+      options%cvode_max_conv_fails = max(0, options%cvode_max_conv_fails)
+      options%cvode_max_nonlin_iters = max(0, options%cvode_max_nonlin_iters)
+      options%cvode_min_step = max(options%cvode_min_step, 0.0_dp)
       options%h_min_c_fp = max(options%h_min_c_fp, 0.0_dp)
       options%h_min_c_tol = max(options%h_min_c_tol, 0.0_dp)
       options%h_min_c_span = max(options%h_min_c_span, 0.0_dp)

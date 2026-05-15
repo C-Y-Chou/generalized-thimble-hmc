@@ -1,6 +1,6 @@
 module solve_flow
    use param_mod, only: at, rt
-   use runtime_env_mod, only: parse_int_env, read_string_env
+   use runtime_env_mod, only: parse_int_env, parse_real_env, read_string_env
    use utils, only: dp, complex_to_real, map_to_complex, real_to_complex
    use model, only: ds, hessian_vec
    use odex_backend, only: build_nsteps, ensure_odex_workspace_object, ode_rhs, ode_rhs_context, &
@@ -123,6 +123,11 @@ contains
       if (has_backend) call odex_apply_backend_name(options, backend_token)
       call parse_int_env("TLTM_CVODE_FIXEDPOINT_M", options%cvode_fixedpoint_m)
       call parse_int_env("TLTM_CVODE_MAX_ORDER", options%cvode_max_order)
+      call parse_int_env("TLTM_CVODE_MAX_STEPS", options%cvode_max_steps)
+      call parse_real_env("TLTM_CVODE_MIN_STEP", options%cvode_min_step)
+      call parse_int_env("TLTM_CVODE_MAX_ERR_TEST_FAILS", options%cvode_max_err_test_fails)
+      call parse_int_env("TLTM_CVODE_MAX_CONV_FAILS", options%cvode_max_conv_fails)
+      call parse_int_env("TLTM_CVODE_MAX_NONLIN_ITERS", options%cvode_max_nonlin_iters)
    end subroutine odex_default_options
 
    subroutine intode(f, y, t, res, error_flag, status)

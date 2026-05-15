@@ -34,7 +34,8 @@ end module test_sundials_cvode_backend_rhs
 program test_sundials_cvode_backend_contract
    use odex_backend, only: odex_backend_kind_sundials_cvode, odex_default_options, odex_integrate_endpoint, &
                            odex_integrate_endpoint_context, odex_options, odex_result, odex_status_success, &
-                           odex_status_success_zero_time, odex_sundials_cvode_available, odex_workspace
+                           odex_status_success_zero_time, odex_status_failure_max_steps, &
+                           odex_sundials_cvode_available, odex_workspace
    use runtime_env_mod, only: parse_logical_env
    use test_sundials_cvode_backend_rhs, only: exp_lambda, rhs_context_t, rhs_exp, rhs_exp_context
    use utils, only: dp
@@ -62,6 +63,7 @@ program test_sundials_cvode_backend_contract
    call check_endpoint_accuracy(failures)
    call check_forward_backward(failures)
    call check_context_endpoint_accuracy(failures)
+   call check_fail_fast_max_steps(failures)
    call check_zero_time(failures)
 
    if (failures /= 0) then
@@ -160,6 +162,37 @@ contains
          write (*, '(A)') "[FAIL] SUNDIALS CVODE context endpoint contract failed."
       end if
    end subroutine check_context_endpoint_accuracy
+
+   subroutine check_fail_fast_max_steps(failures)
+      integer, intent(inout) :: failures
+      type(odex_options) :: options
+      type(odex_workspace) :: workspace
+      type(odex_result) :: result_state
+      real(dp) :: y0(2), y_out(2)
+      logical :: failed, ok
+
+      call odex_default_options(options, 1.0e-12_dp, 1.0e-12_dp)
+      options%backend = odex_backend_kind_sundials_cvode
+      options%cvode_max_steps = 1
+      options%cvode_min_step = 1.0e-18_dp
+      options%cvode_max_err_test_fails = 3
+      options%cvode_max_conv_fails = 3
+      options%cvode_max_nonlin_iters = 2
+      exp_lambda = -2.0_dp
+      y0 = [1.0_dp, -0.25_dp]
+
+      call odex_integrate_endpoint(rhs_exp, y0, 1.0_dp, y_out, failed, result_state, workspace, options)
+
+      ok = failed .and. result_state%status == odex_status_failure_max_steps .and. &
+           result_state%cvode_backend_used .and. result_state%accepted_steps <= 1
+      write (*, '(A,L1,A,I0,A,I0,A,I0)') "[CHECK] cvode_fail_fast_max_steps ok=", ok, &
+         " status=", result_state%status, " steps=", result_state%accepted_steps, &
+         " rhs_evals=", result_state%cvode_rhs_evals
+      if (.not. ok) then
+         failures = failures + 1
+         write (*, '(A)') "[FAIL] SUNDIALS CVODE fail-fast max-steps contract failed."
+      end if
+   end subroutine check_fail_fast_max_steps
 
    subroutine check_zero_time(failures)
       integer, intent(inout) :: failures

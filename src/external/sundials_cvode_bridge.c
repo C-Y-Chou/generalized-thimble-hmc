@@ -81,6 +81,11 @@ int tltm_sundials_cvode_integrate(int n,
                                   int max_num_steps,
                                   int fixedpoint_m,
                                   int max_order,
+                                  int cvode_max_steps,
+                                  double min_step,
+                                  int max_err_test_fails,
+                                  int max_conv_fails,
+                                  int max_nonlin_iters,
                                   double *y_out,
                                   int *num_steps_out,
                                   double *last_step_out,
@@ -164,8 +169,28 @@ int tltm_sundials_cvode_integrate(int n,
         retval = CVodeSetMaxNumSteps(cvode_mem, (long int)max_num_steps);
         if (retval != CV_SUCCESS) goto cvode_failure;
     }
+    if (cvode_max_steps > 0) {
+        retval = CVodeSetMaxNumSteps(cvode_mem, (long int)cvode_max_steps);
+        if (retval != CV_SUCCESS) goto cvode_failure;
+    }
     if (max_order > 0) {
         retval = CVodeSetMaxOrd(cvode_mem, max_order);
+        if (retval != CV_SUCCESS) goto cvode_failure;
+    }
+    if (min_step > 0.0) {
+        retval = CVodeSetMinStep(cvode_mem, (sunrealtype)min_step);
+        if (retval != CV_SUCCESS) goto cvode_failure;
+    }
+    if (max_err_test_fails > 0) {
+        retval = CVodeSetMaxErrTestFails(cvode_mem, max_err_test_fails);
+        if (retval != CV_SUCCESS) goto cvode_failure;
+    }
+    if (max_conv_fails > 0) {
+        retval = CVodeSetMaxConvFails(cvode_mem, max_conv_fails);
+        if (retval != CV_SUCCESS) goto cvode_failure;
+    }
+    if (max_nonlin_iters > 0) {
+        retval = CVodeSetMaxNonlinIters(cvode_mem, max_nonlin_iters);
         if (retval != CV_SUCCESS) goto cvode_failure;
     }
 
@@ -229,6 +254,11 @@ int tltm_sundials_cvode_integrate(int n,
                                   int max_num_steps,
                                   int fixedpoint_m,
                                   int max_order,
+                                  int cvode_max_steps,
+                                  double min_step,
+                                  int max_err_test_fails,
+                                  int max_conv_fails,
+                                  int max_nonlin_iters,
                                   double *y_out,
                                   int *num_steps_out,
                                   double *last_step_out,
@@ -250,6 +280,11 @@ int tltm_sundials_cvode_integrate(int n,
     (void)max_num_steps;
     (void)fixedpoint_m;
     (void)max_order;
+    (void)cvode_max_steps;
+    (void)min_step;
+    (void)max_err_test_fails;
+    (void)max_conv_fails;
+    (void)max_nonlin_iters;
     (void)y_out;
     (void)user_ctx;
     (void)rhs_cb;
