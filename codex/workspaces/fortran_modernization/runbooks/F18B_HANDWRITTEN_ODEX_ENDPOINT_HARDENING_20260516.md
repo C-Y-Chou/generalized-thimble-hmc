@@ -3,8 +3,9 @@
 Date: 2026-05-16 JST
 Scope: `src/physics/odex_backend.f90`, the `solve_flow:intode*` endpoint
 wrapper path, and deterministic endpoint-flow tests.
-Status: F18b.0/F18b.1 source map and observation contract implemented; no
-production ODEX integration behavior change intended.
+Status: F18b.0/F18b.1 source map and observation contract implemented;
+F18b.2 decision packet added; no production ODEX integration behavior change
+intended.
 
 ## Decision
 
@@ -166,6 +167,29 @@ python3 scripts/run_m4_guardrails.py --repo-root . --fc gfortran --ldflags '' --
 Result: `[M4][SUMMARY] all guardrails passed`, artifacts under
 `output/tests/m4_guardrails`.
 
+## F18b.2 Decision Packet
+
+The controller decision packet is
+`F18B_CONTROLLER_DECISION_PACKET_20260516.md`.
+
+Summary:
+
+- accept the narrow TLTM endpoint ODEX/GBS claim with Hairer `IWORK(3)=3`;
+- keep signed intervals and positive work estimates as TLTM endpoint policy;
+- preserve current `h0`, h-min, order predicates, rejection behavior, large
+  error threshold, and `1.0e-14` floor for modernization closure;
+- do not add explicit Hairer `WORK(4)` / `WORK(5)` growth-shrink bounds now;
+- keep default stability control as `none`, with conservative stability as an
+  explicit opt-in surface only;
+- keep SUNDIALS CVODE disabled-by-default comparison-only;
+- require F8, M4, focused branch/failure tests, and affected-baseline evidence
+  before any future behavior-changing controller patch.
+
+This closes F18b controller policy for source-modernization purposes, but it
+does not close universal paper-correctness.  The next low-risk source-facing
+slice is F18b.3 ODEX/flow state productization for counters, traces, and
+last-failure snapshots.
+
 ## Hard Rules For This Slice
 
 - Do not change physics/output in an ordinary cleanup commit.
@@ -242,7 +266,8 @@ Decision points:
 
 Gate:
 
-- decision packet before source behavior changes.
+- complete in `F18B_CONTROLLER_DECISION_PACKET_20260516.md`; no source
+  behavior changes authorized by this packet.
 
 ### F18b.3 - ODEX/Flow State Productization
 

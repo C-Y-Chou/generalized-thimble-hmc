@@ -1151,3 +1151,21 @@
 - Verification passed: focused controller observation target, `python3 -m
   py_compile scripts/run_m4_guardrails.py scripts/fortran_module_deps.py`,
   `git diff --check`, and full M4 with official DFO-LS venv.
+
+## 2026-05-16 JST - F18b.2 ODEX controller decision packet
+
+- Added `F18B_CONTROLLER_DECISION_PACKET_20260516.md`.
+- Decision: preserve current handwritten endpoint ODEX controller behavior as
+  TLTM endpoint policy for modernization closure, while explicitly blocking
+  full Hairer ODEX paper-correctness claims.
+- Accepted/scoped surfaces: endpoint-only scope, Hairer `IWORK(3)=3`, signed
+  intervals with positive work estimates, current `h0`, h-min floor/status,
+  order/rejection predicates, large-error threshold, strict-double error
+  floor, default no-stability-control policy, and disabled-by-default CVODE
+  comparison.
+- No behavior-changing controller patch is authorized. Future controller
+  alignment patches require explicit selection plus F8, M4, focused tests, and
+  affected-baseline screens.
+- Updated F18b runbook, workstream matrix, state brief, and open items so the
+  next ODEX source-facing slice is F18b.3 state productization unless a
+  behavior-changing controller patch is explicitly selected.
