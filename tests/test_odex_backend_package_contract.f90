@@ -105,10 +105,11 @@ contains
    subroutine check_endpoint_accuracy(failures)
       integer, intent(inout) :: failures
       type(odex_options) :: options
-      type(odex_workspace) :: workspace
-      type(odex_result) :: result_state
-      real(dp) :: y0(1), y_out(1), y_exact(1), err
-      logical :: failed, ok
+      type(odex_workspace) :: workspace, workspace_context
+      type(odex_result) :: result_state, result_context
+      type(dummy_context_t) :: rhs_context
+      real(dp) :: y0(1), y_out(1), y_out_context(1), y_exact(1), err, err_context
+      logical :: failed, failed_context, ok, ok_context
 
       call odex_default_options(options, 3.0e-14_dp, 3.0e-14_dp)
       exp_lambda = -2.0_dp
@@ -144,10 +145,11 @@ contains
    subroutine check_hairer_experimental_endpoint_accuracy(failures)
       integer, intent(inout) :: failures
       type(odex_options) :: options
-      type(odex_workspace) :: workspace
-      type(odex_result) :: result_state
-      real(dp) :: y0(1), y_out(1), y_exact(1), err
-      logical :: failed, ok
+      type(odex_workspace) :: workspace, workspace_context
+      type(odex_result) :: result_state, result_context
+      type(dummy_context_t) :: rhs_context
+      real(dp) :: y0(1), y_out(1), y_out_context(1), y_exact(1), err, err_context
+      logical :: failed, failed_context, ok, ok_context
 
       call odex_default_options(options, 3.0e-14_dp, 3.0e-14_dp)
       options%controller_policy = odex_controller_policy_hairer_experimental
@@ -172,15 +174,56 @@ contains
            result_state%odex_default_scal_estimates == 0 .and. &
            result_state%odex_kopt_accept_updates == result_state%accepted_steps .and. &
            result_state%odex_kopt_demotions + result_state%odex_kopt_keeps + result_state%odex_kopt_promotions == &
-           result_state%odex_kopt_accept_updates .and. result_state%odex_errold_checks == 0 .and. &
+           result_state%odex_kopt_accept_updates .and. &
+           result_state%odex_errold_checks == result_state%odex_error_estimates .and. &
            result_state%odex_atov_events == 0 .and. result_state%odex_after_reject_clamps == 0 .and. &
            err <= 2.0e-12_dp
-      write (*, '(A,L1,A,I0,A,I0,A,I0,A,ES12.4)') "[CHECK] package_hairer_experimental ok=", ok, &
+
+      call odex_integrate_endpoint_context(rhs_exp_context, y0, 1.0_dp, y_out_context, failed_context, &
+                                           result_context, workspace_context, options, rhs_context)
+      err_context = maxval(abs(y_out_context - y_exact))
+      ok_context = (.not. failed_context) .and. result_context%status == odex_status_success .and. &
+                   result_context%endpoint_available .and. result_context%final_order >= 2 .and. &
+                   result_context%odex_rhs_evals > 0 .and. result_context%odex_midpoint_rows > 0 .and. &
+                   result_context%odex_accept_k_minus_1 + result_context%odex_accept_k + &
+                   result_context%odex_accept_k_plus_1 == result_context%accepted_steps .and. &
+                   result_context%accepted_steps < 1000 .and. result_context%odex_rhs_evals < 100000 .and. &
+                   result_context%odex_hairer_policy_steps == &
+                   result_context%accepted_steps + result_context%rejected_steps .and. &
+                   result_context%odex_tltm_policy_steps == 0 .and. result_context%odex_first_step_entries == 1 .and. &
+                   result_context%odex_last_step_entries == 1 .and. &
+                   result_context%odex_row_j1_calls + result_context%odex_row_j2_calls + &
+                   result_context%odex_row_jge3_calls == result_context%odex_midpoint_rows .and. &
+                   result_context%odex_error_estimates > 0 .and. &
+                   result_context%odex_row_j1_no_error_returns == result_context%odex_row_j1_calls .and. &
+                   result_context%odex_hairer_scal_estimates == result_context%odex_error_estimates .and. &
+                   result_context%odex_default_scal_estimates == 0 .and. &
+                   result_context%odex_kopt_accept_updates == result_context%accepted_steps .and. &
+                   result_context%odex_kopt_demotions + result_context%odex_kopt_keeps + &
+                   result_context%odex_kopt_promotions == result_context%odex_kopt_accept_updates .and. &
+                   result_context%odex_errold_checks == result_context%odex_error_estimates .and. &
+                   result_context%odex_atov_events == 0 .and. result_context%odex_after_reject_clamps == 0 .and. &
+                   err_context <= 2.0e-12_dp
+
+      write (*, '(A,L1,A,L1,A,I0,A,I0,A,I0,A,ES12.4,A,ES12.4)') "[CHECK] package_hairer_experimental ok=", ok, &
+         " context=", ok_context, &
          " order=", result_state%final_order, " accepted=", result_state%accepted_steps, &
-         " rhs=", result_state%odex_rhs_evals, " err=", err
-      if (.not. ok) then
+         " rhs=", result_state%odex_rhs_evals, " err=", err, " context_err=", err_context
+      if (.not. (ok .and. ok_context)) then
          failures = failures + 1
          write (*, '(A)') "[FAIL] opt-in Hairer experimental endpoint contract changed."
+         write (*, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') "[DETAIL] hairer counters accepted=", &
+            result_state%accepted_steps, " rejected=", result_state%rejected_steps, &
+            " kminus=", result_state%odex_accept_k_minus_1, " k=", result_state%odex_accept_k, &
+            " kplus=", result_state%odex_accept_k_plus_1, " error_estimates=", result_state%odex_error_estimates
+         write (*, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') "[DETAIL] hairer controller hairer_steps=", &
+            result_state%odex_hairer_policy_steps, " tltm_steps=", result_state%odex_tltm_policy_steps, &
+            " first=", result_state%odex_first_step_entries, " basic=", result_state%odex_basic_step_entries, &
+            " last=", result_state%odex_last_step_entries, " errold=", result_state%odex_errold_checks
+         write (*, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') "[DETAIL] hairer reject atov=", &
+            result_state%odex_atov_events, " kopt=", result_state%odex_kopt_accept_updates, &
+            " demote=", result_state%odex_kopt_demotions, " keep=", result_state%odex_kopt_keeps, &
+            " promote=", result_state%odex_kopt_promotions, " clamp=", result_state%odex_after_reject_clamps
       end if
    end subroutine check_hairer_experimental_endpoint_accuracy
 

@@ -426,11 +426,14 @@ contains
       type(odex_options), intent(in), optional :: options
 
       type(odex_options) :: opts
-      real(dp) :: h, tc, er1, h_min, t_new, h_step, hmax_abs, hoptde, h_initial_guess
+      real(dp) :: h, tc, er1, h_min, t_new, h_step, h_initial_guess
       real(dp) :: h_min_fp, h_min_tol, h_min_span
       integer :: state_size, k, step_count, accepted_steps, rejected_steps, stability_rejects
+      integer :: hairer_phase
       logical :: is_last_step, invalid_rhs, stability_rejected, hairer_policy, endpoint_reached
       type(odex_step_telemetry) :: step_stats
+      type(odex_hairer_controller_state) :: hairer_state
+      type(odex_hairer_controller_decision) :: hairer_decision
 
       call odex_default_options(opts)
       if (present(options)) opts = options
@@ -491,13 +494,12 @@ contains
       h_initial_guess = t*opts%initial_step_fraction
       if (h_initial_guess == 0.0_dp) h_initial_guess = sign(h_min, t)
       if (hairer_policy) then
-         call odex_observe_hairer_initial_state(opts, t, h_initial_guess, 0.0_dp, h, k, hmax_abs)
-         hoptde = hmax_abs
+         call odex_observe_hairer_controller_initial_state(opts, t, h_initial_guess, 0.0_dp, hairer_state)
+         h = hairer_state%h
+         k = hairer_state%k
       else
          h = h_initial_guess
          k = opts%k_min
-         hmax_abs = abs(t)
-         hoptde = hmax_abs
       end if
       step_count = 0
       accepted_steps = 0
@@ -516,8 +518,18 @@ contains
          end if
 
          if (hairer_policy) then
-            call odex_observe_hairer_step_entry(tc, t, h, hmax_abs, hoptde, epsilon(1.0_dp), &
-                                                h, is_last_step, endpoint_reached)
+            call odex_observe_hairer_controller_step_entry(tc, t, epsilon(1.0_dp), hairer_state, hairer_decision)
+            if (hairer_decision%action == odex_hairer_controller_action_invalid) then
+               res = workspace%ystate(1:state_size)
+               call odex_result_mark_failure(result_state, odex_reason_invalid, accepted_steps, &
+                                             rejected_steps, k, h, t - tc)
+               result_state%stability_rejects = stability_rejects
+               return
+            end if
+            endpoint_reached = hairer_decision%endpoint_reached
+            is_last_step = hairer_decision%last_step
+            h = hairer_state%h
+            k = hairer_state%k
             if (endpoint_reached .or. h == 0.0_dp) exit
          else
             if ((t >= 0.0_dp .and. tc + h >= t) .or. (t < 0.0_dp .and. tc + h <= t)) then
@@ -531,8 +543,20 @@ contains
          call odex_result_record_step_entry(result_state, hairer_policy, step_count, is_last_step)
          t_new = tc + h
          h_step = h
-         call odex_step(f, workspace%ystate(1:state_size), h, k, res, er1, workspace, opts, &
-                        stability_rejected, invalid_rhs, step_stats)
+         if (hairer_policy) then
+            if (step_count == 1 .or. is_last_step) then
+               hairer_phase = odex_hairer_controller_phase_first_last
+            else
+               hairer_phase = odex_hairer_controller_phase_basic
+            end if
+            call odex_step_hairer_controller(f, workspace%ystate(1:state_size), hairer_phase, hairer_state, &
+                                             res, er1, workspace, opts, stability_rejected, invalid_rhs, step_stats)
+            h = hairer_state%h
+            k = hairer_state%k
+         else
+            call odex_step(f, workspace%ystate(1:state_size), h, k, res, er1, workspace, opts, &
+                           stability_rejected, invalid_rhs, step_stats)
+         end if
          call odex_result_record_step_telemetry(result_state, step_stats)
 
          if (invalid_rhs) then
@@ -588,11 +612,14 @@ contains
       class(*), intent(inout), target :: rhs_context
 
       type(odex_options) :: opts
-      real(dp) :: h, tc, er1, h_min, t_new, h_step, hmax_abs, hoptde, h_initial_guess
+      real(dp) :: h, tc, er1, h_min, t_new, h_step, h_initial_guess
       real(dp) :: h_min_fp, h_min_tol, h_min_span
       integer :: state_size, k, step_count, accepted_steps, rejected_steps, stability_rejects
+      integer :: hairer_phase
       logical :: is_last_step, invalid_rhs, stability_rejected, hairer_policy, endpoint_reached
       type(odex_step_telemetry) :: step_stats
+      type(odex_hairer_controller_state) :: hairer_state
+      type(odex_hairer_controller_decision) :: hairer_decision
 
       call odex_default_options(opts)
       if (present(options)) opts = options
@@ -653,13 +680,12 @@ contains
       h_initial_guess = t*opts%initial_step_fraction
       if (h_initial_guess == 0.0_dp) h_initial_guess = sign(h_min, t)
       if (hairer_policy) then
-         call odex_observe_hairer_initial_state(opts, t, h_initial_guess, 0.0_dp, h, k, hmax_abs)
-         hoptde = hmax_abs
+         call odex_observe_hairer_controller_initial_state(opts, t, h_initial_guess, 0.0_dp, hairer_state)
+         h = hairer_state%h
+         k = hairer_state%k
       else
          h = h_initial_guess
          k = opts%k_min
-         hmax_abs = abs(t)
-         hoptde = hmax_abs
       end if
       step_count = 0
       accepted_steps = 0
@@ -678,8 +704,18 @@ contains
          end if
 
          if (hairer_policy) then
-            call odex_observe_hairer_step_entry(tc, t, h, hmax_abs, hoptde, epsilon(1.0_dp), &
-                                                h, is_last_step, endpoint_reached)
+            call odex_observe_hairer_controller_step_entry(tc, t, epsilon(1.0_dp), hairer_state, hairer_decision)
+            if (hairer_decision%action == odex_hairer_controller_action_invalid) then
+               res = workspace%ystate(1:state_size)
+               call odex_result_mark_failure(result_state, odex_reason_invalid, accepted_steps, &
+                                             rejected_steps, k, h, t - tc)
+               result_state%stability_rejects = stability_rejects
+               return
+            end if
+            endpoint_reached = hairer_decision%endpoint_reached
+            is_last_step = hairer_decision%last_step
+            h = hairer_state%h
+            k = hairer_state%k
             if (endpoint_reached .or. h == 0.0_dp) exit
          else
             if ((t >= 0.0_dp .and. tc + h >= t) .or. (t < 0.0_dp .and. tc + h <= t)) then
@@ -693,8 +729,21 @@ contains
          call odex_result_record_step_entry(result_state, hairer_policy, step_count, is_last_step)
          t_new = tc + h
          h_step = h
-         call odex_step_context(f, workspace%ystate(1:state_size), h, k, res, er1, workspace, opts, &
-                                stability_rejected, invalid_rhs, step_stats, rhs_context)
+         if (hairer_policy) then
+            if (step_count == 1 .or. is_last_step) then
+               hairer_phase = odex_hairer_controller_phase_first_last
+            else
+               hairer_phase = odex_hairer_controller_phase_basic
+            end if
+            call odex_step_hairer_controller_context(f, workspace%ystate(1:state_size), hairer_phase, hairer_state, &
+                                                     res, er1, workspace, opts, stability_rejected, invalid_rhs, &
+                                                     step_stats, rhs_context)
+            h = hairer_state%h
+            k = hairer_state%k
+         else
+            call odex_step_context(f, workspace%ystate(1:state_size), h, k, res, er1, workspace, opts, &
+                                   stability_rejected, invalid_rhs, step_stats, rhs_context)
+         end if
          call odex_result_record_step_telemetry(result_state, step_stats)
 
          if (invalid_rhs) then
@@ -1561,6 +1610,423 @@ contains
          end if
       end if
    end subroutine odex_step_context
+
+   subroutine odex_step_hairer_controller(f, y, controller_phase, controller_state, res, err, workspace, opts, &
+                                          stability_rejected, invalid_rhs, step_stats)
+      procedure(ode_rhs) :: f
+      real(dp), intent(in) :: y(:)
+      integer, intent(in) :: controller_phase
+      type(odex_hairer_controller_state), intent(inout) :: controller_state
+      real(dp), intent(out) :: res(:), err
+      type(odex_workspace), intent(inout) :: workspace
+      type(odex_options), intent(in) :: opts
+      logical, intent(out) :: stability_rejected, invalid_rhs
+      type(odex_step_telemetry), intent(out) :: step_stats
+
+      integer :: accepted_row, k_reference, n, next_row, rejected_row
+      logical :: was_rejected
+      type(odex_hairer_controller_decision) :: decision, update_decision
+      type(odex_hairer_row_lifecycle) :: row_lifecycle
+      type(odex_row_result) :: row_state
+
+      n = size(y)
+      res = y
+      err = huge(1.0_dp)
+      stability_rejected = .false.
+      invalid_rhs = .false.
+      call odex_step_telemetry_reset(step_stats)
+
+      if (.not. controller_state%initialized .or. n <= 0) then
+         invalid_rhs = .true.
+         return
+      end if
+
+      workspace%fbase(1:n) = f(y)
+      step_stats%rhs_evals = step_stats%rhs_evals + 1
+      if (vector_has_invalid(workspace%fbase(1:n))) then
+         invalid_rhs = .true.
+         return
+      end if
+
+      call odex_observe_hairer_row_lifecycle_begin(y, opts, controller_state%km, row_lifecycle)
+      if (.not. row_lifecycle%initialized) then
+         invalid_rhs = .true.
+         return
+      end if
+
+      next_row = 1
+      do
+         if (next_row < 1 .or. next_row > row_lifecycle%max_rows) then
+            invalid_rhs = .true.
+            return
+         end if
+         if (next_row == controller_state%k + 1) step_stats%kplus1_attempts = step_stats%kplus1_attempts + 1
+
+         call odex_observe_hairer_midex_lifecycle_row(f, next_row, y, controller_state%h, &
+                                                      controller_state%hmax_abs, workspace%fbase(1:n), workspace, &
+                                                      opts, row_lifecycle, row_state)
+         call odex_step_record_hairer_row(step_stats, row_state)
+         if (row_state%invalid_rhs .or. row_state%stability_rejected) then
+            invalid_rhs = row_state%invalid_rhs
+            stability_rejected = row_state%stability_rejected
+            return
+         end if
+
+         call odex_observe_hairer_controller_row_action(controller_state, row_state, row_lifecycle, workspace, &
+                                                        opts, controller_phase, decision)
+         select case (decision%action)
+         case (odex_hairer_controller_action_continue)
+            if (decision%next_row <= next_row) then
+               invalid_rhs = .true.
+               return
+            end if
+            next_row = decision%next_row
+         case (odex_hairer_controller_action_accept)
+            accepted_row = decision%accepted_row
+            if (accepted_row < 1 .or. accepted_row > row_lifecycle%max_rows) then
+               invalid_rhs = .true.
+               return
+            end if
+            k_reference = controller_state%k
+            was_rejected = controller_state%rejected
+            res = workspace%tableau(accepted_row, accepted_row, 1:n)
+            err = max(0.0_dp, row_state%err)
+            call odex_step_record_hairer_accept(step_stats, accepted_row, k_reference)
+            call odex_observe_hairer_controller_accept_update(controller_state, row_lifecycle, workspace, opts, &
+                                                              update_decision)
+            if (update_decision%action == odex_hairer_controller_action_invalid) then
+               invalid_rhs = .true.
+               return
+            end if
+            step_stats%kopt_accept_updates = step_stats%kopt_accept_updates + 1
+            call odex_step_record_kopt_transition(step_stats, accepted_row, controller_state%k)
+            if (was_rejected) step_stats%after_reject_clamps = step_stats%after_reject_clamps + 1
+            return
+         case (odex_hairer_controller_action_reject)
+            rejected_row = decision%rejected_row
+            if (rejected_row <= 0) rejected_row = row_state%row_index
+            call odex_step_record_hairer_reject(step_stats, rejected_row, controller_state%k)
+            res = y
+            err = max(row_state%err, 1.0_dp)
+            return
+         case (odex_hairer_controller_action_retry)
+            res = y
+            err = huge(1.0_dp)
+            return
+         case default
+            invalid_rhs = .true.
+            return
+         end select
+      end do
+   end subroutine odex_step_hairer_controller
+
+   subroutine odex_step_hairer_controller_context(f, y, controller_phase, controller_state, res, err, workspace, opts, &
+                                                  stability_rejected, invalid_rhs, step_stats, rhs_context)
+      procedure(ode_rhs_context) :: f
+      real(dp), intent(in) :: y(:)
+      integer, intent(in) :: controller_phase
+      type(odex_hairer_controller_state), intent(inout) :: controller_state
+      real(dp), intent(out) :: res(:), err
+      type(odex_workspace), intent(inout) :: workspace
+      type(odex_options), intent(in) :: opts
+      logical, intent(out) :: stability_rejected, invalid_rhs
+      type(odex_step_telemetry), intent(out) :: step_stats
+      class(*), intent(inout) :: rhs_context
+
+      integer :: accepted_row, k_reference, n, next_row, rejected_row
+      logical :: was_rejected
+      type(odex_hairer_controller_decision) :: decision, update_decision
+      type(odex_hairer_row_lifecycle) :: row_lifecycle
+      type(odex_row_result) :: row_state
+
+      n = size(y)
+      res = y
+      err = huge(1.0_dp)
+      stability_rejected = .false.
+      invalid_rhs = .false.
+      call odex_step_telemetry_reset(step_stats)
+
+      if (.not. controller_state%initialized .or. n <= 0) then
+         invalid_rhs = .true.
+         return
+      end if
+
+      workspace%fbase(1:n) = f(y, rhs_context)
+      step_stats%rhs_evals = step_stats%rhs_evals + 1
+      if (vector_has_invalid(workspace%fbase(1:n))) then
+         invalid_rhs = .true.
+         return
+      end if
+
+      call odex_observe_hairer_row_lifecycle_begin(y, opts, controller_state%km, row_lifecycle)
+      if (.not. row_lifecycle%initialized) then
+         invalid_rhs = .true.
+         return
+      end if
+
+      next_row = 1
+      do
+         if (next_row < 1 .or. next_row > row_lifecycle%max_rows) then
+            invalid_rhs = .true.
+            return
+         end if
+         if (next_row == controller_state%k + 1) step_stats%kplus1_attempts = step_stats%kplus1_attempts + 1
+
+         call odex_observe_hairer_midex_lifecycle_row_context(f, next_row, y, controller_state%h, &
+                                                              controller_state%hmax_abs, workspace%fbase(1:n), &
+                                                              workspace, opts, row_lifecycle, row_state, rhs_context)
+         call odex_step_record_hairer_row(step_stats, row_state)
+         if (row_state%invalid_rhs .or. row_state%stability_rejected) then
+            invalid_rhs = row_state%invalid_rhs
+            stability_rejected = row_state%stability_rejected
+            return
+         end if
+
+         call odex_observe_hairer_controller_row_action(controller_state, row_state, row_lifecycle, workspace, &
+                                                        opts, controller_phase, decision)
+         select case (decision%action)
+         case (odex_hairer_controller_action_continue)
+            if (decision%next_row <= next_row) then
+               invalid_rhs = .true.
+               return
+            end if
+            next_row = decision%next_row
+         case (odex_hairer_controller_action_accept)
+            accepted_row = decision%accepted_row
+            if (accepted_row < 1 .or. accepted_row > row_lifecycle%max_rows) then
+               invalid_rhs = .true.
+               return
+            end if
+            k_reference = controller_state%k
+            was_rejected = controller_state%rejected
+            res = workspace%tableau(accepted_row, accepted_row, 1:n)
+            err = max(0.0_dp, row_state%err)
+            call odex_step_record_hairer_accept(step_stats, accepted_row, k_reference)
+            call odex_observe_hairer_controller_accept_update(controller_state, row_lifecycle, workspace, opts, &
+                                                              update_decision)
+            if (update_decision%action == odex_hairer_controller_action_invalid) then
+               invalid_rhs = .true.
+               return
+            end if
+            step_stats%kopt_accept_updates = step_stats%kopt_accept_updates + 1
+            call odex_step_record_kopt_transition(step_stats, accepted_row, controller_state%k)
+            if (was_rejected) step_stats%after_reject_clamps = step_stats%after_reject_clamps + 1
+            return
+         case (odex_hairer_controller_action_reject)
+            rejected_row = decision%rejected_row
+            if (rejected_row <= 0) rejected_row = row_state%row_index
+            call odex_step_record_hairer_reject(step_stats, rejected_row, controller_state%k)
+            res = y
+            err = max(row_state%err, 1.0_dp)
+            return
+         case (odex_hairer_controller_action_retry)
+            res = y
+            err = huge(1.0_dp)
+            return
+         case default
+            invalid_rhs = .true.
+            return
+         end select
+      end do
+   end subroutine odex_step_hairer_controller_context
+
+   subroutine odex_observe_hairer_midex_row_context(f, row_index, y, h, hmax_abs, fbase, scal, errold, workspace, &
+                                                    options, row_state, rhs_context)
+      procedure(ode_rhs_context) :: f
+      integer, intent(in) :: row_index
+      real(dp), intent(in) :: y(:), hmax_abs, fbase(:)
+      real(dp), intent(inout) :: h
+      real(dp), intent(inout) :: scal(:), errold
+      type(odex_workspace), intent(inout) :: workspace
+      type(odex_options), intent(in) :: options
+      type(odex_row_result), intent(out) :: row_state
+      class(*), intent(inout) :: rhs_context
+
+      type(odex_options) :: opts
+      integer :: col, idx, mm, n, ni
+      real(dp) :: dt, errsum, hmax_safe, scale
+
+      call odex_row_result_reset(row_state)
+      row_state%row_index = row_index
+      row_state%h_after = h
+      row_state%errold_after = errold
+
+      n = size(y)
+      if (row_index < 1 .or. n <= 0 .or. size(fbase) < n .or. size(scal) < n) then
+         row_state%invalid_rhs = .true.
+         return
+      end if
+      if (vector_has_invalid(y) .or. vector_has_invalid(fbase(1:n)) .or. .not. ieee_is_finite(h)) then
+         row_state%invalid_rhs = .true.
+         return
+      end if
+
+      opts = options
+      call odex_normalize_options(opts)
+      call ensure_odex_workspace_object(workspace, row_index, n)
+
+      ni = workspace%nsteps(row_index)
+      dt = h/real(ni, dp)
+      workspace%yprev(1:n) = y(1:n)
+      workspace%ycurr(1:n) = y(1:n) + dt*fbase(1:n)
+
+      do mm = 1, ni - 1
+         workspace%fval(1:n) = f(workspace%ycurr(1:n), rhs_context)
+         row_state%rhs_evals = row_state%rhs_evals + 1
+         if (vector_has_invalid(workspace%fval(1:n))) then
+            row_state%invalid_rhs = .true.
+            return
+         end if
+         workspace%ynext(1:n) = workspace%yprev(1:n) + 2.0_dp*dt*workspace%fval(1:n)
+         workspace%yprev(1:n) = workspace%ycurr(1:n)
+         workspace%ycurr(1:n) = workspace%ynext(1:n)
+      end do
+
+      workspace%fval(1:n) = f(workspace%ycurr(1:n), rhs_context)
+      row_state%rhs_evals = row_state%rhs_evals + 1
+      if (vector_has_invalid(workspace%fval(1:n))) then
+         row_state%invalid_rhs = .true.
+         return
+      end if
+
+      workspace%tableau(row_index, 1, 1:n) = &
+         0.5_dp*(workspace%yprev(1:n) + workspace%ycurr(1:n) + dt*workspace%fval(1:n))
+
+      if (row_index == 1) then
+         row_state%h_after = h
+         row_state%errold_after = errold
+         return
+      end if
+
+      do col = 2, row_index
+         workspace%tableau(row_index, col, 1:n) = workspace%tableau(row_index, col - 1, 1:n) + &
+            (workspace%tableau(row_index, col - 1, 1:n) - workspace%tableau(row_index - 1, col - 1, 1:n))/ &
+            workspace%ratio(row_index, row_index - col + 1)
+      end do
+
+      errsum = 0.0_dp
+      do idx = 1, n
+         scal(idx) = opts%abs_tol + opts%rel_tol*max(abs(y(idx)), abs(workspace%tableau(row_index, row_index, idx)))
+         scale = max(scal(idx), tiny(1.0_dp))
+         errsum = errsum + &
+            ((workspace%tableau(row_index, row_index, idx) - workspace%tableau(row_index, row_index - 1, idx))/scale)**2
+      end do
+      row_state%err = sqrt(errsum/real(n, dp))
+      row_state%err_available = .true.
+
+      if (row_state%err*epsilon(1.0_dp) >= 1.0_dp .or. (row_index > 2 .and. row_state%err >= errold)) then
+         row_state%atov = .true.
+         h = h*0.5_dp
+         row_state%h_after = h
+         row_state%errold_after = errold
+         return
+      end if
+
+      errold = max(4.0_dp*row_state%err, 1.0_dp)
+      row_state%errold_after = errold
+      hmax_safe = abs(hmax_abs)
+      if (hmax_safe <= 0.0_dp) hmax_safe = huge(1.0_dp)
+      row_state%hh = min(abs(h)*odex_step_scale(row_state%err, row_index, workspace, opts), hmax_safe)
+      if (row_state%hh <= tiny(1.0_dp) .or. .not. ieee_is_finite(row_state%hh)) then
+         row_state%work = huge(1.0_dp)
+      else
+         row_state%work = workspace%ak(row_index)/row_state%hh
+      end if
+      row_state%h_after = h
+   end subroutine odex_observe_hairer_midex_row_context
+
+   subroutine odex_observe_hairer_midex_lifecycle_row_context(f, row_index, y, h, hmax_abs, fbase, workspace, &
+                                                              options, row_lifecycle, row_state, rhs_context)
+      procedure(ode_rhs_context) :: f
+      integer, intent(in) :: row_index
+      real(dp), intent(in) :: y(:), hmax_abs, fbase(:)
+      real(dp), intent(inout) :: h
+      type(odex_workspace), intent(inout) :: workspace
+      type(odex_options), intent(in) :: options
+      type(odex_hairer_row_lifecycle), intent(inout) :: row_lifecycle
+      type(odex_row_result), intent(out) :: row_state
+      class(*), intent(inout) :: rhs_context
+
+      call odex_row_result_reset(row_state)
+      row_state%row_index = row_index
+      row_state%h_after = h
+      row_state%errold_after = row_lifecycle%errold
+
+      if (.not. row_lifecycle%initialized) then
+         row_state%invalid_rhs = .true.
+         return
+      end if
+      if (row_index < 1 .or. row_index > row_lifecycle%max_rows) then
+         row_state%invalid_rhs = .true.
+         return
+      end if
+      if (size(y) /= row_lifecycle%dimension) then
+         row_state%invalid_rhs = .true.
+         return
+      end if
+
+      call odex_observe_hairer_midex_row_context(f, row_index, y, h, hmax_abs, fbase, row_lifecycle%scal, &
+                                                 row_lifecycle%errold, workspace, options, row_state, rhs_context)
+
+      row_lifecycle%rows_attempted = row_lifecycle%rows_attempted + 1
+      row_lifecycle%rhs_evals = row_lifecycle%rhs_evals + max(0, row_state%rhs_evals)
+      row_lifecycle%last_row = row_index
+      row_lifecycle%h_after = h
+      row_lifecycle%atov = row_state%atov
+      if (row_state%err_available) row_lifecycle%error_rows = row_lifecycle%error_rows + 1
+      if (row_state%atov) row_lifecycle%atov_events = row_lifecycle%atov_events + 1
+
+      if (row_state%err_available .and. (.not. row_state%atov) .and. (.not. row_state%invalid_rhs)) then
+         row_lifecycle%hh(row_index) = row_state%hh
+         row_lifecycle%work(row_index) = row_state%work
+      end if
+   end subroutine odex_observe_hairer_midex_lifecycle_row_context
+
+   subroutine odex_step_record_hairer_row(step_stats, row_state)
+      type(odex_step_telemetry), intent(inout) :: step_stats
+      type(odex_row_result), intent(in) :: row_state
+
+      step_stats%rhs_evals = step_stats%rhs_evals + max(0, row_state%rhs_evals)
+      if (row_state%invalid_rhs .or. row_state%stability_rejected) return
+
+      call odex_step_record_midpoint_row(step_stats, row_state%row_index)
+      if (row_state%err_available) then
+         call odex_step_record_error_scale(step_stats, .true.)
+         step_stats%errold_checks = step_stats%errold_checks + 1
+      end if
+      if (row_state%atov) step_stats%atov_events = step_stats%atov_events + 1
+   end subroutine odex_step_record_hairer_row
+
+   subroutine odex_step_record_hairer_accept(step_stats, accepted_row, k_reference)
+      type(odex_step_telemetry), intent(inout) :: step_stats
+      integer, intent(in) :: accepted_row, k_reference
+
+      if (accepted_row < k_reference) then
+         step_stats%accept_k_minus_1 = step_stats%accept_k_minus_1 + 1
+      else if (accepted_row == k_reference) then
+         step_stats%accept_k = step_stats%accept_k + 1
+      else
+         step_stats%accept_k_plus_1 = step_stats%accept_k_plus_1 + 1
+      end if
+   end subroutine odex_step_record_hairer_accept
+
+   subroutine odex_step_record_hairer_reject(step_stats, rejected_row, k_reference)
+      type(odex_step_telemetry), intent(inout) :: step_stats
+      integer, intent(in) :: rejected_row, k_reference
+
+      step_stats%large_error_rejects = step_stats%large_error_rejects + 1
+      step_stats%reject_updates = step_stats%reject_updates + 1
+      if (rejected_row < k_reference) then
+         step_stats%convergence_rejects = step_stats%convergence_rejects + 1
+         step_stats%reject_kc_k_minus_1 = step_stats%reject_kc_k_minus_1 + 1
+      else if (rejected_row == k_reference) then
+         step_stats%kplus1_hope_rejects = step_stats%kplus1_hope_rejects + 1
+         step_stats%reject_kc_k = step_stats%reject_kc_k + 1
+      else
+         step_stats%kplus1_rejects = step_stats%kplus1_rejects + 1
+         step_stats%reject_kc_k_plus_1 = step_stats%reject_kc_k_plus_1 + 1
+      end if
+   end subroutine odex_step_record_hairer_reject
 
    subroutine odex_observe_hairer_midex_row(f, row_index, y, h, hmax_abs, fbase, scal, errold, workspace, options, row_state)
       procedure(ode_rhs) :: f

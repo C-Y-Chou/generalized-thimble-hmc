@@ -60,10 +60,11 @@ Reference source: Hairer/Wanner official `odex.f` from the Geneva site:
 
 | Local surface | Current behavior |
 | --- | --- |
-| `odex_integrate_endpoint*` | endpoint-only outer loop; for `hairer_experimental` it calls observer helpers for initial state and step entry, then delegates nearly all real row/controller behavior to `odex_step*`. |
-| `odex_step*` | computes rows `1..k`, may attempt `k+1`, computes errors, chooses accept/reject, and mutates `h/k` internally. |
-| `odex_error_scale` | policy split: default uses old TLTM neighboring-estimate scale; `hairer_experimental` now uses start/current estimate scale.  F18b.5c adds a test-facing Hairer row-lifecycle state, but the live endpoint path still has not consumed it. |
-| `odex_observe_hairer_*` | observer/helper surface only.  It is not yet a coherent live Hairer state machine. |
+| `odex_integrate_endpoint*` | endpoint-only outer loop.  Default `tltm_endpoint` still delegates to `odex_step*`; opt-in `hairer_experimental` now owns a controller state and calls the F18b.5e live Hairer row/controller helper. |
+| `odex_step*` | default TLTM route only: computes rows `1..k`, may attempt `k+1`, computes errors, chooses accept/reject, and mutates `h/k` internally. |
+| `odex_step_hairer_controller*` | F18b.5e opt-in route: consumes `odex_hairer_row_lifecycle` plus `odex_hairer_controller_state`, including first/last/basic row decisions, accept/reject update, K+1 hope, `ERROLD`, and `ATOV` retry. |
+| `odex_error_scale` | policy split: default uses old TLTM neighboring-estimate scale.  The opt-in Hairer row lifecycle uses Hairer-style `ATOL+RTOL*MAX(ABS(Y),ABS(T(1)))` scaling directly in the row primitive. |
+| `odex_observe_hairer_*` | observer/helper surface plus the live opt-in endpoint route.  Default endpoint behavior remains separated from this experimental path. |
 | `odex_normalize_options` | clamps `options%k_min >= odex_k_min`, with `odex_k_min=4`.  Some Hairer helper paths bypass this, so lower-bound behavior is currently mixed rather than designed. |
 | Stability | TLTM-specific optional norm-growth guard, not Hairer `MIDEX` stability logic. |
 
@@ -73,10 +74,10 @@ Reference source: Hairer/Wanner official `odex.f` from the Geneva site:
 | --- | --- | --- | --- |
 | Single-row `MIDEX(J)` primitive missing | row primitive | any coherent controller port | Highest priority.  Without it, controller and row computation remain mixed. |
 | `J=1` no-error and `J=2` first legal error lifecycle | row primitive | `K=2`, first-step branch, K+1 hope branch | This is not an isolated user-reminder item; it is a necessary consequence of single-row `MIDEX`. |
-| Mutable `SCAL(:)` lifecycle missing from live route | row lifecycle | trustworthy endpoint controller consumption | F18b.5c implements the test-facing state surface; `odex_step*` has not consumed it. |
-| `HH(:)` / `W(:)` as persistent per-step row arrays missing from live route | row lifecycle | `KOPT`, reject update, promotion | F18b.5c stores them in the lifecycle observer; live endpoint wiring remains pending. |
-| `ERROLD/ATOV` missing from live row lifecycle | row lifecycle | safe continuation/retry decisions | F18b.5c observes them outside the live route; Hairer can stop a row sequence before more work is wasted. |
-| `REJECT/LAST/KC/KOPT` not live in outer loop | controller | runtime screens | This is the central state-machine port. |
+| Mutable `SCAL(:)` lifecycle missing from live route | row lifecycle | trustworthy endpoint controller consumption | Closed for the opt-in `hairer_experimental` endpoint route by F18b.5e; default `tltm_endpoint` intentionally stays on the old route. |
+| `HH(:)` / `W(:)` as persistent per-step row arrays missing from live route | row lifecycle | `KOPT`, reject update, promotion | Closed for the opt-in `hairer_experimental` endpoint route by F18b.5e. |
+| `ERROLD/ATOV` missing from live row lifecycle | row lifecycle | safe continuation/retry decisions | Closed for the opt-in `hairer_experimental` endpoint route by F18b.5e; package telemetry now expects live `ERROLD` checks. |
+| `REJECT/LAST/KC/KOPT` not live in outer loop | controller | runtime screens | Closed for the opt-in `hairer_experimental` endpoint route by F18b.5e. |
 | lower bound `K=2` not consistently designed | controller policy | full Hairer route | Default TLTM should remain `K>=4`; experimental Hairer must be explicitly `K>=2`. |
 | after-reject accepted-step clamp missing | controller | production-sized screen | Cannot infer from telemetry without state identity. |
 | dense-output pieces | product scope | not required for endpoint-only TLTM route | Keep documented out of scope unless product goals change. |
@@ -261,10 +262,48 @@ make -C build test_odex_controller_alignment_spec test_odex_backend_package_cont
 
 ### F18b.5e: Opt-In Endpoint Wiring
 
+Status: implemented on 2026-05-16 JST.
+
 Wire the row primitive plus outer controller only under
 `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental`.  Keep `tltm_endpoint`
 unchanged and keep the old `odex_step*` path available until the experimental
 route has completed analytic and remote gates.
+
+Implementation surfaces:
+
+- `src/physics/odex_backend.f90`: `odex_integrate_endpoint` and
+  `odex_integrate_endpoint_context` now branch under
+  `odex_controller_policy_hairer_experimental` into
+  `odex_step_hairer_controller` / `odex_step_hairer_controller_context`.
+- The live opt-in helper computes the base RHS once per attempted endpoint step,
+  runs one `MIDEX(J)` row at a time through the row lifecycle, passes each row to
+  the controller action helper, and applies accepted-step or rejected-step update
+  before returning to the endpoint loop.
+- A private context-row equivalent keeps `intode_with_context` on the same
+  controller path, so Stage2/Stage3 flow calls are not silently left on the old
+  hybrid route when the opt-in policy is selected.
+- `tests/test_odex_backend_package_contract.f90`: the package contract now
+  verifies both non-context and context `hairer_experimental` endpoint solves and
+  expects live `ERROLD` checks to equal Hairer error-estimate counts.
+
+Important readback:
+
+- Default `tltm_endpoint` still uses `odex_step*`; this patch is opt-in only.
+- The earlier F18b.4m/F18b.4n/F18b.4o telemetry remains hybrid-route evidence.
+  It is not evidence for this F18b.5e coherent state-machine route.
+- Local focused analytic checks pass, but no TLTM Stage2/Stage3 simulation screen
+  was run locally.  The next step is F18b.5f analytic/tiny gates, not immediate
+  1k telemetry.
+- The current live helper still leaves dense-output/general-purpose ODEX and full
+  Hairer stability logic out of scope; those remain explicit product-boundary
+  decisions.
+
+Focused verification passed:
+
+```text
+git diff --check -- src/physics/odex_backend.f90 tests/test_odex_backend_package_contract.f90
+make -C build test_odex_controller_alignment_spec test_odex_backend_package_contract test_odex_result_contract test_odex_controller_observation_contract
+```
 
 ### F18b.5f: Analytic And Tiny Remote Gates
 
@@ -287,12 +326,13 @@ Only after F18b.5f:
 
 ## Current Decision
 
-Do not continue patching runtime cost inside the current hybrid
-`hairer_experimental` path.  F18b.5a identity-map/counter/test surface,
-F18b.5b single-row `MIDEX(J)` primitive, F18b.5c row-lifecycle observer state,
-and F18b.5d outer-controller decision layer are now implemented in focused
-test-facing form.  The next actionable engineering step is F18b.5e: opt-in
-endpoint wiring, still before any additional 1k telemetry.
+Do not use the older hybrid `hairer_experimental` telemetry as the route
+decision for the coherent Hairer state-machine path.  F18b.5a identity-map/
+counter/test surface, F18b.5b single-row `MIDEX(J)` primitive, F18b.5c
+row-lifecycle state, F18b.5d outer-controller decision layer, and F18b.5e
+opt-in endpoint wiring are implemented.  The next actionable engineering step is
+F18b.5f: analytic endpoint gates and then a remote tiny TLTM smoke, still before
+any additional 1k telemetry.
 
 ## Claim Boundary
 
@@ -304,7 +344,7 @@ matched surface.  The route to Hairer alignment must now proceed by state-machin
 port: row primitive, row lifecycle, outer controller, then endpoint wiring.
 Existing hybrid Hairer telemetry is debug evidence only and cannot decide the
 true cost of a coherent Hairer controller.  F18b.5a identity counters,
-F18b.5b single-row primitive, F18b.5c row lifecycle, and F18b.5d outer
-controller decision state are implemented; the next claim boundary is F18b.5e
-opt-in endpoint wiring.
+F18b.5b single-row primitive, F18b.5c row lifecycle, F18b.5d outer controller
+decision state, and F18b.5e opt-in endpoint wiring are implemented; the next
+claim boundary is F18b.5f analytic/tiny-gate evidence.
 ```

@@ -1804,3 +1804,29 @@
   wire row lifecycle plus controller decision layer into the opt-in
   `hairer_experimental` endpoint route, still before analytic/tiny gates or
   any additional 1k telemetry.
+
+## 2026-05-16 JST - F18b.5e ODEX opt-in endpoint wiring
+
+- Wired the coherent Hairer state-machine route into the opt-in endpoint policy:
+  `odex_integrate_endpoint` and `odex_integrate_endpoint_context` now call
+  `odex_step_hairer_controller` / `odex_step_hairer_controller_context` only
+  when `controller_policy == odex_controller_policy_hairer_experimental`.
+- Default `tltm_endpoint` behavior remains on the existing `odex_step*` path.
+  The new opt-in route computes one `MIDEX(J)` row at a time, records row
+  lifecycle telemetry, runs first/last/basic controller decisions, and applies
+  accepted-step or rejected-step controller updates before returning to the
+  endpoint loop.
+- Added the context-row equivalent so `intode_with_context` does not silently
+  stay on the old hybrid route when `hairer_experimental` is selected.
+- Updated `test_odex_backend_package_contract` so the Hairer package contract
+  verifies both non-context and context endpoint solves and expects live
+  `ERROLD` checks to match Hairer error-estimate counts.
+- Verification passed:
+  `git diff --check -- src/physics/odex_backend.f90 tests/test_odex_backend_package_contract.f90`;
+  `make -C build test_odex_controller_alignment_spec test_odex_backend_package_contract test_odex_result_contract test_odex_controller_observation_contract`.
+  No local TLTM Stage2/Stage3 simulation screen was run.
+- Updated `F18B5_ODEX_HAIRER_ALIGNMENT_REPLAN_20260516.md`, `OPEN_ITEMS.tsv`,
+  `CAVEATS.tsv`, `STATE_BRIEF.md`, and
+  `WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`.  Next ODEX action is F18b.5f:
+  add analytic endpoint gates and then remote tiny TLTM smoke before any more
+  1k/10seed telemetry.
