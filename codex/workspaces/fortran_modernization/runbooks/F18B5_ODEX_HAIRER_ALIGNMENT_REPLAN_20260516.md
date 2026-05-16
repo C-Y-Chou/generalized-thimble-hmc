@@ -307,12 +307,12 @@ make -C build test_odex_controller_alignment_spec test_odex_backend_package_cont
 
 ### F18b.5f: Analytic And Tiny Remote Gates
 
-Status: local analytic endpoint gates implemented on 2026-05-16 JST.  The first
-remote tiny PBS smoke (`15543.anode01`) completed Stage3 but failed the terminal
-counter assertion because Stage2 summary aggregation did not yet carry the
-F18b.5a+ ODEX policy/row/lifecycle counters from per-run contexts into the
-aggregate summary.  The aggregation repair is implemented locally and the tiny
-smoke must be rerun at the repair commit before any 1k telemetry.
+Status: passed on 2026-05-16 JST.  The first remote tiny PBS smoke
+(`15543.anode01`) completed Stage3 but failed the terminal counter assertion
+because Stage2 summary aggregation did not yet carry the F18b.5a+ ODEX
+policy/row/lifecycle counters from per-run contexts into the aggregate summary.
+The aggregation repair was implemented in `8085ef7`, and the repaired remote
+tiny PBS smoke (`15544.anode01`) passed with `Exit_status=0`.
 
 Before any 1k/10seed screen:
 
@@ -352,9 +352,32 @@ make -C build test_odex_controller_alignment_spec test_odex_backend_package_cont
 TLTM_ODE_CONTROLLER_POLICY=hairer_experimental make -C build test_odex_foundation_contract
 ```
 
+Remote tiny readback passed:
+
+```text
+job=15544.anode01
+queue=C16
+exec_host=cnode01/0*2
+walltime=00:01:13
+commit=8085ef7e6230fa94daa41c66cd28767e079c53a4
+campaign=f18b5f_hairer_endpoint_tiny_smoke_20260516T212758_8085ef7e6230
+methods=no_fb,fb_norefine
+```
+
+Counter readback:
+
+```text
+fb_norefine calls=153646 hairer_policy_steps=865600 tltm_policy_steps=0
+  error_estimates=3171839 errold_checks=3171839 hairer_scal=3171839 default_scal=0
+  rhs_per_call=184.8990406518881 accepted_per_call=5.49731851138331 rejected_per_call=0.13641097067284538
+no_fb calls=145896 hairer_policy_steps=814140 tltm_policy_steps=0
+  error_estimates=2946574 errold_checks=2946574 hairer_scal=2946574 default_scal=0
+  rhs_per_call=179.0895295278829 accepted_per_call=5.462164829741734 rejected_per_call=0.11811153150189176
+```
+
 ### F18b.5g: Telemetry Promotion Gates
 
-Only after F18b.5f:
+Only after the passed F18b.5f tiny smoke:
 
 1. remote 1k/10seed telemetry compare;
 2. stop and discuss if runtime/counters are not plausibly 10k-scalable;
@@ -367,9 +390,10 @@ Do not use the older hybrid `hairer_experimental` telemetry as the route
 decision for the coherent Hairer state-machine path.  F18b.5a identity-map/
 counter/test surface, F18b.5b single-row `MIDEX(J)` primitive, F18b.5c
 row-lifecycle state, F18b.5d outer-controller decision layer, F18b.5e opt-in
-endpoint wiring, and F18b.5f local analytic gates are implemented.  The next
-actionable engineering step is the F18b.5f remote tiny TLTM smoke, still before
-any additional 1k telemetry.
+endpoint wiring, F18b.5f local analytic gates, and F18b.5f remote tiny smoke are
+implemented/passed.  The next actionable engineering step is F18b.5g remote
+1k/10seed telemetry, with a stop-and-discuss point if runtime/counters are not
+plausibly 10k-scalable.
 
 ## Claim Boundary
 
@@ -382,6 +406,7 @@ port: row primitive, row lifecycle, outer controller, then endpoint wiring.
 Existing hybrid Hairer telemetry is debug evidence only and cannot decide the
 true cost of a coherent Hairer controller.  F18b.5a identity counters,
 F18b.5b single-row primitive, F18b.5c row lifecycle, F18b.5d outer controller
-decision state, F18b.5e opt-in endpoint wiring, and F18b.5f local analytic gates
-are implemented; the next claim boundary is F18b.5f remote tiny-smoke evidence.
+decision state, F18b.5e opt-in endpoint wiring, F18b.5f local analytic gates,
+and F18b.5f remote tiny smoke are implemented/passed; the next claim boundary is
+F18b.5g 1k/10seed telemetry evidence.
 ```

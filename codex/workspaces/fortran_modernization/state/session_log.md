@@ -1876,3 +1876,22 @@
   `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental make -C build test_odex_foundation_contract`.
   The remote tiny smoke must be rerun at the repair commit before any 1k
   telemetry.
+
+## 2026-05-16 JST - F18b.5f repaired tiny-smoke pass
+
+- Pushed repair commit `8085ef7e6230fa94daa41c66cd28767e079c53a4`, updated the
+  detached remote scratch worktree
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization_f18b5f`, and
+  submitted repaired PBS job `15544.anode01`.
+- PBS job `15544.anode01` ran on C16/cnode01, completed with `Exit_status=0`,
+  `walltime=00:01:13`, and campaign
+  `f18b5f_hairer_endpoint_tiny_smoke_20260516T212758_8085ef7e6230`.
+- Repaired tiny counter readback:
+  `fb_norefine` calls `153646`, Hairer policy steps `865600`, TLTM policy steps
+  `0`, error estimates `3171839`, `ERROLD` checks `3171839`, Hairer scales
+  `3171839`, default scales `0`; `no_fb` calls `145896`, Hairer policy steps
+  `814140`, TLTM policy steps `0`, error estimates `2946574`, `ERROLD` checks
+  `2946574`, Hairer scales `2946574`, default scales `0`.
+- F18b.5f is now passed for local analytic gates plus remote tiny route/counter
+  activation.  Next ODEX gate is F18b.5g 1k/10seed telemetry; do not run 10k
+  until 1k runtime/counters look plausibly scalable.
