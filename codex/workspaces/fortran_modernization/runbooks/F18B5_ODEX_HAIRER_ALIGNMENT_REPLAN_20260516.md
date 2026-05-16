@@ -458,6 +458,78 @@ The next step is a human decision on default-route adoption or keeping it as an
 opt-in experimental route; do not silently flip the default from this telemetry
 alone.
 
+### F18b.5i: Hairer H-Min / Failure Floor Closure
+
+The post-F18b.5h audit found one remaining concrete controller mismatch that
+does not require dense output or a general-purpose ODEX scope: the live
+`hairer_experimental` endpoint route still inherited the default TLTM
+tolerance/span h-min floor.  Hairer-style step-too-small handling should be a
+roundoff floor, not a tolerance-derived failure floor.
+
+Implemented source patch:
+
+- `tltm_endpoint` keeps the existing `max(fp, min(tol, span))` h-min observer
+  and existing h-min failure-classification behavior.
+- `hairer_experimental` now calls `odex_observe_hairer_h_min`, which uses only
+  the floating-point roundoff component and explicitly reports zero
+  tolerance/span components in observation tests.
+- Both the non-context endpoint and context endpoint routes use the same
+  policy-specific h-min helper, so this is not only a test-facing rename.
+
+Local verification at source commit
+`cf716d12fca12f12cf44c61eba880191a4012b8b`:
+
+```text
+git diff --check
+make -C build test_odex_controller_observation_contract \
+  test_odex_controller_alignment_spec \
+  test_odex_backend_package_contract \
+  test_odex_result_contract
+TLTM_ODE_CONTROLLER_POLICY=hairer_experimental \
+  make -C build test_odex_backend_package_contract
+```
+
+Readback:
+
+- `test_odex_controller_observation_contract` shows default `h_min=2.5E-13`
+  while Hairer h-min is the roundoff-only `3.5527E-15`.
+- `test_odex_controller_alignment_spec` shows a forced TLTM h-min floor of
+  `0.5` while Hairer remains `3.5527E-15`; expected gap count remains `2`,
+  so this patch did not silently claim unrelated h0/stability closure.
+- Forced `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental` package contract
+  still passes for both non-context and context endpoint paths.
+
+Remote gate:
+
+- PBS job `15547.anode01` ran on C16/cnode01 using the existing paired 10seed
+  x 10k worker with campaign
+  `f18b5i_hairer_hmin_floor_npt5_r0055_10seed_10k_20260516T224657_cf716d12fca1`.
+- The job completed with `Exit_status=0`, `walltime=00:27:49`,
+  `GIT_COMMIT=cf716d12fca12f12cf44c61eba880191a4012b8b`, and
+  `GIT_DIRTY_COUNT=0`.
+- Terminal counter assertions passed: default rows use TLTM policy steps and
+  default scales with no Hairer policy steps or `ERROLD`; Hairer rows use
+  Hairer policy steps, live `ERROLD`, Hairer scales, zero default scales, and
+  zero TLTM policy steps.
+
+10k telemetry summary after the h-min floor patch:
+
+```text
+fb_norefine runtime_ratio=0.889689 rhs_per_call_ratio=0.787311 calls_ratio=0.999606
+  tltm_endpoint runtime=983.6585092 rhs/call=269.21932206138547 unresolved=170
+  hairer_experimental runtime=875.1497855 rhs/call=211.9592863401591 unresolved=180
+no_fb runtime_ratio=0.843040 rhs_per_call_ratio=0.783521 calls_ratio=1.000449
+  tltm_endpoint runtime=576.9394603 rhs/call=245.63404171228856 unresolved=8272
+  hairer_experimental runtime=486.3828413 rhs/call=192.45946359359428 unresolved=8287
+```
+
+Comparison to F18b.5h: all non-runtime aggregate columns are byte-identical for
+both policies and both methods.  Runtime deltas are timing noise only:
+`fb_norefine` default `-8.599s`, Hairer `+6.550s`; `no_fb` default `+0.225s`,
+Hairer `+4.360s`.  Therefore the h-min floor closure is behavior-neutral on
+this representative 10seed x 10k gate while correcting the Hairer-route
+controller semantics.
+
 ## Current Decision
 
 Do not use the older hybrid `hairer_experimental` telemetry as the route
@@ -465,10 +537,11 @@ decision for the coherent Hairer state-machine path.  F18b.5a identity-map/
 counter/test surface, F18b.5b single-row `MIDEX(J)` primitive, F18b.5c
 row-lifecycle state, F18b.5d outer-controller decision layer, F18b.5e opt-in
 endpoint wiring, F18b.5f local analytic gates, F18b.5f repaired remote tiny
-smoke, F18b.5g 1k/10seed telemetry, and F18b.5h 10seed x 10k telemetry are
+smoke, F18b.5g 1k/10seed telemetry, F18b.5h 10seed x 10k telemetry, and the
+F18b.5i Hairer h-min/failure-floor source patch plus 10seed x 10k readback are
 implemented/passed.  The coherent Hairer endpoint route is faster than default
-in both telemetry gates, with lower RHS/call and comparable ODEX-call counts.
-Default-route adoption still requires separate approval after this readback.
+in the completed telemetry gates, with lower RHS/call and comparable ODEX-call
+counts.  Default-route adoption still requires separate approval.
 
 ## Claim Boundary
 
@@ -483,6 +556,10 @@ true cost of a coherent Hairer controller.  F18b.5a identity counters,
 F18b.5b single-row primitive, F18b.5c row lifecycle, F18b.5d outer controller
 decision state, F18b.5e opt-in endpoint wiring, F18b.5f local analytic gates,
 F18b.5f repaired remote tiny smoke, F18b.5g 1k/10seed telemetry, and F18b.5h
-10seed x 10k telemetry are implemented/passed; the next claim boundary is the
-default-route adoption decision and any follow-on affected-baseline gate.
+10seed x 10k telemetry are implemented/passed.  F18b.5i removes the remaining
+TLTM tolerance/span h-min floor from the opt-in Hairer endpoint route while
+preserving the default TLTM route; its 10seed x 10k readback is non-runtime
+byte-identical to F18b.5h and keeps the Hairer route faster than default.  The
+next claim boundary is the default-route adoption decision and any follow-on
+affected-baseline gate.
 ```

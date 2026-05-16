@@ -1953,3 +1953,37 @@
 - Decision state: F18b.5h supports that the coherent Hairer endpoint route is
   faster than default in the 10seed x 10k gate, but default-route adoption is a
   separate human decision and should not be made silently.
+
+## 2026-05-16 JST - F18b.5i Hairer h-min/failure-floor closure
+
+- Implemented `odex_observe_hairer_h_min` and routed both non-context and
+  context `hairer_experimental` endpoint loops through the roundoff-only h-min
+  floor.  The default `tltm_endpoint` route keeps the existing TLTM
+  `max(fp, min(tol, span))` h-min observer and failure classification.
+- Local focused verification passed at source commit
+  `cf716d12fca12f12cf44c61eba880191a4012b8b`:
+  `git diff --check`,
+  `make -C build test_odex_controller_observation_contract
+  test_odex_controller_alignment_spec test_odex_backend_package_contract
+  test_odex_result_contract`, and
+  `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental make -C build
+  test_odex_backend_package_contract`.
+- Pushed source commit `cf716d12fca12f12cf44c61eba880191a4012b8b`,
+  updated the detached remote scratch worktree
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization_f18b5f`, and
+  submitted PBS job `15547.anode01` using the existing paired 10seed x 10k
+  worker with campaign
+  `f18b5i_hairer_hmin_floor_npt5_r0055_10seed_10k_20260516T224657_cf716d12fca1`.
+- PBS job `15547.anode01` ran on C16/cnode01 and completed with
+  `Exit_status=0`, `walltime=00:27:49`, `GIT_DIRTY_COUNT=0`, and terminal
+  counter assertions passed.
+- F18b.5i 10k readback:
+  `fb_norefine` runtime ratio `0.889689`, RHS/call ratio `0.787311`, calls
+  ratio `0.999606`, unresolved counts `170 -> 180`; `no_fb` runtime ratio
+  `0.843040`, RHS/call ratio `0.783521`, calls ratio `1.000449`, unresolved
+  counts `8272 -> 8287`.
+- All non-runtime aggregate columns are byte-identical to the F18b.5h 10k
+  readback for both policies and both methods.  Conclusion: the h-min floor
+  mismatch is closed in source/tests, default route behavior is unchanged, and
+  representative 10k behavior/counters are unchanged apart from runtime noise.
+  Default-route adoption remains a separate decision.
