@@ -40,8 +40,9 @@ end module test_odex_controller_observation_rhs
 program test_odex_controller_observation_contract
    use odex_backend, only: build_nsteps, ensure_odex_workspace_object, odex_default_options, &
                            odex_integrate_endpoint, odex_observe_controller_estimate, &
-                           odex_observe_h_min, odex_observe_initial_step, &
+                           odex_observe_h_min, odex_observe_hairer_h_min, odex_observe_initial_step, &
                            odex_observe_large_error_threshold, odex_observe_stability_reject, &
+                           odex_controller_policy_hairer_experimental, &
                            odex_options, odex_reason_h_min, odex_reason_invalid, odex_reason_max_steps, odex_result, &
                            odex_status_failure_h_min, odex_status_failure_invalid, &
                            odex_status_failure_max_steps, odex_status_success, &
@@ -72,8 +73,9 @@ contains
 
    subroutine check_initial_step_and_h_min(failures)
       integer, intent(inout) :: failures
-      type(odex_options) :: options
+      type(odex_options) :: options, hairer_options
       real(dp) :: h_min, h_min_fp, h_min_tol, h_min_span
+      real(dp) :: hairer_h_min, hairer_h_min_fp, hairer_h_min_tol, hairer_h_min_span
       real(dp) :: expected_fp, expected_tol, expected_span, expected_h_min
       real(dp) :: t_short, t_long, h_short, h_long
       logical :: ok
@@ -89,15 +91,24 @@ contains
       expected_h_min = max(expected_fp, min(expected_tol, expected_span))
       h_short = odex_observe_initial_step(options, t_short)
       h_long = odex_observe_initial_step(options, t_long)
+      hairer_options = options
+      hairer_options%controller_policy = odex_controller_policy_hairer_experimental
+      call odex_observe_hairer_h_min(hairer_options, t_short, hairer_h_min, &
+                                     hairer_h_min_fp, hairer_h_min_tol, hairer_h_min_span)
 
       ok = nearly_equal(h_min_fp, expected_fp, 1.0e-15_dp) .and. &
            nearly_equal(h_min_tol, expected_tol, 1.0e-18_dp) .and. &
            nearly_equal(h_min_span, expected_span, 1.0e-18_dp) .and. &
            nearly_equal(h_min, expected_h_min, 1.0e-18_dp) .and. &
            nearly_equal(h_short, t_short*options%initial_step_fraction, 1.0e-18_dp) .and. &
-           nearly_equal(h_long, t_long*options%initial_step_fraction, 1.0e-18_dp)
-      write (*, '(A,L1,A,ES12.4,A,ES12.4,A,ES12.4)') "[CHECK] h0_hmin_observation ok=", ok, &
-         " h_short=", h_short, " h_long=", h_long, " h_min=", h_min
+           nearly_equal(h_long, t_long*options%initial_step_fraction, 1.0e-18_dp) .and. &
+           nearly_equal(hairer_h_min_fp, expected_fp, 1.0e-15_dp) .and. &
+           nearly_equal(hairer_h_min_tol, 0.0_dp, 1.0e-18_dp) .and. &
+           nearly_equal(hairer_h_min_span, 0.0_dp, 1.0e-18_dp) .and. &
+           nearly_equal(hairer_h_min, expected_fp, 1.0e-15_dp) .and. &
+           hairer_h_min < h_min
+      write (*, '(A,L1,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4)') "[CHECK] h0_hmin_observation ok=", ok, &
+         " h_short=", h_short, " h_long=", h_long, " h_min=", h_min, " hairer_h_min=", hairer_h_min
       call count_failure(ok, "[FAIL] initial-step or h-min observation changed.", failures)
    end subroutine check_initial_step_and_h_min
 

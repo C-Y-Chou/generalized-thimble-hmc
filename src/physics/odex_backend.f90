@@ -306,6 +306,7 @@ module odex_backend
    public :: odex_observe_hairer_reject_update
    public :: odex_observe_hairer_row_lifecycle_begin
    public :: odex_observe_hairer_step_entry
+   public :: odex_observe_hairer_h_min
    public :: odex_observe_h_min
    public :: odex_observe_initial_step
    public :: odex_observe_large_error_threshold
@@ -484,10 +485,11 @@ contains
       call ensure_odex_workspace_object(workspace, opts%k_max + 1, state_size)
       hairer_policy = (opts%controller_policy == odex_controller_policy_hairer_experimental)
 
-      h_min_fp = opts%h_min_c_fp*epsilon(1.0_dp)*max(1.0_dp, abs(t))
-      h_min_tol = opts%h_min_c_tol*max(opts%abs_tol, opts%rel_tol, epsilon(1.0_dp))
-      h_min_span = opts%h_min_c_span*abs(t)
-      h_min = max(h_min_fp, min(h_min_tol, h_min_span))
+      if (hairer_policy) then
+         call odex_observe_hairer_h_min(opts, t, h_min, h_min_fp, h_min_tol, h_min_span)
+      else
+         call odex_observe_h_min(opts, t, h_min, h_min_fp, h_min_tol, h_min_span)
+      end if
 
       tc = 0.0_dp
       workspace%ystate(1:state_size) = y
@@ -670,10 +672,11 @@ contains
       call ensure_odex_workspace_object(workspace, opts%k_max + 1, state_size)
       hairer_policy = (opts%controller_policy == odex_controller_policy_hairer_experimental)
 
-      h_min_fp = opts%h_min_c_fp*epsilon(1.0_dp)*max(1.0_dp, abs(t))
-      h_min_tol = opts%h_min_c_tol*max(opts%abs_tol, opts%rel_tol, epsilon(1.0_dp))
-      h_min_span = opts%h_min_c_span*abs(t)
-      h_min = max(h_min_fp, min(h_min_tol, h_min_span))
+      if (hairer_policy) then
+         call odex_observe_hairer_h_min(opts, t, h_min, h_min_fp, h_min_tol, h_min_span)
+      else
+         call odex_observe_h_min(opts, t, h_min, h_min_fp, h_min_tol, h_min_span)
+      end if
 
       tc = 0.0_dp
       workspace%ystate(1:state_size) = y
@@ -2713,6 +2716,23 @@ contains
       if (present(h_min_tol)) h_min_tol = tol_component
       if (present(h_min_span)) h_min_span = span_component
    end subroutine odex_observe_h_min
+
+   subroutine odex_observe_hairer_h_min(options, t, h_min, h_min_fp, h_min_tol, h_min_span)
+      type(odex_options), intent(in) :: options
+      real(dp), intent(in) :: t
+      real(dp), intent(out) :: h_min
+      real(dp), intent(out), optional :: h_min_fp, h_min_tol, h_min_span
+      type(odex_options) :: opts
+      real(dp) :: fp_component
+
+      opts = options
+      call odex_normalize_options(opts)
+      fp_component = opts%h_min_c_fp*epsilon(1.0_dp)*max(1.0_dp, abs(t))
+      h_min = fp_component
+      if (present(h_min_fp)) h_min_fp = fp_component
+      if (present(h_min_tol)) h_min_tol = 0.0_dp
+      if (present(h_min_span)) h_min_span = 0.0_dp
+   end subroutine odex_observe_hairer_h_min
 
    function odex_observe_initial_step(options, t) result(h_initial)
       type(odex_options), intent(in) :: options

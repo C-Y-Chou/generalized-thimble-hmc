@@ -12,6 +12,7 @@ program test_odex_controller_alignment_spec
                            odex_observe_hairer_controller_reject_update, &
                            odex_observe_hairer_controller_row_action, &
                            odex_observe_hairer_controller_step_entry, &
+                           odex_observe_hairer_h_min, &
                            odex_observe_hairer_initial_state, odex_observe_hairer_kopt, &
                            odex_observe_hairer_midex_lifecycle_row, &
                            odex_observe_hairer_midex_row, odex_observe_hairer_promotion_step, &
@@ -40,6 +41,7 @@ program test_odex_controller_alignment_spec
    call check_growth_bound_alignment(failures)
    call check_order_threshold_alignment(failures)
    call check_hairer_route_policy_gate(failures)
+   call check_hairer_hmin_floor_alignment(failures)
    call check_hairer_route_skeleton_reference(failures)
    call check_midex_row_primitive(failures)
    call check_midex_row_lifecycle(failures)
@@ -160,6 +162,32 @@ contains
          " policy=", options%controller_policy
       call count_failure(ok, "[FAIL] Hairer-route policy gate changed.", failures)
    end subroutine check_hairer_route_policy_gate
+
+   subroutine check_hairer_hmin_floor_alignment(failures)
+      integer, intent(inout) :: failures
+      type(odex_options) :: options
+      real(dp) :: default_h_min, hairer_h_min, hairer_h_min_fp, hairer_h_min_tol, hairer_h_min_span
+      real(dp) :: expected_fp
+      logical :: ok
+
+      call odex_default_options(options, 1.0e-8_dp, 1.0e-8_dp)
+      options%controller_policy = odex_controller_policy_hairer_experimental
+      options%h_min_c_tol = 1.0e12_dp
+      options%h_min_c_span = 0.5_dp
+      call odex_observe_h_min(options, 1.0_dp, default_h_min)
+      call odex_observe_hairer_h_min(options, 1.0_dp, hairer_h_min, &
+                                     hairer_h_min_fp, hairer_h_min_tol, hairer_h_min_span)
+      expected_fp = options%h_min_c_fp*epsilon(1.0_dp)
+
+      ok = nearly_equal(hairer_h_min, expected_fp, 1.0e-15_dp) .and. &
+           nearly_equal(hairer_h_min_fp, expected_fp, 1.0e-15_dp) .and. &
+           nearly_equal(hairer_h_min_tol, 0.0_dp, 1.0e-18_dp) .and. &
+           nearly_equal(hairer_h_min_span, 0.0_dp, 1.0e-18_dp) .and. &
+           default_h_min > hairer_h_min
+      write (*, '(A,L1,A,ES12.4,A,ES12.4)') "[CHECK] hairer_hmin_floor_aligned ok=", ok, &
+         " default_h_min=", default_h_min, " hairer_h_min=", hairer_h_min
+      call count_failure(ok, "[FAIL] Hairer h-min floor picked up TLTM tolerance/span floor.", failures)
+   end subroutine check_hairer_hmin_floor_alignment
 
    subroutine check_hairer_route_skeleton_reference(failures)
       integer, intent(inout) :: failures
