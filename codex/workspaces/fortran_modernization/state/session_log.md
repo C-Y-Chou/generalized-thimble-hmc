@@ -1909,3 +1909,24 @@
 - Registered the PBS script in `SCRIPT_EVIDENCE_AUDIT_20260512.tsv`.  This is a
   1k telemetry gate only; 10k remains blocked until the 1k readback is coherent
   and plausibly scalable.
+
+## 2026-05-16 JST - F18b.5g 1k telemetry readback and F18b.5h prep
+
+- Pushed F18b.5g prep at `99652f3fe91aed461f45d6cdafb052c0b9cb2bfe`,
+  updated the detached remote scratch worktree
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization_f18b5f`, and
+  submitted PBS job `15545.anode01`.
+- PBS job `15545.anode01` ran on C16/cnode01, completed with `Exit_status=0`,
+  `walltime=00:03:42`, and campaign
+  `f18b5g_hairer_endpoint_telemetry_compare_npt5_r0055_10seed_1k_20260516T213911_99652f3fe91a`.
+- F18b.5g readback: for `fb_norefine`, coherent Hairer runtime/default
+  runtime ratio was `0.882315`, RHS/call ratio `0.785947`, and calls ratio
+  `0.999444`; for `no_fb`, runtime ratio was `0.842229`, RHS/call ratio
+  `0.782279`, and calls ratio `1.00053`.
+- The coherent `hairer_experimental` endpoint route is not slower in this 1k
+  screen and has lower RHS/call with comparable ODEX-call counts.  This
+  satisfies the stop-before-10k condition.
+- Added `f18b5h_hairer_endpoint_telemetry_compare_10seed_10k_20260516.pbs` as
+  the next remote-only 10seed x 10k telemetry confirmation gate, with the same
+  default-vs-Hairer counter assertions as F18b.5g.  This is not default-route
+  adoption or production redo.

@@ -395,16 +395,50 @@ Prepared 1k gate:
   have Hairer policy steps, live `ERROLD` checks, Hairer scales, zero default
   scales, and zero TLTM policy steps.
 
+F18b.5g readback passed as PBS job `15545.anode01` at commit
+`99652f3fe91aed461f45d6cdafb052c0b9cb2bfe`, campaign
+`f18b5g_hairer_endpoint_telemetry_compare_npt5_r0055_10seed_1k_20260516T213911_99652f3fe91a`.
+The run completed with `Exit_status=0` and `walltime=00:03:42`.
+
+1k telemetry summary:
+
+```text
+fb_norefine runtime_ratio=0.882315 rhs_per_call_ratio=0.785947 calls_ratio=0.999444
+  tltm_endpoint runtime=101.44467699999998 rhs/call=267.81350874831725 unresolved=18
+  hairer_experimental runtime=89.5061914 rhs/call=210.48711924738322 unresolved=16
+no_fb runtime_ratio=0.842229 rhs_per_call_ratio=0.782279 calls_ratio=1.00053
+  tltm_endpoint runtime=57.5370806 rhs/call=244.6386910165504 unresolved=877
+  hairer_experimental runtime=48.4593791 rhs/call=191.37569441539443 unresolved=881
+```
+
+Decision from 1k: coherent Hairer endpoint telemetry is not slower in this gate;
+RHS/call is about `0.78x` default and runtime is about `0.84x` to `0.88x`
+default.  Proceed to F18b.5h 10seed x 10k telemetry before discussing default
+route adoption.
+
+### F18b.5h: 10k Telemetry Confirmation
+
+Prepared 10k gate:
+
+- `codex/workspaces/fortran_modernization/tasks/pbs/f18b5h_hairer_endpoint_telemetry_compare_10seed_10k_20260516.pbs`
+  compares default `tltm_endpoint` and coherent `hairer_experimental` at
+  10 seeds x 10k cycles under the same official DFO-LS `npt5_r0055`,
+  assist-off, Stage2 RNG v2, and counter assertions as F18b.5g.
+- This is still telemetry/affected-baseline evidence, not production redo and
+  not default-route adoption by itself.
+
 ## Current Decision
 
 Do not use the older hybrid `hairer_experimental` telemetry as the route
 decision for the coherent Hairer state-machine path.  F18b.5a identity-map/
 counter/test surface, F18b.5b single-row `MIDEX(J)` primitive, F18b.5c
 row-lifecycle state, F18b.5d outer-controller decision layer, F18b.5e opt-in
-endpoint wiring, F18b.5f local analytic gates, and F18b.5f remote tiny smoke are
-implemented/passed.  The next actionable engineering step is F18b.5g remote
-1k/10seed telemetry, with a stop-and-discuss point if runtime/counters are not
-plausibly 10k-scalable.
+endpoint wiring, F18b.5f local analytic gates, F18b.5f repaired remote tiny
+smoke, and F18b.5g 1k/10seed telemetry are implemented/passed.  The 1k gate
+shows the coherent Hairer endpoint route is faster than default in this screen,
+with lower RHS/call and comparable ODEX-call counts, so the next actionable
+engineering step is F18b.5h remote 10seed x 10k telemetry.  Default-route
+adoption still requires separate approval after the 10k readback.
 
 ## Claim Boundary
 
@@ -418,6 +452,7 @@ Existing hybrid Hairer telemetry is debug evidence only and cannot decide the
 true cost of a coherent Hairer controller.  F18b.5a identity counters,
 F18b.5b single-row primitive, F18b.5c row lifecycle, F18b.5d outer controller
 decision state, F18b.5e opt-in endpoint wiring, F18b.5f local analytic gates,
-and F18b.5f remote tiny smoke are implemented/passed; the next claim boundary is
-F18b.5g 1k/10seed telemetry evidence.
+F18b.5f repaired remote tiny smoke, and F18b.5g 1k/10seed telemetry are
+implemented/passed; the next claim boundary is F18b.5h 10seed x 10k telemetry
+evidence before any default-route adoption decision.
 ```
