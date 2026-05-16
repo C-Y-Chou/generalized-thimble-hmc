@@ -384,6 +384,17 @@ Only after the passed F18b.5f tiny smoke:
 3. remote 10k/10seed only if 1k is coherent and close enough;
 4. default-route adoption only after separate approval.
 
+Prepared 1k gate:
+
+- `codex/workspaces/fortran_modernization/tasks/pbs/f18b5g_hairer_endpoint_telemetry_compare_10seed_1k_20260516.pbs`
+  compares the default `tltm_endpoint` controller with the coherent
+  `hairer_experimental` endpoint route at 10 seeds x 1k cycles, official DFO-LS
+  `npt5_r0055`, assist off, Stage2 RNG v2, and task-parallel policy execution.
+- The terminal PBS assertion verifies that default rows have TLTM policy steps,
+  default scales, and no Hairer policy steps, while `hairer_experimental` rows
+  have Hairer policy steps, live `ERROLD` checks, Hairer scales, zero default
+  scales, and zero TLTM policy steps.
+
 ## Current Decision
 
 Do not use the older hybrid `hairer_experimental` telemetry as the route

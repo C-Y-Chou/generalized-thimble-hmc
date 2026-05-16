@@ -1895,3 +1895,17 @@
 - F18b.5f is now passed for local analytic gates plus remote tiny route/counter
   activation.  Next ODEX gate is F18b.5g 1k/10seed telemetry; do not run 10k
   until 1k runtime/counters look plausibly scalable.
+
+## 2026-05-16 JST - F18b.5g 1k telemetry PBS prep
+
+- Added `f18b5g_hairer_endpoint_telemetry_compare_10seed_1k_20260516.pbs`.
+  The script runs a paired 10seed x 1k comparison of default `tltm_endpoint`
+  against coherent `hairer_experimental` on the clean scratch worktree route,
+  official DFO-LS `npt5_r0055`, assist off, and Stage2 RNG v2.
+- Added terminal counter assertions so the default route must show TLTM policy
+  steps/default scales and no Hairer policy steps, while the experimental route
+  must show Hairer policy steps/live `ERROLD`/Hairer scales and zero TLTM policy
+  steps/default scales.
+- Registered the PBS script in `SCRIPT_EVIDENCE_AUDIT_20260512.tsv`.  This is a
+  1k telemetry gate only; 10k remains blocked until the 1k readback is coherent
+  and plausibly scalable.
