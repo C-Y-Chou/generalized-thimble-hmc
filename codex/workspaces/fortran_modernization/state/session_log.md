@@ -2015,3 +2015,23 @@
   anchor was stable across A/B runs, Stage1 and Stage2 label-trace hashes stayed
   unchanged, and `make -C build modernization_guardrails` passed after the
   anchor update.
+- Pushed source commit `d2ec531c288af56ffe5ba331d7e426751c69bc3c`, updated
+  remote scratch worktree
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization_f18b5f`, and
+  submitted PBS job `15548.anode01`.
+- PBS job `15548.anode01` ran on C16/cnode01 and completed with
+  `Exit_status=0`, `walltime=00:23:28`, `GIT_DIRTY_COUNT=0`, and campaign
+  `f18b5j_hairer_only_default_npt5_r0055_10seed_10k_20260516T235010_d2ec531c288a`.
+- F18b.5j ran with `TLTM_ODE_CONTROLLER_POLICY` unset and
+  `POLICIES=default_unset_hairer_only`.  For both `fb_norefine` and `no_fb`,
+  non-runtime aggregate columns have zero diffs against the F18b.5i
+  `hairer_experimental` readback.
+- Readback counters: `fb_norefine` unresolved `180`, runtime `843.5963881`,
+  RHS/call `211.9592863401591`, Hairer steps `403803729`, TLTM steps `0`,
+  `ERROLD=errors=1508303952`, default scales `0`; `no_fb` unresolved `8287`,
+  runtime `466.4598434`, RHS/call `192.45946359359428`, Hairer steps
+  `362813269`, TLTM steps `0`, `ERROLD=errors=1312943750`, default scales `0`.
+- Walltime note: F18b.5j is not expected to be half the paired F18b.5i
+  walltime because the paired worker already ran both policy drivers in
+  parallel on 20 cores.  Treat `00:23:28` versus F18b.5i `00:27:49` as
+  task-tail/scheduler behavior, not a new performance claim.

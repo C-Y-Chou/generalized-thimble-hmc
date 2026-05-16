@@ -587,6 +587,38 @@ Remote gate prepared:
 - This gate is not production redo.  It is the behavior/API adoption gate for
   making the coherent Hairer endpoint route the only active ODEX route.
 
+Remote readback:
+
+- PBS job `15548.anode01` ran on C16/cnode01 with campaign
+  `f18b5j_hairer_only_default_npt5_r0055_10seed_10k_20260516T235010_d2ec531c288a`.
+- The job completed with `Exit_status=0`, `walltime=00:23:28`,
+  `GIT_COMMIT=d2ec531c288af56ffe5ba331d7e426751c69bc3c`, and
+  `GIT_DIRTY_COUNT=0`.
+- The worker ran with `TLTM_ODE_CONTROLLER_POLICY` unset,
+  `POLICIES=default_unset_hairer_only`, `N_SEEDS=10`,
+  `CYCLES_PER_SEED=10000`, and `JOBS=20`.
+- Non-runtime aggregate columns are identical to the F18b.5i
+  `hairer_experimental` readback for both `fb_norefine` and `no_fb`.
+- Counter assertions pass in the aggregate readback: Hairer policy steps are
+  positive, TLTM policy steps are zero, `ERROLD` checks equal error estimates,
+  Hairer scale estimates equal error estimates, and default-scale estimates are
+  zero.
+
+10k default-unset readback:
+
+```text
+fb_norefine unresolved=180 runtime=843.5963881 odex_calls=64953802 rhs/call=211.9592863401591
+  hairer_steps=403803729 tltm_steps=0 errold=1508303952 errors=1508303952 default_scal=0 hairer_scal=1508303952
+no_fb unresolved=8287 runtime=466.4598434 odex_calls=60524445 rhs/call=192.45946359359428
+  hairer_steps=362813269 tltm_steps=0 errold=1312943750 errors=1312943750 default_scal=0 hairer_scal=1312943750
+```
+
+Walltime interpretation: F18b.5j was not expected to be half the paired
+F18b.5i walltime because the paired worker already ran both policy drivers in
+parallel on the same 20-core node.  F18b.5j finished in `00:23:28` versus
+F18b.5i `00:27:49`; treat the difference as scheduler/task-tail behavior, not
+a new performance claim.
+
 ## Current Decision
 
 Do not use the older hybrid `hairer_experimental` telemetry as the route
@@ -598,9 +630,10 @@ smoke, F18b.5g 1k/10seed telemetry, F18b.5h 10seed x 10k telemetry, and the
 F18b.5i Hairer h-min/failure-floor source patch plus 10seed x 10k readback are
 implemented/passed.  The coherent Hairer endpoint route is faster than default
 in the completed telemetry gates, with lower RHS/call and comparable ODEX-call
-counts.  The user approved default-route adoption on 2026-05-16 JST; F18b.5j
-implements it as a separate behavior/API patch and must pass its affected
-baseline gate before production-comparison sync or regeneration.
+counts.  The user approved default-route adoption on 2026-05-16 JST, and
+F18b.5j implements it as a separate behavior/API patch.  PBS job
+`15548.anode01` passed the default-unset 10seed x 10k affected-baseline gate,
+with non-runtime aggregate columns identical to F18b.5i `hairer_experimental`.
 
 ## Claim Boundary
 
@@ -621,6 +654,9 @@ preserving the default TLTM route; its 10seed x 10k readback is non-runtime
 byte-identical to F18b.5h and keeps the Hairer route faster than default.  The
 user approved default-route adoption on 2026-05-16 JST.  F18b.5j makes the
 coherent Hairer route the only active ODEX controller route, with legacy
-`tltm_endpoint` accepted only as a compatibility alias.  The next claim
-boundary is the F18b.5j affected-baseline readback.
+`tltm_endpoint` accepted only as a compatibility alias.  F18b.5j passed the
+default-unset 10seed x 10k affected-baseline readback.  This does not claim a
+general-purpose or dense-output Hairer ODEX library, and the remaining
+alignment-spec gap markers stay scoped claim boundaries rather than active
+alternative routes.
 ```
