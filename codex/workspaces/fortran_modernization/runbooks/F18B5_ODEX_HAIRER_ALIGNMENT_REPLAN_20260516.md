@@ -213,6 +213,8 @@ make -C build test_odex_controller_alignment_spec test_odex_backend_package_cont
 
 ### F18b.5d: Pure Outer Controller State Machine
 
+Status: implemented in test-facing form on 2026-05-16 JST.
+
 Implement a pure or near-pure controller-decision layer that consumes row
 outcomes and returns the next action:
 
@@ -227,6 +229,35 @@ outcomes and returns the next action:
 
 This layer must be tested with synthetic `ERR/HH/W/K/KC/REJECT/LAST` cases
 before it controls TLTM flow solves.
+
+Implementation surfaces:
+
+- `src/physics/odex_backend.f90`: public test-facing
+  `odex_hairer_controller_state`, `odex_hairer_controller_decision`, controller
+  action/phase constants, and observer helpers for initial state, step entry,
+  row action, accepted-step update, and rejected-step update.
+- `tests/test_odex_controller_alignment_spec.f90`: synthetic controller
+  contract for step-entry endpoint/last-step behavior, first/last-step row
+  accept and K+1 hope, basic-step convergence monitor, after-reject accepted
+  clamp, rejected-step demotion, signed `H`, and `ATOV` retry.
+
+Important readback:
+
+- The helper layer follows the official Hairer `ODXCOR` outer-controller
+  structure but remains outside the live endpoint route.
+- `ATOV` produces a retry with `REJECT=.true.` and the `SAFE3`-shrunk signed
+  `H`; ordinary rejected steps apply `K=MIN(K,KC,KM-1)`, possible demotion by
+  `W(K-1)<W(K)*FAC3`, and signed `HH(K)`.
+- Accepted-step update computes `KOPT`, preserves the after-reject clamp
+  `H=POSNEG*MIN(ABS(H),ABS(HH(K)))`, and uses the Hairer promotion special case
+  with `A(KOPT+1)/A(KC)` when `KC<K` and the work comparison requires it.
+
+Focused verification passed:
+
+```text
+git diff --check -- src/physics/odex_backend.f90 tests/test_odex_controller_alignment_spec.f90
+make -C build test_odex_controller_alignment_spec test_odex_backend_package_contract test_odex_result_contract
+```
 
 ### F18b.5e: Opt-In Endpoint Wiring
 
@@ -258,10 +289,10 @@ Only after F18b.5f:
 
 Do not continue patching runtime cost inside the current hybrid
 `hairer_experimental` path.  F18b.5a identity-map/counter/test surface,
-F18b.5b single-row `MIDEX(J)` primitive, and F18b.5c row-lifecycle observer
-state are now implemented.  The next actionable engineering step is F18b.5d:
-a pure or near-pure outer controller state machine that consumes row outcomes
-before any live endpoint wiring or additional 1k telemetry.
+F18b.5b single-row `MIDEX(J)` primitive, F18b.5c row-lifecycle observer state,
+and F18b.5d outer-controller decision layer are now implemented in focused
+test-facing form.  The next actionable engineering step is F18b.5e: opt-in
+endpoint wiring, still before any additional 1k telemetry.
 
 ## Claim Boundary
 
@@ -273,6 +304,7 @@ matched surface.  The route to Hairer alignment must now proceed by state-machin
 port: row primitive, row lifecycle, outer controller, then endpoint wiring.
 Existing hybrid Hairer telemetry is debug evidence only and cannot decide the
 true cost of a coherent Hairer controller.  F18b.5a identity counters,
-F18b.5b single-row primitive, and F18b.5c row lifecycle are implemented; the
-next claim boundary is F18b.5d pure outer controller state.
+F18b.5b single-row primitive, F18b.5c row lifecycle, and F18b.5d outer
+controller decision state are implemented; the next claim boundary is F18b.5e
+opt-in endpoint wiring.
 ```

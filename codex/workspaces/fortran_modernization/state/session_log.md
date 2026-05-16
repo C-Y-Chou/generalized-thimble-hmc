@@ -1777,3 +1777,30 @@
   `WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`.  Next ODEX action is F18b.5d:
   implement a pure or near-pure outer controller state machine before endpoint
   wiring or any more 1k/10seed telemetry.
+
+## 2026-05-16 JST - F18b.5d ODEX outer-controller decision layer
+
+- Created a clean checkpoint commit before starting this slice:
+  `f8251ee Checkpoint ODEX Hairer alignment state`.
+- Implemented a test-facing Hairer outer-controller decision layer in
+  `src/physics/odex_backend.f90`: `odex_hairer_controller_state`,
+  `odex_hairer_controller_decision`, action/phase constants, initial-state and
+  step-entry observers, row-action observer, accepted-step update, and
+  rejected-step update.
+- The helper layer is not wired into the live endpoint route.  It encodes the
+  official `ODXCOR` controller decisions for step entry, first/last-step row
+  accept, basic-step convergence monitor, K+1 hope, `ATOV` retry, rejected-step
+  demotion, signed `HH(K)`, `KOPT`, and after-reject accepted-step clamp.
+- Added synthetic focused tests in `test_odex_controller_alignment_spec` for
+  endpoint/last-step entry, first/last row action, basic row action, accepted
+  update, rejected update, and `ATOV` retry.
+- Verification passed:
+  `git diff --check -- src/physics/odex_backend.f90 tests/test_odex_controller_alignment_spec.f90`;
+  `make -C build test_odex_controller_alignment_spec test_odex_backend_package_contract test_odex_result_contract`.
+  No local TLTM Stage2/Stage3 simulation screen was run.
+- Updated `F18B5_ODEX_HAIRER_ALIGNMENT_REPLAN_20260516.md`,
+  `OPEN_ITEMS.tsv`, `STATE_BRIEF.md`, and
+  `WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`.  Next ODEX action is F18b.5e:
+  wire row lifecycle plus controller decision layer into the opt-in
+  `hairer_experimental` endpoint route, still before analytic/tiny gates or
+  any additional 1k telemetry.

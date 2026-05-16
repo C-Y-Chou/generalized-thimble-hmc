@@ -30,6 +30,14 @@ module odex_backend
    integer, parameter, public :: odex_order_transition_demote = -1
    integer, parameter, public :: odex_order_transition_keep = 0
    integer, parameter, public :: odex_order_transition_promote = 1
+   integer, parameter, public :: odex_hairer_controller_action_continue = 0
+   integer, parameter, public :: odex_hairer_controller_action_accept = 1
+   integer, parameter, public :: odex_hairer_controller_action_reject = 2
+   integer, parameter, public :: odex_hairer_controller_action_retry = 3
+   integer, parameter, public :: odex_hairer_controller_action_endpoint = 4
+   integer, parameter, public :: odex_hairer_controller_action_invalid = 5
+   integer, parameter, public :: odex_hairer_controller_phase_first_last = 1
+   integer, parameter, public :: odex_hairer_controller_phase_basic = 2
    real(dp), parameter, public :: odex_hairer_errold_initial = 1.0e10_dp
    integer(c_int), parameter :: sundials_cvode_status_success = 0_c_int
    integer(c_int), parameter :: sundials_cvode_status_max_steps = 1_c_int
@@ -187,6 +195,32 @@ module odex_backend
       real(dp), allocatable :: work(:)
    end type odex_hairer_row_lifecycle
 
+   type, public :: odex_hairer_controller_state
+      logical :: initialized = .false.
+      logical :: rejected = .false.
+      logical :: last_step = .false.
+      logical :: endpoint_reached = .false.
+      integer :: k = 2
+      integer :: kc = 0
+      integer :: km = odex_k_max
+      real(dp) :: h = 0.0_dp
+      real(dp) :: hmax_abs = 0.0_dp
+      real(dp) :: hoptde = 0.0_dp
+      real(dp) :: posneg = 1.0_dp
+   end type odex_hairer_controller_state
+
+   type, public :: odex_hairer_controller_decision
+      integer :: action = odex_hairer_controller_action_continue
+      integer :: next_row = 0
+      integer :: accepted_row = 0
+      integer :: rejected_row = 0
+      integer :: next_k = 0
+      real(dp) :: next_h = 0.0_dp
+      logical :: rejected_after = .false.
+      logical :: last_step = .false.
+      logical :: endpoint_reached = .false.
+   end type odex_hairer_controller_decision
+
    abstract interface
       function ode_rhs(y) result(dy)
          import :: dp
@@ -256,7 +290,14 @@ module odex_backend
    public :: odex_integrate_endpoint
    public :: odex_integrate_endpoint_context
    public :: odex_observe_controller_estimate
+   public :: odex_hairer_controller_decision_reset
+   public :: odex_hairer_controller_state_reset
    public :: odex_hairer_row_lifecycle_reset
+   public :: odex_observe_hairer_controller_accept_update
+   public :: odex_observe_hairer_controller_initial_state
+   public :: odex_observe_hairer_controller_reject_update
+   public :: odex_observe_hairer_controller_row_action
+   public :: odex_observe_hairer_controller_step_entry
    public :: odex_observe_hairer_initial_state
    public :: odex_observe_hairer_midex_row
    public :: odex_observe_hairer_midex_lifecycle_row
@@ -1734,6 +1775,343 @@ contains
          row_lifecycle%work(row_index) = row_state%work
       end if
    end subroutine odex_observe_hairer_midex_lifecycle_row
+
+   subroutine odex_hairer_controller_state_reset(controller_state)
+      type(odex_hairer_controller_state), intent(out) :: controller_state
+
+      controller_state%initialized = .false.
+      controller_state%rejected = .false.
+      controller_state%last_step = .false.
+      controller_state%endpoint_reached = .false.
+      controller_state%k = 2
+      controller_state%kc = 0
+      controller_state%km = odex_k_max
+      controller_state%h = 0.0_dp
+      controller_state%hmax_abs = 0.0_dp
+      controller_state%hoptde = 0.0_dp
+      controller_state%posneg = 1.0_dp
+   end subroutine odex_hairer_controller_state_reset
+
+   subroutine odex_hairer_controller_decision_reset(decision)
+      type(odex_hairer_controller_decision), intent(out) :: decision
+
+      decision%action = odex_hairer_controller_action_continue
+      decision%next_row = 0
+      decision%accepted_row = 0
+      decision%rejected_row = 0
+      decision%next_k = 0
+      decision%next_h = 0.0_dp
+      decision%rejected_after = .false.
+      decision%last_step = .false.
+      decision%endpoint_reached = .false.
+   end subroutine odex_hairer_controller_decision_reset
+
+   subroutine odex_observe_hairer_controller_initial_state(options, t, caller_h, hmax_input, controller_state)
+      type(odex_options), intent(in) :: options
+      real(dp), intent(in) :: t, caller_h, hmax_input
+      type(odex_hairer_controller_state), intent(out) :: controller_state
+
+      type(odex_options) :: opts
+      integer :: k_initial
+      real(dp) :: h_initial, hmax_abs
+
+      call odex_hairer_controller_state_reset(controller_state)
+      opts = options
+      call odex_normalize_options(opts)
+      call odex_observe_hairer_initial_state(opts, t, caller_h, hmax_input, h_initial, k_initial, hmax_abs)
+
+      controller_state%initialized = .true.
+      controller_state%k = k_initial
+      controller_state%km = opts%k_max
+      controller_state%h = h_initial
+      controller_state%hmax_abs = hmax_abs
+      controller_state%posneg = sign(1.0_dp, t)
+      controller_state%hoptde = controller_state%posneg*hmax_abs
+   end subroutine odex_observe_hairer_controller_initial_state
+
+   subroutine odex_observe_hairer_controller_step_entry(x, xend, u_round, controller_state, decision)
+      real(dp), intent(in) :: x, xend, u_round
+      type(odex_hairer_controller_state), intent(inout) :: controller_state
+      type(odex_hairer_controller_decision), intent(out) :: decision
+
+      real(dp) :: h_step
+      logical :: endpoint_reached, last_step
+
+      call odex_hairer_controller_decision_reset(decision)
+      if (.not. controller_state%initialized) then
+         decision%action = odex_hairer_controller_action_invalid
+         return
+      end if
+
+      call odex_observe_hairer_step_entry(x, xend, controller_state%h, controller_state%hmax_abs, &
+                                          controller_state%hoptde, u_round, h_step, last_step, endpoint_reached)
+      controller_state%endpoint_reached = endpoint_reached
+      controller_state%last_step = last_step
+      decision%endpoint_reached = endpoint_reached
+      decision%last_step = last_step
+
+      if (endpoint_reached) then
+         controller_state%h = 0.0_dp
+         decision%action = odex_hairer_controller_action_endpoint
+         return
+      end if
+
+      controller_state%h = h_step
+      controller_state%posneg = sign(1.0_dp, xend - x)
+      decision%next_h = h_step
+      decision%next_k = controller_state%k
+      decision%next_row = 1
+   end subroutine odex_observe_hairer_controller_step_entry
+
+   subroutine odex_observe_hairer_controller_row_action(controller_state, row_state, row_lifecycle, workspace, &
+                                                        options, phase, decision)
+      type(odex_hairer_controller_state), intent(inout) :: controller_state
+      type(odex_row_result), intent(in) :: row_state
+      type(odex_hairer_row_lifecycle), intent(in) :: row_lifecycle
+      type(odex_workspace), intent(in) :: workspace
+      type(odex_options), intent(in) :: options
+      integer, intent(in) :: phase
+      type(odex_hairer_controller_decision), intent(out) :: decision
+
+      integer :: row_index
+      real(dp) :: convergence_threshold, hope_threshold
+
+      call odex_hairer_controller_decision_reset(decision)
+      decision%next_k = controller_state%k
+      decision%next_h = controller_state%h
+      decision%last_step = controller_state%last_step
+      decision%endpoint_reached = controller_state%endpoint_reached
+
+      if (.not. controller_state%initialized .or. .not. row_lifecycle%initialized) then
+         decision%action = odex_hairer_controller_action_invalid
+         return
+      end if
+      if (row_state%invalid_rhs .or. row_state%stability_rejected) then
+         decision%action = odex_hairer_controller_action_invalid
+         return
+      end if
+
+      row_index = row_state%row_index
+      if (row_index <= 0) then
+         decision%action = odex_hairer_controller_action_invalid
+         return
+      end if
+
+      controller_state%kc = row_index
+      if (row_state%atov) then
+         controller_state%h = row_state%h_after
+         controller_state%rejected = .true.
+         decision%action = odex_hairer_controller_action_retry
+         decision%next_h = controller_state%h
+         decision%next_k = controller_state%k
+         decision%next_row = 1
+         decision%rejected_after = .true.
+         return
+      end if
+
+      if (.not. row_state%err_available) then
+         decision%next_row = row_index + 1
+         return
+      end if
+
+      select case (phase)
+      case (odex_hairer_controller_phase_first_last)
+         if (row_index > 1 .and. row_state%err <= 1.0_dp) then
+            decision%action = odex_hairer_controller_action_accept
+            decision%accepted_row = row_index
+            return
+         end if
+         if (row_index < controller_state%k) then
+            decision%next_row = row_index + 1
+            return
+         end if
+         if (row_index == controller_state%k) then
+            hope_threshold = odex_kplus1_hope_threshold(controller_state%k, workspace)
+            if (row_state%err > hope_threshold) then
+               call odex_observe_hairer_controller_reject_update(controller_state, row_lifecycle, options, decision)
+            else
+               decision%next_row = controller_state%k + 1
+            end if
+            return
+         end if
+         if (row_index == controller_state%k + 1) then
+            if (row_state%err > 1.0_dp) then
+               call odex_observe_hairer_controller_reject_update(controller_state, row_lifecycle, options, decision)
+            else
+               decision%action = odex_hairer_controller_action_accept
+               decision%accepted_row = row_index
+            end if
+            return
+         end if
+
+      case (odex_hairer_controller_phase_basic)
+         if (row_index < controller_state%k - 1) then
+            decision%next_row = row_index + 1
+            return
+         end if
+         if (row_index == controller_state%k - 1) then
+            if (controller_state%k == 2 .or. controller_state%rejected) then
+               decision%next_row = controller_state%k
+            else if (row_state%err <= 1.0_dp) then
+               decision%action = odex_hairer_controller_action_accept
+               decision%accepted_row = row_index
+            else
+               convergence_threshold = odex_convergence_reject_threshold(controller_state%k, workspace, .true.)
+               if (row_state%err > convergence_threshold) then
+                  call odex_observe_hairer_controller_reject_update(controller_state, row_lifecycle, options, decision)
+               else
+                  decision%next_row = controller_state%k
+               end if
+            end if
+            return
+         end if
+         if (row_index == controller_state%k) then
+            if (row_state%err <= 1.0_dp) then
+               decision%action = odex_hairer_controller_action_accept
+               decision%accepted_row = row_index
+            else
+               hope_threshold = odex_kplus1_hope_threshold(controller_state%k, workspace)
+               if (row_state%err > hope_threshold) then
+                  call odex_observe_hairer_controller_reject_update(controller_state, row_lifecycle, options, decision)
+               else
+                  decision%next_row = controller_state%k + 1
+               end if
+            end if
+            return
+         end if
+         if (row_index == controller_state%k + 1) then
+            if (row_state%err > 1.0_dp) then
+               call odex_observe_hairer_controller_reject_update(controller_state, row_lifecycle, options, decision)
+            else
+               decision%action = odex_hairer_controller_action_accept
+               decision%accepted_row = row_index
+            end if
+            return
+         end if
+
+      case default
+         decision%action = odex_hairer_controller_action_invalid
+         return
+      end select
+
+      decision%action = odex_hairer_controller_action_invalid
+   end subroutine odex_observe_hairer_controller_row_action
+
+   subroutine odex_observe_hairer_controller_accept_update(controller_state, row_lifecycle, workspace, options, decision)
+      type(odex_hairer_controller_state), intent(inout) :: controller_state
+      type(odex_hairer_row_lifecycle), intent(in) :: row_lifecycle
+      type(odex_workspace), intent(in) :: workspace
+      type(odex_options), intent(in) :: options
+      type(odex_hairer_controller_decision), intent(out) :: decision
+
+      type(odex_options) :: opts
+      integer :: kc, km, kopt, next_k
+      real(dp) :: h_abs, w_km2, w_km1, w_k
+
+      call odex_hairer_controller_decision_reset(decision)
+      if (.not. controller_state%initialized .or. .not. row_lifecycle%initialized .or. &
+          .not. allocated(workspace%ak)) then
+         decision%action = odex_hairer_controller_action_invalid
+         return
+      end if
+      opts = options
+      call odex_normalize_options(opts)
+
+      kc = controller_state%kc
+      km = min(controller_state%km, row_lifecycle%max_rows, size(workspace%ak))
+      if (kc < 2 .or. kc > row_lifecycle%max_rows .or. km < 3) then
+         decision%action = odex_hairer_controller_action_invalid
+         return
+      end if
+
+      w_km2 = odex_hairer_lifecycle_work(row_lifecycle, kc - 2)
+      w_km1 = odex_hairer_lifecycle_work(row_lifecycle, kc - 1)
+      w_k = odex_hairer_lifecycle_work(row_lifecycle, kc)
+      call odex_observe_hairer_kopt(kc, controller_state%k, km, controller_state%rejected, &
+                                    w_km2, w_km1, w_k, opts, kopt)
+
+      if (controller_state%rejected) then
+         next_k = max(2, min(kopt, kc))
+         h_abs = min(abs(controller_state%h), abs(odex_hairer_lifecycle_hh(row_lifecycle, next_k)))
+         controller_state%rejected = .false.
+      else
+         next_k = kopt
+         if (kopt <= kc) then
+            h_abs = abs(odex_hairer_lifecycle_hh(row_lifecycle, kopt))
+         else if (kc < controller_state%k .and. &
+                  odex_hairer_lifecycle_work(row_lifecycle, kc) < &
+                  odex_hairer_lifecycle_work(row_lifecycle, kc - 1)*opts%order_increase_factor) then
+            h_abs = abs(odex_hairer_lifecycle_hh(row_lifecycle, kc))*workspace%ak(min(kopt + 1, km))/workspace%ak(kc)
+         else
+            h_abs = abs(odex_hairer_lifecycle_hh(row_lifecycle, kc))*workspace%ak(kopt)/workspace%ak(kc)
+         end if
+      end if
+
+      controller_state%k = next_k
+      controller_state%h = sign(h_abs, controller_state%posneg)
+      decision%action = odex_hairer_controller_action_continue
+      decision%next_k = controller_state%k
+      decision%next_h = controller_state%h
+      decision%next_row = 1
+      decision%rejected_after = controller_state%rejected
+   end subroutine odex_observe_hairer_controller_accept_update
+
+   subroutine odex_observe_hairer_controller_reject_update(controller_state, row_lifecycle, options, decision)
+      type(odex_hairer_controller_state), intent(inout) :: controller_state
+      type(odex_hairer_row_lifecycle), intent(in) :: row_lifecycle
+      type(odex_options), intent(in) :: options
+      type(odex_hairer_controller_decision), intent(out) :: decision
+
+      type(odex_options) :: opts
+      integer :: next_k
+
+      call odex_hairer_controller_decision_reset(decision)
+      if (.not. controller_state%initialized .or. .not. row_lifecycle%initialized) then
+         decision%action = odex_hairer_controller_action_invalid
+         return
+      end if
+      opts = options
+      call odex_normalize_options(opts)
+
+      next_k = min(controller_state%k, controller_state%kc, controller_state%km - 1)
+      next_k = max(2, next_k)
+      if (next_k > 2 .and. next_k <= row_lifecycle%max_rows .and. next_k - 1 <= row_lifecycle%max_rows) then
+         if (odex_hairer_lifecycle_work(row_lifecycle, next_k - 1) < &
+             odex_hairer_lifecycle_work(row_lifecycle, next_k)*opts%order_decrease_factor) next_k = next_k - 1
+      end if
+
+      controller_state%k = next_k
+      controller_state%h = sign(abs(odex_hairer_lifecycle_hh(row_lifecycle, next_k)), controller_state%posneg)
+      controller_state%rejected = .true.
+      decision%action = odex_hairer_controller_action_reject
+      decision%next_k = controller_state%k
+      decision%next_h = controller_state%h
+      decision%next_row = 1
+      decision%rejected_row = controller_state%kc
+      decision%rejected_after = .true.
+   end subroutine odex_observe_hairer_controller_reject_update
+
+   real(dp) function odex_hairer_lifecycle_work(row_lifecycle, row_index) result(work_value)
+      type(odex_hairer_row_lifecycle), intent(in) :: row_lifecycle
+      integer, intent(in) :: row_index
+
+      if (row_index >= 1 .and. row_index <= row_lifecycle%max_rows .and. allocated(row_lifecycle%work)) then
+         work_value = row_lifecycle%work(row_index)
+      else
+         work_value = huge(1.0_dp)
+      end if
+   end function odex_hairer_lifecycle_work
+
+   real(dp) function odex_hairer_lifecycle_hh(row_lifecycle, row_index) result(hh_value)
+      type(odex_hairer_row_lifecycle), intent(in) :: row_lifecycle
+      integer, intent(in) :: row_index
+
+      if (row_index >= 1 .and. row_index <= row_lifecycle%max_rows .and. allocated(row_lifecycle%hh)) then
+         hh_value = row_lifecycle%hh(row_index)
+      else
+         hh_value = 0.0_dp
+      end if
+   end function odex_hairer_lifecycle_hh
 
    function calculate_wk(h, er1, k, workspace, opts) result(wk)
       real(dp), intent(in) :: h, er1

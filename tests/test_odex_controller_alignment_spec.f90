@@ -1,7 +1,17 @@
 program test_odex_controller_alignment_spec
    use odex_backend, only: build_nsteps, ensure_odex_workspace_object, odex_default_options, &
                            odex_observe_controller_estimate, odex_observe_h_min, &
+                           odex_hairer_controller_action_accept, odex_hairer_controller_action_continue, &
+                           odex_hairer_controller_action_endpoint, odex_hairer_controller_action_reject, &
+                           odex_hairer_controller_action_retry, odex_hairer_controller_decision, &
+                           odex_hairer_controller_phase_basic, odex_hairer_controller_phase_first_last, &
+                           odex_hairer_controller_state, odex_hairer_controller_state_reset, &
                            odex_hairer_errold_initial, odex_hairer_row_lifecycle, &
+                           odex_observe_hairer_controller_accept_update, &
+                           odex_observe_hairer_controller_initial_state, &
+                           odex_observe_hairer_controller_reject_update, &
+                           odex_observe_hairer_controller_row_action, &
+                           odex_observe_hairer_controller_step_entry, &
                            odex_observe_hairer_initial_state, odex_observe_hairer_kopt, &
                            odex_observe_hairer_midex_lifecycle_row, &
                            odex_observe_hairer_midex_row, odex_observe_hairer_promotion_step, &
@@ -33,6 +43,7 @@ program test_odex_controller_alignment_spec
    call check_hairer_route_skeleton_reference(failures)
    call check_midex_row_primitive(failures)
    call check_midex_row_lifecycle(failures)
+   call check_hairer_outer_controller_decisions(failures)
    call check_stability_policy_gap(gaps, failures)
 
    call count_failure(gaps == expected_gap_count, "[FAIL] F18b.4 expected-gap count changed.", failures)
@@ -347,6 +358,111 @@ contains
                          "[FAIL] Hairer MIDEX row lifecycle contract changed.", failures)
    end subroutine check_midex_row_lifecycle
 
+   subroutine check_hairer_outer_controller_decisions(failures)
+      integer, intent(inout) :: failures
+      type(odex_options) :: options
+      type(odex_workspace) :: workspace
+      type(odex_hairer_row_lifecycle) :: row_lifecycle
+      type(odex_hairer_controller_state) :: controller_state
+      type(odex_hairer_controller_decision) :: decision
+      type(odex_row_result) :: row_state
+      real(dp) :: y(1), expected_h
+      logical :: entry_ok, first_last_ok, basic_ok, accept_ok, reject_ok, atov_ok
+
+      call odex_default_options(options, 1.0e-12_dp, 1.0e-12_dp)
+      call ensure_odex_workspace_object(workspace, 8, 1)
+      y(1) = 1.0_dp
+      call odex_observe_hairer_row_lifecycle_begin(y, options, 8, row_lifecycle)
+      row_lifecycle%hh = [0.0_dp, 0.30_dp, 0.20_dp, 0.10_dp, 0.05_dp, 0.025_dp, 0.0125_dp, 0.00625_dp]
+      row_lifecycle%work = [huge(1.0_dp), 5.0_dp, 2.0_dp, 1.0_dp, 2.0_dp, 1.0_dp, 1.0_dp, 1.0_dp]
+
+      call odex_observe_hairer_controller_initial_state(options, 1.0_dp, 0.25_dp, 0.0_dp, controller_state)
+      call odex_observe_hairer_controller_step_entry(0.2_dp, 1.0_dp, epsilon(1.0_dp), controller_state, decision)
+      entry_ok = controller_state%initialized .and. controller_state%k == 8 .and. &
+                 nearly_equal(decision%next_h, 0.25_dp, 1.0e-14_dp) .and. decision%next_row == 1 .and. &
+                 decision%action == odex_hairer_controller_action_continue .and. (.not. decision%last_step)
+      controller_state%h = 1.0_dp
+      call odex_observe_hairer_controller_step_entry(0.2_dp, 1.0_dp, epsilon(1.0_dp), controller_state, decision)
+      entry_ok = entry_ok .and. decision%last_step .and. nearly_equal(decision%next_h, 0.8_dp, 1.0e-14_dp)
+      call odex_observe_hairer_controller_step_entry(1.0_dp, 1.0_dp + epsilon(1.0_dp), epsilon(1.0_dp), &
+                                                     controller_state, decision)
+      entry_ok = entry_ok .and. decision%action == odex_hairer_controller_action_endpoint .and. &
+                 decision%endpoint_reached
+
+      call seed_controller(controller_state, k=4, kc=0, h=0.25_dp, posneg=1.0_dp)
+      call make_row(row_state, 1, .false., 0.0_dp, .false., controller_state%h)
+      call odex_observe_hairer_controller_row_action(controller_state, row_state, row_lifecycle, workspace, &
+                                                     options, odex_hairer_controller_phase_first_last, decision)
+      first_last_ok = decision%action == odex_hairer_controller_action_continue .and. decision%next_row == 2
+      call make_row(row_state, 2, .true., 0.5_dp, .false., controller_state%h)
+      call odex_observe_hairer_controller_row_action(controller_state, row_state, row_lifecycle, workspace, &
+                                                     options, odex_hairer_controller_phase_first_last, decision)
+      first_last_ok = first_last_ok .and. decision%action == odex_hairer_controller_action_accept .and. &
+                      decision%accepted_row == 2
+
+      call seed_controller(controller_state, k=4, kc=0, h=0.25_dp, posneg=1.0_dp)
+      call make_row(row_state, 4, .true., 10.0_dp, .false., controller_state%h)
+      call odex_observe_hairer_controller_row_action(controller_state, row_state, row_lifecycle, workspace, &
+                                                     options, odex_hairer_controller_phase_first_last, decision)
+      first_last_ok = first_last_ok .and. decision%action == odex_hairer_controller_action_continue .and. &
+                      decision%next_row == 5
+      call make_row(row_state, 5, .true., 1.2_dp, .false., controller_state%h)
+      call odex_observe_hairer_controller_row_action(controller_state, row_state, row_lifecycle, workspace, &
+                                                     options, odex_hairer_controller_phase_first_last, decision)
+      first_last_ok = first_last_ok .and. decision%action == odex_hairer_controller_action_reject .and. &
+                      decision%rejected_after .and. decision%next_k == 4 .and. &
+                      nearly_equal(decision%next_h, row_lifecycle%hh(4), 1.0e-14_dp)
+
+      call seed_controller(controller_state, k=5, kc=0, h=0.25_dp, posneg=1.0_dp)
+      call make_row(row_state, 4, .true., 0.5_dp, .false., controller_state%h)
+      call odex_observe_hairer_controller_row_action(controller_state, row_state, row_lifecycle, workspace, &
+                                                     options, odex_hairer_controller_phase_basic, decision)
+      basic_ok = decision%action == odex_hairer_controller_action_accept .and. decision%accepted_row == 4
+      call seed_controller(controller_state, k=5, kc=0, h=0.25_dp, posneg=1.0_dp)
+      call make_row(row_state, 4, .true., 3000.0_dp, .false., controller_state%h)
+      call odex_observe_hairer_controller_row_action(controller_state, row_state, row_lifecycle, workspace, &
+                                                     options, odex_hairer_controller_phase_basic, decision)
+      basic_ok = basic_ok .and. decision%action == odex_hairer_controller_action_reject .and. decision%next_k == 4
+      call seed_controller(controller_state, k=5, kc=0, h=0.25_dp, posneg=1.0_dp)
+      controller_state%rejected = .true.
+      call make_row(row_state, 4, .true., 0.5_dp, .false., controller_state%h)
+      call odex_observe_hairer_controller_row_action(controller_state, row_state, row_lifecycle, workspace, &
+                                                     options, odex_hairer_controller_phase_basic, decision)
+      basic_ok = basic_ok .and. decision%action == odex_hairer_controller_action_continue .and. decision%next_row == 5
+
+      call seed_controller(controller_state, k=5, kc=4, h=0.25_dp, posneg=1.0_dp)
+      call odex_observe_hairer_controller_accept_update(controller_state, row_lifecycle, workspace, options, decision)
+      expected_h = row_lifecycle%hh(4)*workspace%ak(6)/workspace%ak(4)
+      accept_ok = decision%action == odex_hairer_controller_action_continue .and. decision%next_k == 5 .and. &
+                  nearly_equal(decision%next_h, expected_h, 1.0e-14_dp)
+      call seed_controller(controller_state, k=6, kc=5, h=0.08_dp, posneg=1.0_dp)
+      controller_state%rejected = .true.
+      call odex_observe_hairer_controller_accept_update(controller_state, row_lifecycle, workspace, options, decision)
+      accept_ok = accept_ok .and. decision%action == odex_hairer_controller_action_continue .and. &
+                  decision%next_k == 4 .and. nearly_equal(decision%next_h, 0.08_dp, 1.0e-14_dp) .and. &
+                  (.not. decision%rejected_after)
+
+      call seed_controller(controller_state, k=6, kc=6, h=0.25_dp, posneg=-1.0_dp)
+      row_lifecycle%work(5) = 0.5_dp
+      row_lifecycle%work(6) = 1.0_dp
+      call odex_observe_hairer_controller_reject_update(controller_state, row_lifecycle, options, decision)
+      reject_ok = decision%action == odex_hairer_controller_action_reject .and. decision%next_k == 5 .and. &
+                  decision%rejected_after .and. nearly_equal(decision%next_h, -row_lifecycle%hh(5), 1.0e-14_dp)
+
+      call seed_controller(controller_state, k=4, kc=0, h=0.25_dp, posneg=1.0_dp)
+      call make_row(row_state, 3, .true., 2.0_dp, .true., 0.125_dp)
+      call odex_observe_hairer_controller_row_action(controller_state, row_state, row_lifecycle, workspace, &
+                                                     options, odex_hairer_controller_phase_basic, decision)
+      atov_ok = decision%action == odex_hairer_controller_action_retry .and. decision%rejected_after .and. &
+                nearly_equal(decision%next_h, 0.125_dp, 1.0e-14_dp)
+
+      write (*, '(A,L1,A,L1,A,L1,A,L1,A,L1,A,L1)') "[CHECK] hairer_outer_controller entry=", entry_ok, &
+         " first_last=", first_last_ok, " basic=", basic_ok, " accept=", accept_ok, &
+         " reject=", reject_ok, " atov=", atov_ok
+      call count_failure(entry_ok .and. first_last_ok .and. basic_ok .and. accept_ok .and. reject_ok .and. atov_ok, &
+                         "[FAIL] Hairer outer-controller decision contract changed.", failures)
+   end subroutine check_hairer_outer_controller_decisions
+
    subroutine check_stability_policy_gap(gaps, failures)
       integer, intent(inout) :: gaps, failures
       type(odex_options) :: options
@@ -396,6 +512,41 @@ contains
          write (*, '(A)') message
       end if
    end subroutine count_failure
+
+   subroutine seed_controller(controller_state, k, kc, h, posneg)
+      type(odex_hairer_controller_state), intent(out) :: controller_state
+      integer, intent(in) :: k, kc
+      real(dp), intent(in) :: h, posneg
+
+      call odex_hairer_controller_state_reset(controller_state)
+      controller_state%initialized = .true.
+      controller_state%k = k
+      controller_state%kc = kc
+      controller_state%km = 8
+      controller_state%h = h
+      controller_state%hmax_abs = 1.0_dp
+      controller_state%hoptde = posneg
+      controller_state%posneg = posneg
+   end subroutine seed_controller
+
+   subroutine make_row(row_state, row_index, err_available, err, atov, h_after)
+      type(odex_row_result), intent(out) :: row_state
+      integer, intent(in) :: row_index
+      logical, intent(in) :: err_available, atov
+      real(dp), intent(in) :: err, h_after
+
+      row_state%row_index = row_index
+      row_state%rhs_evals = 0
+      row_state%err_available = err_available
+      row_state%atov = atov
+      row_state%invalid_rhs = .false.
+      row_state%stability_rejected = .false.
+      row_state%err = err
+      row_state%hh = 0.0_dp
+      row_state%work = huge(1.0_dp)
+      row_state%h_after = h_after
+      row_state%errold_after = 0.0_dp
+   end subroutine make_row
 
    function rhs_exp(y) result(dy)
       real(dp), intent(in) :: y(:)
