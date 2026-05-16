@@ -54,10 +54,9 @@ end module test_odex_backend_package_rhs
 
 program test_odex_backend_package_contract
    use odex_backend, only: build_nsteps, odex_controller_policy_hairer_experimental, &
-                           odex_default_options, odex_integrate_endpoint, &
-	                           odex_integrate_endpoint_context, &
-	                           odex_options, odex_result, odex_status_failure_invalid, odex_status_success, &
-                           odex_status_success_zero_time, odex_step_sequence_iwork3, &
+                           odex_default_options, odex_integrate_endpoint, odex_integrate_endpoint_context, &
+                           odex_options, odex_result, odex_status_failure_invalid, odex_status_failure_max_steps, &
+                           odex_status_success, odex_status_success_zero_time, odex_step_sequence_iwork3, &
                            odex_stability_control_conservative, odex_workspace
    use test_odex_backend_package_rhs, only: dummy_context_t, exp_lambda, rhs_exp, rhs_exp_context, &
                                             rhs_nan, rhs_nan_context
@@ -72,6 +71,7 @@ program test_odex_backend_package_contract
    call check_iwork3_sequence(failures)
    call check_endpoint_accuracy(failures)
    call check_hairer_experimental_endpoint_accuracy(failures)
+   call check_hairer_experimental_analytic_gates(failures)
    call check_forward_backward(failures)
 	   call check_conservative_stability_surface(failures)
 	   call check_invalid_options_failure(failures)
@@ -226,6 +226,66 @@ contains
             " promote=", result_state%odex_kopt_promotions, " clamp=", result_state%odex_after_reject_clamps
       end if
    end subroutine check_hairer_experimental_endpoint_accuracy
+
+   subroutine check_hairer_experimental_analytic_gates(failures)
+      integer, intent(inout) :: failures
+      type(odex_options) :: options, loose_options, reject_options
+      type(odex_workspace) :: workspace
+      type(odex_result) :: result_mid, result_back, result_k2, result_reject
+      real(dp) :: y0(1), y_mid(1), y_back(1), y_out(1), err
+      logical :: failed_mid, failed_back, failed_k2, failed_reject
+      logical :: signed_ok, k2_ok, reject_ok
+
+      call odex_default_options(options, 3.0e-14_dp, 3.0e-14_dp)
+      options%controller_policy = odex_controller_policy_hairer_experimental
+      exp_lambda = -1.3_dp
+      y0(1) = 0.8125_dp
+      call odex_integrate_endpoint(rhs_exp, y0, 0.75_dp, y_mid, failed_mid, result_mid, workspace, options)
+      call odex_integrate_endpoint(rhs_exp, y_mid, -0.75_dp, y_back, failed_back, result_back, workspace, options)
+      err = maxval(abs(y_back - y0))
+      signed_ok = (.not. failed_mid) .and. (.not. failed_back) .and. &
+                  result_mid%status == odex_status_success .and. result_back%status == odex_status_success .and. &
+                  result_mid%odex_hairer_policy_steps > 0 .and. result_back%odex_hairer_policy_steps > 0 .and. &
+                  result_mid%odex_tltm_policy_steps == 0 .and. result_back%odex_tltm_policy_steps == 0 .and. &
+                  result_back%final_step_size < 0.0_dp .and. err <= 2.0e-11_dp
+
+      call odex_default_options(loose_options, 1.0e-1_dp, 1.0e-1_dp)
+      loose_options%controller_policy = odex_controller_policy_hairer_experimental
+      loose_options%max_steps = 1
+      exp_lambda = -0.5_dp
+      y0(1) = 1.0_dp
+      call odex_integrate_endpoint(rhs_exp, y0, 1.0_dp, y_out, failed_k2, result_k2, workspace, loose_options)
+      k2_ok = failed_k2 .and. result_k2%status == odex_status_failure_max_steps .and. &
+              result_k2%accepted_steps == 1 .and. result_k2%odex_hairer_policy_steps == 1 .and. &
+              result_k2%odex_row_j2_calls >= 1 .and. result_k2%odex_row_jge3_calls == 0 .and. &
+              result_k2%odex_tltm_policy_steps == 0
+
+      call odex_default_options(reject_options, 1.0e-12_dp, 1.0e-12_dp)
+      reject_options%controller_policy = odex_controller_policy_hairer_experimental
+      reject_options%max_steps = 10000
+      exp_lambda = -100.0_dp
+      y0(1) = 1.0_dp
+      call odex_integrate_endpoint(rhs_exp, y0, 1.0_dp, y_out, failed_reject, result_reject, workspace, reject_options)
+      reject_ok = (.not. failed_reject) .and. result_reject%status == odex_status_success .and. &
+                  result_reject%rejected_steps > 0 .and. result_reject%odex_hairer_policy_steps == &
+                  result_reject%accepted_steps + result_reject%rejected_steps .and. &
+                  result_reject%odex_reject_updates + result_reject%odex_atov_events > 0 .and. &
+                  result_reject%odex_tltm_policy_steps == 0
+
+      write (*, '(A,L1,A,L1,A,L1,A,ES12.4,A,I0,A,I0)') "[CHECK] hairer_analytic_gates signed=", &
+         signed_ok, " k2=", k2_ok, " reject=", reject_ok, " fb_err=", err, &
+         " rejects=", result_reject%rejected_steps, " atov=", result_reject%odex_atov_events
+      if (.not. (signed_ok .and. k2_ok .and. reject_ok)) then
+         failures = failures + 1
+         write (*, '(A)') "[FAIL] opt-in Hairer analytic endpoint gates changed."
+         write (*, '(A,I0,A,I0,A,I0,A,I0)') "[DETAIL] k2 status=", result_k2%status, &
+            " accepted=", result_k2%accepted_steps, " j2=", result_k2%odex_row_j2_calls, &
+            " jge3=", result_k2%odex_row_jge3_calls
+         write (*, '(A,I0,A,I0,A,I0,A,I0)') "[DETAIL] reject status=", result_reject%status, &
+            " accepted=", result_reject%accepted_steps, " rejected=", result_reject%rejected_steps, &
+            " updates=", result_reject%odex_reject_updates
+      end if
+   end subroutine check_hairer_experimental_analytic_gates
 
    subroutine check_forward_backward(failures)
       integer, intent(inout) :: failures

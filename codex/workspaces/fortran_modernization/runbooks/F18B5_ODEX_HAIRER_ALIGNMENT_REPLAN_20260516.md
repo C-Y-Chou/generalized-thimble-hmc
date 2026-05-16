@@ -291,9 +291,9 @@ Important readback:
 - Default `tltm_endpoint` still uses `odex_step*`; this patch is opt-in only.
 - The earlier F18b.4m/F18b.4n/F18b.4o telemetry remains hybrid-route evidence.
   It is not evidence for this F18b.5e coherent state-machine route.
-- Local focused analytic checks pass, but no TLTM Stage2/Stage3 simulation screen
-  was run locally.  The next step is F18b.5f analytic/tiny gates, not immediate
-  1k telemetry.
+- Local focused endpoint checks passed for this slice, but no TLTM Stage2/Stage3
+  simulation screen was run locally.  F18b.5f later added the analytic endpoint
+  gates; the next pre-telemetry step is the remote tiny smoke.
 - The current live helper still leaves dense-output/general-purpose ODEX and full
   Hairer stability logic out of scope; those remain explicit product-boundary
   decisions.
@@ -307,6 +307,9 @@ make -C build test_odex_controller_alignment_spec test_odex_backend_package_cont
 
 ### F18b.5f: Analytic And Tiny Remote Gates
 
+Status: local analytic endpoint gates implemented on 2026-05-16 JST; remote tiny
+PBS smoke prepared and pending submission/readback.
+
 Before any 1k/10seed screen:
 
 - local analytic ODE tests: exponential, forward/backward, signed interval,
@@ -314,6 +317,27 @@ Before any 1k/10seed screen:
 - no local TLTM Stage2/Stage3 simulation;
 - remote tiny TLTM smoke only after branch counters prove the intended route is
   active.
+
+Implementation surfaces so far:
+
+- `tests/test_odex_backend_package_contract.f90`: adds
+  `check_hairer_experimental_analytic_gates`, covering opt-in signed
+  forward/backward composition, live `K=2` first/last branch under a max-step
+  budget, and a stiff scalar endpoint that forces rejected steps plus one
+  `ATOV` event.
+- `codex/workspaces/fortran_modernization/tasks/pbs/f18b5f_hairer_endpoint_tiny_smoke_20260516.pbs`:
+  remote tiny Stage3 smoke for one seed, 200 cycles, `no_fb` plus
+  `fb_norefine`, official DFO-LS `npt5_r0055`, assist off, Stage2 RNG v2, and
+  opt-in `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental`.  The PBS script
+  verifies aggregated ODEX counters have Hairer policy steps, zero TLTM policy
+  steps, live `ERROLD` checks, Hairer scales, and no default scales.
+
+Local focused verification passed:
+
+```text
+git diff --check -- tests/test_odex_backend_package_contract.f90
+make -C build test_odex_backend_package_contract
+```
 
 ### F18b.5g: Telemetry Promotion Gates
 
@@ -329,9 +353,9 @@ Only after F18b.5f:
 Do not use the older hybrid `hairer_experimental` telemetry as the route
 decision for the coherent Hairer state-machine path.  F18b.5a identity-map/
 counter/test surface, F18b.5b single-row `MIDEX(J)` primitive, F18b.5c
-row-lifecycle state, F18b.5d outer-controller decision layer, and F18b.5e
-opt-in endpoint wiring are implemented.  The next actionable engineering step is
-F18b.5f: analytic endpoint gates and then a remote tiny TLTM smoke, still before
+row-lifecycle state, F18b.5d outer-controller decision layer, F18b.5e opt-in
+endpoint wiring, and F18b.5f local analytic gates are implemented.  The next
+actionable engineering step is the F18b.5f remote tiny TLTM smoke, still before
 any additional 1k telemetry.
 
 ## Claim Boundary
@@ -345,6 +369,6 @@ port: row primitive, row lifecycle, outer controller, then endpoint wiring.
 Existing hybrid Hairer telemetry is debug evidence only and cannot decide the
 true cost of a coherent Hairer controller.  F18b.5a identity counters,
 F18b.5b single-row primitive, F18b.5c row lifecycle, F18b.5d outer controller
-decision state, and F18b.5e opt-in endpoint wiring are implemented; the next
-claim boundary is F18b.5f analytic/tiny-gate evidence.
+decision state, F18b.5e opt-in endpoint wiring, and F18b.5f local analytic gates
+are implemented; the next claim boundary is F18b.5f remote tiny-smoke evidence.
 ```

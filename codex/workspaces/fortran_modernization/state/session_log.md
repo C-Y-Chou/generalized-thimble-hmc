@@ -1830,3 +1830,23 @@
   `WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`.  Next ODEX action is F18b.5f:
   add analytic endpoint gates and then remote tiny TLTM smoke before any more
   1k/10seed telemetry.
+
+## 2026-05-16 JST - F18b.5f local analytic gates and tiny-smoke PBS prep
+
+- Added `check_hairer_experimental_analytic_gates` to
+  `test_odex_backend_package_contract`.  The gate covers opt-in Hairer signed
+  forward/backward composition, live K=2 first/last branch under a max-step
+  budget, and a stiff scalar endpoint that forces rejected steps plus one
+  `ATOV` event.
+- Added `f18b5f_hairer_endpoint_tiny_smoke_20260516.pbs` for a remote one-seed,
+  200-cycle Stage3 smoke with `no_fb` plus `fb_norefine`, official DFO-LS
+  `npt5_r0055`, assist off, Stage2 RNG v2, and
+  `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental`.
+- The PBS script is designed for a clean remote scratch worktree when the
+  canonical remote worktree is dirty with earlier experimental screen artifacts;
+  it requires an explicit `TLTM_BASE_GIT_COMMIT` and validates aggregated ODEX
+  counters for Hairer-route activation.
+- Local verification passed:
+  `git diff --check -- tests/test_odex_backend_package_contract.f90`;
+  `make -C build test_odex_backend_package_contract`.
+  No local TLTM Stage2/Stage3 simulation screen was run.
