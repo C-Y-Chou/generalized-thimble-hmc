@@ -56,8 +56,8 @@ program test_odex_backend_package_contract
    use odex_backend, only: build_nsteps, odex_controller_policy_hairer_experimental, &
                            odex_default_options, odex_integrate_endpoint, odex_integrate_endpoint_context, &
                            odex_options, odex_result, odex_status_failure_invalid, odex_status_failure_max_steps, &
-                           odex_status_success, odex_status_success_zero_time, odex_step_sequence_iwork3, &
-                           odex_stability_control_conservative, odex_workspace
+                           odex_status_success, odex_status_success_zero_time, odex_observe_stability_reject, &
+                           odex_step_sequence_iwork3, odex_stability_control_conservative, odex_workspace
    use test_odex_backend_package_rhs, only: dummy_context_t, exp_lambda, rhs_exp, rhs_exp_context, &
                                             rhs_nan, rhs_nan_context
    use utils, only: dp
@@ -73,8 +73,8 @@ program test_odex_backend_package_contract
    call check_hairer_experimental_endpoint_accuracy(failures)
    call check_hairer_experimental_analytic_gates(failures)
    call check_forward_backward(failures)
-	   call check_conservative_stability_surface(failures)
-	   call check_invalid_options_failure(failures)
+   call check_conservative_stability_observer_surface(failures)
+   call check_invalid_options_failure(failures)
    call check_invalid_rhs_failure(failures)
    call check_output_size_guard(failures)
 
@@ -118,27 +118,32 @@ contains
       y_exact(1) = y0(1)*exp(exp_lambda)
       err = maxval(abs(y_out - y_exact))
       ok = (.not. failed) .and. result_state%status == odex_status_success .and. &
-           result_state%endpoint_available .and. result_state%odex_rhs_evals > 0 .and. &
+           result_state%endpoint_available .and. result_state%final_order >= 2 .and. &
+           result_state%odex_rhs_evals > 0 .and. &
            result_state%odex_midpoint_rows > 0 .and. &
            result_state%odex_accept_k_minus_1 + result_state%odex_accept_k + result_state%odex_accept_k_plus_1 == &
-           result_state%accepted_steps .and. &
-           result_state%odex_tltm_policy_steps == result_state%accepted_steps + result_state%rejected_steps .and. &
-           result_state%odex_hairer_policy_steps == 0 .and. result_state%odex_first_step_entries == 1 .and. &
+           result_state%accepted_steps .and. result_state%accepted_steps < 1000 .and. &
+           result_state%odex_rhs_evals < 100000 .and. &
+           result_state%odex_hairer_policy_steps == result_state%accepted_steps + result_state%rejected_steps .and. &
+           result_state%odex_tltm_policy_steps == 0 .and. result_state%odex_first_step_entries == 1 .and. &
            result_state%odex_last_step_entries == 1 .and. &
            result_state%odex_row_j1_calls + result_state%odex_row_j2_calls + result_state%odex_row_jge3_calls == &
            result_state%odex_midpoint_rows .and. result_state%odex_error_estimates > 0 .and. &
            result_state%odex_row_j1_no_error_returns == result_state%odex_row_j1_calls .and. &
-           result_state%odex_default_scal_estimates == result_state%odex_error_estimates .and. &
-           result_state%odex_hairer_scal_estimates == 0 .and. result_state%odex_kopt_accept_updates == 0 .and. &
-           result_state%odex_kopt_demotions + result_state%odex_kopt_keeps + result_state%odex_kopt_promotions == 0 .and. &
-           result_state%odex_errold_checks == 0 .and. result_state%odex_atov_events == 0 .and. &
+           result_state%odex_hairer_scal_estimates == result_state%odex_error_estimates .and. &
+           result_state%odex_default_scal_estimates == 0 .and. &
+           result_state%odex_kopt_accept_updates == result_state%accepted_steps .and. &
+           result_state%odex_kopt_demotions + result_state%odex_kopt_keeps + result_state%odex_kopt_promotions == &
+           result_state%odex_kopt_accept_updates .and. &
+           result_state%odex_errold_checks == result_state%odex_error_estimates .and. &
+           result_state%odex_atov_events == 0 .and. &
            result_state%odex_after_reject_clamps == 0 .and. &
            err <= 2.0e-12_dp
       write (*, '(A,L1,A,I0,A,ES12.4)') "[CHECK] package_endpoint_accuracy ok=", ok, &
          " status=", result_state%status, " err=", err
       if (.not. ok) then
          failures = failures + 1
-         write (*, '(A)') "[FAIL] standalone backend endpoint accuracy changed."
+         write (*, '(A)') "[FAIL] standalone backend default Hairer endpoint accuracy changed."
       end if
    end subroutine check_endpoint_accuracy
 
@@ -211,7 +216,7 @@ contains
          " rhs=", result_state%odex_rhs_evals, " err=", err, " context_err=", err_context
       if (.not. (ok .and. ok_context)) then
          failures = failures + 1
-         write (*, '(A)') "[FAIL] opt-in Hairer experimental endpoint contract changed."
+         write (*, '(A)') "[FAIL] Hairer endpoint contract changed."
          write (*, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') "[DETAIL] hairer counters accepted=", &
             result_state%accepted_steps, " rejected=", result_state%rejected_steps, &
             " kminus=", result_state%odex_accept_k_minus_1, " k=", result_state%odex_accept_k, &
@@ -277,7 +282,7 @@ contains
          " rejects=", result_reject%rejected_steps, " atov=", result_reject%odex_atov_events
       if (.not. (signed_ok .and. k2_ok .and. reject_ok)) then
          failures = failures + 1
-         write (*, '(A)') "[FAIL] opt-in Hairer analytic endpoint gates changed."
+         write (*, '(A)') "[FAIL] Hairer analytic endpoint gates changed."
          write (*, '(A,I0,A,I0,A,I0,A,I0)') "[DETAIL] k2 status=", result_k2%status, &
             " accepted=", result_k2%accepted_steps, " j2=", result_k2%odex_row_j2_calls, &
             " jge3=", result_k2%odex_row_jge3_calls
@@ -312,35 +317,30 @@ contains
       end if
    end subroutine check_forward_backward
 
-   subroutine check_conservative_stability_surface(failures)
+   subroutine check_conservative_stability_observer_surface(failures)
       integer, intent(inout) :: failures
       type(odex_options) :: options
-      type(odex_workspace) :: workspace
-      type(odex_result) :: result_state
-      real(dp) :: y0(1), y_out(1)
-      logical :: failed, ok
+      real(dp) :: values(1)
+      logical :: reject_default, reject_conservative, reject_small_dt, ok
 
       call odex_default_options(options, 1.0e-10_dp, 1.0e-10_dp)
+      values(1) = 100.0_dp
+      reject_default = odex_observe_stability_reject(values, 1.0_dp, 0.1_dp, options)
       options%stability_control = odex_stability_control_conservative
-      options%stability_growth_limit = 1.0001_dp
-      exp_lambda = 1.0e6_dp
-      y0(1) = 1.0e6_dp
-      call odex_integrate_endpoint(rhs_exp, y0, 1.0e-8_dp, y_out, failed, result_state, workspace, options)
-      ok = (.not. failed) .and. result_state%status == odex_status_success .and. &
-           result_state%stability_rejects > 0 .and. result_state%rejected_steps >= result_state%stability_rejects
-      ok = ok .and. result_state%accepted_steps > 0 .and. &
-           result_state%accepted_steps < result_state%rejected_steps
-      write (*, '(A,L1,A,I0,A,I0,A,I0,A,I0)') "[CHECK] package_stability_surface ok=", ok, &
-         " status=", result_state%status, " accepted=", result_state%accepted_steps, &
-         " rejects=", result_state%rejected_steps, &
-         " stability=", result_state%stability_rejects
+      options%stability_growth_limit = 4.0_dp
+      reject_conservative = odex_observe_stability_reject(values, 1.0_dp, 0.1_dp, options)
+      reject_small_dt = odex_observe_stability_reject(values, 1.0_dp, 0.01_dp, options)
+      ok = (.not. reject_default) .and. reject_conservative .and. (.not. reject_small_dt)
+      write (*, '(A,L1,A,L1,A,L1,A,L1)') "[CHECK] package_stability_observer_surface ok=", ok, &
+         " default=", reject_default, " conservative=", reject_conservative, &
+         " small_dt=", reject_small_dt
       if (.not. ok) then
          failures = failures + 1
-         write (*, '(A)') "[FAIL] conservative stability-control surface did not fire as expected."
+         write (*, '(A)') "[FAIL] conservative stability-control observer surface changed."
       end if
-	   end subroutine check_conservative_stability_surface
+   end subroutine check_conservative_stability_observer_surface
 
-	   subroutine check_invalid_options_failure(failures)
+   subroutine check_invalid_options_failure(failures)
       integer, intent(inout) :: failures
       type(odex_options) :: options
       type(odex_workspace) :: workspace

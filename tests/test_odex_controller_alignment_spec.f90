@@ -1,5 +1,6 @@
 program test_odex_controller_alignment_spec
-   use odex_backend, only: build_nsteps, ensure_odex_workspace_object, odex_default_options, &
+   use odex_backend, only: build_nsteps, ensure_odex_workspace_object, odex_apply_controller_policy_name, &
+                           odex_controller_policy_name, odex_default_options, &
                            odex_observe_controller_estimate, odex_observe_h_min, &
                            odex_hairer_controller_action_accept, odex_hairer_controller_action_continue, &
                            odex_hairer_controller_action_endpoint, odex_hairer_controller_action_reject, &
@@ -154,13 +155,15 @@ contains
       logical :: ok
 
       call odex_default_options(options, 1.0e-12_dp, 1.0e-12_dp)
-      ok = options%controller_policy == odex_controller_policy_tltm_endpoint
-      options%controller_policy = odex_controller_policy_hairer_experimental
-      ok = ok .and. options%controller_policy == odex_controller_policy_hairer_experimental
+      ok = options%controller_policy == odex_controller_policy_hairer_experimental .and. &
+           odex_controller_policy_tltm_endpoint == odex_controller_policy_hairer_experimental
+      call odex_apply_controller_policy_name(options, "tltm_endpoint")
+      ok = ok .and. options%controller_policy == odex_controller_policy_hairer_experimental .and. &
+           trim(odex_controller_policy_name(options%controller_policy)) == "hairer_experimental"
 
       write (*, '(A,L1,A,I0)') "[CHECK] hairer_route_policy_gate ok=", ok, &
          " policy=", options%controller_policy
-      call count_failure(ok, "[FAIL] Hairer-route policy gate changed.", failures)
+      call count_failure(ok, "[FAIL] Hairer-only controller policy gate changed.", failures)
    end subroutine check_hairer_route_policy_gate
 
    subroutine check_hairer_hmin_floor_alignment(failures)

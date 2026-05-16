@@ -1987,3 +1987,31 @@
   mismatch is closed in source/tests, default route behavior is unchanged, and
   representative 10k behavior/counters are unchanged apart from runtime noise.
   Default-route adoption remains a separate decision.
+
+## 2026-05-16 JST - F18b.5j Hairer-only default adoption source patch
+
+- User approved making coherent `hairer_experimental` the direct replacement
+  and only active ODEX controller route.
+- Source patch changes ODEX defaults and policy normalization so default,
+  legacy `tltm_endpoint`/`tltm`/`endpoint` tokens, and raw legacy policy `0`
+  all resolve to the coherent Hairer controller route.  The public
+  `odex_controller_policy_tltm_endpoint` constant is now a compatibility alias
+  for `odex_controller_policy_hairer_experimental`.
+- Focused local verification passed:
+  `git diff --check`,
+  `make -C build test_odex_result_contract
+  test_odex_controller_alignment_spec test_odex_controller_observation_contract
+  test_odex_backend_package_contract test_odex_foundation_contract`,
+  `TLTM_ODE_CONTROLLER_POLICY=tltm_endpoint make -C build
+  test_odex_foundation_contract`, and
+  `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental make -C build
+  test_odex_foundation_contract test_odex_backend_package_contract`.
+- Added `f18b5j_hairer_only_default_10seed_10k_20260516.pbs` as the remote
+  default-unset npt5/r0055 10seed x 10k affected-baseline gate.  The worker
+  asserts Hairer policy steps, live `ERROLD`, Hairer scales, zero TLTM-policy
+  steps, and zero default-scale counters.  This is not production redo.
+- Updated `POST_B_RNG_REFERENCE_ANCHOR_V1.json` because the default ODEX route
+  change intentionally changes the tiny Stage2 summary hash.  The repeat
+  anchor was stable across A/B runs, Stage1 and Stage2 label-trace hashes stayed
+  unchanged, and `make -C build modernization_guardrails` passed after the
+  anchor update.

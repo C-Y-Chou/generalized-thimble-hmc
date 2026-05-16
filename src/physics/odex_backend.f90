@@ -25,8 +25,9 @@ module odex_backend
    integer, parameter, public :: odex_step_sequence_iwork3 = 3
    integer, parameter, public :: odex_stability_control_none = 0
    integer, parameter, public :: odex_stability_control_conservative = 1
-   integer, parameter, public :: odex_controller_policy_tltm_endpoint = 0
    integer, parameter, public :: odex_controller_policy_hairer_experimental = 1
+   integer, parameter, public :: odex_controller_policy_tltm_endpoint = odex_controller_policy_hairer_experimental
+   integer, parameter :: odex_controller_policy_legacy_tltm_endpoint = 0
    integer, parameter, public :: odex_order_transition_demote = -1
    integer, parameter, public :: odex_order_transition_keep = 0
    integer, parameter, public :: odex_order_transition_promote = 1
@@ -60,7 +61,7 @@ module odex_backend
       real(dp) :: cvode_min_step = 0.0_dp
       integer :: step_sequence = odex_step_sequence_iwork3
       integer :: stability_control = odex_stability_control_none
-      integer :: controller_policy = odex_controller_policy_tltm_endpoint
+      integer :: controller_policy = odex_controller_policy_hairer_experimental
       logical :: endpoint_only = .true.
       real(dp) :: h_min_c_fp = 16.0_dp
       real(dp) :: h_min_c_tol = 0.01_dp
@@ -344,7 +345,7 @@ contains
       options%cvode_min_step = 0.0_dp
       options%step_sequence = odex_step_sequence_iwork3
       options%stability_control = odex_stability_control_none
-      options%controller_policy = odex_controller_policy_tltm_endpoint
+      options%controller_policy = odex_controller_policy_hairer_experimental
       options%endpoint_only = .true.
       options%h_min_c_fp = 16.0_dp
       options%h_min_c_tol = 0.01_dp
@@ -376,9 +377,8 @@ contains
       character(len=*), intent(in) :: policy_token
 
       select case (trim(odex_to_lower_ascii(policy_token)))
-      case ("", "default", "tltm", "tltm_endpoint", "endpoint", "f18b4b")
-         options%controller_policy = odex_controller_policy_tltm_endpoint
-      case ("hairer", "hairer_experimental", "hairer_route", "experimental")
+      case ("", "default", "tltm", "tltm_endpoint", "endpoint", "f18b4b", &
+            "hairer", "hairer_experimental", "hairer_route", "experimental")
          options%controller_policy = odex_controller_policy_hairer_experimental
       case default
          options%controller_policy = -1
@@ -404,8 +404,6 @@ contains
       character(len=32) :: name
 
       select case (controller_policy)
-      case (odex_controller_policy_tltm_endpoint)
-         name = "tltm_endpoint"
       case (odex_controller_policy_hairer_experimental)
          name = "hairer_experimental"
       case default
@@ -3360,13 +3358,16 @@ contains
       options%order_decrease_factor = min(1.0_dp, max(options%order_decrease_factor, 0.0_dp))
       options%order_increase_factor = min(1.0_dp, max(options%order_increase_factor, 0.0_dp))
       options%stability_growth_limit = max(options%stability_growth_limit, 1.0_dp)
+      if (options%controller_policy == odex_controller_policy_legacy_tltm_endpoint) then
+         options%controller_policy = odex_controller_policy_hairer_experimental
+      end if
    end subroutine odex_normalize_options
 
    pure logical function odex_controller_policy_is_valid(controller_policy) result(is_valid)
       integer, intent(in) :: controller_policy
 
       select case (controller_policy)
-      case (odex_controller_policy_tltm_endpoint, odex_controller_policy_hairer_experimental)
+      case (odex_controller_policy_hairer_experimental)
          is_valid = .true.
       case default
          is_valid = .false.

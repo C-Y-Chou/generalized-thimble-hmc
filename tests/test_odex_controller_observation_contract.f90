@@ -200,7 +200,7 @@ contains
       options%max_steps = 1000
       options%stability_control = odex_stability_control_conservative
       options%stability_growth_limit = 1.0001_dp
-      options%h_min_c_fp = 0.0_dp
+      options%h_min_c_fp = 1.0e15_dp
       options%h_min_c_tol = 1.0e12_dp
       options%h_min_c_span = 0.5_dp
       exp_lambda = 1.0e6_dp
@@ -212,7 +212,7 @@ contains
       write (*, '(A,L1,A,I0,A,I0,A,ES12.4)') "[CHECK] hmin_failure_observation ok=", ok_hmin, &
          " status=", result_state%status, " rejected=", result_state%rejected_steps, &
          " final_h=", result_state%final_step_size
-      call count_failure(ok_hmin, "[FAIL] h-min rejection classification changed.", failures)
+      call count_failure(ok_hmin, "[FAIL] Hairer h-min rejection classification changed.", failures)
 
       call odex_default_options(options, 1.0e-10_dp, 1.0e-10_dp)
       y0(1) = 1.0_dp

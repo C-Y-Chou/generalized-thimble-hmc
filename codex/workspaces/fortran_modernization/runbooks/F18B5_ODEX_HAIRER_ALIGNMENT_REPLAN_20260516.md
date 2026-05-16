@@ -530,6 +530,63 @@ Hairer `+4.360s`.  Therefore the h-min floor closure is behavior-neutral on
 this representative 10seed x 10k gate while correcting the Hairer-route
 controller semantics.
 
+### F18b.5j: Hairer-Only Default Adoption
+
+User decision on 2026-05-16 JST: `hairer_experimental` should directly replace
+the old default endpoint controller as the only active ODEX controller route.
+
+Implemented source patch:
+
+- `odex_controller_policy_hairer_experimental` is the sole valid controller
+  policy value after option normalization.
+- The public `odex_controller_policy_tltm_endpoint` constant is now a
+  compatibility alias for `odex_controller_policy_hairer_experimental`.
+- Raw legacy integer policy `0`, and policy tokens `default`, `tltm`,
+  `tltm_endpoint`, `endpoint`, and `f18b4b`, normalize to the Hairer route.
+- `odex_default_options` now selects the Hairer route.  `odex_controller_policy_name`
+  reports `hairer_experimental` for the active route.
+- Focused tests now assert that default, explicit `hairer_experimental`, and
+  legacy `tltm_endpoint` env/token paths all produce Hairer counters, live
+  `ERROLD`, Hairer scales, zero TLTM-policy steps, and zero default scales.
+- The package contract no longer treats the old default endpoint stability
+  behavior as a live product route.  Conservative stability control remains
+  covered as a public observer surface.
+
+Local verification before the remote affected-baseline gate:
+
+```text
+git diff --check
+make -C build test_odex_result_contract \
+  test_odex_controller_alignment_spec \
+  test_odex_controller_observation_contract \
+  test_odex_backend_package_contract \
+  test_odex_foundation_contract
+TLTM_ODE_CONTROLLER_POLICY=tltm_endpoint make -C build test_odex_foundation_contract
+TLTM_ODE_CONTROLLER_POLICY=hairer_experimental \
+  make -C build test_odex_foundation_contract test_odex_backend_package_contract
+python3 codex/workspaces/fortran_modernization/tasks/scripts/post_b_rng_reference_anchor.py \
+  --repo-root . --update-reference \
+  --output-root output/tests/post_b_rng_reference_anchor_f18b5j_update
+make -C build modernization_guardrails
+```
+
+The post-B RNG reference anchor update is expected for this patch because the
+default ODEX route is intentionally behavior/API relevant.  The Stage1 summary
+and Stage2 label-trace hashes stayed unchanged; the Stage2 summary hash moved
+from the old default-route value to the Hairer-counter value
+`9ba34f0ab02a555284cb489578f1904f9dbafdc77c92604f7828f442f909b273`.
+
+Remote gate prepared:
+
+- `tasks/pbs/f18b5j_hairer_only_default_10seed_10k_20260516.pbs` runs the
+  representative npt5/r0055 10seed x 10k affected-baseline screen with
+  `TLTM_ODE_CONTROLLER_POLICY` unset.
+- The worker asserts that default-route aggregates have Hairer policy steps,
+  live `ERROLD`, Hairer scales, zero TLTM-policy steps, and zero default-scale
+  counters.
+- This gate is not production redo.  It is the behavior/API adoption gate for
+  making the coherent Hairer endpoint route the only active ODEX route.
+
 ## Current Decision
 
 Do not use the older hybrid `hairer_experimental` telemetry as the route
@@ -541,7 +598,9 @@ smoke, F18b.5g 1k/10seed telemetry, F18b.5h 10seed x 10k telemetry, and the
 F18b.5i Hairer h-min/failure-floor source patch plus 10seed x 10k readback are
 implemented/passed.  The coherent Hairer endpoint route is faster than default
 in the completed telemetry gates, with lower RHS/call and comparable ODEX-call
-counts.  Default-route adoption still requires separate approval.
+counts.  The user approved default-route adoption on 2026-05-16 JST; F18b.5j
+implements it as a separate behavior/API patch and must pass its affected
+baseline gate before production-comparison sync or regeneration.
 
 ## Claim Boundary
 
@@ -560,6 +619,8 @@ F18b.5f repaired remote tiny smoke, F18b.5g 1k/10seed telemetry, and F18b.5h
 TLTM tolerance/span h-min floor from the opt-in Hairer endpoint route while
 preserving the default TLTM route; its 10seed x 10k readback is non-runtime
 byte-identical to F18b.5h and keeps the Hairer route faster than default.  The
-next claim boundary is the default-route adoption decision and any follow-on
-affected-baseline gate.
+user approved default-route adoption on 2026-05-16 JST.  F18b.5j makes the
+coherent Hairer route the only active ODEX controller route, with legacy
+`tltm_endpoint` accepted only as a compatibility alias.  The next claim
+boundary is the F18b.5j affected-baseline readback.
 ```

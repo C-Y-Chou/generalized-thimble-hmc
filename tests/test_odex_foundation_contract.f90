@@ -274,9 +274,8 @@ contains
       type(intode_diagnostics_context_t) :: diag
       type(flow_workspace_t) :: workspace
       real(dp) :: y0(1), y_out(1), err
-      logical :: failed, ok, expect_hairer
-      integer :: status, env_status, env_len
-      character(len=128) :: policy
+      logical :: failed, ok
+      integer :: status
       integer(int64) :: calls, success, failure, accepted_steps_sum, rejected_steps_sum
       integer(int64) :: stability_rejects_sum, rhs_evals_sum, midpoint_rows_sum, kplus1_attempts_sum
       integer(int64) :: accept_k_minus_1_sum, accept_k_sum, accept_k_plus_1_sum
@@ -291,15 +290,6 @@ contains
       integer(int64) :: reject_kc_k_minus_1_sum, reject_kc_k_sum, reject_kc_k_plus_1_sum
       integer(int64) :: kopt_accept_updates_sum, kopt_demotions_sum, kopt_keeps_sum, kopt_promotions_sum
       integer(int64) :: after_reject_clamps_sum, reject_updates_sum, final_order_sum, max_final_order
-
-      policy = ""
-      call get_environment_variable("TLTM_ODE_CONTROLLER_POLICY", policy, length=env_len, status=env_status)
-      if (env_status == 0) then
-         policy = policy(1:env_len)
-      else
-         policy = ""
-      end if
-      expect_hairer = trim(policy) == "hairer_experimental"
 
       call reset_intode_fallback_stats()
       call reset_intode_fallback_stats(diag)
@@ -324,17 +314,11 @@ contains
            calls == 1_int64 .and. success == 1_int64 .and. failure == 0_int64 .and. &
            accepted_steps_sum > 0_int64 .and. rhs_evals_sum > 0_int64 .and. midpoint_rows_sum > 0_int64 .and. &
            error_estimates_sum > 0_int64
-      if (expect_hairer) then
-         ok = ok .and. hairer_policy_steps_sum > 0_int64 .and. tltm_policy_steps_sum == 0_int64 .and. &
-              hairer_scal_estimates_sum == error_estimates_sum .and. default_scal_estimates_sum == 0_int64 .and. &
-              errold_checks_sum == error_estimates_sum
-      else
-         ok = ok .and. tltm_policy_steps_sum > 0_int64 .and. hairer_policy_steps_sum == 0_int64 .and. &
-              default_scal_estimates_sum == error_estimates_sum .and. hairer_scal_estimates_sum == 0_int64 .and. &
-              errold_checks_sum == 0_int64
-      end if
-      write (*, '(A,L1,A,A,A,I0,A,I0,A,I0,A,I0,A,ES12.4)') "[CHECK] controller_policy_diagnostics ok=", ok, &
-         " policy=", trim(policy), " calls=", calls, " hairer=", hairer_policy_steps_sum, &
+      ok = ok .and. hairer_policy_steps_sum > 0_int64 .and. tltm_policy_steps_sum == 0_int64 .and. &
+           hairer_scal_estimates_sum == error_estimates_sum .and. default_scal_estimates_sum == 0_int64 .and. &
+           errold_checks_sum == error_estimates_sum
+      write (*, '(A,L1,A,I0,A,I0,A,I0,A,I0,A,ES12.4)') "[CHECK] controller_policy_diagnostics ok=", ok, &
+         " calls=", calls, " hairer=", hairer_policy_steps_sum, &
          " tltm=", tltm_policy_steps_sum, " errors=", error_estimates_sum, " err=", err
       if (.not. ok) then
          failures = failures + 1

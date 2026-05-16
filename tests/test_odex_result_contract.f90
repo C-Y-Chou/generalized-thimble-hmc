@@ -47,7 +47,8 @@ contains
       ok = options%abs_tol == at .and. options%rel_tol == rt .and. &
            options%k_min == odex_k_min .and. options%k_max == odex_k_max .and. &
            options%max_steps > 0 .and. options%step_sequence == odex_step_sequence_iwork3 .and. &
-           options%controller_policy == odex_controller_policy_tltm_endpoint .and. &
+           options%controller_policy == odex_controller_policy_hairer_experimental .and. &
+           odex_controller_policy_tltm_endpoint == odex_controller_policy_hairer_experimental .and. &
            options%stability_control == odex_stability_control_none .and. options%endpoint_only
       write (*, '(A,L1,A,I0,A,I0,A,I0,A,L1)') "[CHECK] default_options ok=", ok, &
          " k_min=", options%k_min, " k_max=", options%k_max, " step_sequence=", options%step_sequence, &
@@ -57,6 +58,16 @@ contains
          write (*, '(A)') "[FAIL] ODEX default options no longer match the current source contract."
       end if
 
+      call odex_apply_controller_policy_name(options, "tltm_endpoint")
+      ok = options%controller_policy == odex_controller_policy_hairer_experimental .and. &
+           trim(odex_controller_policy_name(options%controller_policy)) == "hairer_experimental"
+      write (*, '(A,L1,A,A)') "[CHECK] controller_policy_alias ok=", ok, &
+         " policy=", trim(odex_controller_policy_name(options%controller_policy))
+      if (.not. ok) then
+         failures = failures + 1
+         write (*, '(A)') "[FAIL] legacy ODEX controller policy alias no longer resolves to Hairer."
+      end if
+
       call odex_apply_controller_policy_name(options, "hairer_experimental")
       ok = options%controller_policy == odex_controller_policy_hairer_experimental .and. &
            trim(odex_controller_policy_name(options%controller_policy)) == "hairer_experimental"
@@ -64,7 +75,7 @@ contains
          " policy=", trim(odex_controller_policy_name(options%controller_policy))
       if (.not. ok) then
          failures = failures + 1
-         write (*, '(A)') "[FAIL] ODEX controller policy opt-in contract changed."
+         write (*, '(A)') "[FAIL] ODEX controller policy contract changed."
       end if
    end subroutine check_default_options
 
