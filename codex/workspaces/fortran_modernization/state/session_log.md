@@ -1930,3 +1930,26 @@
   the next remote-only 10seed x 10k telemetry confirmation gate, with the same
   default-vs-Hairer counter assertions as F18b.5g.  This is not default-route
   adoption or production redo.
+
+## 2026-05-16 JST - F18b.5h 10k telemetry readback
+
+- Pushed F18b.5h prep at `de56405767e5b08c559d6bbf8178a33fd9607826`,
+  updated the detached remote scratch worktree
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization_f18b5f`, and
+  submitted PBS job `15546.anode01`.
+- PBS job `15546.anode01` ran on C16/cnode01, completed with `Exit_status=0`,
+  `walltime=00:27:33`, and campaign
+  `f18b5h_hairer_endpoint_telemetry_compare_npt5_r0055_10seed_10k_20260516T215456_de56405767e5`.
+  The run manifest records clean detached source (`GIT_DIRTY_COUNT=0`) at the
+  exact base commit.
+- F18b.5h readback:
+  `fb_norefine` runtime ratio `0.875377`, RHS/call ratio `0.787311`, calls
+  ratio `0.999606`, unresolved counts `170 -> 180`; `no_fb` runtime ratio
+  `0.835809`, RHS/call ratio `0.783521`, calls ratio `1.000449`, unresolved
+  counts `8272 -> 8287`.
+- Counter assertions passed: default rows use TLTM policy steps/default scales
+  with no Hairer policy steps or `ERROLD`; coherent Hairer rows use Hairer
+  policy steps/live `ERROLD`/Hairer scales with no TLTM/default-scale counters.
+- Decision state: F18b.5h supports that the coherent Hairer endpoint route is
+  faster than default in the 10seed x 10k gate, but default-route adoption is a
+  separate human decision and should not be made silently.
