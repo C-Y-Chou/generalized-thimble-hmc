@@ -25,12 +25,26 @@ contains
 
       dy = ieee_value(0.0_dp, ieee_quiet_nan)
    end function rhs_nan_context
+
+   function rhs_exp_context(y, context) result(dy)
+      real(dp), intent(in) :: y(:)
+      class(*), intent(inout) :: context
+      real(dp) :: dy(size(y))
+
+      select type (context)
+      class default
+         continue
+      end select
+      dy(1) = exp_lambda*y(1)
+   end function rhs_exp_context
 end module test_odex_foundation_rhs
 
 program test_odex_foundation_contract
+   use, intrinsic :: iso_fortran_env, only: int64
    use param_mod, only: at, rt
    use solve_flow, only: build_nsteps, get_intode_fallback_stats, &
                          get_intode_last_failure_meta, get_intode_last_failure_trace, get_intode_rescue_stats, &
+                         get_intode_odex_stats, &
                          get_intode_solver_assist_policy_code, intode, intode_with_context, &
                          intode_diagnostics_context_t, flow_workspace_t, release_flow_workspace, release_intode_diagnostics_context, &
                          set_intode_rattle_trace, set_intode_stage_trace, set_intode_newton_iter_trace, set_intode_quasi_iter_trace, &
@@ -41,7 +55,7 @@ program test_odex_foundation_contract
                          intode_status_is_strict_success, intode_status_success, &
                          intode_status_success_solver_assist, intode_status_success_zero_time, &
                          reset_intode_fallback_stats
-   use test_odex_foundation_rhs, only: exp_lambda, rhs_exp, rhs_nan, rhs_nan_context
+   use test_odex_foundation_rhs, only: exp_lambda, rhs_exp, rhs_exp_context, rhs_nan, rhs_nan_context
    use utils, only: dp
    implicit none
 
@@ -60,6 +74,7 @@ program test_odex_foundation_contract
    call check_unknown_context_failure_contract(failures)
    call check_explicit_diagnostics_context_isolation(failures)
    call check_workspace_runtime_trace_context(failures)
+   call check_controller_policy_diagnostics(failures)
    call check_solver_assist_policy_visibility(failures)
 
    if (failures /= 0) then
@@ -253,6 +268,83 @@ contains
       call release_flow_workspace(workspace)
       call release_intode_diagnostics_context(diag)
    end subroutine check_workspace_runtime_trace_context
+
+   subroutine check_controller_policy_diagnostics(failures)
+      integer, intent(inout) :: failures
+      type(intode_diagnostics_context_t) :: diag
+      type(flow_workspace_t) :: workspace
+      real(dp) :: y0(1), y_out(1), err
+      logical :: failed, ok, expect_hairer
+      integer :: status, env_status, env_len
+      character(len=128) :: policy
+      integer(int64) :: calls, success, failure, accepted_steps_sum, rejected_steps_sum
+      integer(int64) :: stability_rejects_sum, rhs_evals_sum, midpoint_rows_sum, kplus1_attempts_sum
+      integer(int64) :: accept_k_minus_1_sum, accept_k_sum, accept_k_plus_1_sum
+      integer(int64) :: large_error_rejects_sum, kplus1_rejects_sum
+      integer(int64) :: hairer_policy_steps_sum, tltm_policy_steps_sum
+      integer(int64) :: first_step_entries_sum, last_step_entries_sum, basic_step_entries_sum
+      integer(int64) :: row_j1_calls_sum, row_j2_calls_sum, row_jge3_calls_sum
+      integer(int64) :: row_j1_no_error_returns_sum, error_estimates_sum
+      integer(int64) :: hairer_scal_estimates_sum, default_scal_estimates_sum
+      integer(int64) :: errold_checks_sum, atov_events_sum
+      integer(int64) :: convergence_rejects_sum, kplus1_hope_rejects_sum
+      integer(int64) :: reject_kc_k_minus_1_sum, reject_kc_k_sum, reject_kc_k_plus_1_sum
+      integer(int64) :: kopt_accept_updates_sum, kopt_demotions_sum, kopt_keeps_sum, kopt_promotions_sum
+      integer(int64) :: after_reject_clamps_sum, reject_updates_sum, final_order_sum, max_final_order
+
+      policy = ""
+      call get_environment_variable("TLTM_ODE_CONTROLLER_POLICY", policy, length=env_len, status=env_status)
+      if (env_status == 0) then
+         policy = policy(1:env_len)
+      else
+         policy = ""
+      end if
+      expect_hairer = trim(policy) == "hairer_experimental"
+
+      call reset_intode_fallback_stats()
+      call reset_intode_fallback_stats(diag)
+      workspace%intode_trace%current_context = intode_ctx_flowzr
+      exp_lambda = -2.0_dp
+      y0(1) = 1.0_dp
+      call intode_with_context(rhs_exp_context, y0, 1.0_dp, y_out, failed, status, workspace, diag)
+      err = maxval(abs(y_out - y0*exp(exp_lambda)))
+      call get_intode_odex_stats(calls, success, failure, accepted_steps_sum, rejected_steps_sum, &
+                                 stability_rejects_sum, rhs_evals_sum, midpoint_rows_sum, kplus1_attempts_sum, &
+                                 accept_k_minus_1_sum, accept_k_sum, accept_k_plus_1_sum, large_error_rejects_sum, &
+                                 kplus1_rejects_sum, hairer_policy_steps_sum, tltm_policy_steps_sum, &
+                                 first_step_entries_sum, last_step_entries_sum, basic_step_entries_sum, &
+                                 row_j1_calls_sum, row_j2_calls_sum, row_jge3_calls_sum, row_j1_no_error_returns_sum, &
+                                 error_estimates_sum, hairer_scal_estimates_sum, default_scal_estimates_sum, &
+                                 errold_checks_sum, atov_events_sum, convergence_rejects_sum, kplus1_hope_rejects_sum, &
+                                 reject_kc_k_minus_1_sum, reject_kc_k_sum, reject_kc_k_plus_1_sum, &
+                                 kopt_accept_updates_sum, kopt_demotions_sum, kopt_keeps_sum, kopt_promotions_sum, &
+                                 after_reject_clamps_sum, reject_updates_sum, final_order_sum, max_final_order, diag)
+
+      ok = (.not. failed) .and. status == intode_status_success .and. err <= 2.0e-12_dp .and. &
+           calls == 1_int64 .and. success == 1_int64 .and. failure == 0_int64 .and. &
+           accepted_steps_sum > 0_int64 .and. rhs_evals_sum > 0_int64 .and. midpoint_rows_sum > 0_int64 .and. &
+           error_estimates_sum > 0_int64
+      if (expect_hairer) then
+         ok = ok .and. hairer_policy_steps_sum > 0_int64 .and. tltm_policy_steps_sum == 0_int64 .and. &
+              hairer_scal_estimates_sum == error_estimates_sum .and. default_scal_estimates_sum == 0_int64 .and. &
+              errold_checks_sum == error_estimates_sum
+      else
+         ok = ok .and. tltm_policy_steps_sum > 0_int64 .and. hairer_policy_steps_sum == 0_int64 .and. &
+              default_scal_estimates_sum == error_estimates_sum .and. hairer_scal_estimates_sum == 0_int64 .and. &
+              errold_checks_sum == 0_int64
+      end if
+      write (*, '(A,L1,A,A,A,I0,A,I0,A,I0,A,I0,A,ES12.4)') "[CHECK] controller_policy_diagnostics ok=", ok, &
+         " policy=", trim(policy), " calls=", calls, " hairer=", hairer_policy_steps_sum, &
+         " tltm=", tltm_policy_steps_sum, " errors=", error_estimates_sum, " err=", err
+      if (.not. ok) then
+         failures = failures + 1
+         write (*, '(A,I0,A,I0,A,I0,A,I0,A,I0)') "[FAIL] controller diagnostics counters drifted: status=", status, &
+            " calls=", calls, " hairer=", hairer_policy_steps_sum, " tltm=", tltm_policy_steps_sum, &
+            " errors=", error_estimates_sum
+      end if
+      call release_flow_workspace(workspace)
+      call release_intode_diagnostics_context(diag)
+   end subroutine check_controller_policy_diagnostics
 
    subroutine check_solver_assist_policy_visibility(failures)
       integer, intent(inout) :: failures

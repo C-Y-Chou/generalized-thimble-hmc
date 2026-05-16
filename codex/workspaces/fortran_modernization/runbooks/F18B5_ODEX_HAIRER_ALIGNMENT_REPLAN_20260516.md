@@ -307,8 +307,12 @@ make -C build test_odex_controller_alignment_spec test_odex_backend_package_cont
 
 ### F18b.5f: Analytic And Tiny Remote Gates
 
-Status: local analytic endpoint gates implemented on 2026-05-16 JST; remote tiny
-PBS smoke prepared and pending submission/readback.
+Status: local analytic endpoint gates implemented on 2026-05-16 JST.  The first
+remote tiny PBS smoke (`15543.anode01`) completed Stage3 but failed the terminal
+counter assertion because Stage2 summary aggregation did not yet carry the
+F18b.5a+ ODEX policy/row/lifecycle counters from per-run contexts into the
+aggregate summary.  The aggregation repair is implemented locally and the tiny
+smoke must be rerun at the repair commit before any 1k telemetry.
 
 Before any 1k/10seed screen:
 
@@ -331,12 +335,21 @@ Implementation surfaces so far:
   opt-in `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental`.  The PBS script
   verifies aggregated ODEX counters have Hairer policy steps, zero TLTM policy
   steps, live `ERROLD` checks, Hairer scales, and no default scales.
+- `src/sampler/tltm_stage2_driver.f90`: `add_intode_diagnostics` now aggregates
+  the F18b.5a+ ODEX policy/row/lifecycle counters instead of only the older
+  call/step/RHS counters.
+- `tests/test_odex_foundation_contract.f90`: adds
+  `check_controller_policy_diagnostics`, which verifies the default controller
+  reports TLTM policy counters and `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental`
+  reports Hairer policy counters through `intode_with_context`.
 
 Local focused verification passed:
 
 ```text
 git diff --check -- tests/test_odex_backend_package_contract.f90
 make -C build test_odex_backend_package_contract
+make -C build test_odex_controller_alignment_spec test_odex_backend_package_contract test_odex_result_contract test_odex_controller_observation_contract test_odex_foundation_contract
+TLTM_ODE_CONTROLLER_POLICY=hairer_experimental make -C build test_odex_foundation_contract
 ```
 
 ### F18b.5g: Telemetry Promotion Gates

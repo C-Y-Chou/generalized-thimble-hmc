@@ -1850,3 +1850,29 @@
   `git diff --check -- tests/test_odex_backend_package_contract.f90`;
   `make -C build test_odex_backend_package_contract`.
   No local TLTM Stage2/Stage3 simulation screen was run.
+
+## 2026-05-16 JST - F18b.5f tiny-smoke first readback and aggregation repair
+
+- Pushed F18b.5f prep at `a8a5552eaaa5bfc188f5af6ee9b3dc34769e6fa0`,
+  created detached remote scratch worktree
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization_f18b5f`, and
+  submitted PBS job `15543.anode01` on C16/cnode01.
+- Job `15543.anode01` built and completed the one-seed, 200-cycle Stage3 tiny
+  smoke for `no_fb` and `fb_norefine`, but exited `1` at the terminal PBS
+  counter assertion.  The generated summaries had large nonzero ODEX call
+  counts but zero newer policy/row/lifecycle counters.
+- Root cause: `record_intode_odex_result` had the counters, but
+  `add_intode_diagnostics` in `tltm_stage2_driver` aggregated only the older
+  call/step/RHS counters from per-run contexts into the Stage2 summary.
+- Repair: `add_intode_diagnostics` now aggregates the F18b.5a+ ODEX policy,
+  row, lifecycle, `ERROLD`, `ATOV`, reject, and KOPT counters.  Added
+  `check_controller_policy_diagnostics` to `test_odex_foundation_contract` to
+  verify both default TLTM policy counters and
+  `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental` Hairer counters through
+  `intode_with_context`.
+- Local verification passed:
+  `git diff --check`;
+  `make -C build test_odex_controller_alignment_spec test_odex_backend_package_contract test_odex_result_contract test_odex_controller_observation_contract test_odex_foundation_contract`;
+  `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental make -C build test_odex_foundation_contract`.
+  The remote tiny smoke must be rerun at the repair commit before any 1k
+  telemetry.
