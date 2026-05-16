@@ -4,7 +4,8 @@ module tltm_stage2_driver
    use runtime_env_mod, only: parse_int_env, parse_real_env, parse_logical_env, read_string_env, parse_real_list, to_lower_ascii
    use utils, only: dp, log_determinant, wall_time_seconds, x_set_flow_time, x_set_seed_real
    use solve_flow, only: flow, reset_intode_fallback_stats, get_intode_fallback_stats, &
-                         get_intode_cvode_stats, get_intode_cvode_context_stats, &
+                         intode_diagnostics_context_t, get_intode_cvode_stats, get_intode_cvode_context_stats, &
+                         get_intode_odex_stats, get_intode_odex_context_stats, &
                          intode_ctx_unknown, intode_ctx_flowz, intode_ctx_flowzr, intode_ctx_flow, &
                          intode_status_unknown, intode_status_is_strict_success
    use model, only: grand, calculate_action
@@ -119,6 +120,7 @@ contains
       type(hmc_policy_context_t) :: hmc_policy_context
       type(hmc_replay_diagnostics_context_t) :: hmc_replay_diagnostics_context
       type(newton_eval_flow_status_context_t) :: newton_flow_status_context
+      type(intode_diagnostics_context_t) :: intode_diagnostics_summary
       type(mt95_state_t) :: swap_rng_state
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file, label_trace_file
@@ -399,8 +401,9 @@ contains
          close (unit_cold_phi)
       end if
       if (write_all_history) call close_all_replica_history_files(all_z_units, all_phi_units)
+      call aggregate_intode_diagnostics_from_run_contexts(run_contexts, intode_diagnostics_summary)
       call get_intode_fallback_stats(calls_total, calls_integrating, fallback_attempts, fallback_success, fallback_failure, &
-                                     fallback_max_steps, fallback_invalid, fallback_h_min)
+                                     fallback_max_steps, fallback_invalid, fallback_h_min, intode_diagnostics_summary)
       call get_constraint_solver_stats(solver_total_count, solver_newton_count, solver_quasi_count, solver_failed_count, &
                                        solver_newton_ratio, solver_quasi_ratio, solver_fail_ratio)
       call get_constraint_solver_quasi_stage_stats(quasi_probe_attempt_count, quasi_probe_success_count, &
@@ -438,9 +441,10 @@ contains
                                 far_flowzr_used_sum, far_final_resort_used_sum, &
                                 far_flowzr_used_success_sum, far_final_resort_used_success_sum, &
                                 far_flowzr_used_fail_sum, far_final_resort_used_fail_sum, &
-                                global_filter_candidate_count, global_filter_pass_count, global_filter_reject_count, &
-                                reverse_gate_candidate_counts, reverse_gate_pass_counts, reverse_gate_reject_counts, &
-                                newton_flow_status_context, qn_diagnostics_context, hmc_replay_diagnostics_context)
+	                                global_filter_candidate_count, global_filter_pass_count, global_filter_reject_count, &
+	                                reverse_gate_candidate_counts, reverse_gate_pass_counts, reverse_gate_reject_counts, &
+	                                newton_flow_status_context, qn_diagnostics_context, hmc_replay_diagnostics_context, &
+	                                intode_diagnostics_summary)
       call write_stage2_v1_sidecars(v1_manifest_file, v1_protocol_file, write_v1_manifest, write_v1_protocol, &
                                     v1_output_dir, write_v1_package, &
                                     summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
@@ -519,14 +523,16 @@ contains
          if (trim(init_mode) /= "direct" .and. trim(init_mode) /= "legacy") then
             call adaptive_preflow_to_target(slot%x, slot%flow_time, config%integrator%trajectory_length, &
                                             config%integrator%integration_steps, attempt - 1, preflow_success, stage_count, &
-                                            newton_flow_status_context)
+                                            newton_flow_status=newton_flow_status_context, flow_workspace=run_context%flow%workspace, &
+                                            intode_diagnostics=run_context%diagnostics%intode)
             if (.not. preflow_success) cycle
             write (*, '(A,I0,A,F10.6,A,I0,A,I0)') "[TLTM-S2][INIT] slot=", slot%slot_id, &
                " adaptive preflow ready at t=", slot%flow_time, " attempt=", attempt, " stages=", stage_count
          end if
 
          flow_status = intode_status_unknown
-         call flow(slot%x, slot%z, slot%jac, flow_failed, flow_status, run_context%flow%workspace)
+         call flow(slot%x, slot%z, slot%jac, flow_failed, flow_status, run_context%flow%workspace, &
+                   run_context%diagnostics%intode)
          if ((.not. flow_failed) .and. intode_status_is_strict_success(flow_status)) then
             ok = .true.
             if (trim(init_mode) == "direct" .or. trim(init_mode) == "legacy") then
@@ -597,19 +603,21 @@ contains
                                     accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
                                     final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
                                     qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
-                                    hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
-                                    hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
-                                    newton_flow_status=newton_flow_status_context, momentum_in=kernel_momentum, &
-                                    accept_uniform=accept_uniform)
+	                                    hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
+	                                    hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
+	                                    newton_flow_status=newton_flow_status_context, intode_diagnostics=run_context%diagnostics%intode, &
+	                                    momentum_in=kernel_momentum, &
+	                                    accept_uniform=accept_uniform)
             else
                call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
                                     config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
                                     context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
-                                    qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
-                                    hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
-                                    hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
-                                    newton_flow_status=newton_flow_status_context, momentum_in=kernel_momentum, &
-                                    accept_uniform=accept_uniform)
+	                                    qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
+	                                    hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
+	                                    hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
+	                                    newton_flow_status=newton_flow_status_context, intode_diagnostics=run_context%diagnostics%intode, &
+	                                    momentum_in=kernel_momentum, &
+	                                    accept_uniform=accept_uniform)
             end if
          else
             if (capture_local_transition_audit) then
@@ -619,17 +627,17 @@ contains
                                     accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
                                     final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
                                     qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
-                                    hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
-                                    hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
-                                    newton_flow_status=newton_flow_status_context)
+	                                    hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
+	                                    hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
+	                                    newton_flow_status=newton_flow_status_context, intode_diagnostics=run_context%diagnostics%intode)
             else
                call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
                                     config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
                                     context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
-                                    qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
-                                    hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
-                                    hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
-                                    newton_flow_status=newton_flow_status_context)
+	                                    qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
+	                                    hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
+	                                    hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
+	                                    newton_flow_status=newton_flow_status_context, intode_diagnostics=run_context%diagnostics%intode)
             end if
          end if
          call snapshot_solver_counters(solver_after)
@@ -1029,14 +1037,16 @@ contains
       x_ap = slot_b%x
       call x_set_flow_time(x_ap, slot_a%flow_time)
       flow_status_ap = intode_status_unknown
-      call flow(x_ap, z_ap, j_ap, ok_ap, flow_status_ap, run_context_a%flow%workspace)
+      call flow(x_ap, z_ap, j_ap, ok_ap, flow_status_ap, run_context_a%flow%workspace, &
+                run_context_a%diagnostics%intode)
       ok_ap = (.not. ok_ap) .and. intode_status_is_strict_success(flow_status_ap)
       if (ok_ap) call compute_effective_energy(z_ap, j_ap, e_ap, ok_ap)
 
       x_bp = slot_a%x
       call x_set_flow_time(x_bp, slot_b%flow_time)
       flow_status_bp = intode_status_unknown
-      call flow(x_bp, z_bp, j_bp, ok_bp, flow_status_bp, run_context_b%flow%workspace)
+      call flow(x_bp, z_bp, j_bp, ok_bp, flow_status_bp, run_context_b%flow%workspace, &
+                run_context_b%diagnostics%intode)
       ok_bp = (.not. ok_bp) .and. intode_status_is_strict_success(flow_status_bp)
       if (ok_bp) call compute_effective_energy(z_bp, j_bp, e_bp, ok_bp)
 
@@ -1243,19 +1253,114 @@ contains
          " far_anchor=", reverse_gate_count_at(counts, constraint_reverse_gate_path_far_anchor)
    end subroutine write_reverse_gate_route_counts
 
-   subroutine write_cvode_context_stats(unit_summary, line_prefix, context_code)
+   subroutine aggregate_intode_diagnostics_from_run_contexts(run_contexts, aggregate)
+      type(tltm_run_context_t), intent(in) :: run_contexts(:)
+      type(intode_diagnostics_context_t), intent(inout), target :: aggregate
+      integer :: idx
+
+      call reset_intode_fallback_stats(aggregate)
+      do idx = 1, size(run_contexts)
+         call add_intode_diagnostics(aggregate, run_contexts(idx)%diagnostics%intode)
+      end do
+   end subroutine aggregate_intode_diagnostics_from_run_contexts
+
+   subroutine add_intode_diagnostics(total, part)
+      type(intode_diagnostics_context_t), intent(inout) :: total
+      type(intode_diagnostics_context_t), intent(in) :: part
+
+      total%calls_total = total%calls_total + part%calls_total
+      total%calls_integrating = total%calls_integrating + part%calls_integrating
+      total%fallback_attempts = total%fallback_attempts + part%fallback_attempts
+      total%fallback_success = total%fallback_success + part%fallback_success
+      total%fallback_failure = total%fallback_failure + part%fallback_failure
+      total%fallback_max_steps = total%fallback_max_steps + part%fallback_max_steps
+      total%fallback_invalid = total%fallback_invalid + part%fallback_invalid
+      total%fallback_h_min = total%fallback_h_min + part%fallback_h_min
+      total%fallback_attempts_ctx = total%fallback_attempts_ctx + part%fallback_attempts_ctx
+      total%fallback_failures_ctx = total%fallback_failures_ctx + part%fallback_failures_ctx
+      total%cvode_calls = total%cvode_calls + part%cvode_calls
+      total%cvode_success = total%cvode_success + part%cvode_success
+      total%cvode_failure = total%cvode_failure + part%cvode_failure
+      total%cvode_steps_sum = total%cvode_steps_sum + part%cvode_steps_sum
+      total%cvode_rhs_evals_sum = total%cvode_rhs_evals_sum + part%cvode_rhs_evals_sum
+      total%cvode_error_test_fails_sum = total%cvode_error_test_fails_sum + part%cvode_error_test_fails_sum
+      total%cvode_nonlinear_iters_sum = total%cvode_nonlinear_iters_sum + part%cvode_nonlinear_iters_sum
+      total%cvode_nonlinear_conv_fails_sum = total%cvode_nonlinear_conv_fails_sum + part%cvode_nonlinear_conv_fails_sum
+      total%cvode_step_solve_fails_sum = total%cvode_step_solve_fails_sum + part%cvode_step_solve_fails_sum
+      total%cvode_final_order_sum = total%cvode_final_order_sum + part%cvode_final_order_sum
+      total%cvode_max_final_order = max(total%cvode_max_final_order, part%cvode_max_final_order)
+      total%cvode_calls_ctx = total%cvode_calls_ctx + part%cvode_calls_ctx
+      total%cvode_steps_ctx = total%cvode_steps_ctx + part%cvode_steps_ctx
+      total%cvode_rhs_evals_ctx = total%cvode_rhs_evals_ctx + part%cvode_rhs_evals_ctx
+      total%cvode_error_test_fails_ctx = total%cvode_error_test_fails_ctx + part%cvode_error_test_fails_ctx
+      total%cvode_nonlinear_iters_ctx = total%cvode_nonlinear_iters_ctx + part%cvode_nonlinear_iters_ctx
+      total%cvode_nonlinear_conv_fails_ctx = total%cvode_nonlinear_conv_fails_ctx + part%cvode_nonlinear_conv_fails_ctx
+      total%cvode_step_solve_fails_ctx = total%cvode_step_solve_fails_ctx + part%cvode_step_solve_fails_ctx
+      total%odex_calls = total%odex_calls + part%odex_calls
+      total%odex_success = total%odex_success + part%odex_success
+      total%odex_failure = total%odex_failure + part%odex_failure
+      total%odex_accepted_steps_sum = total%odex_accepted_steps_sum + part%odex_accepted_steps_sum
+      total%odex_rejected_steps_sum = total%odex_rejected_steps_sum + part%odex_rejected_steps_sum
+      total%odex_stability_rejects_sum = total%odex_stability_rejects_sum + part%odex_stability_rejects_sum
+      total%odex_rhs_evals_sum = total%odex_rhs_evals_sum + part%odex_rhs_evals_sum
+      total%odex_midpoint_rows_sum = total%odex_midpoint_rows_sum + part%odex_midpoint_rows_sum
+      total%odex_kplus1_attempts_sum = total%odex_kplus1_attempts_sum + part%odex_kplus1_attempts_sum
+      total%odex_accept_k_minus_1_sum = total%odex_accept_k_minus_1_sum + part%odex_accept_k_minus_1_sum
+      total%odex_accept_k_sum = total%odex_accept_k_sum + part%odex_accept_k_sum
+      total%odex_accept_k_plus_1_sum = total%odex_accept_k_plus_1_sum + part%odex_accept_k_plus_1_sum
+      total%odex_large_error_rejects_sum = total%odex_large_error_rejects_sum + part%odex_large_error_rejects_sum
+      total%odex_kplus1_rejects_sum = total%odex_kplus1_rejects_sum + part%odex_kplus1_rejects_sum
+      total%odex_final_order_sum = total%odex_final_order_sum + part%odex_final_order_sum
+      total%odex_max_final_order = max(total%odex_max_final_order, part%odex_max_final_order)
+      total%odex_calls_ctx = total%odex_calls_ctx + part%odex_calls_ctx
+      total%odex_accepted_steps_ctx = total%odex_accepted_steps_ctx + part%odex_accepted_steps_ctx
+      total%odex_rejected_steps_ctx = total%odex_rejected_steps_ctx + part%odex_rejected_steps_ctx
+      total%odex_rhs_evals_ctx = total%odex_rhs_evals_ctx + part%odex_rhs_evals_ctx
+      total%odex_midpoint_rows_ctx = total%odex_midpoint_rows_ctx + part%odex_midpoint_rows_ctx
+      total%odex_kplus1_attempts_ctx = total%odex_kplus1_attempts_ctx + part%odex_kplus1_attempts_ctx
+      if (part%last_failure_available) then
+         total%last_failure_available = part%last_failure_available
+         total%last_failure_reason = part%last_failure_reason
+         total%last_failure_context = part%last_failure_context
+         total%last_failure_rattle_step = part%last_failure_rattle_step
+         total%last_failure_rattle_substep = part%last_failure_rattle_substep
+         total%last_failure_stage = part%last_failure_stage
+         total%last_failure_newton_iter = part%last_failure_newton_iter
+         total%last_failure_quasi_iter = part%last_failure_quasi_iter
+         total%last_failure_t = part%last_failure_t
+         if (allocated(part%last_failure_y)) total%last_failure_y = part%last_failure_y
+      end if
+   end subroutine add_intode_diagnostics
+
+   subroutine write_cvode_context_stats(unit_summary, line_prefix, context_code, intode_diagnostics)
       integer, intent(in) :: unit_summary, context_code
       character(len=*), intent(in) :: line_prefix
+      type(intode_diagnostics_context_t), intent(inout), target :: intode_diagnostics
       integer(int64) :: calls, steps_sum, rhs_evals_sum, error_test_fails_sum
       integer(int64) :: nonlinear_iters_sum, nonlinear_conv_fails_sum, step_solve_fails_sum
 
       call get_intode_cvode_context_stats(context_code, calls, steps_sum, rhs_evals_sum, error_test_fails_sum, &
-                                          nonlinear_iters_sum, nonlinear_conv_fails_sum, step_solve_fails_sum)
+                                          nonlinear_iters_sum, nonlinear_conv_fails_sum, step_solve_fails_sum, intode_diagnostics)
       write (unit_summary, '(A,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
          trim(line_prefix), " calls=", calls, " steps=", steps_sum, " rhs_evals=", rhs_evals_sum, &
          " error_test_fails=", error_test_fails_sum, " nonlinear_iters=", nonlinear_iters_sum, &
          " nonlinear_conv_fails=", nonlinear_conv_fails_sum, " step_solve_fails=", step_solve_fails_sum
    end subroutine write_cvode_context_stats
+
+   subroutine write_odex_context_stats(unit_summary, line_prefix, context_code, intode_diagnostics)
+      integer, intent(in) :: unit_summary, context_code
+      character(len=*), intent(in) :: line_prefix
+      type(intode_diagnostics_context_t), intent(inout), target :: intode_diagnostics
+      integer(int64) :: calls, accepted_steps_sum, rejected_steps_sum
+      integer(int64) :: rhs_evals_sum, midpoint_rows_sum, kplus1_attempts_sum
+
+      call get_intode_odex_context_stats(context_code, calls, accepted_steps_sum, rejected_steps_sum, rhs_evals_sum, &
+                                         midpoint_rows_sum, kplus1_attempts_sum, intode_diagnostics)
+      write (unit_summary, '(A,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
+         trim(line_prefix), " calls=", calls, " accepted_steps=", accepted_steps_sum, &
+         " rejected_steps=", rejected_steps_sum, " rhs_evals=", rhs_evals_sum, &
+         " midpoint_rows=", midpoint_rows_sum, " kplus1_attempts=", kplus1_attempts_sum
+   end subroutine write_odex_context_stats
 
    integer(int64) function reverse_gate_count_at(counts, idx) result(count_value)
       integer(int64), intent(in) :: counts(:)
@@ -1284,9 +1389,10 @@ contains
                                    far_flowzr_used_sum, far_final_resort_used_sum, &
                                    far_flowzr_used_success_sum, far_final_resort_used_success_sum, &
                                    far_flowzr_used_fail_sum, far_final_resort_used_fail_sum, &
-                                   global_filter_candidate_count, global_filter_pass_count, global_filter_reject_count, &
-                                   reverse_gate_candidate_counts, reverse_gate_pass_counts, reverse_gate_reject_counts, &
-                                   newton_flow_status_context, qn_diagnostics_context, hmc_replay_diagnostics_context)
+	                                   global_filter_candidate_count, global_filter_pass_count, global_filter_reject_count, &
+	                                   reverse_gate_candidate_counts, reverse_gate_pass_counts, reverse_gate_reject_counts, &
+	                                   newton_flow_status_context, qn_diagnostics_context, hmc_replay_diagnostics_context, &
+	                                   intode_diagnostics)
       character(len=*), intent(in) :: summary_file
       type(tltm_slot_t), intent(in) :: slots(:)
       type(tltm_pair_stats_t), intent(in) :: pair_stats(:)
@@ -1320,6 +1426,7 @@ contains
       type(newton_eval_flow_status_context_t), intent(inout), target :: newton_flow_status_context
       type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics_context
       type(hmc_replay_diagnostics_context_t), intent(inout), target :: hmc_replay_diagnostics_context
+      type(intode_diagnostics_context_t), intent(inout), target :: intode_diagnostics
 
       integer, parameter :: unit_summary = 79
       integer :: ios, i, total_count
@@ -1343,6 +1450,23 @@ contains
       integer(int64) :: cvode_steps_sum, cvode_rhs_evals_sum, cvode_error_test_fails_sum
       integer(int64) :: cvode_nonlinear_iters_sum, cvode_nonlinear_conv_fails_sum, cvode_step_solve_fails_sum
       integer(int64) :: cvode_final_order_sum, cvode_max_final_order
+      integer(int64) :: odex_call_count, odex_success_count, odex_failure_count
+      integer(int64) :: odex_accepted_steps_sum, odex_rejected_steps_sum, odex_stability_rejects_sum
+      integer(int64) :: odex_rhs_evals_sum, odex_midpoint_rows_sum, odex_kplus1_attempts_sum
+      integer(int64) :: odex_accept_k_minus_1_sum, odex_accept_k_sum, odex_accept_k_plus_1_sum
+      integer(int64) :: odex_large_error_rejects_sum, odex_kplus1_rejects_sum
+      integer(int64) :: odex_hairer_policy_steps_sum, odex_tltm_policy_steps_sum
+      integer(int64) :: odex_first_step_entries_sum, odex_last_step_entries_sum, odex_basic_step_entries_sum
+      integer(int64) :: odex_row_j1_calls_sum, odex_row_j2_calls_sum, odex_row_jge3_calls_sum
+      integer(int64) :: odex_row_j1_no_error_returns_sum
+      integer(int64) :: odex_error_estimates_sum, odex_hairer_scal_estimates_sum, odex_default_scal_estimates_sum
+      integer(int64) :: odex_errold_checks_sum, odex_atov_events_sum
+      integer(int64) :: odex_convergence_rejects_sum, odex_kplus1_hope_rejects_sum
+      integer(int64) :: odex_reject_kc_k_minus_1_sum, odex_reject_kc_k_sum, odex_reject_kc_k_plus_1_sum
+      integer(int64) :: odex_kopt_accept_updates_sum, odex_reject_updates_sum
+      integer(int64) :: odex_kopt_demotions_sum, odex_kopt_keeps_sum, odex_kopt_promotions_sum
+      integer(int64) :: odex_after_reject_clamps_sum
+      integer(int64) :: odex_final_order_sum, odex_max_final_order
 
       open (unit=unit_summary, file=trim(summary_file), status='replace', action='write', iostat=ios)
       if (ios /= 0) then
@@ -1367,7 +1491,7 @@ contains
       call get_intode_cvode_stats(cvode_call_count, cvode_success_count, cvode_failure_count, cvode_steps_sum, &
                                   cvode_rhs_evals_sum, cvode_error_test_fails_sum, cvode_nonlinear_iters_sum, &
                                   cvode_nonlinear_conv_fails_sum, cvode_step_solve_fails_sum, cvode_final_order_sum, &
-                                  cvode_max_final_order)
+                                  cvode_max_final_order, intode_diagnostics)
       if (cvode_call_count > 0_int64) then
          write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
             "# cvode_stats calls=", cvode_call_count, " success=", cvode_success_count, " failure=", cvode_failure_count, &
@@ -1375,10 +1499,63 @@ contains
             " error_test_fails=", cvode_error_test_fails_sum, " nonlinear_iters=", cvode_nonlinear_iters_sum, &
             " nonlinear_conv_fails=", cvode_nonlinear_conv_fails_sum, " step_solve_fails=", cvode_step_solve_fails_sum, &
             " final_order_sum=", cvode_final_order_sum, " max_final_order=", cvode_max_final_order
-         call write_cvode_context_stats(unit_summary, "# cvode_context_unknown", intode_ctx_unknown)
-         call write_cvode_context_stats(unit_summary, "# cvode_context_flowz", intode_ctx_flowz)
-         call write_cvode_context_stats(unit_summary, "# cvode_context_flowzr", intode_ctx_flowzr)
-         call write_cvode_context_stats(unit_summary, "# cvode_context_flow", intode_ctx_flow)
+         call write_cvode_context_stats(unit_summary, "# cvode_context_unknown", intode_ctx_unknown, intode_diagnostics)
+         call write_cvode_context_stats(unit_summary, "# cvode_context_flowz", intode_ctx_flowz, intode_diagnostics)
+         call write_cvode_context_stats(unit_summary, "# cvode_context_flowzr", intode_ctx_flowzr, intode_diagnostics)
+         call write_cvode_context_stats(unit_summary, "# cvode_context_flow", intode_ctx_flow, intode_diagnostics)
+      end if
+      call get_intode_odex_stats(odex_call_count, odex_success_count, odex_failure_count, odex_accepted_steps_sum, &
+                                 odex_rejected_steps_sum, odex_stability_rejects_sum, odex_rhs_evals_sum, &
+                                 odex_midpoint_rows_sum, odex_kplus1_attempts_sum, odex_accept_k_minus_1_sum, &
+                                 odex_accept_k_sum, odex_accept_k_plus_1_sum, odex_large_error_rejects_sum, &
+                                 odex_kplus1_rejects_sum, odex_hairer_policy_steps_sum, odex_tltm_policy_steps_sum, &
+                                 odex_first_step_entries_sum, odex_last_step_entries_sum, odex_basic_step_entries_sum, &
+                                 odex_row_j1_calls_sum, odex_row_j2_calls_sum, odex_row_jge3_calls_sum, &
+                                 odex_row_j1_no_error_returns_sum, odex_error_estimates_sum, &
+                                 odex_hairer_scal_estimates_sum, odex_default_scal_estimates_sum, &
+                                 odex_errold_checks_sum, odex_atov_events_sum, odex_convergence_rejects_sum, &
+                                 odex_kplus1_hope_rejects_sum, odex_reject_kc_k_minus_1_sum, odex_reject_kc_k_sum, &
+                                 odex_reject_kc_k_plus_1_sum, odex_kopt_accept_updates_sum, odex_kopt_demotions_sum, &
+                                 odex_kopt_keeps_sum, odex_kopt_promotions_sum, odex_after_reject_clamps_sum, &
+                                 odex_reject_updates_sum, odex_final_order_sum, odex_max_final_order, intode_diagnostics)
+      if (odex_call_count > 0_int64) then
+         write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
+            "# odex_stats calls=", odex_call_count, " success=", odex_success_count, " failure=", odex_failure_count, &
+            " accepted_steps=", odex_accepted_steps_sum, " rejected_steps=", odex_rejected_steps_sum, &
+            " stability_rejects=", odex_stability_rejects_sum, " rhs_evals=", odex_rhs_evals_sum, &
+            " midpoint_rows=", odex_midpoint_rows_sum, " kplus1_attempts=", odex_kplus1_attempts_sum, &
+            " accept_k_minus_1=", odex_accept_k_minus_1_sum, " accept_k=", odex_accept_k_sum, &
+            " accept_k_plus_1=", odex_accept_k_plus_1_sum, " large_error_rejects=", odex_large_error_rejects_sum, &
+            " kplus1_rejects=", odex_kplus1_rejects_sum, " final_order_sum=", odex_final_order_sum, &
+            " max_final_order=", odex_max_final_order
+         write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
+            "# odex_stats hairer_policy_steps=", odex_hairer_policy_steps_sum, &
+            " tltm_policy_steps=", odex_tltm_policy_steps_sum, &
+            " first_step_entries=", odex_first_step_entries_sum, &
+            " last_step_entries=", odex_last_step_entries_sum, &
+            " basic_step_entries=", odex_basic_step_entries_sum, &
+            " row_j1_calls=", odex_row_j1_calls_sum, " row_j2_calls=", odex_row_j2_calls_sum, &
+            " row_jge3_calls=", odex_row_jge3_calls_sum, " error_estimates=", odex_error_estimates_sum, &
+            " hairer_scal_estimates=", odex_hairer_scal_estimates_sum, &
+            " default_scal_estimates=", odex_default_scal_estimates_sum, &
+            " convergence_rejects=", odex_convergence_rejects_sum, &
+            " kplus1_hope_rejects=", odex_kplus1_hope_rejects_sum, &
+            " kopt_accept_updates=", odex_kopt_accept_updates_sum, &
+            " reject_updates=", odex_reject_updates_sum
+         write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
+            "# odex_stats row_j1_no_error_returns=", odex_row_j1_no_error_returns_sum, &
+            " errold_checks=", odex_errold_checks_sum, " atov_events=", odex_atov_events_sum, &
+            " reject_kc_k_minus_1=", odex_reject_kc_k_minus_1_sum, &
+            " reject_kc_k=", odex_reject_kc_k_sum, &
+            " reject_kc_k_plus_1=", odex_reject_kc_k_plus_1_sum, &
+            " kopt_demotions=", odex_kopt_demotions_sum, " kopt_keeps=", odex_kopt_keeps_sum, &
+            " kopt_promotions=", odex_kopt_promotions_sum, &
+            " after_reject_clamps=", odex_after_reject_clamps_sum, &
+            " reject_updates=", odex_reject_updates_sum
+         call write_odex_context_stats(unit_summary, "# odex_context_unknown", intode_ctx_unknown, intode_diagnostics)
+         call write_odex_context_stats(unit_summary, "# odex_context_flowz", intode_ctx_flowz, intode_diagnostics)
+         call write_odex_context_stats(unit_summary, "# odex_context_flowzr", intode_ctx_flowzr, intode_diagnostics)
+         call write_odex_context_stats(unit_summary, "# odex_context_flow", intode_ctx_flow, intode_diagnostics)
       end if
       write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,F9.5,A,F9.5,A,F9.5)') &
          "# constraint_stats total=", solver_total_count, " newton=", solver_newton_count, " quasi=", solver_quasi_count, &

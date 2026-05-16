@@ -13,7 +13,7 @@ from collections import Counter
 from pathlib import Path
 
 
-DECL_SAVE_RE = re.compile(r"\bsave\b\s*::\s*(.*)", re.IGNORECASE)
+DECL_SAVE_RE = re.compile(r"\bsave\b(?=[^:]*::)[^:]*::\s*(.*)", re.IGNORECASE)
 MODULE_RE = re.compile(r"^\s*module\s+([a-z_][a-z0-9_]*)\b", re.IGNORECASE)
 PROGRAM_UNIT_RE = re.compile(r"^\s*(program|subroutine|function)\s+([a-z_][a-z0-9_]*)\b", re.IGNORECASE)
 END_PROGRAM_UNIT_RE = re.compile(r"^\s*end\s*(program|subroutine|function)\b", re.IGNORECASE)

@@ -25,6 +25,12 @@ module odex_backend
    integer, parameter, public :: odex_step_sequence_iwork3 = 3
    integer, parameter, public :: odex_stability_control_none = 0
    integer, parameter, public :: odex_stability_control_conservative = 1
+   integer, parameter, public :: odex_controller_policy_tltm_endpoint = 0
+   integer, parameter, public :: odex_controller_policy_hairer_experimental = 1
+   integer, parameter, public :: odex_order_transition_demote = -1
+   integer, parameter, public :: odex_order_transition_keep = 0
+   integer, parameter, public :: odex_order_transition_promote = 1
+   real(dp), parameter, public :: odex_hairer_errold_initial = 1.0e10_dp
    integer(c_int), parameter :: sundials_cvode_status_success = 0_c_int
    integer(c_int), parameter :: sundials_cvode_status_max_steps = 1_c_int
    integer(c_int), parameter :: sundials_cvode_status_invalid = 2_c_int
@@ -46,11 +52,16 @@ module odex_backend
       real(dp) :: cvode_min_step = 0.0_dp
       integer :: step_sequence = odex_step_sequence_iwork3
       integer :: stability_control = odex_stability_control_none
+      integer :: controller_policy = odex_controller_policy_tltm_endpoint
       logical :: endpoint_only = .true.
       real(dp) :: h_min_c_fp = 16.0_dp
       real(dp) :: h_min_c_tol = 0.01_dp
       real(dp) :: h_min_c_span = 1.0e-12_dp
       real(dp) :: initial_step_fraction = 0.01_dp
+      real(dp) :: step_size_bound_fac1 = 0.02_dp
+      real(dp) :: step_size_bound_fac2 = 4.0_dp
+      real(dp) :: order_decrease_factor = 0.8_dp
+      real(dp) :: order_increase_factor = 0.9_dp
       real(dp) :: stability_growth_limit = 4.0_dp
    end type odex_options
 
@@ -79,7 +90,102 @@ module odex_backend
       integer :: cvode_nonlinear_iters = 0
       integer :: cvode_nonlinear_conv_fails = 0
       integer :: cvode_step_solve_fails = 0
+      integer :: odex_rhs_evals = 0
+      integer :: odex_midpoint_rows = 0
+      integer :: odex_kplus1_attempts = 0
+      integer :: odex_accept_k_minus_1 = 0
+      integer :: odex_accept_k = 0
+      integer :: odex_accept_k_plus_1 = 0
+      integer :: odex_large_error_rejects = 0
+      integer :: odex_kplus1_rejects = 0
+      integer :: odex_hairer_policy_steps = 0
+      integer :: odex_tltm_policy_steps = 0
+      integer :: odex_first_step_entries = 0
+      integer :: odex_last_step_entries = 0
+      integer :: odex_basic_step_entries = 0
+      integer :: odex_row_j1_calls = 0
+      integer :: odex_row_j2_calls = 0
+      integer :: odex_row_jge3_calls = 0
+      integer :: odex_row_j1_no_error_returns = 0
+      integer :: odex_error_estimates = 0
+      integer :: odex_hairer_scal_estimates = 0
+      integer :: odex_default_scal_estimates = 0
+      integer :: odex_errold_checks = 0
+      integer :: odex_atov_events = 0
+      integer :: odex_convergence_rejects = 0
+      integer :: odex_kplus1_hope_rejects = 0
+      integer :: odex_reject_kc_k_minus_1 = 0
+      integer :: odex_reject_kc_k = 0
+      integer :: odex_reject_kc_k_plus_1 = 0
+      integer :: odex_kopt_accept_updates = 0
+      integer :: odex_kopt_demotions = 0
+      integer :: odex_kopt_keeps = 0
+      integer :: odex_kopt_promotions = 0
+      integer :: odex_after_reject_clamps = 0
+      integer :: odex_reject_updates = 0
    end type odex_result
+
+   type :: odex_step_telemetry
+      integer :: rhs_evals = 0
+      integer :: midpoint_rows = 0
+      integer :: kplus1_attempts = 0
+      integer :: accept_k_minus_1 = 0
+      integer :: accept_k = 0
+      integer :: accept_k_plus_1 = 0
+      integer :: large_error_rejects = 0
+      integer :: kplus1_rejects = 0
+      integer :: row_j1_calls = 0
+      integer :: row_j2_calls = 0
+      integer :: row_jge3_calls = 0
+      integer :: row_j1_no_error_returns = 0
+      integer :: error_estimates = 0
+      integer :: hairer_scal_estimates = 0
+      integer :: default_scal_estimates = 0
+      integer :: errold_checks = 0
+      integer :: atov_events = 0
+      integer :: convergence_rejects = 0
+      integer :: kplus1_hope_rejects = 0
+      integer :: reject_kc_k_minus_1 = 0
+      integer :: reject_kc_k = 0
+      integer :: reject_kc_k_plus_1 = 0
+      integer :: kopt_accept_updates = 0
+      integer :: kopt_demotions = 0
+      integer :: kopt_keeps = 0
+      integer :: kopt_promotions = 0
+      integer :: after_reject_clamps = 0
+      integer :: reject_updates = 0
+   end type odex_step_telemetry
+
+   type, public :: odex_row_result
+      integer :: row_index = 0
+      integer :: rhs_evals = 0
+      logical :: err_available = .false.
+      logical :: atov = .false.
+      logical :: invalid_rhs = .false.
+      logical :: stability_rejected = .false.
+      real(dp) :: err = 0.0_dp
+      real(dp) :: hh = 0.0_dp
+      real(dp) :: work = huge(1.0_dp)
+      real(dp) :: h_after = 0.0_dp
+      real(dp) :: errold_after = 0.0_dp
+   end type odex_row_result
+
+   type, public :: odex_hairer_row_lifecycle
+      logical :: initialized = .false.
+      integer :: dimension = 0
+      integer :: max_rows = 0
+      integer :: rows_attempted = 0
+      integer :: error_rows = 0
+      integer :: atov_events = 0
+      integer :: rhs_evals = 0
+      integer :: last_row = 0
+      real(dp) :: errold = odex_hairer_errold_initial
+      real(dp) :: h_after = 0.0_dp
+      logical :: atov = .false.
+      real(dp), allocatable :: scal(:)
+      real(dp), allocatable :: hh(:)
+      real(dp), allocatable :: work(:)
+   end type odex_hairer_row_lifecycle
 
    abstract interface
       function ode_rhs(y) result(dy)
@@ -142,15 +248,27 @@ module odex_backend
 
    public :: build_nsteps
    public :: odex_apply_backend_name
+   public :: odex_apply_controller_policy_name
    public :: odex_backend_name
+   public :: odex_controller_policy_name
    public :: odex_default_options
    public :: ensure_odex_workspace_object
    public :: odex_integrate_endpoint
    public :: odex_integrate_endpoint_context
    public :: odex_observe_controller_estimate
+   public :: odex_hairer_row_lifecycle_reset
+   public :: odex_observe_hairer_initial_state
+   public :: odex_observe_hairer_midex_row
+   public :: odex_observe_hairer_midex_lifecycle_row
+   public :: odex_observe_hairer_promotion_step
+   public :: odex_observe_hairer_kopt
+   public :: odex_observe_hairer_reject_update
+   public :: odex_observe_hairer_row_lifecycle_begin
+   public :: odex_observe_hairer_step_entry
    public :: odex_observe_h_min
    public :: odex_observe_initial_step
    public :: odex_observe_large_error_threshold
+   public :: odex_observe_order_transition
    public :: odex_observe_stability_reject
    public :: odex_result_reset
    public :: odex_result_mark_success
@@ -184,11 +302,16 @@ contains
       options%cvode_min_step = 0.0_dp
       options%step_sequence = odex_step_sequence_iwork3
       options%stability_control = odex_stability_control_none
+      options%controller_policy = odex_controller_policy_tltm_endpoint
       options%endpoint_only = .true.
       options%h_min_c_fp = 16.0_dp
       options%h_min_c_tol = 0.01_dp
       options%h_min_c_span = 1.0e-12_dp
       options%initial_step_fraction = 0.01_dp
+      options%step_size_bound_fac1 = 0.02_dp
+      options%step_size_bound_fac2 = 4.0_dp
+      options%order_decrease_factor = 0.8_dp
+      options%order_increase_factor = 0.9_dp
       options%stability_growth_limit = 4.0_dp
    end subroutine odex_default_options
 
@@ -206,6 +329,20 @@ contains
       end select
    end subroutine odex_apply_backend_name
 
+   subroutine odex_apply_controller_policy_name(options, policy_token)
+      type(odex_options), intent(inout) :: options
+      character(len=*), intent(in) :: policy_token
+
+      select case (trim(odex_to_lower_ascii(policy_token)))
+      case ("", "default", "tltm", "tltm_endpoint", "endpoint", "f18b4b")
+         options%controller_policy = odex_controller_policy_tltm_endpoint
+      case ("hairer", "hairer_experimental", "hairer_route", "experimental")
+         options%controller_policy = odex_controller_policy_hairer_experimental
+      case default
+         options%controller_policy = -1
+      end select
+   end subroutine odex_apply_controller_policy_name
+
    function odex_backend_name(backend) result(name)
       integer, intent(in) :: backend
       character(len=32) :: name
@@ -219,6 +356,20 @@ contains
          name = "invalid"
       end select
    end function odex_backend_name
+
+   function odex_controller_policy_name(controller_policy) result(name)
+      integer, intent(in) :: controller_policy
+      character(len=32) :: name
+
+      select case (controller_policy)
+      case (odex_controller_policy_tltm_endpoint)
+         name = "tltm_endpoint"
+      case (odex_controller_policy_hairer_experimental)
+         name = "hairer_experimental"
+      case default
+         name = "invalid"
+      end select
+   end function odex_controller_policy_name
 
    logical function odex_sundials_cvode_available() result(available)
       available = (tltm_sundials_cvode_available() == 1_c_int)
@@ -234,10 +385,11 @@ contains
       type(odex_options), intent(in), optional :: options
 
       type(odex_options) :: opts
-      real(dp) :: h, tc, er1, h_min, t_new, h_step
+      real(dp) :: h, tc, er1, h_min, t_new, h_step, hmax_abs, hoptde, h_initial_guess
       real(dp) :: h_min_fp, h_min_tol, h_min_span
-      integer :: state_size, k, step_count, rejected_steps, stability_rejects
-      logical :: is_last_step, stability_rejected
+      integer :: state_size, k, step_count, accepted_steps, rejected_steps, stability_rejects
+      logical :: is_last_step, invalid_rhs, stability_rejected, hairer_policy, endpoint_reached
+      type(odex_step_telemetry) :: step_stats
 
       call odex_default_options(opts)
       if (present(options)) opts = options
@@ -245,13 +397,14 @@ contains
       call odex_result_reset(result_state)
 
       state_size = size(y)
-      res = y
       error_flag = .true.
 
       if (size(res) /= state_size .or. state_size <= 0) then
+         if (size(res) > 0) res = 0.0_dp
          call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, t)
          return
       end if
+      res = y
 
       if (opts%max_steps <= 0) then
          call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, t)
@@ -279,8 +432,13 @@ contains
          call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, t)
          return
       end if
+      if (.not. odex_controller_policy_is_valid(opts%controller_policy)) then
+         call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, t)
+         return
+      end if
 
       call ensure_odex_workspace_object(workspace, opts%k_max + 1, state_size)
+      hairer_policy = (opts%controller_policy == odex_controller_policy_hairer_experimental)
 
       h_min_fp = opts%h_min_c_fp*epsilon(1.0_dp)*max(1.0_dp, abs(t))
       h_min_tol = opts%h_min_c_tol*max(opts%abs_tol, opts%rel_tol, epsilon(1.0_dp))
@@ -289,37 +447,64 @@ contains
 
       tc = 0.0_dp
       workspace%ystate(1:state_size) = y
-      h = t*opts%initial_step_fraction
-      if (h == 0.0_dp) h = sign(h_min, t)
-      k = opts%k_min
+      h_initial_guess = t*opts%initial_step_fraction
+      if (h_initial_guess == 0.0_dp) h_initial_guess = sign(h_min, t)
+      if (hairer_policy) then
+         call odex_observe_hairer_initial_state(opts, t, h_initial_guess, 0.0_dp, h, k, hmax_abs)
+         hoptde = hmax_abs
+      else
+         h = h_initial_guess
+         k = opts%k_min
+         hmax_abs = abs(t)
+         hoptde = hmax_abs
+      end if
       step_count = 0
+      accepted_steps = 0
       rejected_steps = 0
       stability_rejects = 0
+      h_step = 0.0_dp
 
       do
          step_count = step_count + 1
          if (step_count > opts%max_steps) then
             res = workspace%ystate(1:state_size)
-            call odex_result_mark_failure(result_state, odex_reason_max_steps, max(0, step_count - 1), &
+            call odex_result_mark_failure(result_state, odex_reason_max_steps, accepted_steps, &
                                           1 + rejected_steps, k, h, t - tc)
             result_state%stability_rejects = stability_rejects
             return
          end if
 
-         if ((t >= 0.0_dp .and. tc + h >= t) .or. (t < 0.0_dp .and. tc + h <= t)) then
-            is_last_step = .true.
-            h = t - tc
+         if (hairer_policy) then
+            call odex_observe_hairer_step_entry(tc, t, h, hmax_abs, hoptde, epsilon(1.0_dp), &
+                                                h, is_last_step, endpoint_reached)
+            if (endpoint_reached .or. h == 0.0_dp) exit
          else
-            is_last_step = .false.
+            if ((t >= 0.0_dp .and. tc + h >= t) .or. (t < 0.0_dp .and. tc + h <= t)) then
+               is_last_step = .true.
+               h = t - tc
+            else
+               is_last_step = .false.
+            end if
          end if
 
+         call odex_result_record_step_entry(result_state, hairer_policy, step_count, is_last_step)
          t_new = tc + h
          h_step = h
-         call odex_step(f, workspace%ystate(1:state_size), h, k, res, er1, workspace, opts, stability_rejected)
+         call odex_step(f, workspace%ystate(1:state_size), h, k, res, er1, workspace, opts, &
+                        stability_rejected, invalid_rhs, step_stats)
+         call odex_result_record_step_telemetry(result_state, step_stats)
+
+         if (invalid_rhs) then
+            res = workspace%ystate(1:state_size)
+            call odex_result_mark_failure(result_state, odex_reason_invalid, accepted_steps, &
+                                          rejected_steps, k, h, t - tc)
+            result_state%stability_rejects = stability_rejects
+            return
+         end if
 
          if (vector_has_invalid(res(1:state_size)) .or. .not. ieee_is_finite(h)) then
             res = workspace%ystate(1:state_size)
-            call odex_result_mark_failure(result_state, odex_reason_invalid, max(0, step_count - 1), &
+            call odex_result_mark_failure(result_state, odex_reason_invalid, accepted_steps, &
                                           1 + rejected_steps, k, h, t - tc)
             result_state%stability_rejects = stability_rejects
             return
@@ -328,6 +513,7 @@ contains
          if (er1 < 1.0_dp) then
             tc = t_new
             workspace%ystate(1:state_size) = res(1:state_size)
+            accepted_steps = accepted_steps + 1
             if (is_last_step) exit
          else
             rejected_steps = rejected_steps + 1
@@ -336,7 +522,7 @@ contains
 
          if (abs(h) < h_min) then
             res = workspace%ystate(1:state_size)
-            call odex_result_mark_failure(result_state, odex_reason_h_min, max(0, step_count - 1), &
+            call odex_result_mark_failure(result_state, odex_reason_h_min, accepted_steps, &
                                           1 + rejected_steps, k, h, t - tc)
             result_state%stability_rejects = stability_rejects
             return
@@ -345,7 +531,7 @@ contains
 
       res = workspace%ystate(1:state_size)
       error_flag = .false.
-      call odex_result_mark_success(result_state, odex_status_success, step_count, k, h_step)
+      call odex_result_mark_success(result_state, odex_status_success, accepted_steps, k, h_step)
       result_state%rejected_steps = rejected_steps
       result_state%stability_rejects = stability_rejects
    end subroutine odex_integrate_endpoint
@@ -361,10 +547,11 @@ contains
       class(*), intent(inout), target :: rhs_context
 
       type(odex_options) :: opts
-      real(dp) :: h, tc, er1, h_min, t_new, h_step
+      real(dp) :: h, tc, er1, h_min, t_new, h_step, hmax_abs, hoptde, h_initial_guess
       real(dp) :: h_min_fp, h_min_tol, h_min_span
-      integer :: state_size, k, step_count, rejected_steps, stability_rejects
-      logical :: is_last_step, stability_rejected
+      integer :: state_size, k, step_count, accepted_steps, rejected_steps, stability_rejects
+      logical :: is_last_step, invalid_rhs, stability_rejected, hairer_policy, endpoint_reached
+      type(odex_step_telemetry) :: step_stats
 
       call odex_default_options(opts)
       if (present(options)) opts = options
@@ -372,13 +559,14 @@ contains
       call odex_result_reset(result_state)
 
       state_size = size(y)
-      res = y
       error_flag = .true.
 
       if (size(res) /= state_size .or. state_size <= 0) then
+         if (size(res) > 0) res = 0.0_dp
          call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, t)
          return
       end if
+      res = y
 
       if (opts%max_steps <= 0) then
          call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, t)
@@ -406,8 +594,13 @@ contains
          call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, t)
          return
       end if
+      if (.not. odex_controller_policy_is_valid(opts%controller_policy)) then
+         call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, t)
+         return
+      end if
 
       call ensure_odex_workspace_object(workspace, opts%k_max + 1, state_size)
+      hairer_policy = (opts%controller_policy == odex_controller_policy_hairer_experimental)
 
       h_min_fp = opts%h_min_c_fp*epsilon(1.0_dp)*max(1.0_dp, abs(t))
       h_min_tol = opts%h_min_c_tol*max(opts%abs_tol, opts%rel_tol, epsilon(1.0_dp))
@@ -416,37 +609,64 @@ contains
 
       tc = 0.0_dp
       workspace%ystate(1:state_size) = y
-      h = t*opts%initial_step_fraction
-      if (h == 0.0_dp) h = sign(h_min, t)
-      k = opts%k_min
+      h_initial_guess = t*opts%initial_step_fraction
+      if (h_initial_guess == 0.0_dp) h_initial_guess = sign(h_min, t)
+      if (hairer_policy) then
+         call odex_observe_hairer_initial_state(opts, t, h_initial_guess, 0.0_dp, h, k, hmax_abs)
+         hoptde = hmax_abs
+      else
+         h = h_initial_guess
+         k = opts%k_min
+         hmax_abs = abs(t)
+         hoptde = hmax_abs
+      end if
       step_count = 0
+      accepted_steps = 0
       rejected_steps = 0
       stability_rejects = 0
+      h_step = 0.0_dp
 
       do
          step_count = step_count + 1
          if (step_count > opts%max_steps) then
             res = workspace%ystate(1:state_size)
-            call odex_result_mark_failure(result_state, odex_reason_max_steps, max(0, step_count - 1), &
+            call odex_result_mark_failure(result_state, odex_reason_max_steps, accepted_steps, &
                                           1 + rejected_steps, k, h, t - tc)
             result_state%stability_rejects = stability_rejects
             return
          end if
 
-         if ((t >= 0.0_dp .and. tc + h >= t) .or. (t < 0.0_dp .and. tc + h <= t)) then
-            is_last_step = .true.
-            h = t - tc
+         if (hairer_policy) then
+            call odex_observe_hairer_step_entry(tc, t, h, hmax_abs, hoptde, epsilon(1.0_dp), &
+                                                h, is_last_step, endpoint_reached)
+            if (endpoint_reached .or. h == 0.0_dp) exit
          else
-            is_last_step = .false.
+            if ((t >= 0.0_dp .and. tc + h >= t) .or. (t < 0.0_dp .and. tc + h <= t)) then
+               is_last_step = .true.
+               h = t - tc
+            else
+               is_last_step = .false.
+            end if
          end if
 
+         call odex_result_record_step_entry(result_state, hairer_policy, step_count, is_last_step)
          t_new = tc + h
          h_step = h
-         call odex_step_context(f, workspace%ystate(1:state_size), h, k, res, er1, workspace, opts, stability_rejected, rhs_context)
+         call odex_step_context(f, workspace%ystate(1:state_size), h, k, res, er1, workspace, opts, &
+                                stability_rejected, invalid_rhs, step_stats, rhs_context)
+         call odex_result_record_step_telemetry(result_state, step_stats)
+
+         if (invalid_rhs) then
+            res = workspace%ystate(1:state_size)
+            call odex_result_mark_failure(result_state, odex_reason_invalid, accepted_steps, &
+                                          rejected_steps, k, h, t - tc)
+            result_state%stability_rejects = stability_rejects
+            return
+         end if
 
          if (vector_has_invalid(res(1:state_size)) .or. .not. ieee_is_finite(h)) then
             res = workspace%ystate(1:state_size)
-            call odex_result_mark_failure(result_state, odex_reason_invalid, max(0, step_count - 1), &
+            call odex_result_mark_failure(result_state, odex_reason_invalid, accepted_steps, &
                                           1 + rejected_steps, k, h, t - tc)
             result_state%stability_rejects = stability_rejects
             return
@@ -455,6 +675,7 @@ contains
          if (er1 < 1.0_dp) then
             tc = t_new
             workspace%ystate(1:state_size) = res(1:state_size)
+            accepted_steps = accepted_steps + 1
             if (is_last_step) exit
          else
             rejected_steps = rejected_steps + 1
@@ -463,7 +684,7 @@ contains
 
          if (abs(h) < h_min) then
             res = workspace%ystate(1:state_size)
-            call odex_result_mark_failure(result_state, odex_reason_h_min, max(0, step_count - 1), &
+            call odex_result_mark_failure(result_state, odex_reason_h_min, accepted_steps, &
                                           1 + rejected_steps, k, h, t - tc)
             result_state%stability_rejects = stability_rejects
             return
@@ -472,7 +693,7 @@ contains
 
       res = workspace%ystate(1:state_size)
       error_flag = .false.
-      call odex_result_mark_success(result_state, odex_status_success, step_count, k, h_step)
+      call odex_result_mark_success(result_state, odex_status_success, accepted_steps, k, h_step)
       result_state%rejected_steps = rejected_steps
       result_state%stability_rejects = stability_rejects
    end subroutine odex_integrate_endpoint_context
@@ -663,7 +884,7 @@ contains
       cvode_callback_active = .false.
    end subroutine odex_cvode_clear_callback
 
-   subroutine odex_step(f, y, h, k, res, err, workspace, opts, stability_rejected)
+   subroutine odex_step(f, y, h, k, res, err, workspace, opts, stability_rejected, invalid_rhs, step_stats)
       procedure(ode_rhs) :: f
       real(dp), intent(in) :: y(:)
       real(dp), intent(inout) :: h
@@ -671,27 +892,38 @@ contains
       real(dp), intent(out) :: res(:), err
       type(odex_workspace), intent(inout) :: workspace
       type(odex_options), intent(in) :: opts
-      logical, intent(out) :: stability_rejected
+      logical, intent(out) :: stability_rejected, invalid_rhs
+      type(odex_step_telemetry), intent(out) :: step_stats
 
       integer :: i, j, l, n, ni, k_prev
-      real(dp) :: dt, scale, errsum, wk1, wk2, hk1, hk2
+      real(dp) :: dt, scale, errsum, wk1, wk2, wk3, hk0, hk1, hk2, hk3
+      real(dp) :: work_values(odex_cache_size), step_values(odex_cache_size)
       real(dp) :: prev_norm, curr_norm
+      logical :: hairer_policy
 
       n = size(y)
       res = y
       stability_rejected = .false.
+      invalid_rhs = .false.
+      call odex_step_telemetry_reset(step_stats)
       wk1 = 0.0_dp
       wk2 = 0.0_dp
+      wk3 = 0.0_dp
+      hk0 = h
       hk1 = h
       hk2 = h
+      hk3 = h
+      work_values = huge(1.0_dp)
+      step_values = max(abs(h), tiny(1.0_dp))
+      hairer_policy = (opts%controller_policy == odex_controller_policy_hairer_experimental)
 
       workspace%fbase(1:n) = f(y)
+      step_stats%rhs_evals = step_stats%rhs_evals + 1
 
       if (vector_has_invalid(workspace%fbase(1:n))) then
+         invalid_rhs = .true.
          err = huge(1.0_dp)
          res = y
-         h = sign(max(abs(h)*0.5_dp, 1.0e-16_dp), h)
-         k = max(opts%k_min, k - 1)
          return
       end if
 
@@ -705,6 +937,13 @@ contains
 
          do l = 2, ni
             workspace%fval(1:n) = f(workspace%ycurr(1:n))
+            step_stats%rhs_evals = step_stats%rhs_evals + 1
+            if (vector_has_invalid(workspace%fval(1:n))) then
+               invalid_rhs = .true.
+               err = huge(1.0_dp)
+               res = y
+               return
+            end if
             if (odex_stability_reject(workspace%fval(1:n), prev_norm, dt, opts)) then
                stability_rejected = .true.
                err = huge(1.0_dp)
@@ -721,6 +960,13 @@ contains
          end do
 
          workspace%fval(1:n) = f(workspace%ycurr(1:n))
+         step_stats%rhs_evals = step_stats%rhs_evals + 1
+         if (vector_has_invalid(workspace%fval(1:n))) then
+            invalid_rhs = .true.
+            err = huge(1.0_dp)
+            res = y
+            return
+         end if
          if (odex_stability_reject(workspace%fval(1:n), prev_norm, dt, opts)) then
             stability_rejected = .true.
             err = huge(1.0_dp)
@@ -730,6 +976,7 @@ contains
             return
          end if
          workspace%tableau(i, 1, 1:n) = 0.5_dp*(workspace%yprev(1:n) + workspace%ycurr(1:n) + dt*workspace%fval(1:n))
+         call odex_step_record_midpoint_row(step_stats, i)
       end do
 
       do j = 2, k
@@ -738,40 +985,62 @@ contains
                                            (workspace%tableau(i, j - 1, 1:n) - workspace%tableau(i - 1, j - 1, 1:n))/ &
                                            workspace%ratio(i, i - j + 1)
 
-            if (i == k - 1 .and. j == k - 1) then
+            if (k > 3 .and. i == k - 1 .and. j == k - 1) then
                errsum = 0.0_dp
+               call odex_step_record_error_scale(step_stats, hairer_policy)
                do l = 1, n
-                  scale = opts%abs_tol + opts%rel_tol*max(abs(workspace%tableau(k - 2, k - 2, l)), &
-                                                          abs(workspace%tableau(k - 2, k - 3, l)))
-                  scale = max(scale, tiny(1.0_dp))
+                  scale = odex_error_scale(opts, y(l), workspace%tableau(k - 2, k - 2, l), &
+                                           workspace%tableau(k - 2, k - 2, l), &
+                                           workspace%tableau(k - 2, k - 3, l), hairer_policy)
                   errsum = errsum + ((workspace%tableau(k - 2, k - 2, l) - workspace%tableau(k - 2, k - 3, l))/scale)**2
                end do
                err = sqrt(errsum/real(n, dp))
-               wk2 = calculate_wk(h, err, k - 2, workspace)
+               wk2 = calculate_wk(h, err, k - 2, workspace, opts)
+               hk0 = calculate_hk(h, err, k - 2, workspace, opts)
+               call odex_store_hairer_controller_row(work_values, step_values, k - 2, wk2, hk0)
 
                errsum = 0.0_dp
+               call odex_step_record_error_scale(step_stats, hairer_policy)
                do l = 1, n
-                  scale = opts%abs_tol + opts%rel_tol*max(abs(workspace%tableau(k - 1, k - 1, l)), &
-                                                          abs(workspace%tableau(k - 1, k - 2, l)))
-                  scale = max(scale, tiny(1.0_dp))
+                  scale = odex_error_scale(opts, y(l), workspace%tableau(k - 1, k - 1, l), &
+                                           workspace%tableau(k - 1, k - 1, l), &
+                                           workspace%tableau(k - 1, k - 2, l), hairer_policy)
                   errsum = errsum + ((workspace%tableau(k - 1, k - 1, l) - workspace%tableau(k - 1, k - 2, l))/scale)**2
                end do
                err = sqrt(errsum/real(n, dp))
-               wk1 = calculate_wk(h, err, k - 1, workspace)
-               hk1 = calculate_hk(h, err, k - 1, workspace)
+               wk1 = calculate_wk(h, err, k - 1, workspace, opts)
+               hk1 = calculate_hk(h, err, k - 1, workspace, opts)
+               call odex_store_hairer_controller_row(work_values, step_values, k - 1, wk1, hk1)
 
                if (err < 1.0_dp) then
                   res = workspace%tableau(k - 1, k - 1, 1:n)
-                  if (wk1 > 0.9_dp*wk2) then
-                     k = max(opts%k_min, k - 1)
-                     h = hk1
+                  step_stats%accept_k_minus_1 = step_stats%accept_k_minus_1 + 1
+                  if (hairer_policy) then
+                     k_prev = k
+                     step_stats%kopt_accept_updates = step_stats%kopt_accept_updates + 1
+                     call odex_apply_hairer_accept_update(k_prev, k - 1, wk2, wk2, wk1, hk1, hk1, workspace, opts, k, h)
+                     call odex_step_record_kopt_transition(step_stats, k_prev - 1, k)
                   else
-                     h = hk1*workspace%ak(k)/workspace%ak(k - 1)
+                     if (wk1 > opts%order_increase_factor*wk2) then
+                        k = max(opts%k_min, k - 1)
+                        h = hk1
+                     else
+                        h = hk1*workspace%ak(k)/workspace%ak(k - 1)
+                     end if
                   end if
                   return
-               else if (err > real((k*k + 1)**2, dp)) then
-                  k = max(opts%k_min, k - 1)
-                  h = hk1
+               else if (err > odex_convergence_reject_threshold(k, workspace, hairer_policy)) then
+                  step_stats%large_error_rejects = step_stats%large_error_rejects + 1
+                  step_stats%convergence_rejects = step_stats%convergence_rejects + 1
+                  step_stats%reject_kc_k_minus_1 = step_stats%reject_kc_k_minus_1 + 1
+                  if (hairer_policy) then
+                     step_stats%reject_updates = step_stats%reject_updates + 1
+                     call odex_observe_hairer_reject_update(k, k - 1, opts%k_max, work_values, step_values, &
+                                                            opts, sign(1.0_dp, h), k, h)
+                  else
+                     k = max(opts%k_min, k - 1)
+                     h = hk1
+                  end if
                   res = y
                   return
                end if
@@ -780,34 +1049,56 @@ contains
       end do
 
       errsum = 0.0_dp
+      call odex_step_record_error_scale(step_stats, hairer_policy)
       do i = 1, n
-         scale = opts%abs_tol + opts%rel_tol*max(abs(workspace%tableau(k, k, i)), abs(workspace%tableau(k, k - 1, i)))
-         scale = max(scale, tiny(1.0_dp))
+         scale = odex_error_scale(opts, y(i), workspace%tableau(k, k, i), &
+                                  workspace%tableau(k, k, i), workspace%tableau(k, k - 1, i), hairer_policy)
          errsum = errsum + ((workspace%tableau(k, k, i) - workspace%tableau(k, k - 1, i))/scale)**2
       end do
       err = sqrt(errsum/real(n, dp))
 
-      hk2 = calculate_hk(h, err, k, workspace)
-      wk2 = calculate_wk(h, err, k, workspace)
+      hk2 = calculate_hk(h, err, k, workspace, opts)
+      wk2 = calculate_wk(h, err, k, workspace, opts)
+      call odex_store_hairer_controller_row(work_values, step_values, k, wk2, hk2)
       if (err < 1.0_dp) then
          res = workspace%tableau(k, k, 1:n)
-         if (wk1 < 0.9_dp*wk2) then
-            k = max(opts%k_min, k - 1)
-            h = hk1
-         else if (wk2 < 0.9_dp*wk1) then
+         step_stats%accept_k = step_stats%accept_k + 1
+         if (hairer_policy) then
             k_prev = k
-            k = min(opts%k_max, k + 1)
-            if (k > k_prev) then
-               h = hk2*workspace%ak(k + 1)/workspace%ak(k)
+            step_stats%kopt_accept_updates = step_stats%kopt_accept_updates + 1
+            call odex_apply_hairer_accept_update(k_prev, k, 0.0_dp, wk1, wk2, hk1, hk2, workspace, opts, k, h)
+            call odex_step_record_kopt_transition(step_stats, k_prev, k)
+         else
+            if (wk1 <= opts%order_decrease_factor*wk2) then
+               k = max(opts%k_min, k - 1)
+               h = hk1
+            else if (wk2 <= opts%order_increase_factor*wk1) then
+               k_prev = k
+               k = min(opts%k_max, k + 1)
+               if (k > k_prev) then
+                  h = odex_hairer_promotion_step(hk2, k_prev, k, workspace)
+               else
+                  h = hk2
+               end if
             else
                h = hk2
             end if
-         else
-            h = hk2
          end if
          return
       end if
 
+      if (hairer_policy .and. err > odex_kplus1_hope_threshold(k, workspace)) then
+         res = y
+         step_stats%large_error_rejects = step_stats%large_error_rejects + 1
+         step_stats%kplus1_hope_rejects = step_stats%kplus1_hope_rejects + 1
+         step_stats%reject_kc_k = step_stats%reject_kc_k + 1
+         step_stats%reject_updates = step_stats%reject_updates + 1
+         call odex_observe_hairer_reject_update(k, k, opts%k_max, work_values, step_values, &
+                                                opts, sign(1.0_dp, h), k, h)
+         return
+      end if
+
+      step_stats%kplus1_attempts = step_stats%kplus1_attempts + 1
       ni = workspace%nsteps(k + 1)
       dt = h/real(ni, dp)
       workspace%yprev(1:n) = y
@@ -816,6 +1107,13 @@ contains
 
       do l = 2, ni
          workspace%fval(1:n) = f(workspace%ycurr(1:n))
+         step_stats%rhs_evals = step_stats%rhs_evals + 1
+         if (vector_has_invalid(workspace%fval(1:n))) then
+            invalid_rhs = .true.
+            err = huge(1.0_dp)
+            res = y
+            return
+         end if
          if (odex_stability_reject(workspace%fval(1:n), prev_norm, dt, opts)) then
             stability_rejected = .true.
             err = huge(1.0_dp)
@@ -832,6 +1130,13 @@ contains
       end do
 
       workspace%fval(1:n) = f(workspace%ycurr(1:n))
+      step_stats%rhs_evals = step_stats%rhs_evals + 1
+      if (vector_has_invalid(workspace%fval(1:n))) then
+         invalid_rhs = .true.
+         err = huge(1.0_dp)
+         res = y
+         return
+      end if
       if (odex_stability_reject(workspace%fval(1:n), prev_norm, dt, opts)) then
          stability_rejected = .true.
          err = huge(1.0_dp)
@@ -841,6 +1146,7 @@ contains
          return
       end if
       workspace%tableau(k + 1, 1, 1:n) = 0.5_dp*(workspace%yprev(1:n) + workspace%ycurr(1:n) + dt*workspace%fval(1:n))
+      call odex_step_record_midpoint_row(step_stats, k + 1)
 
       do j = 2, k + 1
          workspace%tableau(k + 1, j, 1:n) = workspace%tableau(k + 1, j - 1, 1:n) + &
@@ -849,34 +1155,54 @@ contains
       end do
 
       errsum = 0.0_dp
+      call odex_step_record_error_scale(step_stats, hairer_policy)
       do i = 1, n
-         scale = opts%abs_tol + opts%rel_tol*max(abs(workspace%tableau(k + 1, k + 1, i)), &
-                                                 abs(workspace%tableau(k + 1, k, i)))
-         scale = max(scale, tiny(1.0_dp))
+         scale = odex_error_scale(opts, y(i), workspace%tableau(k + 1, k + 1, i), &
+                                  workspace%tableau(k + 1, k + 1, i), &
+                                  workspace%tableau(k + 1, k, i), hairer_policy)
          errsum = errsum + ((workspace%tableau(k + 1, k + 1, i) - workspace%tableau(k + 1, k, i))/scale)**2
       end do
       err = sqrt(errsum/real(n, dp))
+      hk3 = calculate_hk(h, err, k + 1, workspace, opts)
+      wk3 = calculate_wk(h, err, k + 1, workspace, opts)
+      call odex_store_hairer_controller_row(work_values, step_values, k + 1, wk3, hk3)
 
       if (err < 1.0_dp) then
          res = workspace%tableau(k + 1, k + 1, 1:n)
-         if (wk1 < 0.9_dp*wk2) then
-            k = max(opts%k_min, k - 1)
-            h = hk1
-         else if (wk2 < 0.9_dp*wk1) then
-            hk1 = calculate_hk(h, err, k + 1, workspace)
-            k = min(opts%k_max, k + 1)
-            h = hk1
+         step_stats%accept_k_plus_1 = step_stats%accept_k_plus_1 + 1
+         if (hairer_policy) then
+            k_prev = k
+            step_stats%kopt_accept_updates = step_stats%kopt_accept_updates + 1
+            call odex_apply_hairer_accept_update(k_prev, k + 1, wk1, wk2, wk3, hk2, hk3, workspace, opts, k, h)
+            call odex_step_record_kopt_transition(step_stats, k_prev + 1, k)
          else
-            h = hk2
+            if (wk1 <= opts%order_decrease_factor*wk2) then
+               k = max(opts%k_min, k - 1)
+               h = hk1
+            else if (wk2 <= opts%order_increase_factor*wk1) then
+               hk1 = hk3
+               k = min(opts%k_max, k + 1)
+               h = hk1
+            else
+               h = hk2
+            end if
          end if
       else
          res = y
-         k = max(opts%k_min, k - 1)
-         h = hk1
+         step_stats%kplus1_rejects = step_stats%kplus1_rejects + 1
+         step_stats%reject_kc_k_plus_1 = step_stats%reject_kc_k_plus_1 + 1
+         if (hairer_policy) then
+            step_stats%reject_updates = step_stats%reject_updates + 1
+            call odex_observe_hairer_reject_update(k, k + 1, opts%k_max, work_values, step_values, &
+                                                   opts, sign(1.0_dp, h), k, h)
+         else
+            k = max(opts%k_min, k - 1)
+            h = hk1
+         end if
       end if
    end subroutine odex_step
 
-   subroutine odex_step_context(f, y, h, k, res, err, workspace, opts, stability_rejected, rhs_context)
+   subroutine odex_step_context(f, y, h, k, res, err, workspace, opts, stability_rejected, invalid_rhs, step_stats, rhs_context)
       procedure(ode_rhs_context) :: f
       real(dp), intent(in) :: y(:)
       real(dp), intent(inout) :: h
@@ -884,28 +1210,39 @@ contains
       real(dp), intent(out) :: res(:), err
       type(odex_workspace), intent(inout) :: workspace
       type(odex_options), intent(in) :: opts
-      logical, intent(out) :: stability_rejected
+      logical, intent(out) :: stability_rejected, invalid_rhs
+      type(odex_step_telemetry), intent(out) :: step_stats
       class(*), intent(inout) :: rhs_context
 
       integer :: i, j, l, n, ni, k_prev
-      real(dp) :: dt, scale, errsum, wk1, wk2, hk1, hk2
+      real(dp) :: dt, scale, errsum, wk1, wk2, wk3, hk0, hk1, hk2, hk3
+      real(dp) :: work_values(odex_cache_size), step_values(odex_cache_size)
       real(dp) :: prev_norm, curr_norm
+      logical :: hairer_policy
 
       n = size(y)
       res = y
       stability_rejected = .false.
+      invalid_rhs = .false.
+      call odex_step_telemetry_reset(step_stats)
       wk1 = 0.0_dp
       wk2 = 0.0_dp
+      wk3 = 0.0_dp
+      hk0 = h
       hk1 = h
       hk2 = h
+      hk3 = h
+      work_values = huge(1.0_dp)
+      step_values = max(abs(h), tiny(1.0_dp))
+      hairer_policy = (opts%controller_policy == odex_controller_policy_hairer_experimental)
 
       workspace%fbase(1:n) = f(y, rhs_context)
+      step_stats%rhs_evals = step_stats%rhs_evals + 1
 
       if (vector_has_invalid(workspace%fbase(1:n))) then
+         invalid_rhs = .true.
          err = huge(1.0_dp)
          res = y
-         h = sign(max(abs(h)*0.5_dp, 1.0e-16_dp), h)
-         k = max(opts%k_min, k - 1)
          return
       end if
 
@@ -919,6 +1256,13 @@ contains
 
          do l = 2, ni
             workspace%fval(1:n) = f(workspace%ycurr(1:n), rhs_context)
+            step_stats%rhs_evals = step_stats%rhs_evals + 1
+            if (vector_has_invalid(workspace%fval(1:n))) then
+               invalid_rhs = .true.
+               err = huge(1.0_dp)
+               res = y
+               return
+            end if
             if (odex_stability_reject(workspace%fval(1:n), prev_norm, dt, opts)) then
                stability_rejected = .true.
                err = huge(1.0_dp)
@@ -935,6 +1279,13 @@ contains
          end do
 
          workspace%fval(1:n) = f(workspace%ycurr(1:n), rhs_context)
+         step_stats%rhs_evals = step_stats%rhs_evals + 1
+         if (vector_has_invalid(workspace%fval(1:n))) then
+            invalid_rhs = .true.
+            err = huge(1.0_dp)
+            res = y
+            return
+         end if
          if (odex_stability_reject(workspace%fval(1:n), prev_norm, dt, opts)) then
             stability_rejected = .true.
             err = huge(1.0_dp)
@@ -944,6 +1295,7 @@ contains
             return
          end if
          workspace%tableau(i, 1, 1:n) = 0.5_dp*(workspace%yprev(1:n) + workspace%ycurr(1:n) + dt*workspace%fval(1:n))
+         call odex_step_record_midpoint_row(step_stats, i)
       end do
 
       do j = 2, k
@@ -952,40 +1304,62 @@ contains
                                            (workspace%tableau(i, j - 1, 1:n) - workspace%tableau(i - 1, j - 1, 1:n))/ &
                                            workspace%ratio(i, i - j + 1)
 
-            if (i == k - 1 .and. j == k - 1) then
+            if (k > 3 .and. i == k - 1 .and. j == k - 1) then
                errsum = 0.0_dp
+               call odex_step_record_error_scale(step_stats, hairer_policy)
                do l = 1, n
-                  scale = opts%abs_tol + opts%rel_tol*max(abs(workspace%tableau(k - 2, k - 2, l)), &
-                                                          abs(workspace%tableau(k - 2, k - 3, l)))
-                  scale = max(scale, tiny(1.0_dp))
+                  scale = odex_error_scale(opts, y(l), workspace%tableau(k - 2, k - 2, l), &
+                                           workspace%tableau(k - 2, k - 2, l), &
+                                           workspace%tableau(k - 2, k - 3, l), hairer_policy)
                   errsum = errsum + ((workspace%tableau(k - 2, k - 2, l) - workspace%tableau(k - 2, k - 3, l))/scale)**2
                end do
                err = sqrt(errsum/real(n, dp))
-               wk2 = calculate_wk(h, err, k - 2, workspace)
+               wk2 = calculate_wk(h, err, k - 2, workspace, opts)
+               hk0 = calculate_hk(h, err, k - 2, workspace, opts)
+               call odex_store_hairer_controller_row(work_values, step_values, k - 2, wk2, hk0)
 
                errsum = 0.0_dp
+               call odex_step_record_error_scale(step_stats, hairer_policy)
                do l = 1, n
-                  scale = opts%abs_tol + opts%rel_tol*max(abs(workspace%tableau(k - 1, k - 1, l)), &
-                                                          abs(workspace%tableau(k - 1, k - 2, l)))
-                  scale = max(scale, tiny(1.0_dp))
+                  scale = odex_error_scale(opts, y(l), workspace%tableau(k - 1, k - 1, l), &
+                                           workspace%tableau(k - 1, k - 1, l), &
+                                           workspace%tableau(k - 1, k - 2, l), hairer_policy)
                   errsum = errsum + ((workspace%tableau(k - 1, k - 1, l) - workspace%tableau(k - 1, k - 2, l))/scale)**2
                end do
                err = sqrt(errsum/real(n, dp))
-               wk1 = calculate_wk(h, err, k - 1, workspace)
-               hk1 = calculate_hk(h, err, k - 1, workspace)
+               wk1 = calculate_wk(h, err, k - 1, workspace, opts)
+               hk1 = calculate_hk(h, err, k - 1, workspace, opts)
+               call odex_store_hairer_controller_row(work_values, step_values, k - 1, wk1, hk1)
 
                if (err < 1.0_dp) then
                   res = workspace%tableau(k - 1, k - 1, 1:n)
-                  if (wk1 > 0.9_dp*wk2) then
-                     k = max(opts%k_min, k - 1)
-                     h = hk1
+                  step_stats%accept_k_minus_1 = step_stats%accept_k_minus_1 + 1
+                  if (hairer_policy) then
+                     k_prev = k
+                     step_stats%kopt_accept_updates = step_stats%kopt_accept_updates + 1
+                     call odex_apply_hairer_accept_update(k_prev, k - 1, wk2, wk2, wk1, hk1, hk1, workspace, opts, k, h)
+                     call odex_step_record_kopt_transition(step_stats, k_prev - 1, k)
                   else
-                     h = hk1*workspace%ak(k)/workspace%ak(k - 1)
+                     if (wk1 > opts%order_increase_factor*wk2) then
+                        k = max(opts%k_min, k - 1)
+                        h = hk1
+                     else
+                        h = hk1*workspace%ak(k)/workspace%ak(k - 1)
+                     end if
                   end if
                   return
-               else if (err > real((k*k + 1)**2, dp)) then
-                  k = max(opts%k_min, k - 1)
-                  h = hk1
+               else if (err > odex_convergence_reject_threshold(k, workspace, hairer_policy)) then
+                  step_stats%large_error_rejects = step_stats%large_error_rejects + 1
+                  step_stats%convergence_rejects = step_stats%convergence_rejects + 1
+                  step_stats%reject_kc_k_minus_1 = step_stats%reject_kc_k_minus_1 + 1
+                  if (hairer_policy) then
+                     step_stats%reject_updates = step_stats%reject_updates + 1
+                     call odex_observe_hairer_reject_update(k, k - 1, opts%k_max, work_values, step_values, &
+                                                            opts, sign(1.0_dp, h), k, h)
+                  else
+                     k = max(opts%k_min, k - 1)
+                     h = hk1
+                  end if
                   res = y
                   return
                end if
@@ -994,34 +1368,56 @@ contains
       end do
 
       errsum = 0.0_dp
+      call odex_step_record_error_scale(step_stats, hairer_policy)
       do i = 1, n
-         scale = opts%abs_tol + opts%rel_tol*max(abs(workspace%tableau(k, k, i)), abs(workspace%tableau(k, k - 1, i)))
-         scale = max(scale, tiny(1.0_dp))
+         scale = odex_error_scale(opts, y(i), workspace%tableau(k, k, i), &
+                                  workspace%tableau(k, k, i), workspace%tableau(k, k - 1, i), hairer_policy)
          errsum = errsum + ((workspace%tableau(k, k, i) - workspace%tableau(k, k - 1, i))/scale)**2
       end do
       err = sqrt(errsum/real(n, dp))
 
-      hk2 = calculate_hk(h, err, k, workspace)
-      wk2 = calculate_wk(h, err, k, workspace)
+      hk2 = calculate_hk(h, err, k, workspace, opts)
+      wk2 = calculate_wk(h, err, k, workspace, opts)
+      call odex_store_hairer_controller_row(work_values, step_values, k, wk2, hk2)
       if (err < 1.0_dp) then
          res = workspace%tableau(k, k, 1:n)
-         if (wk1 < 0.9_dp*wk2) then
-            k = max(opts%k_min, k - 1)
-            h = hk1
-         else if (wk2 < 0.9_dp*wk1) then
+         step_stats%accept_k = step_stats%accept_k + 1
+         if (hairer_policy) then
             k_prev = k
-            k = min(opts%k_max, k + 1)
-            if (k > k_prev) then
-               h = hk2*workspace%ak(k + 1)/workspace%ak(k)
+            step_stats%kopt_accept_updates = step_stats%kopt_accept_updates + 1
+            call odex_apply_hairer_accept_update(k_prev, k, 0.0_dp, wk1, wk2, hk1, hk2, workspace, opts, k, h)
+            call odex_step_record_kopt_transition(step_stats, k_prev, k)
+         else
+            if (wk1 <= opts%order_decrease_factor*wk2) then
+               k = max(opts%k_min, k - 1)
+               h = hk1
+            else if (wk2 <= opts%order_increase_factor*wk1) then
+               k_prev = k
+               k = min(opts%k_max, k + 1)
+               if (k > k_prev) then
+                  h = odex_hairer_promotion_step(hk2, k_prev, k, workspace)
+               else
+                  h = hk2
+               end if
             else
                h = hk2
             end if
-         else
-            h = hk2
          end if
          return
       end if
 
+      if (hairer_policy .and. err > odex_kplus1_hope_threshold(k, workspace)) then
+         res = y
+         step_stats%large_error_rejects = step_stats%large_error_rejects + 1
+         step_stats%kplus1_hope_rejects = step_stats%kplus1_hope_rejects + 1
+         step_stats%reject_kc_k = step_stats%reject_kc_k + 1
+         step_stats%reject_updates = step_stats%reject_updates + 1
+         call odex_observe_hairer_reject_update(k, k, opts%k_max, work_values, step_values, &
+                                                opts, sign(1.0_dp, h), k, h)
+         return
+      end if
+
+      step_stats%kplus1_attempts = step_stats%kplus1_attempts + 1
       ni = workspace%nsteps(k + 1)
       dt = h/real(ni, dp)
       workspace%yprev(1:n) = y
@@ -1030,6 +1426,13 @@ contains
 
       do l = 2, ni
          workspace%fval(1:n) = f(workspace%ycurr(1:n), rhs_context)
+         step_stats%rhs_evals = step_stats%rhs_evals + 1
+         if (vector_has_invalid(workspace%fval(1:n))) then
+            invalid_rhs = .true.
+            err = huge(1.0_dp)
+            res = y
+            return
+         end if
          if (odex_stability_reject(workspace%fval(1:n), prev_norm, dt, opts)) then
             stability_rejected = .true.
             err = huge(1.0_dp)
@@ -1046,6 +1449,13 @@ contains
       end do
 
       workspace%fval(1:n) = f(workspace%ycurr(1:n), rhs_context)
+      step_stats%rhs_evals = step_stats%rhs_evals + 1
+      if (vector_has_invalid(workspace%fval(1:n))) then
+         invalid_rhs = .true.
+         err = huge(1.0_dp)
+         res = y
+         return
+      end if
       if (odex_stability_reject(workspace%fval(1:n), prev_norm, dt, opts)) then
          stability_rejected = .true.
          err = huge(1.0_dp)
@@ -1055,6 +1465,7 @@ contains
          return
       end if
       workspace%tableau(k + 1, 1, 1:n) = 0.5_dp*(workspace%yprev(1:n) + workspace%ycurr(1:n) + dt*workspace%fval(1:n))
+      call odex_step_record_midpoint_row(step_stats, k + 1)
 
       do j = 2, k + 1
          workspace%tableau(k + 1, j, 1:n) = workspace%tableau(k + 1, j - 1, 1:n) + &
@@ -1063,42 +1474,277 @@ contains
       end do
 
       errsum = 0.0_dp
+      call odex_step_record_error_scale(step_stats, hairer_policy)
       do i = 1, n
-         scale = opts%abs_tol + opts%rel_tol*max(abs(workspace%tableau(k + 1, k + 1, i)), &
-                                                 abs(workspace%tableau(k + 1, k, i)))
-         scale = max(scale, tiny(1.0_dp))
+         scale = odex_error_scale(opts, y(i), workspace%tableau(k + 1, k + 1, i), &
+                                  workspace%tableau(k + 1, k + 1, i), &
+                                  workspace%tableau(k + 1, k, i), hairer_policy)
          errsum = errsum + ((workspace%tableau(k + 1, k + 1, i) - workspace%tableau(k + 1, k, i))/scale)**2
       end do
       err = sqrt(errsum/real(n, dp))
+      hk3 = calculate_hk(h, err, k + 1, workspace, opts)
+      wk3 = calculate_wk(h, err, k + 1, workspace, opts)
+      call odex_store_hairer_controller_row(work_values, step_values, k + 1, wk3, hk3)
 
       if (err < 1.0_dp) then
          res = workspace%tableau(k + 1, k + 1, 1:n)
-         if (wk1 < 0.9_dp*wk2) then
-            k = max(opts%k_min, k - 1)
-            h = hk1
-         else if (wk2 < 0.9_dp*wk1) then
-            hk1 = calculate_hk(h, err, k + 1, workspace)
-            k = min(opts%k_max, k + 1)
-            h = hk1
+         step_stats%accept_k_plus_1 = step_stats%accept_k_plus_1 + 1
+         if (hairer_policy) then
+            k_prev = k
+            step_stats%kopt_accept_updates = step_stats%kopt_accept_updates + 1
+            call odex_apply_hairer_accept_update(k_prev, k + 1, wk1, wk2, wk3, hk2, hk3, workspace, opts, k, h)
+            call odex_step_record_kopt_transition(step_stats, k_prev + 1, k)
          else
-            h = hk2
+            if (wk1 <= opts%order_decrease_factor*wk2) then
+               k = max(opts%k_min, k - 1)
+               h = hk1
+            else if (wk2 <= opts%order_increase_factor*wk1) then
+               hk1 = hk3
+               k = min(opts%k_max, k + 1)
+               h = hk1
+            else
+               h = hk2
+            end if
          end if
       else
          res = y
-         k = max(opts%k_min, k - 1)
-         h = hk1
+         step_stats%kplus1_rejects = step_stats%kplus1_rejects + 1
+         step_stats%reject_kc_k_plus_1 = step_stats%reject_kc_k_plus_1 + 1
+         if (hairer_policy) then
+            step_stats%reject_updates = step_stats%reject_updates + 1
+            call odex_observe_hairer_reject_update(k, k + 1, opts%k_max, work_values, step_values, &
+                                                   opts, sign(1.0_dp, h), k, h)
+         else
+            k = max(opts%k_min, k - 1)
+            h = hk1
+         end if
       end if
    end subroutine odex_step_context
 
-   function calculate_wk(h, er1, k, workspace) result(wk)
+   subroutine odex_observe_hairer_midex_row(f, row_index, y, h, hmax_abs, fbase, scal, errold, workspace, options, row_state)
+      procedure(ode_rhs) :: f
+      integer, intent(in) :: row_index
+      real(dp), intent(in) :: y(:), hmax_abs, fbase(:)
+      real(dp), intent(inout) :: h
+      real(dp), intent(inout) :: scal(:), errold
+      type(odex_workspace), intent(inout) :: workspace
+      type(odex_options), intent(in) :: options
+      type(odex_row_result), intent(out) :: row_state
+
+      type(odex_options) :: opts
+      integer :: col, idx, mm, n, ni
+      real(dp) :: dt, errsum, hmax_safe, scale
+
+      call odex_row_result_reset(row_state)
+      row_state%row_index = row_index
+      row_state%h_after = h
+      row_state%errold_after = errold
+
+      n = size(y)
+      if (row_index < 1 .or. n <= 0 .or. size(fbase) < n .or. size(scal) < n) then
+         row_state%invalid_rhs = .true.
+         return
+      end if
+      if (vector_has_invalid(y) .or. vector_has_invalid(fbase(1:n)) .or. .not. ieee_is_finite(h)) then
+         row_state%invalid_rhs = .true.
+         return
+      end if
+
+      opts = options
+      call odex_normalize_options(opts)
+      call ensure_odex_workspace_object(workspace, row_index, n)
+
+      ni = workspace%nsteps(row_index)
+      dt = h/real(ni, dp)
+      workspace%yprev(1:n) = y(1:n)
+      workspace%ycurr(1:n) = y(1:n) + dt*fbase(1:n)
+
+      do mm = 1, ni - 1
+         workspace%fval(1:n) = f(workspace%ycurr(1:n))
+         row_state%rhs_evals = row_state%rhs_evals + 1
+         if (vector_has_invalid(workspace%fval(1:n))) then
+            row_state%invalid_rhs = .true.
+            return
+         end if
+         workspace%ynext(1:n) = workspace%yprev(1:n) + 2.0_dp*dt*workspace%fval(1:n)
+         workspace%yprev(1:n) = workspace%ycurr(1:n)
+         workspace%ycurr(1:n) = workspace%ynext(1:n)
+      end do
+
+      workspace%fval(1:n) = f(workspace%ycurr(1:n))
+      row_state%rhs_evals = row_state%rhs_evals + 1
+      if (vector_has_invalid(workspace%fval(1:n))) then
+         row_state%invalid_rhs = .true.
+         return
+      end if
+
+      workspace%tableau(row_index, 1, 1:n) = &
+         0.5_dp*(workspace%yprev(1:n) + workspace%ycurr(1:n) + dt*workspace%fval(1:n))
+
+      if (row_index == 1) then
+         row_state%h_after = h
+         row_state%errold_after = errold
+         return
+      end if
+
+      do col = 2, row_index
+         workspace%tableau(row_index, col, 1:n) = workspace%tableau(row_index, col - 1, 1:n) + &
+            (workspace%tableau(row_index, col - 1, 1:n) - workspace%tableau(row_index - 1, col - 1, 1:n))/ &
+            workspace%ratio(row_index, row_index - col + 1)
+      end do
+
+      errsum = 0.0_dp
+      do idx = 1, n
+         scal(idx) = opts%abs_tol + opts%rel_tol*max(abs(y(idx)), abs(workspace%tableau(row_index, row_index, idx)))
+         scale = max(scal(idx), tiny(1.0_dp))
+         errsum = errsum + &
+            ((workspace%tableau(row_index, row_index, idx) - workspace%tableau(row_index, row_index - 1, idx))/scale)**2
+      end do
+      row_state%err = sqrt(errsum/real(n, dp))
+      row_state%err_available = .true.
+
+      if (row_state%err*epsilon(1.0_dp) >= 1.0_dp .or. (row_index > 2 .and. row_state%err >= errold)) then
+         row_state%atov = .true.
+         h = h*0.5_dp
+         row_state%h_after = h
+         row_state%errold_after = errold
+         return
+      end if
+
+      errold = max(4.0_dp*row_state%err, 1.0_dp)
+      row_state%errold_after = errold
+      hmax_safe = abs(hmax_abs)
+      if (hmax_safe <= 0.0_dp) hmax_safe = huge(1.0_dp)
+      row_state%hh = min(abs(h)*odex_step_scale(row_state%err, row_index, workspace, opts), hmax_safe)
+      if (row_state%hh <= tiny(1.0_dp) .or. .not. ieee_is_finite(row_state%hh)) then
+         row_state%work = huge(1.0_dp)
+      else
+         row_state%work = workspace%ak(row_index)/row_state%hh
+      end if
+      row_state%h_after = h
+   end subroutine odex_observe_hairer_midex_row
+
+   subroutine odex_row_result_reset(row_state)
+      type(odex_row_result), intent(out) :: row_state
+
+      row_state%row_index = 0
+      row_state%rhs_evals = 0
+      row_state%err_available = .false.
+      row_state%atov = .false.
+      row_state%invalid_rhs = .false.
+      row_state%stability_rejected = .false.
+      row_state%err = 0.0_dp
+      row_state%hh = 0.0_dp
+      row_state%work = huge(1.0_dp)
+      row_state%h_after = 0.0_dp
+      row_state%errold_after = 0.0_dp
+   end subroutine odex_row_result_reset
+
+   subroutine odex_hairer_row_lifecycle_reset(row_lifecycle)
+      type(odex_hairer_row_lifecycle), intent(inout) :: row_lifecycle
+
+      if (allocated(row_lifecycle%scal)) deallocate(row_lifecycle%scal)
+      if (allocated(row_lifecycle%hh)) deallocate(row_lifecycle%hh)
+      if (allocated(row_lifecycle%work)) deallocate(row_lifecycle%work)
+
+      row_lifecycle%initialized = .false.
+      row_lifecycle%dimension = 0
+      row_lifecycle%max_rows = 0
+      row_lifecycle%rows_attempted = 0
+      row_lifecycle%error_rows = 0
+      row_lifecycle%atov_events = 0
+      row_lifecycle%rhs_evals = 0
+      row_lifecycle%last_row = 0
+      row_lifecycle%errold = odex_hairer_errold_initial
+      row_lifecycle%h_after = 0.0_dp
+      row_lifecycle%atov = .false.
+   end subroutine odex_hairer_row_lifecycle_reset
+
+   subroutine odex_observe_hairer_row_lifecycle_begin(y, options, max_rows, row_lifecycle)
+      real(dp), intent(in) :: y(:)
+      type(odex_options), intent(in) :: options
+      integer, intent(in) :: max_rows
+      type(odex_hairer_row_lifecycle), intent(inout) :: row_lifecycle
+
+      type(odex_options) :: opts
+      integer :: n, row_count
+
+      call odex_hairer_row_lifecycle_reset(row_lifecycle)
+
+      n = size(y)
+      if (n <= 0 .or. max_rows <= 0) return
+      if (vector_has_invalid(y)) return
+
+      opts = options
+      call odex_normalize_options(opts)
+
+      row_count = max(1, max_rows)
+      allocate (row_lifecycle%scal(n), row_lifecycle%hh(row_count), row_lifecycle%work(row_count))
+      row_lifecycle%scal(1:n) = opts%abs_tol + opts%rel_tol*abs(y(1:n))
+      row_lifecycle%hh = 0.0_dp
+      row_lifecycle%work = huge(1.0_dp)
+      row_lifecycle%errold = odex_hairer_errold_initial
+      row_lifecycle%dimension = n
+      row_lifecycle%max_rows = row_count
+      row_lifecycle%initialized = .true.
+   end subroutine odex_observe_hairer_row_lifecycle_begin
+
+   subroutine odex_observe_hairer_midex_lifecycle_row(f, row_index, y, h, hmax_abs, fbase, workspace, &
+                                                      options, row_lifecycle, row_state)
+      procedure(ode_rhs) :: f
+      integer, intent(in) :: row_index
+      real(dp), intent(in) :: y(:), hmax_abs, fbase(:)
+      real(dp), intent(inout) :: h
+      type(odex_workspace), intent(inout) :: workspace
+      type(odex_options), intent(in) :: options
+      type(odex_hairer_row_lifecycle), intent(inout) :: row_lifecycle
+      type(odex_row_result), intent(out) :: row_state
+
+      call odex_row_result_reset(row_state)
+      row_state%row_index = row_index
+      row_state%h_after = h
+      row_state%errold_after = row_lifecycle%errold
+
+      if (.not. row_lifecycle%initialized) then
+         row_state%invalid_rhs = .true.
+         return
+      end if
+      if (row_index < 1 .or. row_index > row_lifecycle%max_rows) then
+         row_state%invalid_rhs = .true.
+         return
+      end if
+      if (size(y) /= row_lifecycle%dimension) then
+         row_state%invalid_rhs = .true.
+         return
+      end if
+
+      call odex_observe_hairer_midex_row(f, row_index, y, h, hmax_abs, fbase, row_lifecycle%scal, &
+                                         row_lifecycle%errold, workspace, options, row_state)
+
+      row_lifecycle%rows_attempted = row_lifecycle%rows_attempted + 1
+      row_lifecycle%rhs_evals = row_lifecycle%rhs_evals + max(0, row_state%rhs_evals)
+      row_lifecycle%last_row = row_index
+      row_lifecycle%h_after = h
+      row_lifecycle%atov = row_state%atov
+      if (row_state%err_available) row_lifecycle%error_rows = row_lifecycle%error_rows + 1
+      if (row_state%atov) row_lifecycle%atov_events = row_lifecycle%atov_events + 1
+
+      if (row_state%err_available .and. (.not. row_state%atov) .and. (.not. row_state%invalid_rhs)) then
+         row_lifecycle%hh(row_index) = row_state%hh
+         row_lifecycle%work(row_index) = row_state%work
+      end if
+   end subroutine odex_observe_hairer_midex_lifecycle_row
+
+   function calculate_wk(h, er1, k, workspace, opts) result(wk)
       real(dp), intent(in) :: h, er1
       integer, intent(in) :: k
       type(odex_workspace), intent(in) :: workspace
+      type(odex_options), intent(in) :: opts
       integer :: kc
       real(dp) :: hk_abs, scale, wk
 
       kc = max(1, k)
-      scale = 0.94_dp*(0.65_dp/max(er1, 1.0e-14_dp))**workspace%invexp(kc)
+      scale = odex_step_scale(er1, kc, workspace, opts)
       hk_abs = abs(h)*scale
       if (.not. ieee_is_finite(hk_abs) .or. hk_abs <= tiny(1.0_dp)) then
          wk = huge(1.0_dp)
@@ -1107,16 +1753,78 @@ contains
       end if
    end function calculate_wk
 
-   function calculate_hk(h, er1, k, workspace) result(hk)
+   function calculate_hk(h, er1, k, workspace, opts) result(hk)
       real(dp), intent(in) :: h, er1
       integer, intent(in) :: k
       type(odex_workspace), intent(in) :: workspace
+      type(odex_options), intent(in) :: opts
       integer :: kc
       real(dp) :: hk
 
       kc = max(1, k)
-      hk = h*0.94_dp*(0.65_dp/max(er1, 1.0e-14_dp))**workspace%invexp(kc)
+      hk = h*odex_step_scale(er1, kc, workspace, opts)
    end function calculate_hk
+
+   function odex_step_scale(er1, k, workspace, opts) result(scale)
+      real(dp), intent(in) :: er1
+      integer, intent(in) :: k
+      type(odex_workspace), intent(in) :: workspace
+      type(odex_options), intent(in) :: opts
+      integer :: kc
+      real(dp) :: facmin, lower_bound, raw_scale, scale, upper_bound
+
+      kc = max(1, k)
+      raw_scale = 0.94_dp*(0.65_dp/max(er1, 1.0e-14_dp))**workspace%invexp(kc)
+      facmin = opts%step_size_bound_fac1**workspace%invexp(kc)
+      lower_bound = facmin/opts%step_size_bound_fac2
+      upper_bound = 1.0_dp/facmin
+      if (.not. ieee_is_finite(raw_scale)) raw_scale = upper_bound
+      scale = min(upper_bound, max(lower_bound, raw_scale))
+   end function odex_step_scale
+
+   pure function odex_error_scale(opts, y_start, row_estimate, error_value_a, error_value_b, hairer_policy) result(scale)
+      type(odex_options), intent(in) :: opts
+      real(dp), intent(in) :: y_start, row_estimate, error_value_a, error_value_b
+      logical, intent(in) :: hairer_policy
+      real(dp) :: scale
+
+      if (hairer_policy) then
+         scale = opts%abs_tol + opts%rel_tol*max(abs(y_start), abs(row_estimate))
+      else
+         scale = opts%abs_tol + opts%rel_tol*max(abs(error_value_a), abs(error_value_b))
+      end if
+      scale = max(scale, tiny(1.0_dp))
+   end function odex_error_scale
+
+   function odex_convergence_reject_threshold(k, workspace, hairer_policy) result(threshold)
+      integer, intent(in) :: k
+      type(odex_workspace), intent(in) :: workspace
+      logical, intent(in) :: hairer_policy
+      integer :: kc, k_next
+      real(dp) :: threshold
+
+      kc = max(1, k)
+      if (hairer_policy .and. allocated(workspace%nsteps) .and. kc + 1 <= size(workspace%nsteps)) then
+         k_next = kc + 1
+         threshold = (real(workspace%nsteps(k_next)*workspace%nsteps(kc), dp)/4.0_dp)**2
+      else
+         threshold = real((kc*kc + 1)**2, dp)
+      end if
+   end function odex_convergence_reject_threshold
+
+   function odex_kplus1_hope_threshold(k, workspace) result(threshold)
+      integer, intent(in) :: k
+      type(odex_workspace), intent(in) :: workspace
+      integer :: k_next
+      real(dp) :: threshold
+
+      if (allocated(workspace%nsteps) .and. k + 1 <= size(workspace%nsteps)) then
+         k_next = max(1, k + 1)
+         threshold = (real(workspace%nsteps(k_next), dp)/2.0_dp)**2
+      else
+         threshold = huge(1.0_dp)
+      end if
+   end function odex_kplus1_hope_threshold
 
    function calculate_ak(k) result(ak)
       integer, intent(in) :: k
@@ -1175,12 +1883,168 @@ contains
       if (h_initial == 0.0_dp) h_initial = sign(h_min, t)
    end function odex_observe_initial_step
 
-   subroutine odex_observe_controller_estimate(workspace, h, er1, k, h_candidate, work_estimate)
+   subroutine odex_observe_hairer_initial_state(options, t, caller_h, hmax_input, h_initial, k_initial, hmax_abs)
+      type(odex_options), intent(in) :: options
+      real(dp), intent(in) :: t, caller_h, hmax_input
+      real(dp), intent(out) :: h_initial, hmax_abs
+      integer, intent(out) :: k_initial
+      type(odex_options) :: opts
+      real(dp) :: h_abs, reltol, span, posneg
+
+      opts = options
+      call odex_normalize_options(opts)
+
+      span = abs(t)
+      if (hmax_input == 0.0_dp) then
+         hmax_abs = span
+      else
+         hmax_abs = abs(hmax_input)
+      end if
+
+      reltol = max(opts%rel_tol, 0.0_dp)
+      k_initial = int(-log10(reltol + 1.0e-40_dp)*0.6_dp + 1.5_dp)
+      k_initial = max(2, min(opts%k_max - 1, k_initial))
+
+      if (t == 0.0_dp) then
+         h_initial = 0.0_dp
+         return
+      end if
+
+      posneg = sign(1.0_dp, t)
+      h_abs = max(abs(caller_h), 1.0e-4_dp)
+      h_initial = posneg*min(h_abs, hmax_abs, span/2.0_dp)
+   end subroutine odex_observe_hairer_initial_state
+
+   subroutine odex_observe_hairer_step_entry(x, xend, h_current, hmax_abs, hoptde, u_round, &
+                                             h_step, last_step, endpoint_reached)
+      real(dp), intent(in) :: x, xend, h_current, hmax_abs, hoptde, u_round
+      real(dp), intent(out) :: h_step
+      logical, intent(out) :: last_step, endpoint_reached
+      real(dp) :: posneg, span
+
+      span = abs(xend - x)
+      posneg = sign(1.0_dp, xend - x)
+      endpoint_reached = 0.1_dp*span <= abs(x)*u_round
+      last_step = .false.
+      if (endpoint_reached) then
+         h_step = 0.0_dp
+         return
+      end if
+
+      h_step = posneg*min(abs(h_current), span, abs(hmax_abs), abs(hoptde))
+      if ((x + 1.01_dp*h_step - xend)*posneg > 0.0_dp) then
+         h_step = xend - x
+         last_step = .true.
+      end if
+   end subroutine odex_observe_hairer_step_entry
+
+   subroutine odex_observe_hairer_kopt(kc, k_current, km, rejected, w_km2, w_km1, w_k, options, kopt)
+      integer, intent(in) :: kc, k_current, km
+      logical, intent(in) :: rejected
+      real(dp), intent(in) :: w_km2, w_km1, w_k
+      type(odex_options), intent(in) :: options
+      integer, intent(out) :: kopt
+      type(odex_options) :: opts
+      real(dp) :: selected_work
+
+      opts = options
+      call odex_normalize_options(opts)
+
+      if (kc <= 2) then
+         kopt = min(3, km - 1)
+         if (rejected) kopt = 2
+         return
+      end if
+
+      if (kc <= k_current) then
+         kopt = kc
+         if (w_km1 < w_k*opts%order_decrease_factor) kopt = kc - 1
+         if (w_k < w_km1*opts%order_increase_factor) kopt = min(kc + 1, km - 1)
+      else
+         kopt = kc - 1
+         if (kc > 3 .and. w_km2 < w_km1*opts%order_decrease_factor) kopt = kc - 2
+         selected_work = odex_hairer_work_at_index(kopt, kc, w_km2, w_km1, w_k)
+         if (w_k < selected_work*opts%order_increase_factor) kopt = min(kc, km - 1)
+      end if
+
+      kopt = max(2, min(km - 1, kopt))
+   end subroutine odex_observe_hairer_kopt
+
+   subroutine odex_observe_hairer_promotion_step(workspace, h_candidate, k_previous, k_next, h_next)
+      type(odex_workspace), intent(in) :: workspace
+      real(dp), intent(in) :: h_candidate
+      integer, intent(in) :: k_previous, k_next
+      real(dp), intent(out) :: h_next
+
+      h_next = odex_hairer_promotion_step(h_candidate, k_previous, k_next, workspace)
+   end subroutine odex_observe_hairer_promotion_step
+
+   subroutine odex_observe_hairer_reject_update(k_current, kc, km, work_values, step_values, &
+                                                options, posneg, next_k, next_h)
+      integer, intent(in) :: k_current, kc, km
+      real(dp), intent(in) :: work_values(:), step_values(:), posneg
+      type(odex_options), intent(in) :: options
+      integer, intent(out) :: next_k
+      real(dp), intent(out) :: next_h
+      type(odex_options) :: opts
+
+      opts = options
+      call odex_normalize_options(opts)
+      next_k = min(k_current, kc, km - 1)
+      next_k = max(2, next_k)
+
+      if (next_k > 2 .and. next_k <= size(work_values) .and. next_k - 1 <= size(work_values)) then
+         if (work_values(next_k - 1) < work_values(next_k)*opts%order_decrease_factor) next_k = next_k - 1
+      end if
+
+      if (next_k <= size(step_values)) then
+         next_h = sign(abs(step_values(next_k)), posneg)
+      else
+         next_h = 0.0_dp
+      end if
+   end subroutine odex_observe_hairer_reject_update
+
+   subroutine odex_store_hairer_controller_row(work_values, step_values, row_index, work_estimate, step_estimate)
+      real(dp), intent(inout) :: work_values(:), step_values(:)
+      integer, intent(in) :: row_index
+      real(dp), intent(in) :: work_estimate, step_estimate
+
+      if (row_index < 1 .or. row_index > size(work_values) .or. row_index > size(step_values)) return
+      work_values(row_index) = work_estimate
+      step_values(row_index) = abs(step_estimate)
+   end subroutine odex_store_hairer_controller_row
+
+   subroutine odex_apply_hairer_accept_update(k_current, kc, w_km2, w_km1, w_k, h_km1, h_k, &
+                                              workspace, options, next_k, next_h)
+      integer, intent(in) :: k_current, kc
+      real(dp), intent(in) :: w_km2, w_km1, w_k, h_km1, h_k
+      type(odex_workspace), intent(in) :: workspace
+      type(odex_options), intent(in) :: options
+      integer, intent(out) :: next_k
+      real(dp), intent(out) :: next_h
+      integer :: kopt, km
+
+      km = min(options%k_max, size(workspace%ak))
+      call odex_observe_hairer_kopt(kc, k_current, km, .false., w_km2, w_km1, w_k, options, kopt)
+      next_k = max(2, min(km, kopt))
+
+      if (next_k > kc) then
+         next_h = odex_hairer_promotion_step(h_k, kc, next_k, workspace)
+      else if (next_k < kc) then
+         next_h = h_km1
+      else
+         next_h = h_k
+      end if
+   end subroutine odex_apply_hairer_accept_update
+
+   subroutine odex_observe_controller_estimate(workspace, h, er1, k, h_candidate, work_estimate, options)
       type(odex_workspace), intent(in) :: workspace
       real(dp), intent(in) :: h, er1
       integer, intent(in) :: k
       real(dp), intent(out) :: h_candidate, work_estimate
+      type(odex_options), intent(in), optional :: options
       integer :: kc
+      type(odex_options) :: opts
 
       kc = max(1, k)
       if (.not. workspace%tables_ready .or. workspace%table_k < kc) then
@@ -1189,8 +2053,15 @@ contains
          return
       end if
 
-      h_candidate = calculate_hk(h, er1, kc, workspace)
-      work_estimate = calculate_wk(h, er1, kc, workspace)
+      if (present(options)) then
+         opts = options
+      else
+         call odex_default_options(opts)
+      end if
+      call odex_normalize_options(opts)
+
+      h_candidate = calculate_hk(h, er1, kc, workspace, opts)
+      work_estimate = calculate_wk(h, er1, kc, workspace, opts)
    end subroutine odex_observe_controller_estimate
 
    function odex_observe_large_error_threshold(k) result(threshold)
@@ -1201,6 +2072,56 @@ contains
       kc = max(1, k)
       threshold = real((kc*kc + 1)**2, dp)
    end function odex_observe_large_error_threshold
+
+   subroutine odex_observe_order_transition(wk_lower, wk_current, k, options, transition, next_k)
+      real(dp), intent(in) :: wk_lower, wk_current
+      integer, intent(in) :: k
+      type(odex_options), intent(in) :: options
+      integer, intent(out) :: transition, next_k
+      type(odex_options) :: opts
+      integer :: kc
+
+      opts = options
+      call odex_normalize_options(opts)
+      kc = min(max(k, opts%k_min), opts%k_max)
+      transition = odex_order_transition_keep
+      next_k = kc
+
+      if (wk_lower <= opts%order_decrease_factor*wk_current) then
+         transition = odex_order_transition_demote
+         next_k = max(opts%k_min, kc - 1)
+      else if (wk_current <= opts%order_increase_factor*wk_lower) then
+         transition = odex_order_transition_promote
+         next_k = min(opts%k_max, kc + 1)
+      end if
+   end subroutine odex_observe_order_transition
+
+   pure function odex_hairer_work_at_index(kopt, kc, w_km2, w_km1, w_k) result(work)
+      integer, intent(in) :: kopt, kc
+      real(dp), intent(in) :: w_km2, w_km1, w_k
+      real(dp) :: work
+
+      if (kopt <= kc - 2) then
+         work = w_km2
+      else if (kopt == kc - 1) then
+         work = w_km1
+      else
+         work = w_k
+      end if
+   end function odex_hairer_work_at_index
+
+   pure function odex_hairer_promotion_step(h_candidate, k_previous, k_next, workspace) result(h_next)
+      real(dp), intent(in) :: h_candidate
+      integer, intent(in) :: k_previous, k_next
+      type(odex_workspace), intent(in) :: workspace
+      real(dp) :: h_next
+
+      if (k_next > k_previous .and. k_previous >= 1 .and. k_next <= size(workspace%ak)) then
+         h_next = h_candidate*workspace%ak(k_next)/workspace%ak(k_previous)
+      else
+         h_next = h_candidate
+      end if
+   end function odex_hairer_promotion_step
 
    logical function odex_observe_stability_reject(values, prev_norm, dt, options) result(reject)
       real(dp), intent(in) :: values(:), prev_norm, dt
@@ -1300,7 +2221,175 @@ contains
       result_state%cvode_nonlinear_iters = 0
       result_state%cvode_nonlinear_conv_fails = 0
       result_state%cvode_step_solve_fails = 0
+      result_state%odex_rhs_evals = 0
+      result_state%odex_midpoint_rows = 0
+      result_state%odex_kplus1_attempts = 0
+      result_state%odex_accept_k_minus_1 = 0
+      result_state%odex_accept_k = 0
+      result_state%odex_accept_k_plus_1 = 0
+      result_state%odex_large_error_rejects = 0
+      result_state%odex_kplus1_rejects = 0
+      result_state%odex_hairer_policy_steps = 0
+      result_state%odex_tltm_policy_steps = 0
+      result_state%odex_first_step_entries = 0
+      result_state%odex_last_step_entries = 0
+      result_state%odex_basic_step_entries = 0
+      result_state%odex_row_j1_calls = 0
+      result_state%odex_row_j2_calls = 0
+      result_state%odex_row_jge3_calls = 0
+      result_state%odex_row_j1_no_error_returns = 0
+      result_state%odex_error_estimates = 0
+      result_state%odex_hairer_scal_estimates = 0
+      result_state%odex_default_scal_estimates = 0
+      result_state%odex_errold_checks = 0
+      result_state%odex_atov_events = 0
+      result_state%odex_convergence_rejects = 0
+      result_state%odex_kplus1_hope_rejects = 0
+      result_state%odex_reject_kc_k_minus_1 = 0
+      result_state%odex_reject_kc_k = 0
+      result_state%odex_reject_kc_k_plus_1 = 0
+      result_state%odex_kopt_accept_updates = 0
+      result_state%odex_kopt_demotions = 0
+      result_state%odex_kopt_keeps = 0
+      result_state%odex_kopt_promotions = 0
+      result_state%odex_after_reject_clamps = 0
+      result_state%odex_reject_updates = 0
    end subroutine odex_result_reset
+
+   subroutine odex_step_telemetry_reset(step_stats)
+      type(odex_step_telemetry), intent(out) :: step_stats
+
+      step_stats%rhs_evals = 0
+      step_stats%midpoint_rows = 0
+      step_stats%kplus1_attempts = 0
+      step_stats%accept_k_minus_1 = 0
+      step_stats%accept_k = 0
+      step_stats%accept_k_plus_1 = 0
+      step_stats%large_error_rejects = 0
+      step_stats%kplus1_rejects = 0
+      step_stats%row_j1_calls = 0
+      step_stats%row_j2_calls = 0
+      step_stats%row_jge3_calls = 0
+      step_stats%row_j1_no_error_returns = 0
+      step_stats%error_estimates = 0
+      step_stats%hairer_scal_estimates = 0
+      step_stats%default_scal_estimates = 0
+      step_stats%errold_checks = 0
+      step_stats%atov_events = 0
+      step_stats%convergence_rejects = 0
+      step_stats%kplus1_hope_rejects = 0
+      step_stats%reject_kc_k_minus_1 = 0
+      step_stats%reject_kc_k = 0
+      step_stats%reject_kc_k_plus_1 = 0
+      step_stats%kopt_accept_updates = 0
+      step_stats%kopt_demotions = 0
+      step_stats%kopt_keeps = 0
+      step_stats%kopt_promotions = 0
+      step_stats%after_reject_clamps = 0
+      step_stats%reject_updates = 0
+   end subroutine odex_step_telemetry_reset
+
+   subroutine odex_result_record_step_telemetry(result_state, step_stats)
+      type(odex_result), intent(inout) :: result_state
+      type(odex_step_telemetry), intent(in) :: step_stats
+
+      result_state%odex_rhs_evals = result_state%odex_rhs_evals + max(0, step_stats%rhs_evals)
+      result_state%odex_midpoint_rows = result_state%odex_midpoint_rows + max(0, step_stats%midpoint_rows)
+      result_state%odex_kplus1_attempts = result_state%odex_kplus1_attempts + max(0, step_stats%kplus1_attempts)
+      result_state%odex_accept_k_minus_1 = result_state%odex_accept_k_minus_1 + max(0, step_stats%accept_k_minus_1)
+      result_state%odex_accept_k = result_state%odex_accept_k + max(0, step_stats%accept_k)
+      result_state%odex_accept_k_plus_1 = result_state%odex_accept_k_plus_1 + max(0, step_stats%accept_k_plus_1)
+      result_state%odex_large_error_rejects = result_state%odex_large_error_rejects + max(0, step_stats%large_error_rejects)
+      result_state%odex_kplus1_rejects = result_state%odex_kplus1_rejects + max(0, step_stats%kplus1_rejects)
+      result_state%odex_row_j1_calls = result_state%odex_row_j1_calls + max(0, step_stats%row_j1_calls)
+      result_state%odex_row_j2_calls = result_state%odex_row_j2_calls + max(0, step_stats%row_j2_calls)
+      result_state%odex_row_jge3_calls = result_state%odex_row_jge3_calls + max(0, step_stats%row_jge3_calls)
+      result_state%odex_row_j1_no_error_returns = result_state%odex_row_j1_no_error_returns + &
+         max(0, step_stats%row_j1_no_error_returns)
+      result_state%odex_error_estimates = result_state%odex_error_estimates + max(0, step_stats%error_estimates)
+      result_state%odex_hairer_scal_estimates = result_state%odex_hairer_scal_estimates + &
+         max(0, step_stats%hairer_scal_estimates)
+      result_state%odex_default_scal_estimates = result_state%odex_default_scal_estimates + &
+         max(0, step_stats%default_scal_estimates)
+      result_state%odex_errold_checks = result_state%odex_errold_checks + max(0, step_stats%errold_checks)
+      result_state%odex_atov_events = result_state%odex_atov_events + max(0, step_stats%atov_events)
+      result_state%odex_convergence_rejects = result_state%odex_convergence_rejects + max(0, step_stats%convergence_rejects)
+      result_state%odex_kplus1_hope_rejects = result_state%odex_kplus1_hope_rejects + max(0, step_stats%kplus1_hope_rejects)
+      result_state%odex_reject_kc_k_minus_1 = result_state%odex_reject_kc_k_minus_1 + &
+         max(0, step_stats%reject_kc_k_minus_1)
+      result_state%odex_reject_kc_k = result_state%odex_reject_kc_k + max(0, step_stats%reject_kc_k)
+      result_state%odex_reject_kc_k_plus_1 = result_state%odex_reject_kc_k_plus_1 + &
+         max(0, step_stats%reject_kc_k_plus_1)
+      result_state%odex_kopt_accept_updates = result_state%odex_kopt_accept_updates + max(0, step_stats%kopt_accept_updates)
+      result_state%odex_kopt_demotions = result_state%odex_kopt_demotions + max(0, step_stats%kopt_demotions)
+      result_state%odex_kopt_keeps = result_state%odex_kopt_keeps + max(0, step_stats%kopt_keeps)
+      result_state%odex_kopt_promotions = result_state%odex_kopt_promotions + max(0, step_stats%kopt_promotions)
+      result_state%odex_after_reject_clamps = result_state%odex_after_reject_clamps + &
+         max(0, step_stats%after_reject_clamps)
+      result_state%odex_reject_updates = result_state%odex_reject_updates + max(0, step_stats%reject_updates)
+   end subroutine odex_result_record_step_telemetry
+
+   subroutine odex_result_record_step_entry(result_state, hairer_policy, step_count, is_last_step)
+      type(odex_result), intent(inout) :: result_state
+      logical, intent(in) :: hairer_policy, is_last_step
+      integer, intent(in) :: step_count
+
+      if (hairer_policy) then
+         result_state%odex_hairer_policy_steps = result_state%odex_hairer_policy_steps + 1
+      else
+         result_state%odex_tltm_policy_steps = result_state%odex_tltm_policy_steps + 1
+      end if
+
+      if (step_count == 1) then
+         result_state%odex_first_step_entries = result_state%odex_first_step_entries + 1
+      end if
+
+      if (is_last_step) then
+         result_state%odex_last_step_entries = result_state%odex_last_step_entries + 1
+      else if (step_count /= 1) then
+         result_state%odex_basic_step_entries = result_state%odex_basic_step_entries + 1
+      end if
+   end subroutine odex_result_record_step_entry
+
+   subroutine odex_step_record_midpoint_row(step_stats, row_index)
+      type(odex_step_telemetry), intent(inout) :: step_stats
+      integer, intent(in) :: row_index
+
+      step_stats%midpoint_rows = step_stats%midpoint_rows + 1
+      if (row_index == 1) then
+         step_stats%row_j1_calls = step_stats%row_j1_calls + 1
+         step_stats%row_j1_no_error_returns = step_stats%row_j1_no_error_returns + 1
+      else if (row_index == 2) then
+         step_stats%row_j2_calls = step_stats%row_j2_calls + 1
+      else
+         step_stats%row_jge3_calls = step_stats%row_jge3_calls + 1
+      end if
+   end subroutine odex_step_record_midpoint_row
+
+   subroutine odex_step_record_error_scale(step_stats, hairer_policy)
+      type(odex_step_telemetry), intent(inout) :: step_stats
+      logical, intent(in) :: hairer_policy
+
+      step_stats%error_estimates = step_stats%error_estimates + 1
+      if (hairer_policy) then
+         step_stats%hairer_scal_estimates = step_stats%hairer_scal_estimates + 1
+      else
+         step_stats%default_scal_estimates = step_stats%default_scal_estimates + 1
+      end if
+   end subroutine odex_step_record_error_scale
+
+   subroutine odex_step_record_kopt_transition(step_stats, accepted_order, next_order)
+      type(odex_step_telemetry), intent(inout) :: step_stats
+      integer, intent(in) :: accepted_order, next_order
+
+      if (next_order < accepted_order) then
+         step_stats%kopt_demotions = step_stats%kopt_demotions + 1
+      else if (next_order > accepted_order) then
+         step_stats%kopt_promotions = step_stats%kopt_promotions + 1
+      else
+         step_stats%kopt_keeps = step_stats%kopt_keeps + 1
+      end if
+   end subroutine odex_step_record_kopt_transition
 
    subroutine odex_result_mark_success(result_state, status_code, accepted_steps, final_order, final_step_size)
       type(odex_result), intent(inout) :: result_state
@@ -1402,8 +2491,23 @@ contains
       options%h_min_c_tol = max(options%h_min_c_tol, 0.0_dp)
       options%h_min_c_span = max(options%h_min_c_span, 0.0_dp)
       options%initial_step_fraction = max(options%initial_step_fraction, epsilon(1.0_dp))
+      options%step_size_bound_fac1 = min(1.0_dp, max(options%step_size_bound_fac1, tiny(1.0_dp)))
+      options%step_size_bound_fac2 = max(options%step_size_bound_fac2, 1.0_dp)
+      options%order_decrease_factor = min(1.0_dp, max(options%order_decrease_factor, 0.0_dp))
+      options%order_increase_factor = min(1.0_dp, max(options%order_increase_factor, 0.0_dp))
       options%stability_growth_limit = max(options%stability_growth_limit, 1.0_dp)
    end subroutine odex_normalize_options
+
+   pure logical function odex_controller_policy_is_valid(controller_policy) result(is_valid)
+      integer, intent(in) :: controller_policy
+
+      select case (controller_policy)
+      case (odex_controller_policy_tltm_endpoint, odex_controller_policy_hairer_experimental)
+         is_valid = .true.
+      case default
+         is_valid = .false.
+      end select
+   end function odex_controller_policy_is_valid
 
    logical function odex_stability_reject(values, prev_norm, dt, opts) result(reject)
       real(dp), intent(in) :: values(:), prev_norm, dt

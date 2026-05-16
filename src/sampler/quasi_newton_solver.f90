@@ -4,7 +4,7 @@ module quasi_newton_solver_mod
    use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: iso_c_binding, only: c_associated, c_double, c_f_pointer, c_funloc, c_funptr, c_int, c_loc, c_null_ptr, c_ptr
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_value, ieee_quiet_nan
-   use solve_flow, only: flowzr, flowz, flow_workspace_t, set_intode_stage_trace, set_intode_quasi_iter_trace, &
+   use solve_flow, only: flowzr, flowz, flow_workspace_t, intode_diagnostics_context_t, set_intode_stage_trace, set_intode_quasi_iter_trace, &
                          set_intode_residual_role_trace, get_intode_residual_role_trace, &
                          intode_stage_quasi, intode_role_qn_navigation, intode_role_certification, intode_role_reverse_replay, &
                          intode_status_unknown, intode_status_success, intode_status_success_zero_time, &
@@ -87,6 +87,7 @@ module quasi_newton_solver_mod
       type(c_ptr) :: del_z = c_null_ptr
       type(c_ptr) :: jac = c_null_ptr
       type(c_ptr) :: flow_workspace = c_null_ptr
+      type(c_ptr) :: intode_diagnostics = c_null_ptr
       type(c_ptr) :: qn_context = c_null_ptr
       type(c_ptr) :: qn_diagnostics = c_null_ptr
       type(c_ptr) :: qn_policy = c_null_ptr
@@ -97,6 +98,7 @@ module quasi_newton_solver_mod
       integer(c_int) :: jac_rows = 0_c_int
       integer(c_int) :: jac_cols = 0_c_int
       integer(c_int) :: has_flow_workspace = 0_c_int
+      integer(c_int) :: has_intode_diagnostics = 0_c_int
       integer(c_int) :: has_qn_context = 0_c_int
       integer(c_int) :: has_qn_diagnostics = 0_c_int
       integer(c_int) :: has_qn_policy = 0_c_int
@@ -238,7 +240,7 @@ contains
    end subroutine release_qn_policy_context
 
    subroutine solve_constraint_quasi_newton(f, tol, max_iter, xt, z, del_z, ierr, Jl, x_new, jac, x_seed_override, x_best_solution, &
-                                            flow_workspace, qn_context, qn_diagnostics, qn_policy)
+                                            flow_workspace, qn_context, qn_diagnostics, qn_policy, intode_diagnostics)
       implicit none
 
       integer, intent(in) :: max_iter
@@ -253,9 +255,10 @@ contains
       real(dp), intent(out), optional :: x_best_solution(:)
 
       interface
-         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context, qn_diagnostics, qn_policy)
+         subroutine f(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
+                      intode_diagnostics)
             use, intrinsic :: iso_fortran_env, only: real64
-            use solve_flow, only: flow_workspace_t
+            use solve_flow, only: flow_workspace_t, intode_diagnostics_context_t
             import :: qn_context_t, qn_diagnostics_context_t, qn_policy_context_t
             integer, parameter :: dp = real64
             real(dp), intent(in) :: xt(:), xi(:), del_z(:)
@@ -266,12 +269,14 @@ contains
             type(qn_context_t), intent(inout), optional, target :: qn_context
             type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
             type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+            type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
          end subroutine f
       end interface
       type(flow_workspace_t), intent(inout), optional, target :: flow_workspace
       type(qn_context_t), intent(inout), optional, target :: qn_context
       type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       real(dp), parameter :: official_global_filter_trigger_res = 4.3e-3_dp
 
@@ -313,7 +318,8 @@ contains
       active_context%trace_route_code = 10
       call run_official_dfols_attempt(tol, attempt_idx, xt, z, del_z, jac, x0_guess, stage_converged, Jl, x_new, &
                                       x_best_out=x_best_first, best_res_out=best_res_first, flow_workspace=flow_workspace, &
-                                      qn_context=active_context, qn_diagnostics=active_diagnostics, qn_policy=active_policy)
+                                      qn_context=active_context, qn_diagnostics=active_diagnostics, qn_policy=active_policy, &
+                                      intode_diagnostics=intode_diagnostics)
       best_res_global = best_res_first
       Jl_best_global = Jl
       x_best_global = x_best_first
@@ -327,7 +333,8 @@ contains
       if ((.not. converged) .and. residual_within_accept_tolerance(best_res_global, tol)) then
          active_context%trace_route_code = 90
          call certify_candidate_if_within_tol(xt, z, del_z, jac, tol, x_best_global, Jl_best_global, best_res_global, x_new, Jl, &
-                                              converged, flow_workspace, active_context, active_diagnostics, active_policy)
+                                              converged, flow_workspace, active_context, active_diagnostics, active_policy, &
+                                              intode_diagnostics)
       end if
       if (global_filter_candidate) then
          call record_quasi_global_filter(active_diagnostics, converged)
@@ -358,7 +365,8 @@ contains
    end subroutine record_quasi_global_filter
 
    subroutine run_official_dfols_attempt(tol, attempt_idx, xt, z, del_z, jac, x_init, converged, Jl, x_new, &
-                                         x_best_out, best_res_out, flow_workspace, qn_context, qn_diagnostics, qn_policy)
+                                         x_best_out, best_res_out, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
+                                         intode_diagnostics)
       implicit none
       integer, intent(in) :: attempt_idx
       real(dp), intent(in) :: tol
@@ -373,6 +381,7 @@ contains
       type(qn_context_t), intent(inout), target :: qn_context
       type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), target :: qn_policy
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       integer :: n, i
       integer(c_int) :: c_status, c_n, c_nf, c_flag, c_objfun_has_noise
@@ -409,13 +418,13 @@ contains
 
       call count_qn_attempt_eval(qn_context)
       call evaluate_constraint_residual(xt, z, x_seed, r, del_z, eval_error, Jl_eval, jac, flow_workspace, qn_context, &
-                                        qn_diagnostics, qn_policy)
+                                        qn_diagnostics, qn_policy, intode_diagnostics)
       if (eval_error .or. .not. real_vector_is_finite(r)) then
          x_seed = 0.0_dp
          qn_context%trace_iter = 0
          call count_qn_attempt_eval(qn_context)
          call evaluate_constraint_residual(xt, z, x_seed, r, del_z, eval_error, Jl_eval, jac, flow_workspace, qn_context, &
-                                           qn_diagnostics, qn_policy)
+                                           qn_diagnostics, qn_policy, intode_diagnostics)
       end if
       if (eval_error .or. .not. real_vector_is_finite(r)) then
          call append_quasi_trace_sample(qn_context, qn_policy, 0.0_dp, 0, 0, attempt_idx, huge(1.0_dp), .false., .false.)
@@ -439,7 +448,7 @@ contains
 
       if (residual_within_accept_tolerance(best_r_norm, tol)) then
          call certify_candidate_if_within_tol(xt, z, del_z, jac, tol, x_best, Jl_best, best_r_norm, x_new, Jl, converged, &
-                                              flow_workspace, qn_context, qn_diagnostics, qn_policy)
+                                              flow_workspace, qn_context, qn_diagnostics, qn_policy, intode_diagnostics)
          if (.not. converged) x_new = xt
          if (present(x_best_out)) then
             if (size(x_best_out) == size(x_best)) x_best_out = x_best
@@ -454,7 +463,7 @@ contains
       end if
 
       call initialize_qn_official_callback_context(callback_context, xt, z, del_z, jac, flow_workspace, qn_context, qn_diagnostics, &
-                                                  qn_policy)
+                                                  qn_policy, intode_diagnostics)
       do i = 1, n
          x0_c(i) = real(x_seed(i), c_double)
          x_solution_c(i) = real(x_seed(i), c_double)
@@ -484,7 +493,7 @@ contains
             qn_context%trace_iter = 0
             call count_qn_attempt_eval(qn_context)
             call evaluate_constraint_residual(xt, z, x_solution, r, del_z, eval_error, Jl_eval, jac, flow_workspace, qn_context, &
-                                              qn_diagnostics, qn_policy)
+                                              qn_diagnostics, qn_policy, intode_diagnostics)
             if (.not. eval_error .and. real_vector_is_finite(r)) then
                final_r_norm = norm2(r)
                call append_quasi_trace_sample(qn_context, qn_policy, 1.0_dp, 0, int(c_nf), attempt_idx, final_r_norm, &
@@ -505,7 +514,7 @@ contains
       end if
 
       call certify_candidate_if_within_tol(xt, z, del_z, jac, tol, x_best, Jl_best, best_r_norm, x_new, Jl, converged, flow_workspace, &
-                                           qn_context, qn_diagnostics, qn_policy)
+                                           qn_context, qn_diagnostics, qn_policy, intode_diagnostics)
       if (.not. converged) then
          x_new = xt
          if (size(Jl_best) == size(Jl)) Jl = Jl_best
@@ -533,6 +542,7 @@ contains
       real(dp), pointer :: xt_ptr(:), del_z_ptr(:)
       complex(dp), pointer :: z_ptr(:), jac_ptr(:, :)
       type(flow_workspace_t), pointer :: flow_workspace_ptr
+      type(intode_diagnostics_context_t), pointer :: intode_diagnostics_ptr
       type(qn_context_t), pointer :: qn_context_ptr
       type(qn_diagnostics_context_t), pointer :: qn_diagnostics_ptr
       type(qn_policy_context_t), pointer :: qn_policy_ptr
@@ -580,15 +590,30 @@ contains
       else
          qn_policy_ptr => module_qn_policy_context
       end if
+      nullify (intode_diagnostics_ptr)
+      if (callback_context%has_intode_diagnostics /= 0_c_int .and. c_associated(callback_context%intode_diagnostics)) then
+         call c_f_pointer(callback_context%intode_diagnostics, intode_diagnostics_ptr)
+      end if
       qn_context_ptr%trace_iter = 0
       call count_qn_attempt_eval(qn_context_ptr)
       if (callback_context%has_flow_workspace /= 0_c_int .and. c_associated(callback_context%flow_workspace)) then
          call c_f_pointer(callback_context%flow_workspace, flow_workspace_ptr)
-         call evaluate_constraint_residual(xt_ptr, z_ptr, xi, fq, del_z_ptr, eval_error, jl, jac_ptr, flow_workspace_ptr, &
-                                           qn_context_ptr, qn_diagnostics_ptr, qn_policy_ptr)
+         if (associated(intode_diagnostics_ptr)) then
+            call evaluate_constraint_residual(xt_ptr, z_ptr, xi, fq, del_z_ptr, eval_error, jl, jac_ptr, flow_workspace_ptr, &
+                                              qn_context_ptr, qn_diagnostics_ptr, qn_policy_ptr, intode_diagnostics_ptr)
+         else
+            call evaluate_constraint_residual(xt_ptr, z_ptr, xi, fq, del_z_ptr, eval_error, jl, jac_ptr, flow_workspace_ptr, &
+                                              qn_context_ptr, qn_diagnostics_ptr, qn_policy_ptr)
+         end if
       else
-         call evaluate_constraint_residual(xt_ptr, z_ptr, xi, fq, del_z_ptr, eval_error, jl, jac_ptr, qn_context=qn_context_ptr, &
-                                           qn_diagnostics=qn_diagnostics_ptr, qn_policy=qn_policy_ptr)
+         if (associated(intode_diagnostics_ptr)) then
+            call evaluate_constraint_residual(xt_ptr, z_ptr, xi, fq, del_z_ptr, eval_error, jl, jac_ptr, qn_context=qn_context_ptr, &
+                                              qn_diagnostics=qn_diagnostics_ptr, qn_policy=qn_policy_ptr, &
+                                              intode_diagnostics=intode_diagnostics_ptr)
+         else
+            call evaluate_constraint_residual(xt_ptr, z_ptr, xi, fq, del_z_ptr, eval_error, jl, jac_ptr, qn_context=qn_context_ptr, &
+                                              qn_diagnostics=qn_diagnostics_ptr, qn_policy=qn_policy_ptr)
+         end if
       end if
       if (eval_error .or. .not. real_vector_is_finite(fq)) goto 100
 
@@ -604,7 +629,7 @@ contains
    end function qn_official_dfols_eval_callback
 
    subroutine initialize_qn_official_callback_context(context, xt, z, del_z, jac, flow_workspace, qn_context, qn_diagnostics, &
-                                                     qn_policy)
+                                                     qn_policy, intode_diagnostics)
       implicit none
       type(qn_official_callback_context_t), intent(out) :: context
       real(dp), intent(in), target :: xt(:), del_z(:)
@@ -613,6 +638,7 @@ contains
       type(qn_context_t), intent(inout), optional, target :: qn_context
       type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       context%xt = c_loc(xt(1))
       context%z = c_loc(z(1))
@@ -630,6 +656,13 @@ contains
       else
          context%flow_workspace = c_null_ptr
          context%has_flow_workspace = 0_c_int
+      end if
+      if (present(intode_diagnostics)) then
+         context%intode_diagnostics = c_loc(intode_diagnostics)
+         context%has_intode_diagnostics = 1_c_int
+      else
+         context%intode_diagnostics = c_null_ptr
+         context%has_intode_diagnostics = 0_c_int
       end if
       if (present(qn_context)) then
          context%qn_context = c_loc(qn_context)
@@ -663,6 +696,7 @@ contains
       context%del_z = c_null_ptr
       context%jac = c_null_ptr
       context%flow_workspace = c_null_ptr
+      context%intode_diagnostics = c_null_ptr
       context%qn_context = c_null_ptr
       context%qn_diagnostics = c_null_ptr
       context%qn_policy = c_null_ptr
@@ -673,6 +707,7 @@ contains
       context%jac_rows = 0_c_int
       context%jac_cols = 0_c_int
       context%has_flow_workspace = 0_c_int
+      context%has_intode_diagnostics = 0_c_int
       context%has_qn_context = 0_c_int
       context%has_qn_diagnostics = 0_c_int
       context%has_qn_policy = 0_c_int
@@ -689,7 +724,8 @@ contains
          " flag=", flag, "; QN attempt will be rejected without internal fallback."
    end subroutine warn_official_dfols_failure
 
-   subroutine recover_converged_flowed_state(xt, z, del_z, Jl, z_flowed, eval_error, flow_workspace, qn_context, qn_policy)
+   subroutine recover_converged_flowed_state(xt, z, del_z, Jl, z_flowed, eval_error, flow_workspace, qn_context, qn_policy, &
+                                             intode_diagnostics)
       implicit none
       real(dp), intent(in) :: xt(:), del_z(:), Jl(:)
       complex(dp), intent(in) :: z(:)
@@ -698,6 +734,7 @@ contains
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
       type(qn_context_t), intent(inout), target :: qn_context
       type(qn_policy_context_t), intent(inout), target :: qn_policy
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
       complex(dp) :: z_trial(size(z))
 
       if (size(z_flowed) /= size(z) .or. size(del_z) /= size(Jl)) then
@@ -717,13 +754,13 @@ contains
 
       call real_to_complex(del_z + Jl, z_trial)
       z_trial = z + z_trial
-      call set_intode_residual_role_trace(intode_role_certification)
-      call flowzr(xt, z_trial, eval_error, workspace=flow_workspace)
+      call set_intode_residual_role_trace(intode_role_certification, flow_workspace)
+      call flowzr(xt, z_trial, eval_error, workspace=flow_workspace, intode_diagnostics=intode_diagnostics)
       if (.not. eval_error) z_flowed = z_trial
    end subroutine recover_converged_flowed_state
 
    subroutine certify_candidate_if_within_tol(xt, z, del_z, jac, tol, xi_best, Jl_best, best_fx_norm, x_new, Jl, converged, &
-                                              flow_workspace, qn_context, qn_diagnostics, qn_policy)
+                                              flow_workspace, qn_context, qn_diagnostics, qn_policy, intode_diagnostics)
       implicit none
       real(dp), intent(in) :: xt(:), del_z(:), tol, xi_best(:), Jl_best(:), best_fx_norm
       complex(dp), intent(in) :: z(:), jac(:, :)
@@ -733,6 +770,7 @@ contains
       type(qn_context_t), intent(inout), target :: qn_context
       type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), target :: qn_policy
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       logical :: eval_error
       real(dp) :: cert_norm
@@ -744,13 +782,14 @@ contains
       if (size(xi_best) /= size(del_z) .or. size(Jl_best) /= size(Jl)) return
 
       call evaluate_constraint_residual_certification(xt, z, xi_best, cert_res, del_z, eval_error, cert_jl, jac, flow_workspace, &
-                                                      qn_context, qn_diagnostics, qn_policy)
+                                                      qn_context, qn_diagnostics, qn_policy, intode_diagnostics)
       if (eval_error .or. .not. real_vector_is_finite(cert_res)) return
       cert_norm = norm2(cert_res)
       if (.not. residual_within_accept_tolerance(cert_norm, tol)) return
 
       Jl = cert_jl
-      call recover_converged_flowed_state(xt, z, del_z, Jl, z_new, eval_error, flow_workspace, qn_context, qn_policy)
+      call recover_converged_flowed_state(xt, z, del_z, Jl, z_new, eval_error, flow_workspace, qn_context, qn_policy, &
+                                          intode_diagnostics)
       if (eval_error) then
          converged = .false.
          return
@@ -856,7 +895,8 @@ contains
       end select
    end subroutine record_quasi_eval_flow_status
 
-   subroutine evaluate_constraint_residual(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context, qn_diagnostics, qn_policy)
+   subroutine evaluate_constraint_residual(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
+                                           intode_diagnostics)
       implicit none
       real(dp), intent(in) :: xt(:), xi(:), del_z(:)
       complex(dp), intent(in) :: z(:), jac(:, :)
@@ -866,13 +906,14 @@ contains
       type(qn_context_t), intent(inout), optional, target :: qn_context
       type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       call evaluate_constraint_residual_with_role(xt, z, xi, fq, del_z, ierr, Jl, jac, intode_role_qn_navigation, &
-                                                  flow_workspace, qn_context, qn_diagnostics, qn_policy)
+                                                  flow_workspace, qn_context, qn_diagnostics, qn_policy, intode_diagnostics)
    end subroutine evaluate_constraint_residual
 
    subroutine evaluate_constraint_residual_certification(xt, z, xi, fq, del_z, ierr, Jl, jac, flow_workspace, qn_context, &
-                                                        qn_diagnostics, qn_policy)
+                                                        qn_diagnostics, qn_policy, intode_diagnostics)
       implicit none
       real(dp), intent(in) :: xt(:), xi(:), del_z(:)
       complex(dp), intent(in) :: z(:), jac(:, :)
@@ -882,13 +923,14 @@ contains
       type(qn_context_t), intent(inout), optional, target :: qn_context
       type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       call evaluate_constraint_residual_with_role(xt, z, xi, fq, del_z, ierr, Jl, jac, intode_role_certification, &
-                                                  flow_workspace, qn_context, qn_diagnostics, qn_policy)
+                                                  flow_workspace, qn_context, qn_diagnostics, qn_policy, intode_diagnostics)
    end subroutine evaluate_constraint_residual_certification
 
    subroutine evaluate_constraint_residual_with_role(xt, z, xi, fq, del_z, ierr, Jl, jac, residual_role, flow_workspace, qn_context, &
-                                                     qn_diagnostics, qn_policy)
+                                                     qn_diagnostics, qn_policy, intode_diagnostics)
       implicit none
       real(dp), intent(in) :: xt(:), xi(:), del_z(:)
       complex(dp), intent(in) :: z(:), jac(:, :)
@@ -899,6 +941,7 @@ contains
       type(qn_context_t), intent(inout), optional, target :: qn_context
       type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       integer :: flow_status, n, active_role, prior_role
       type(qn_context_t), pointer :: active_context
@@ -928,15 +971,15 @@ contains
       active_context%eval_flowed_is_inverse = .false.
 
       active_role = residual_role
-      call get_intode_residual_role_trace(prior_role)
+      call get_intode_residual_role_trace(prior_role, flow_workspace)
       if (residual_role == intode_role_qn_navigation .and. prior_role == intode_role_reverse_replay) then
          active_role = intode_role_reverse_replay
       end if
-      call set_intode_stage_trace(intode_stage_quasi)
-      call set_intode_residual_role_trace(active_role)
-      call set_intode_quasi_iter_trace(active_context%trace_iter)
+      call set_intode_stage_trace(intode_stage_quasi, flow_workspace)
+      call set_intode_residual_role_trace(active_role, flow_workspace)
+      call set_intode_quasi_iter_trace(active_context%trace_iter, flow_workspace)
       flow_status = intode_status_unknown
-      call flowzr(xt, active_context%residual_z_trial, ierr, flow_status, flow_workspace)
+      call flowzr(xt, active_context%residual_z_trial, ierr, flow_status, flow_workspace, intode_diagnostics)
       call record_quasi_eval_flow_status(active_diagnostics, flow_status)
       if (ierr) then
          call mark_constraint_eval_invalid(fq, Jl, ierr, active_context)

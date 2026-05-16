@@ -4,8 +4,10 @@ module solve_flow
    use utils, only: dp, complex_to_real, map_to_complex, real_to_complex
    use model, only: ds, hessian_vec
    use odex_backend, only: build_nsteps, ensure_odex_workspace_object, ode_rhs, ode_rhs_context, &
-                           odex_apply_backend_name, odex_backend_default_options => odex_default_options, &
-                           odex_integrate_endpoint, odex_integrate_endpoint_context, odex_k_max, odex_k_min, odex_max_steps_default, &
+                           odex_apply_backend_name, odex_apply_controller_policy_name, &
+                           odex_backend_default_options => odex_default_options, &
+                           odex_integrate_endpoint, odex_integrate_endpoint_context, &
+                           odex_k_max, odex_k_min, odex_max_steps_default, &
                            odex_options, odex_reason_h_min, odex_reason_invalid, odex_reason_max_steps, &
                            odex_reason_none, odex_result, odex_result_mark_failure, odex_result_mark_success, &
                            odex_result_reset, odex_result_to_intode_status, odex_status_failure_h_min, &
@@ -19,6 +21,16 @@ module solve_flow
    use, intrinsic :: iso_fortran_env, only: int64
    implicit none
 
+   type :: intode_runtime_trace_context_t
+      integer :: rattle_step = 0
+      integer :: rattle_substep = 0
+      integer :: stage = 0
+      integer :: newton_iter = 0
+      integer :: quasi_iter = 0
+      integer :: role = 0
+      integer :: current_context = 0
+   end type intode_runtime_trace_context_t
+
    type :: flow_workspace_t
       real(dp), allocatable :: intode_yc(:), intode_yf(:)
       real(dp), allocatable :: flow_vec_y(:), flow_vec_yf(:)
@@ -27,6 +39,7 @@ module solve_flow
       complex(dp), allocatable :: flow_jac_z(:), flow_jac_ds(:)
       complex(dp), allocatable :: flow_jac_j(:, :), flow_jac_jprod(:, :)
       real(dp) :: flow_vec_rhs_scale = 1.0_dp
+      type(intode_runtime_trace_context_t) :: intode_trace
       type(odex_workspace) :: intode_odex_workspace
    end type flow_workspace_t
 
@@ -60,55 +73,101 @@ module solve_flow
    integer, parameter :: intode_role_final_flow = 4
    integer, parameter :: intode_role_reverse_replay = 5
    integer, parameter :: intode_solver_assist_policy_off = 0
-   integer, save :: intode_calls_total = 0
-   integer, save :: intode_calls_integrating = 0
-   integer, save :: intode_fallback_attempts = 0
-   integer, save :: intode_fallback_success = 0
-   integer, save :: intode_fallback_failure = 0
-   integer, save :: intode_fallback_max_steps = 0
-   integer, save :: intode_fallback_invalid = 0
-   integer, save :: intode_fallback_h_min = 0
-   integer, save :: intode_fallback_attempts_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
-   integer, save :: intode_fallback_failures_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
-   integer(int64), save :: intode_cvode_calls = 0_int64
-   integer(int64), save :: intode_cvode_success = 0_int64
-   integer(int64), save :: intode_cvode_failure = 0_int64
-   integer(int64), save :: intode_cvode_steps_sum = 0_int64
-   integer(int64), save :: intode_cvode_rhs_evals_sum = 0_int64
-   integer(int64), save :: intode_cvode_error_test_fails_sum = 0_int64
-   integer(int64), save :: intode_cvode_nonlinear_iters_sum = 0_int64
-   integer(int64), save :: intode_cvode_nonlinear_conv_fails_sum = 0_int64
-   integer(int64), save :: intode_cvode_step_solve_fails_sum = 0_int64
-   integer(int64), save :: intode_cvode_final_order_sum = 0_int64
-   integer(int64), save :: intode_cvode_max_final_order = 0_int64
-   integer(int64), save :: intode_cvode_calls_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
-   integer(int64), save :: intode_cvode_steps_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
-   integer(int64), save :: intode_cvode_rhs_evals_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
-   integer(int64), save :: intode_cvode_error_test_fails_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
-   integer(int64), save :: intode_cvode_nonlinear_iters_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
-   integer(int64), save :: intode_cvode_nonlinear_conv_fails_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
-   integer(int64), save :: intode_cvode_step_solve_fails_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
    logical, parameter :: intode_verbose_logs = .false.
-   integer, save :: intode_trace_rattle_step = 0
-   integer, save :: intode_trace_rattle_substep = 0
-   integer, save :: intode_trace_stage = intode_stage_unknown
-   integer, save :: intode_trace_newton_iter = 0
-   integer, save :: intode_trace_quasi_iter = 0
-   integer, save :: intode_trace_role = intode_role_unknown
-   integer, save :: intode_current_context = intode_ctx_unknown
-   logical, save :: intode_capture_failures = .true.
-   logical, save :: intode_last_failure_available = .false.
-   integer, save :: intode_last_failure_reason = intode_reason_none
-   integer, save :: intode_last_failure_context = intode_ctx_unknown
-   integer, save :: intode_last_failure_rattle_step = 0
-   integer, save :: intode_last_failure_rattle_substep = 0
-   integer, save :: intode_last_failure_stage = intode_stage_unknown
-   integer, save :: intode_last_failure_newton_iter = 0
-   integer, save :: intode_last_failure_quasi_iter = 0
-   integer, save :: intode_failure_log_count = 0
    integer, parameter :: intode_failure_log_limit = 20
-   real(dp), save :: intode_last_failure_t = 0.0_dp
-   real(dp), allocatable, save :: intode_last_failure_y(:)
+
+   type :: intode_diagnostics_context_t
+      integer :: calls_total = 0
+      integer :: calls_integrating = 0
+      integer :: fallback_attempts = 0
+      integer :: fallback_success = 0
+      integer :: fallback_failure = 0
+      integer :: fallback_max_steps = 0
+      integer :: fallback_invalid = 0
+      integer :: fallback_h_min = 0
+      integer :: fallback_attempts_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
+      integer :: fallback_failures_ctx(intode_ctx_unknown:intode_ctx_flow) = 0
+      integer(int64) :: cvode_calls = 0_int64
+      integer(int64) :: cvode_success = 0_int64
+      integer(int64) :: cvode_failure = 0_int64
+      integer(int64) :: cvode_steps_sum = 0_int64
+      integer(int64) :: cvode_rhs_evals_sum = 0_int64
+      integer(int64) :: cvode_error_test_fails_sum = 0_int64
+      integer(int64) :: cvode_nonlinear_iters_sum = 0_int64
+      integer(int64) :: cvode_nonlinear_conv_fails_sum = 0_int64
+      integer(int64) :: cvode_step_solve_fails_sum = 0_int64
+      integer(int64) :: cvode_final_order_sum = 0_int64
+      integer(int64) :: cvode_max_final_order = 0_int64
+      integer(int64) :: cvode_calls_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+      integer(int64) :: cvode_steps_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+      integer(int64) :: cvode_rhs_evals_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+      integer(int64) :: cvode_error_test_fails_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+      integer(int64) :: cvode_nonlinear_iters_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+      integer(int64) :: cvode_nonlinear_conv_fails_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+      integer(int64) :: cvode_step_solve_fails_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+      integer(int64) :: odex_calls = 0_int64
+      integer(int64) :: odex_success = 0_int64
+      integer(int64) :: odex_failure = 0_int64
+      integer(int64) :: odex_accepted_steps_sum = 0_int64
+      integer(int64) :: odex_rejected_steps_sum = 0_int64
+      integer(int64) :: odex_stability_rejects_sum = 0_int64
+      integer(int64) :: odex_rhs_evals_sum = 0_int64
+      integer(int64) :: odex_midpoint_rows_sum = 0_int64
+      integer(int64) :: odex_kplus1_attempts_sum = 0_int64
+      integer(int64) :: odex_accept_k_minus_1_sum = 0_int64
+      integer(int64) :: odex_accept_k_sum = 0_int64
+      integer(int64) :: odex_accept_k_plus_1_sum = 0_int64
+      integer(int64) :: odex_large_error_rejects_sum = 0_int64
+      integer(int64) :: odex_kplus1_rejects_sum = 0_int64
+      integer(int64) :: odex_hairer_policy_steps_sum = 0_int64
+      integer(int64) :: odex_tltm_policy_steps_sum = 0_int64
+      integer(int64) :: odex_first_step_entries_sum = 0_int64
+      integer(int64) :: odex_last_step_entries_sum = 0_int64
+      integer(int64) :: odex_basic_step_entries_sum = 0_int64
+      integer(int64) :: odex_row_j1_calls_sum = 0_int64
+      integer(int64) :: odex_row_j2_calls_sum = 0_int64
+      integer(int64) :: odex_row_jge3_calls_sum = 0_int64
+      integer(int64) :: odex_row_j1_no_error_returns_sum = 0_int64
+      integer(int64) :: odex_error_estimates_sum = 0_int64
+      integer(int64) :: odex_hairer_scal_estimates_sum = 0_int64
+      integer(int64) :: odex_default_scal_estimates_sum = 0_int64
+      integer(int64) :: odex_errold_checks_sum = 0_int64
+      integer(int64) :: odex_atov_events_sum = 0_int64
+      integer(int64) :: odex_convergence_rejects_sum = 0_int64
+      integer(int64) :: odex_kplus1_hope_rejects_sum = 0_int64
+      integer(int64) :: odex_reject_kc_k_minus_1_sum = 0_int64
+      integer(int64) :: odex_reject_kc_k_sum = 0_int64
+      integer(int64) :: odex_reject_kc_k_plus_1_sum = 0_int64
+      integer(int64) :: odex_kopt_accept_updates_sum = 0_int64
+      integer(int64) :: odex_kopt_demotions_sum = 0_int64
+      integer(int64) :: odex_kopt_keeps_sum = 0_int64
+      integer(int64) :: odex_kopt_promotions_sum = 0_int64
+      integer(int64) :: odex_after_reject_clamps_sum = 0_int64
+      integer(int64) :: odex_reject_updates_sum = 0_int64
+      integer(int64) :: odex_final_order_sum = 0_int64
+      integer(int64) :: odex_max_final_order = 0_int64
+      integer(int64) :: odex_calls_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+      integer(int64) :: odex_accepted_steps_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+      integer(int64) :: odex_rejected_steps_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+      integer(int64) :: odex_rhs_evals_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+      integer(int64) :: odex_midpoint_rows_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+      integer(int64) :: odex_kplus1_attempts_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+      logical :: capture_failures = .true.
+      logical :: last_failure_available = .false.
+      integer :: last_failure_reason = intode_reason_none
+      integer :: last_failure_context = intode_ctx_unknown
+      integer :: last_failure_rattle_step = 0
+      integer :: last_failure_rattle_substep = 0
+      integer :: last_failure_stage = intode_stage_unknown
+      integer :: last_failure_newton_iter = 0
+      integer :: last_failure_quasi_iter = 0
+      integer :: failure_log_count = 0
+      real(dp) :: last_failure_t = 0.0_dp
+      real(dp), allocatable :: last_failure_y(:)
+   end type intode_diagnostics_context_t
+
+   type(intode_diagnostics_context_t), save, target :: module_intode_diagnostics
+   type(intode_runtime_trace_context_t), save :: module_intode_trace
 
 contains
 
@@ -116,11 +175,15 @@ contains
       implicit none
       type(odex_options), intent(out) :: options
       character(len=128) :: backend_token
+      character(len=128) :: controller_policy_token
       logical :: has_backend
+      logical :: has_controller_policy
 
       call odex_backend_default_options(options, at, rt)
       call read_string_env("TLTM_ODE_BACKEND", backend_token, has_backend)
       if (has_backend) call odex_apply_backend_name(options, backend_token)
+      call read_string_env("TLTM_ODE_CONTROLLER_POLICY", controller_policy_token, has_controller_policy)
+      if (has_controller_policy) call odex_apply_controller_policy_name(options, controller_policy_token)
       call parse_int_env("TLTM_CVODE_FIXEDPOINT_M", options%cvode_fixedpoint_m)
       call parse_int_env("TLTM_CVODE_MAX_ORDER", options%cvode_max_order)
       call parse_int_env("TLTM_CVODE_MAX_STEPS", options%cvode_max_steps)
@@ -130,13 +193,14 @@ contains
       call parse_int_env("TLTM_CVODE_MAX_NONLIN_ITERS", options%cvode_max_nonlin_iters)
    end subroutine odex_default_options
 
-   subroutine intode(f, y, t, res, error_flag, status)
+   subroutine intode(f, y, t, res, error_flag, status, intode_diagnostics)
       implicit none
       procedure(ode_rhs) :: f
       real(dp), intent(in) :: y(:), t
       real(dp), intent(out) :: res(:)
       logical, intent(out) :: error_flag
       integer, intent(out), optional :: status
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       integer :: state_size, failure_reason
       logical :: rescue_failed
@@ -144,12 +208,14 @@ contains
       type(odex_options) :: integration_options
       type(odex_result) :: integration_result
       type(flow_workspace_t) :: local_workspace
+      type(intode_diagnostics_context_t), pointer :: active_diagnostics
       real(dp) :: t_prof
 
       call perf_tic(t_prof)
       call odex_result_reset(integration_result)
       call set_intode_status(status, intode_status_unknown)
-      intode_calls_total = intode_calls_total + 1
+      call resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
+      active_diagnostics%calls_total = active_diagnostics%calls_total + 1
       if (t == 0.0_dp) then
          res = y
          error_flag = .false.
@@ -158,7 +224,7 @@ contains
          call perf_toc(PERF_INTODE, t_prof)
          return
       end if
-      intode_calls_integrating = intode_calls_integrating + 1
+      active_diagnostics%calls_integrating = active_diagnostics%calls_integrating + 1
 
       state_size = size(y)
       call ensure_real_workspace(local_workspace%intode_yc, state_size)
@@ -167,7 +233,8 @@ contains
       call odex_default_options(integration_options)
       call odex_integrate_endpoint(f, y, t, local_workspace%intode_yf(1:state_size), error_flag, &
                                    integration_result, local_workspace%intode_odex_workspace, integration_options)
-      call record_intode_cvode_result(integration_result)
+      call record_intode_cvode_result(integration_result, active_diagnostics, module_intode_trace%current_context)
+      call record_intode_odex_result(integration_result, active_diagnostics, module_intode_trace%current_context)
       if (.not. error_flag) then
          res = local_workspace%intode_yf(1:state_size)
          call set_intode_status(status, odex_result_to_intode_status(integration_result))
@@ -186,27 +253,28 @@ contains
       t_remaining = integration_result%t_remaining
       local_workspace%intode_yc(1:state_size) = local_workspace%intode_yf(1:state_size)
 
-      intode_fallback_attempts = intode_fallback_attempts + 1
+      active_diagnostics%fallback_attempts = active_diagnostics%fallback_attempts + 1
       select case (failure_reason)
       case (intode_reason_max_steps)
-         intode_fallback_max_steps = intode_fallback_max_steps + 1
+         active_diagnostics%fallback_max_steps = active_diagnostics%fallback_max_steps + 1
       case (intode_reason_invalid)
-         intode_fallback_invalid = intode_fallback_invalid + 1
+         active_diagnostics%fallback_invalid = active_diagnostics%fallback_invalid + 1
       case (intode_reason_h_min)
-         intode_fallback_h_min = intode_fallback_h_min + 1
+         active_diagnostics%fallback_h_min = active_diagnostics%fallback_h_min + 1
       end select
-      call record_intode_fallback_attempt_context(intode_current_context)
+      call record_intode_fallback_attempt_context(active_diagnostics, module_intode_trace%current_context)
 
       call intode_stiff_rescue(f, local_workspace%intode_yc(1:state_size), t_remaining, local_workspace%intode_yf(1:state_size), rescue_failed)
       if (.not. rescue_failed) then
-         intode_fallback_success = intode_fallback_success + 1
+         active_diagnostics%fallback_success = active_diagnostics%fallback_success + 1
          res = local_workspace%intode_yf(1:state_size)
          error_flag = .false.
          call set_intode_status(status, intode_status_success_stiff_rescue)
       else
-         intode_fallback_failure = intode_fallback_failure + 1
-         call record_intode_fallback_failure_context(intode_current_context)
-         call record_intode_last_failure(local_workspace%intode_yc(1:state_size), t_remaining, failure_reason)
+         active_diagnostics%fallback_failure = active_diagnostics%fallback_failure + 1
+         call record_intode_fallback_failure_context(active_diagnostics, module_intode_trace%current_context)
+         call record_intode_last_failure(local_workspace%intode_yc(1:state_size), t_remaining, failure_reason, &
+                                         active_diagnostics, module_intode_trace)
          res = local_workspace%intode_yc(1:state_size)
          error_flag = .true.
          call set_intode_status(status, odex_result_to_intode_status(integration_result))
@@ -214,7 +282,7 @@ contains
       call perf_toc(PERF_INTODE, t_prof)
    end subroutine intode
 
-   subroutine intode_with_context(f, y, t, res, error_flag, status, workspace)
+   subroutine intode_with_context(f, y, t, res, error_flag, status, workspace, intode_diagnostics)
       implicit none
       procedure(ode_rhs_context) :: f
       real(dp), intent(in) :: y(:), t
@@ -222,18 +290,21 @@ contains
       logical, intent(out) :: error_flag
       integer, intent(out), optional :: status
       type(flow_workspace_t), intent(inout) :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       integer :: state_size, failure_reason
       logical :: rescue_failed
       real(dp) :: t_remaining
       type(odex_options) :: integration_options
       type(odex_result) :: integration_result
+      type(intode_diagnostics_context_t), pointer :: active_diagnostics
       real(dp) :: t_prof
 
       call perf_tic(t_prof)
       call odex_result_reset(integration_result)
       call set_intode_status(status, intode_status_unknown)
-      intode_calls_total = intode_calls_total + 1
+      call resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
+      active_diagnostics%calls_total = active_diagnostics%calls_total + 1
       if (t == 0.0_dp) then
          res = y
          error_flag = .false.
@@ -242,7 +313,7 @@ contains
          call perf_toc(PERF_INTODE, t_prof)
          return
       end if
-      intode_calls_integrating = intode_calls_integrating + 1
+      active_diagnostics%calls_integrating = active_diagnostics%calls_integrating + 1
 
       state_size = size(y)
       call ensure_real_workspace(workspace%intode_yc, state_size)
@@ -251,7 +322,8 @@ contains
       call odex_default_options(integration_options)
       call odex_integrate_endpoint_context(f, y, t, workspace%intode_yf(1:state_size), error_flag, &
                                            integration_result, workspace%intode_odex_workspace, integration_options, workspace)
-      call record_intode_cvode_result(integration_result)
+      call record_intode_cvode_result(integration_result, active_diagnostics, workspace%intode_trace%current_context)
+      call record_intode_odex_result(integration_result, active_diagnostics, workspace%intode_trace%current_context)
       if (.not. error_flag) then
          res = workspace%intode_yf(1:state_size)
          call set_intode_status(status, odex_result_to_intode_status(integration_result))
@@ -270,28 +342,29 @@ contains
       t_remaining = integration_result%t_remaining
       workspace%intode_yc(1:state_size) = workspace%intode_yf(1:state_size)
 
-      intode_fallback_attempts = intode_fallback_attempts + 1
+      active_diagnostics%fallback_attempts = active_diagnostics%fallback_attempts + 1
       select case (failure_reason)
       case (intode_reason_max_steps)
-         intode_fallback_max_steps = intode_fallback_max_steps + 1
+         active_diagnostics%fallback_max_steps = active_diagnostics%fallback_max_steps + 1
       case (intode_reason_invalid)
-         intode_fallback_invalid = intode_fallback_invalid + 1
+         active_diagnostics%fallback_invalid = active_diagnostics%fallback_invalid + 1
       case (intode_reason_h_min)
-         intode_fallback_h_min = intode_fallback_h_min + 1
+         active_diagnostics%fallback_h_min = active_diagnostics%fallback_h_min + 1
       end select
-      call record_intode_fallback_attempt_context(intode_current_context)
+      call record_intode_fallback_attempt_context(active_diagnostics, workspace%intode_trace%current_context)
 
       call intode_stiff_rescue_context(f, workspace%intode_yc(1:state_size), t_remaining, workspace%intode_yf(1:state_size), &
                                        rescue_failed, workspace)
       if (.not. rescue_failed) then
-         intode_fallback_success = intode_fallback_success + 1
+         active_diagnostics%fallback_success = active_diagnostics%fallback_success + 1
          res = workspace%intode_yf(1:state_size)
          error_flag = .false.
          call set_intode_status(status, intode_status_success_stiff_rescue)
       else
-         intode_fallback_failure = intode_fallback_failure + 1
-         call record_intode_fallback_failure_context(intode_current_context)
-         call record_intode_last_failure(workspace%intode_yc(1:state_size), t_remaining, failure_reason)
+         active_diagnostics%fallback_failure = active_diagnostics%fallback_failure + 1
+         call record_intode_fallback_failure_context(active_diagnostics, workspace%intode_trace%current_context)
+         call record_intode_last_failure(workspace%intode_yc(1:state_size), t_remaining, failure_reason, &
+                                         active_diagnostics, workspace%intode_trace)
          res = workspace%intode_yc(1:state_size)
          error_flag = .true.
          call set_intode_status(status, odex_result_to_intode_status(integration_result))
@@ -306,6 +379,18 @@ contains
 
       if (present(status)) status = status_code
    end subroutine set_intode_status
+
+   subroutine resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
+      implicit none
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      type(intode_diagnostics_context_t), pointer :: active_diagnostics
+
+      if (present(intode_diagnostics)) then
+         active_diagnostics => intode_diagnostics
+      else
+         active_diagnostics => module_intode_diagnostics
+      end if
+   end subroutine resolve_intode_diagnostics_context
 
    pure logical function intode_status_is_strict_success(status_code) result(ok)
       implicit none
@@ -327,61 +412,177 @@ contains
       allowed = .false.
    end function intode_solver_assist_policy_allows
 
-   subroutine record_intode_fallback_attempt_context(ctx_code)
+   subroutine record_intode_fallback_attempt_context(intode_diagnostics, ctx_code)
       implicit none
+      type(intode_diagnostics_context_t), intent(inout) :: intode_diagnostics
       integer, intent(in) :: ctx_code
       integer :: idx
 
       idx = normalize_context_code(ctx_code)
-      intode_fallback_attempts_ctx(idx) = intode_fallback_attempts_ctx(idx) + 1
+      intode_diagnostics%fallback_attempts_ctx(idx) = intode_diagnostics%fallback_attempts_ctx(idx) + 1
    end subroutine record_intode_fallback_attempt_context
 
-   subroutine record_intode_fallback_failure_context(ctx_code)
+   subroutine record_intode_fallback_failure_context(intode_diagnostics, ctx_code)
       implicit none
+      type(intode_diagnostics_context_t), intent(inout) :: intode_diagnostics
       integer, intent(in) :: ctx_code
       integer :: idx
 
       idx = normalize_context_code(ctx_code)
-      intode_fallback_failures_ctx(idx) = intode_fallback_failures_ctx(idx) + 1
+      intode_diagnostics%fallback_failures_ctx(idx) = intode_diagnostics%fallback_failures_ctx(idx) + 1
    end subroutine record_intode_fallback_failure_context
 
-   subroutine record_intode_cvode_result(result_state)
+   subroutine record_intode_cvode_result(result_state, intode_diagnostics, context_code)
       implicit none
       type(odex_result), intent(in) :: result_state
+      type(intode_diagnostics_context_t), intent(inout) :: intode_diagnostics
+      integer, intent(in) :: context_code
       integer :: idx
 
       if (.not. result_state%cvode_backend_used) return
 
-      idx = normalize_context_code(intode_current_context)
-      intode_cvode_calls = intode_cvode_calls + 1_int64
-      intode_cvode_calls_ctx(idx) = intode_cvode_calls_ctx(idx) + 1_int64
+      idx = normalize_context_code(context_code)
+      intode_diagnostics%cvode_calls = intode_diagnostics%cvode_calls + 1_int64
+      intode_diagnostics%cvode_calls_ctx(idx) = intode_diagnostics%cvode_calls_ctx(idx) + 1_int64
       if (result_state%status == odex_status_success) then
-         intode_cvode_success = intode_cvode_success + 1_int64
+         intode_diagnostics%cvode_success = intode_diagnostics%cvode_success + 1_int64
       else
-         intode_cvode_failure = intode_cvode_failure + 1_int64
+         intode_diagnostics%cvode_failure = intode_diagnostics%cvode_failure + 1_int64
       end if
 
-      intode_cvode_steps_sum = intode_cvode_steps_sum + int(max(0, result_state%accepted_steps), int64)
-      intode_cvode_rhs_evals_sum = intode_cvode_rhs_evals_sum + int(max(0, result_state%cvode_rhs_evals), int64)
-      intode_cvode_error_test_fails_sum = intode_cvode_error_test_fails_sum + int(max(0, result_state%cvode_error_test_fails), int64)
-      intode_cvode_nonlinear_iters_sum = intode_cvode_nonlinear_iters_sum + int(max(0, result_state%cvode_nonlinear_iters), int64)
-      intode_cvode_nonlinear_conv_fails_sum = intode_cvode_nonlinear_conv_fails_sum + &
-         int(max(0, result_state%cvode_nonlinear_conv_fails), int64)
-      intode_cvode_step_solve_fails_sum = intode_cvode_step_solve_fails_sum + int(max(0, result_state%cvode_step_solve_fails), int64)
-      intode_cvode_final_order_sum = intode_cvode_final_order_sum + int(max(0, result_state%final_order), int64)
-      intode_cvode_max_final_order = max(intode_cvode_max_final_order, int(max(0, result_state%final_order), int64))
-
-      intode_cvode_steps_ctx(idx) = intode_cvode_steps_ctx(idx) + int(max(0, result_state%accepted_steps), int64)
-      intode_cvode_rhs_evals_ctx(idx) = intode_cvode_rhs_evals_ctx(idx) + int(max(0, result_state%cvode_rhs_evals), int64)
-      intode_cvode_error_test_fails_ctx(idx) = intode_cvode_error_test_fails_ctx(idx) + &
+      intode_diagnostics%cvode_steps_sum = intode_diagnostics%cvode_steps_sum + int(max(0, result_state%accepted_steps), int64)
+      intode_diagnostics%cvode_rhs_evals_sum = intode_diagnostics%cvode_rhs_evals_sum + int(max(0, result_state%cvode_rhs_evals), int64)
+      intode_diagnostics%cvode_error_test_fails_sum = intode_diagnostics%cvode_error_test_fails_sum + &
          int(max(0, result_state%cvode_error_test_fails), int64)
-      intode_cvode_nonlinear_iters_ctx(idx) = intode_cvode_nonlinear_iters_ctx(idx) + &
+      intode_diagnostics%cvode_nonlinear_iters_sum = intode_diagnostics%cvode_nonlinear_iters_sum + &
          int(max(0, result_state%cvode_nonlinear_iters), int64)
-      intode_cvode_nonlinear_conv_fails_ctx(idx) = intode_cvode_nonlinear_conv_fails_ctx(idx) + &
+      intode_diagnostics%cvode_nonlinear_conv_fails_sum = intode_diagnostics%cvode_nonlinear_conv_fails_sum + &
          int(max(0, result_state%cvode_nonlinear_conv_fails), int64)
-      intode_cvode_step_solve_fails_ctx(idx) = intode_cvode_step_solve_fails_ctx(idx) + &
+      intode_diagnostics%cvode_step_solve_fails_sum = intode_diagnostics%cvode_step_solve_fails_sum + &
+         int(max(0, result_state%cvode_step_solve_fails), int64)
+      intode_diagnostics%cvode_final_order_sum = intode_diagnostics%cvode_final_order_sum + int(max(0, result_state%final_order), int64)
+      intode_diagnostics%cvode_max_final_order = max(intode_diagnostics%cvode_max_final_order, &
+                                                     int(max(0, result_state%final_order), int64))
+
+      intode_diagnostics%cvode_steps_ctx(idx) = intode_diagnostics%cvode_steps_ctx(idx) + int(max(0, result_state%accepted_steps), int64)
+      intode_diagnostics%cvode_rhs_evals_ctx(idx) = intode_diagnostics%cvode_rhs_evals_ctx(idx) + &
+         int(max(0, result_state%cvode_rhs_evals), int64)
+      intode_diagnostics%cvode_error_test_fails_ctx(idx) = intode_diagnostics%cvode_error_test_fails_ctx(idx) + &
+         int(max(0, result_state%cvode_error_test_fails), int64)
+      intode_diagnostics%cvode_nonlinear_iters_ctx(idx) = intode_diagnostics%cvode_nonlinear_iters_ctx(idx) + &
+         int(max(0, result_state%cvode_nonlinear_iters), int64)
+      intode_diagnostics%cvode_nonlinear_conv_fails_ctx(idx) = intode_diagnostics%cvode_nonlinear_conv_fails_ctx(idx) + &
+         int(max(0, result_state%cvode_nonlinear_conv_fails), int64)
+      intode_diagnostics%cvode_step_solve_fails_ctx(idx) = intode_diagnostics%cvode_step_solve_fails_ctx(idx) + &
          int(max(0, result_state%cvode_step_solve_fails), int64)
    end subroutine record_intode_cvode_result
+
+   subroutine record_intode_odex_result(result_state, intode_diagnostics, context_code)
+      implicit none
+      type(odex_result), intent(in) :: result_state
+      type(intode_diagnostics_context_t), intent(inout) :: intode_diagnostics
+      integer, intent(in) :: context_code
+      integer :: idx
+
+      if (result_state%cvode_backend_used) return
+
+      idx = normalize_context_code(context_code)
+      intode_diagnostics%odex_calls = intode_diagnostics%odex_calls + 1_int64
+      intode_diagnostics%odex_calls_ctx(idx) = intode_diagnostics%odex_calls_ctx(idx) + 1_int64
+      if (result_state%status == odex_status_success) then
+         intode_diagnostics%odex_success = intode_diagnostics%odex_success + 1_int64
+      else
+         intode_diagnostics%odex_failure = intode_diagnostics%odex_failure + 1_int64
+      end if
+
+      intode_diagnostics%odex_accepted_steps_sum = intode_diagnostics%odex_accepted_steps_sum + &
+         int(max(0, result_state%accepted_steps), int64)
+      intode_diagnostics%odex_rejected_steps_sum = intode_diagnostics%odex_rejected_steps_sum + &
+         int(max(0, result_state%rejected_steps), int64)
+      intode_diagnostics%odex_stability_rejects_sum = intode_diagnostics%odex_stability_rejects_sum + &
+         int(max(0, result_state%stability_rejects), int64)
+      intode_diagnostics%odex_rhs_evals_sum = intode_diagnostics%odex_rhs_evals_sum + &
+         int(max(0, result_state%odex_rhs_evals), int64)
+      intode_diagnostics%odex_midpoint_rows_sum = intode_diagnostics%odex_midpoint_rows_sum + &
+         int(max(0, result_state%odex_midpoint_rows), int64)
+      intode_diagnostics%odex_kplus1_attempts_sum = intode_diagnostics%odex_kplus1_attempts_sum + &
+         int(max(0, result_state%odex_kplus1_attempts), int64)
+      intode_diagnostics%odex_accept_k_minus_1_sum = intode_diagnostics%odex_accept_k_minus_1_sum + &
+         int(max(0, result_state%odex_accept_k_minus_1), int64)
+      intode_diagnostics%odex_accept_k_sum = intode_diagnostics%odex_accept_k_sum + &
+         int(max(0, result_state%odex_accept_k), int64)
+      intode_diagnostics%odex_accept_k_plus_1_sum = intode_diagnostics%odex_accept_k_plus_1_sum + &
+         int(max(0, result_state%odex_accept_k_plus_1), int64)
+      intode_diagnostics%odex_large_error_rejects_sum = intode_diagnostics%odex_large_error_rejects_sum + &
+         int(max(0, result_state%odex_large_error_rejects), int64)
+      intode_diagnostics%odex_kplus1_rejects_sum = intode_diagnostics%odex_kplus1_rejects_sum + &
+         int(max(0, result_state%odex_kplus1_rejects), int64)
+      intode_diagnostics%odex_hairer_policy_steps_sum = intode_diagnostics%odex_hairer_policy_steps_sum + &
+         int(max(0, result_state%odex_hairer_policy_steps), int64)
+      intode_diagnostics%odex_tltm_policy_steps_sum = intode_diagnostics%odex_tltm_policy_steps_sum + &
+         int(max(0, result_state%odex_tltm_policy_steps), int64)
+      intode_diagnostics%odex_first_step_entries_sum = intode_diagnostics%odex_first_step_entries_sum + &
+         int(max(0, result_state%odex_first_step_entries), int64)
+      intode_diagnostics%odex_last_step_entries_sum = intode_diagnostics%odex_last_step_entries_sum + &
+         int(max(0, result_state%odex_last_step_entries), int64)
+      intode_diagnostics%odex_basic_step_entries_sum = intode_diagnostics%odex_basic_step_entries_sum + &
+         int(max(0, result_state%odex_basic_step_entries), int64)
+      intode_diagnostics%odex_row_j1_calls_sum = intode_diagnostics%odex_row_j1_calls_sum + &
+         int(max(0, result_state%odex_row_j1_calls), int64)
+      intode_diagnostics%odex_row_j2_calls_sum = intode_diagnostics%odex_row_j2_calls_sum + &
+         int(max(0, result_state%odex_row_j2_calls), int64)
+      intode_diagnostics%odex_row_jge3_calls_sum = intode_diagnostics%odex_row_jge3_calls_sum + &
+         int(max(0, result_state%odex_row_jge3_calls), int64)
+      intode_diagnostics%odex_row_j1_no_error_returns_sum = intode_diagnostics%odex_row_j1_no_error_returns_sum + &
+         int(max(0, result_state%odex_row_j1_no_error_returns), int64)
+      intode_diagnostics%odex_error_estimates_sum = intode_diagnostics%odex_error_estimates_sum + &
+         int(max(0, result_state%odex_error_estimates), int64)
+      intode_diagnostics%odex_hairer_scal_estimates_sum = intode_diagnostics%odex_hairer_scal_estimates_sum + &
+         int(max(0, result_state%odex_hairer_scal_estimates), int64)
+      intode_diagnostics%odex_default_scal_estimates_sum = intode_diagnostics%odex_default_scal_estimates_sum + &
+         int(max(0, result_state%odex_default_scal_estimates), int64)
+      intode_diagnostics%odex_errold_checks_sum = intode_diagnostics%odex_errold_checks_sum + &
+         int(max(0, result_state%odex_errold_checks), int64)
+      intode_diagnostics%odex_atov_events_sum = intode_diagnostics%odex_atov_events_sum + &
+         int(max(0, result_state%odex_atov_events), int64)
+      intode_diagnostics%odex_convergence_rejects_sum = intode_diagnostics%odex_convergence_rejects_sum + &
+         int(max(0, result_state%odex_convergence_rejects), int64)
+      intode_diagnostics%odex_kplus1_hope_rejects_sum = intode_diagnostics%odex_kplus1_hope_rejects_sum + &
+         int(max(0, result_state%odex_kplus1_hope_rejects), int64)
+      intode_diagnostics%odex_reject_kc_k_minus_1_sum = intode_diagnostics%odex_reject_kc_k_minus_1_sum + &
+         int(max(0, result_state%odex_reject_kc_k_minus_1), int64)
+      intode_diagnostics%odex_reject_kc_k_sum = intode_diagnostics%odex_reject_kc_k_sum + &
+         int(max(0, result_state%odex_reject_kc_k), int64)
+      intode_diagnostics%odex_reject_kc_k_plus_1_sum = intode_diagnostics%odex_reject_kc_k_plus_1_sum + &
+         int(max(0, result_state%odex_reject_kc_k_plus_1), int64)
+      intode_diagnostics%odex_kopt_accept_updates_sum = intode_diagnostics%odex_kopt_accept_updates_sum + &
+         int(max(0, result_state%odex_kopt_accept_updates), int64)
+      intode_diagnostics%odex_kopt_demotions_sum = intode_diagnostics%odex_kopt_demotions_sum + &
+         int(max(0, result_state%odex_kopt_demotions), int64)
+      intode_diagnostics%odex_kopt_keeps_sum = intode_diagnostics%odex_kopt_keeps_sum + &
+         int(max(0, result_state%odex_kopt_keeps), int64)
+      intode_diagnostics%odex_kopt_promotions_sum = intode_diagnostics%odex_kopt_promotions_sum + &
+         int(max(0, result_state%odex_kopt_promotions), int64)
+      intode_diagnostics%odex_after_reject_clamps_sum = intode_diagnostics%odex_after_reject_clamps_sum + &
+         int(max(0, result_state%odex_after_reject_clamps), int64)
+      intode_diagnostics%odex_reject_updates_sum = intode_diagnostics%odex_reject_updates_sum + &
+         int(max(0, result_state%odex_reject_updates), int64)
+      intode_diagnostics%odex_final_order_sum = intode_diagnostics%odex_final_order_sum + &
+         int(max(0, result_state%final_order), int64)
+      intode_diagnostics%odex_max_final_order = max(intode_diagnostics%odex_max_final_order, &
+                                                    int(max(0, result_state%final_order), int64))
+
+      intode_diagnostics%odex_accepted_steps_ctx(idx) = intode_diagnostics%odex_accepted_steps_ctx(idx) + &
+         int(max(0, result_state%accepted_steps), int64)
+      intode_diagnostics%odex_rejected_steps_ctx(idx) = intode_diagnostics%odex_rejected_steps_ctx(idx) + &
+         int(max(0, result_state%rejected_steps), int64)
+      intode_diagnostics%odex_rhs_evals_ctx(idx) = intode_diagnostics%odex_rhs_evals_ctx(idx) + &
+         int(max(0, result_state%odex_rhs_evals), int64)
+      intode_diagnostics%odex_midpoint_rows_ctx(idx) = intode_diagnostics%odex_midpoint_rows_ctx(idx) + &
+         int(max(0, result_state%odex_midpoint_rows), int64)
+      intode_diagnostics%odex_kplus1_attempts_ctx(idx) = intode_diagnostics%odex_kplus1_attempts_ctx(idx) + &
+         int(max(0, result_state%odex_kplus1_attempts), int64)
+   end subroutine record_intode_odex_result
 
    integer function normalize_context_code(ctx_code) result(ctx_norm)
       implicit none
@@ -394,43 +595,47 @@ contains
       end if
    end function normalize_context_code
 
-   subroutine record_intode_last_failure(y, t_remaining, reason_code)
+   subroutine record_intode_last_failure(y, t_remaining, reason_code, intode_diagnostics, intode_trace)
       implicit none
       real(dp), intent(in) :: y(:), t_remaining
       integer, intent(in) :: reason_code
+      type(intode_diagnostics_context_t), intent(inout) :: intode_diagnostics
+      type(intode_runtime_trace_context_t), intent(in) :: intode_trace
 
-      if (.not. intode_capture_failures) return
+      if (.not. intode_diagnostics%capture_failures) return
 
-      intode_last_failure_available = .true.
-      intode_last_failure_reason = reason_code
-      intode_last_failure_context = intode_current_context
-      intode_last_failure_rattle_step = intode_trace_rattle_step
-      intode_last_failure_rattle_substep = intode_trace_rattle_substep
-      intode_last_failure_stage = intode_trace_stage
-      intode_last_failure_newton_iter = intode_trace_newton_iter
-      intode_last_failure_quasi_iter = intode_trace_quasi_iter
-      intode_last_failure_t = t_remaining
-      if (allocated(intode_last_failure_y)) then
-         if (size(intode_last_failure_y) /= size(y)) then
-            deallocate (intode_last_failure_y)
-            allocate (intode_last_failure_y(size(y)))
+      intode_diagnostics%last_failure_available = .true.
+      intode_diagnostics%last_failure_reason = reason_code
+      intode_diagnostics%last_failure_context = intode_trace%current_context
+      intode_diagnostics%last_failure_rattle_step = intode_trace%rattle_step
+      intode_diagnostics%last_failure_rattle_substep = intode_trace%rattle_substep
+      intode_diagnostics%last_failure_stage = intode_trace%stage
+      intode_diagnostics%last_failure_newton_iter = intode_trace%newton_iter
+      intode_diagnostics%last_failure_quasi_iter = intode_trace%quasi_iter
+      intode_diagnostics%last_failure_t = t_remaining
+      if (allocated(intode_diagnostics%last_failure_y)) then
+         if (size(intode_diagnostics%last_failure_y) /= size(y)) then
+            deallocate (intode_diagnostics%last_failure_y)
+            allocate (intode_diagnostics%last_failure_y(size(y)))
          end if
       else
-         allocate (intode_last_failure_y(size(y)))
+         allocate (intode_diagnostics%last_failure_y(size(y)))
       end if
-      intode_last_failure_y = y
+      intode_diagnostics%last_failure_y = y
 
       if (intode_verbose_logs) then
-         if (intode_failure_log_count < intode_failure_log_limit) then
-            write (*, '(A,A,A,A,A,I0,A,I0,A,I0,A,I0,A,ES12.4)') "[INTODE][FAIL] context=", trim(context_name(intode_last_failure_context)), &
-               " reason=", trim(reason_name(reason_code)), " rattle_step=", intode_last_failure_rattle_step, &
-               " substep=", intode_last_failure_rattle_substep, " newton_iter=", intode_last_failure_newton_iter, &
-               " quasi_iter=", intode_last_failure_quasi_iter, " t_remaining=", t_remaining
-            write (*, '(A,A)') "               stage=", trim(stage_name(intode_last_failure_stage))
-         else if (intode_failure_log_count == intode_failure_log_limit) then
+         if (intode_diagnostics%failure_log_count < intode_failure_log_limit) then
+            write (*, '(A,A,A,A,A,I0,A,I0,A,I0,A,I0,A,ES12.4)') "[INTODE][FAIL] context=", &
+               trim(context_name(intode_diagnostics%last_failure_context)), &
+               " reason=", trim(reason_name(reason_code)), " rattle_step=", intode_diagnostics%last_failure_rattle_step, &
+               " substep=", intode_diagnostics%last_failure_rattle_substep, " newton_iter=", &
+               intode_diagnostics%last_failure_newton_iter, " quasi_iter=", intode_diagnostics%last_failure_quasi_iter, &
+               " t_remaining=", t_remaining
+            write (*, '(A,A)') "               stage=", trim(stage_name(intode_diagnostics%last_failure_stage))
+         else if (intode_diagnostics%failure_log_count == intode_failure_log_limit) then
             write (*, '(A)') "[INTODE][FAIL] additional failure logs suppressed."
          end if
-         intode_failure_log_count = intode_failure_log_count + 1
+         intode_diagnostics%failure_log_count = intode_diagnostics%failure_log_count + 1
       end if
 
    contains
@@ -553,188 +758,403 @@ contains
       call get_intode_solver_assist_policy(enabled, max_uses, fast_hmin_bypass)
    end subroutine get_intode_final_resort_policy
 
-   subroutine set_intode_rattle_trace(rattle_step, rattle_substep)
+   subroutine set_intode_rattle_trace(rattle_step, rattle_substep, workspace)
       implicit none
       integer, intent(in) :: rattle_step, rattle_substep
+      type(flow_workspace_t), intent(inout), optional :: workspace
 
-      intode_trace_rattle_step = max(0, rattle_step)
-      intode_trace_rattle_substep = max(0, rattle_substep)
+      if (present(workspace)) then
+         workspace%intode_trace%rattle_step = max(0, rattle_step)
+         workspace%intode_trace%rattle_substep = max(0, rattle_substep)
+      else
+         module_intode_trace%rattle_step = max(0, rattle_step)
+         module_intode_trace%rattle_substep = max(0, rattle_substep)
+      end if
    end subroutine set_intode_rattle_trace
 
-   subroutine set_intode_stage_trace(stage_code)
+   subroutine set_intode_stage_trace(stage_code, workspace)
       implicit none
       integer, intent(in) :: stage_code
+      type(flow_workspace_t), intent(inout), optional :: workspace
+      integer :: normalized_stage
 
       if (stage_code >= intode_stage_unknown .and. stage_code <= intode_stage_external) then
-         intode_trace_stage = stage_code
+         normalized_stage = stage_code
       else
-         intode_trace_stage = intode_stage_unknown
+         normalized_stage = intode_stage_unknown
+      end if
+      if (present(workspace)) then
+         workspace%intode_trace%stage = normalized_stage
+      else
+         module_intode_trace%stage = normalized_stage
       end if
    end subroutine set_intode_stage_trace
 
-   subroutine set_intode_residual_role_trace(role_code)
+   subroutine set_intode_residual_role_trace(role_code, workspace)
       implicit none
       integer, intent(in) :: role_code
+      type(flow_workspace_t), intent(inout), optional :: workspace
+      integer :: normalized_role
 
       if (role_code >= intode_role_unknown .and. role_code <= intode_role_reverse_replay) then
-         intode_trace_role = role_code
+         normalized_role = role_code
       else
-         intode_trace_role = intode_role_unknown
+         normalized_role = intode_role_unknown
+      end if
+      if (present(workspace)) then
+         workspace%intode_trace%role = normalized_role
+      else
+         module_intode_trace%role = normalized_role
       end if
    end subroutine set_intode_residual_role_trace
 
-   subroutine get_intode_residual_role_trace(role_code)
+   subroutine get_intode_residual_role_trace(role_code, workspace)
       implicit none
       integer, intent(out) :: role_code
+      type(flow_workspace_t), intent(in), optional :: workspace
 
-      role_code = intode_trace_role
+      if (present(workspace)) then
+         role_code = workspace%intode_trace%role
+      else
+         role_code = module_intode_trace%role
+      end if
    end subroutine get_intode_residual_role_trace
 
-   subroutine set_intode_newton_iter_trace(iter_idx)
+   subroutine set_intode_newton_iter_trace(iter_idx, workspace)
       implicit none
       integer, intent(in) :: iter_idx
+      type(flow_workspace_t), intent(inout), optional :: workspace
 
-      intode_trace_newton_iter = max(0, iter_idx)
+      if (present(workspace)) then
+         workspace%intode_trace%newton_iter = max(0, iter_idx)
+      else
+         module_intode_trace%newton_iter = max(0, iter_idx)
+      end if
    end subroutine set_intode_newton_iter_trace
 
-   subroutine set_intode_quasi_iter_trace(iter_idx)
+   subroutine set_intode_quasi_iter_trace(iter_idx, workspace)
       implicit none
       integer, intent(in) :: iter_idx
+      type(flow_workspace_t), intent(inout), optional :: workspace
 
-      intode_trace_quasi_iter = max(0, iter_idx)
+      if (present(workspace)) then
+         workspace%intode_trace%quasi_iter = max(0, iter_idx)
+      else
+         module_intode_trace%quasi_iter = max(0, iter_idx)
+      end if
    end subroutine set_intode_quasi_iter_trace
 
-   subroutine clear_intode_runtime_trace()
+   subroutine clear_intode_runtime_trace(workspace)
       implicit none
+      type(flow_workspace_t), intent(inout), optional :: workspace
 
-      intode_trace_rattle_step = 0
-      intode_trace_rattle_substep = 0
-      intode_trace_stage = intode_stage_unknown
-      intode_trace_newton_iter = 0
-      intode_trace_quasi_iter = 0
-      intode_trace_role = intode_role_unknown
+      if (present(workspace)) then
+         call reset_intode_runtime_trace_context(workspace%intode_trace)
+      else
+         call reset_intode_runtime_trace_context(module_intode_trace)
+      end if
    end subroutine clear_intode_runtime_trace
 
-   subroutine reset_intode_fallback_stats()
+   subroutine reset_intode_runtime_trace_context(intode_trace)
       implicit none
+      type(intode_runtime_trace_context_t), intent(inout) :: intode_trace
 
-      intode_calls_total = 0
-      intode_calls_integrating = 0
-      intode_fallback_attempts = 0
-      intode_fallback_success = 0
-      intode_fallback_failure = 0
-      intode_fallback_max_steps = 0
-      intode_fallback_invalid = 0
-      intode_fallback_h_min = 0
-      intode_fallback_attempts_ctx = 0
-      intode_fallback_failures_ctx = 0
-      intode_cvode_calls = 0_int64
-      intode_cvode_success = 0_int64
-      intode_cvode_failure = 0_int64
-      intode_cvode_steps_sum = 0_int64
-      intode_cvode_rhs_evals_sum = 0_int64
-      intode_cvode_error_test_fails_sum = 0_int64
-      intode_cvode_nonlinear_iters_sum = 0_int64
-      intode_cvode_nonlinear_conv_fails_sum = 0_int64
-      intode_cvode_step_solve_fails_sum = 0_int64
-      intode_cvode_final_order_sum = 0_int64
-      intode_cvode_max_final_order = 0_int64
-      intode_cvode_calls_ctx = 0_int64
-      intode_cvode_steps_ctx = 0_int64
-      intode_cvode_rhs_evals_ctx = 0_int64
-      intode_cvode_error_test_fails_ctx = 0_int64
-      intode_cvode_nonlinear_iters_ctx = 0_int64
-      intode_cvode_nonlinear_conv_fails_ctx = 0_int64
-      intode_cvode_step_solve_fails_ctx = 0_int64
-      intode_trace_rattle_step = 0
-      intode_trace_rattle_substep = 0
-      intode_trace_stage = intode_stage_unknown
-      intode_trace_newton_iter = 0
-      intode_trace_quasi_iter = 0
-      intode_trace_role = intode_role_unknown
-      intode_last_failure_available = .false.
-      intode_last_failure_reason = intode_reason_none
-      intode_last_failure_context = intode_ctx_unknown
-      intode_last_failure_rattle_step = 0
-      intode_last_failure_rattle_substep = 0
-      intode_last_failure_stage = intode_stage_unknown
-      intode_last_failure_newton_iter = 0
-      intode_last_failure_quasi_iter = 0
-      intode_failure_log_count = 0
-      intode_last_failure_t = 0.0_dp
-      if (allocated(intode_last_failure_y)) deallocate (intode_last_failure_y)
+      intode_trace%rattle_step = 0
+      intode_trace%rattle_substep = 0
+      intode_trace%stage = intode_stage_unknown
+      intode_trace%newton_iter = 0
+      intode_trace%quasi_iter = 0
+      intode_trace%role = intode_role_unknown
+      intode_trace%current_context = intode_ctx_unknown
+   end subroutine reset_intode_runtime_trace_context
+
+   subroutine reset_intode_diagnostics_values(intode_diagnostics)
+      implicit none
+      type(intode_diagnostics_context_t), intent(inout) :: intode_diagnostics
+
+      intode_diagnostics%calls_total = 0
+      intode_diagnostics%calls_integrating = 0
+      intode_diagnostics%fallback_attempts = 0
+      intode_diagnostics%fallback_success = 0
+      intode_diagnostics%fallback_failure = 0
+      intode_diagnostics%fallback_max_steps = 0
+      intode_diagnostics%fallback_invalid = 0
+      intode_diagnostics%fallback_h_min = 0
+      intode_diagnostics%fallback_attempts_ctx = 0
+      intode_diagnostics%fallback_failures_ctx = 0
+      intode_diagnostics%cvode_calls = 0_int64
+      intode_diagnostics%cvode_success = 0_int64
+      intode_diagnostics%cvode_failure = 0_int64
+      intode_diagnostics%cvode_steps_sum = 0_int64
+      intode_diagnostics%cvode_rhs_evals_sum = 0_int64
+      intode_diagnostics%cvode_error_test_fails_sum = 0_int64
+      intode_diagnostics%cvode_nonlinear_iters_sum = 0_int64
+      intode_diagnostics%cvode_nonlinear_conv_fails_sum = 0_int64
+      intode_diagnostics%cvode_step_solve_fails_sum = 0_int64
+      intode_diagnostics%cvode_final_order_sum = 0_int64
+      intode_diagnostics%cvode_max_final_order = 0_int64
+      intode_diagnostics%cvode_calls_ctx = 0_int64
+      intode_diagnostics%cvode_steps_ctx = 0_int64
+      intode_diagnostics%cvode_rhs_evals_ctx = 0_int64
+      intode_diagnostics%cvode_error_test_fails_ctx = 0_int64
+      intode_diagnostics%cvode_nonlinear_iters_ctx = 0_int64
+      intode_diagnostics%cvode_nonlinear_conv_fails_ctx = 0_int64
+      intode_diagnostics%cvode_step_solve_fails_ctx = 0_int64
+      intode_diagnostics%odex_calls = 0_int64
+      intode_diagnostics%odex_success = 0_int64
+      intode_diagnostics%odex_failure = 0_int64
+      intode_diagnostics%odex_accepted_steps_sum = 0_int64
+      intode_diagnostics%odex_rejected_steps_sum = 0_int64
+      intode_diagnostics%odex_stability_rejects_sum = 0_int64
+      intode_diagnostics%odex_rhs_evals_sum = 0_int64
+      intode_diagnostics%odex_midpoint_rows_sum = 0_int64
+      intode_diagnostics%odex_kplus1_attempts_sum = 0_int64
+      intode_diagnostics%odex_accept_k_minus_1_sum = 0_int64
+      intode_diagnostics%odex_accept_k_sum = 0_int64
+      intode_diagnostics%odex_accept_k_plus_1_sum = 0_int64
+      intode_diagnostics%odex_large_error_rejects_sum = 0_int64
+      intode_diagnostics%odex_kplus1_rejects_sum = 0_int64
+      intode_diagnostics%odex_hairer_policy_steps_sum = 0_int64
+      intode_diagnostics%odex_tltm_policy_steps_sum = 0_int64
+      intode_diagnostics%odex_first_step_entries_sum = 0_int64
+      intode_diagnostics%odex_last_step_entries_sum = 0_int64
+      intode_diagnostics%odex_basic_step_entries_sum = 0_int64
+      intode_diagnostics%odex_row_j1_calls_sum = 0_int64
+      intode_diagnostics%odex_row_j2_calls_sum = 0_int64
+      intode_diagnostics%odex_row_jge3_calls_sum = 0_int64
+      intode_diagnostics%odex_row_j1_no_error_returns_sum = 0_int64
+      intode_diagnostics%odex_error_estimates_sum = 0_int64
+      intode_diagnostics%odex_hairer_scal_estimates_sum = 0_int64
+      intode_diagnostics%odex_default_scal_estimates_sum = 0_int64
+      intode_diagnostics%odex_errold_checks_sum = 0_int64
+      intode_diagnostics%odex_atov_events_sum = 0_int64
+      intode_diagnostics%odex_convergence_rejects_sum = 0_int64
+      intode_diagnostics%odex_kplus1_hope_rejects_sum = 0_int64
+      intode_diagnostics%odex_reject_kc_k_minus_1_sum = 0_int64
+      intode_diagnostics%odex_reject_kc_k_sum = 0_int64
+      intode_diagnostics%odex_reject_kc_k_plus_1_sum = 0_int64
+      intode_diagnostics%odex_kopt_accept_updates_sum = 0_int64
+      intode_diagnostics%odex_kopt_demotions_sum = 0_int64
+      intode_diagnostics%odex_kopt_keeps_sum = 0_int64
+      intode_diagnostics%odex_kopt_promotions_sum = 0_int64
+      intode_diagnostics%odex_after_reject_clamps_sum = 0_int64
+      intode_diagnostics%odex_reject_updates_sum = 0_int64
+      intode_diagnostics%odex_final_order_sum = 0_int64
+      intode_diagnostics%odex_max_final_order = 0_int64
+      intode_diagnostics%odex_calls_ctx = 0_int64
+      intode_diagnostics%odex_accepted_steps_ctx = 0_int64
+      intode_diagnostics%odex_rejected_steps_ctx = 0_int64
+      intode_diagnostics%odex_rhs_evals_ctx = 0_int64
+      intode_diagnostics%odex_midpoint_rows_ctx = 0_int64
+      intode_diagnostics%odex_kplus1_attempts_ctx = 0_int64
+      intode_diagnostics%capture_failures = .true.
+      intode_diagnostics%last_failure_available = .false.
+      intode_diagnostics%last_failure_reason = intode_reason_none
+      intode_diagnostics%last_failure_context = intode_ctx_unknown
+      intode_diagnostics%last_failure_rattle_step = 0
+      intode_diagnostics%last_failure_rattle_substep = 0
+      intode_diagnostics%last_failure_stage = intode_stage_unknown
+      intode_diagnostics%last_failure_newton_iter = 0
+      intode_diagnostics%last_failure_quasi_iter = 0
+      intode_diagnostics%failure_log_count = 0
+      intode_diagnostics%last_failure_t = 0.0_dp
+      if (allocated(intode_diagnostics%last_failure_y)) deallocate (intode_diagnostics%last_failure_y)
+   end subroutine reset_intode_diagnostics_values
+
+   subroutine reset_intode_fallback_stats(intode_diagnostics)
+      implicit none
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      type(intode_diagnostics_context_t), pointer :: active_diagnostics
+
+      call resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
+      call reset_intode_diagnostics_values(active_diagnostics)
+      if (.not. present(intode_diagnostics)) call reset_intode_runtime_trace_context(module_intode_trace)
    end subroutine reset_intode_fallback_stats
 
+   subroutine release_intode_diagnostics_context(intode_diagnostics)
+      implicit none
+      type(intode_diagnostics_context_t), intent(inout) :: intode_diagnostics
+
+      call reset_intode_diagnostics_values(intode_diagnostics)
+   end subroutine release_intode_diagnostics_context
+
    subroutine get_intode_fallback_stats(calls_total, calls_integrating, fallback_attempts, fallback_success, fallback_failure, &
-                                        fallback_max_steps, fallback_invalid, fallback_h_min)
+                                         fallback_max_steps, fallback_invalid, fallback_h_min, intode_diagnostics)
       implicit none
       integer, intent(out) :: calls_total, calls_integrating
       integer, intent(out) :: fallback_attempts, fallback_success, fallback_failure
       integer, intent(out) :: fallback_max_steps, fallback_invalid, fallback_h_min
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      type(intode_diagnostics_context_t), pointer :: active_diagnostics
 
-      calls_total = intode_calls_total
-      calls_integrating = intode_calls_integrating
-      fallback_attempts = intode_fallback_attempts
-      fallback_success = intode_fallback_success
-      fallback_failure = intode_fallback_failure
-      fallback_max_steps = intode_fallback_max_steps
-      fallback_invalid = intode_fallback_invalid
-      fallback_h_min = intode_fallback_h_min
+      call resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
+      calls_total = active_diagnostics%calls_total
+      calls_integrating = active_diagnostics%calls_integrating
+      fallback_attempts = active_diagnostics%fallback_attempts
+      fallback_success = active_diagnostics%fallback_success
+      fallback_failure = active_diagnostics%fallback_failure
+      fallback_max_steps = active_diagnostics%fallback_max_steps
+      fallback_invalid = active_diagnostics%fallback_invalid
+      fallback_h_min = active_diagnostics%fallback_h_min
    end subroutine get_intode_fallback_stats
 
    subroutine get_intode_cvode_stats(calls, success, failure, steps_sum, rhs_evals_sum, error_test_fails_sum, &
                                      nonlinear_iters_sum, nonlinear_conv_fails_sum, step_solve_fails_sum, &
-                                     final_order_sum, max_final_order)
+                                     final_order_sum, max_final_order, intode_diagnostics)
       implicit none
       integer(int64), intent(out) :: calls, success, failure, steps_sum, rhs_evals_sum
       integer(int64), intent(out) :: error_test_fails_sum, nonlinear_iters_sum, nonlinear_conv_fails_sum
       integer(int64), intent(out) :: step_solve_fails_sum, final_order_sum, max_final_order
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      type(intode_diagnostics_context_t), pointer :: active_diagnostics
 
-      calls = intode_cvode_calls
-      success = intode_cvode_success
-      failure = intode_cvode_failure
-      steps_sum = intode_cvode_steps_sum
-      rhs_evals_sum = intode_cvode_rhs_evals_sum
-      error_test_fails_sum = intode_cvode_error_test_fails_sum
-      nonlinear_iters_sum = intode_cvode_nonlinear_iters_sum
-      nonlinear_conv_fails_sum = intode_cvode_nonlinear_conv_fails_sum
-      step_solve_fails_sum = intode_cvode_step_solve_fails_sum
-      final_order_sum = intode_cvode_final_order_sum
-      max_final_order = intode_cvode_max_final_order
+      call resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
+      calls = active_diagnostics%cvode_calls
+      success = active_diagnostics%cvode_success
+      failure = active_diagnostics%cvode_failure
+      steps_sum = active_diagnostics%cvode_steps_sum
+      rhs_evals_sum = active_diagnostics%cvode_rhs_evals_sum
+      error_test_fails_sum = active_diagnostics%cvode_error_test_fails_sum
+      nonlinear_iters_sum = active_diagnostics%cvode_nonlinear_iters_sum
+      nonlinear_conv_fails_sum = active_diagnostics%cvode_nonlinear_conv_fails_sum
+      step_solve_fails_sum = active_diagnostics%cvode_step_solve_fails_sum
+      final_order_sum = active_diagnostics%cvode_final_order_sum
+      max_final_order = active_diagnostics%cvode_max_final_order
    end subroutine get_intode_cvode_stats
 
+   subroutine get_intode_odex_stats(calls, success, failure, accepted_steps_sum, rejected_steps_sum, stability_rejects_sum, &
+                                    rhs_evals_sum, midpoint_rows_sum, kplus1_attempts_sum, accept_k_minus_1_sum, &
+                                    accept_k_sum, accept_k_plus_1_sum, large_error_rejects_sum, kplus1_rejects_sum, &
+                                    hairer_policy_steps_sum, tltm_policy_steps_sum, first_step_entries_sum, &
+                                    last_step_entries_sum, basic_step_entries_sum, row_j1_calls_sum, row_j2_calls_sum, &
+                                    row_jge3_calls_sum, row_j1_no_error_returns_sum, error_estimates_sum, &
+                                    hairer_scal_estimates_sum, default_scal_estimates_sum, errold_checks_sum, &
+                                    atov_events_sum, convergence_rejects_sum, kplus1_hope_rejects_sum, &
+                                    reject_kc_k_minus_1_sum, reject_kc_k_sum, reject_kc_k_plus_1_sum, &
+                                    kopt_accept_updates_sum, kopt_demotions_sum, kopt_keeps_sum, kopt_promotions_sum, &
+                                    after_reject_clamps_sum, reject_updates_sum, &
+                                    final_order_sum, max_final_order, intode_diagnostics)
+      implicit none
+      integer(int64), intent(out) :: calls, success, failure, accepted_steps_sum, rejected_steps_sum
+      integer(int64), intent(out) :: stability_rejects_sum, rhs_evals_sum, midpoint_rows_sum, kplus1_attempts_sum
+      integer(int64), intent(out) :: accept_k_minus_1_sum, accept_k_sum, accept_k_plus_1_sum
+      integer(int64), intent(out) :: large_error_rejects_sum, kplus1_rejects_sum
+      integer(int64), intent(out) :: hairer_policy_steps_sum, tltm_policy_steps_sum
+      integer(int64), intent(out) :: first_step_entries_sum, last_step_entries_sum, basic_step_entries_sum
+      integer(int64), intent(out) :: row_j1_calls_sum, row_j2_calls_sum, row_jge3_calls_sum
+      integer(int64), intent(out) :: row_j1_no_error_returns_sum, error_estimates_sum
+      integer(int64), intent(out) :: hairer_scal_estimates_sum, default_scal_estimates_sum
+      integer(int64), intent(out) :: errold_checks_sum, atov_events_sum
+      integer(int64), intent(out) :: convergence_rejects_sum, kplus1_hope_rejects_sum
+      integer(int64), intent(out) :: reject_kc_k_minus_1_sum, reject_kc_k_sum, reject_kc_k_plus_1_sum
+      integer(int64), intent(out) :: kopt_accept_updates_sum, kopt_demotions_sum, kopt_keeps_sum, kopt_promotions_sum
+      integer(int64), intent(out) :: after_reject_clamps_sum, reject_updates_sum
+      integer(int64), intent(out) :: final_order_sum, max_final_order
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      type(intode_diagnostics_context_t), pointer :: active_diagnostics
+
+      call resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
+      calls = active_diagnostics%odex_calls
+      success = active_diagnostics%odex_success
+      failure = active_diagnostics%odex_failure
+      accepted_steps_sum = active_diagnostics%odex_accepted_steps_sum
+      rejected_steps_sum = active_diagnostics%odex_rejected_steps_sum
+      stability_rejects_sum = active_diagnostics%odex_stability_rejects_sum
+      rhs_evals_sum = active_diagnostics%odex_rhs_evals_sum
+      midpoint_rows_sum = active_diagnostics%odex_midpoint_rows_sum
+      kplus1_attempts_sum = active_diagnostics%odex_kplus1_attempts_sum
+      accept_k_minus_1_sum = active_diagnostics%odex_accept_k_minus_1_sum
+      accept_k_sum = active_diagnostics%odex_accept_k_sum
+      accept_k_plus_1_sum = active_diagnostics%odex_accept_k_plus_1_sum
+      large_error_rejects_sum = active_diagnostics%odex_large_error_rejects_sum
+      kplus1_rejects_sum = active_diagnostics%odex_kplus1_rejects_sum
+      hairer_policy_steps_sum = active_diagnostics%odex_hairer_policy_steps_sum
+      tltm_policy_steps_sum = active_diagnostics%odex_tltm_policy_steps_sum
+      first_step_entries_sum = active_diagnostics%odex_first_step_entries_sum
+      last_step_entries_sum = active_diagnostics%odex_last_step_entries_sum
+      basic_step_entries_sum = active_diagnostics%odex_basic_step_entries_sum
+      row_j1_calls_sum = active_diagnostics%odex_row_j1_calls_sum
+      row_j2_calls_sum = active_diagnostics%odex_row_j2_calls_sum
+      row_jge3_calls_sum = active_diagnostics%odex_row_jge3_calls_sum
+      row_j1_no_error_returns_sum = active_diagnostics%odex_row_j1_no_error_returns_sum
+      error_estimates_sum = active_diagnostics%odex_error_estimates_sum
+      hairer_scal_estimates_sum = active_diagnostics%odex_hairer_scal_estimates_sum
+      default_scal_estimates_sum = active_diagnostics%odex_default_scal_estimates_sum
+      errold_checks_sum = active_diagnostics%odex_errold_checks_sum
+      atov_events_sum = active_diagnostics%odex_atov_events_sum
+      convergence_rejects_sum = active_diagnostics%odex_convergence_rejects_sum
+      kplus1_hope_rejects_sum = active_diagnostics%odex_kplus1_hope_rejects_sum
+      reject_kc_k_minus_1_sum = active_diagnostics%odex_reject_kc_k_minus_1_sum
+      reject_kc_k_sum = active_diagnostics%odex_reject_kc_k_sum
+      reject_kc_k_plus_1_sum = active_diagnostics%odex_reject_kc_k_plus_1_sum
+      kopt_accept_updates_sum = active_diagnostics%odex_kopt_accept_updates_sum
+      kopt_demotions_sum = active_diagnostics%odex_kopt_demotions_sum
+      kopt_keeps_sum = active_diagnostics%odex_kopt_keeps_sum
+      kopt_promotions_sum = active_diagnostics%odex_kopt_promotions_sum
+      after_reject_clamps_sum = active_diagnostics%odex_after_reject_clamps_sum
+      reject_updates_sum = active_diagnostics%odex_reject_updates_sum
+      final_order_sum = active_diagnostics%odex_final_order_sum
+      max_final_order = active_diagnostics%odex_max_final_order
+   end subroutine get_intode_odex_stats
+
    subroutine get_intode_cvode_context_stats(context_code, calls, steps_sum, rhs_evals_sum, error_test_fails_sum, &
-                                            nonlinear_iters_sum, nonlinear_conv_fails_sum, step_solve_fails_sum)
+                                             nonlinear_iters_sum, nonlinear_conv_fails_sum, step_solve_fails_sum, intode_diagnostics)
       implicit none
       integer, intent(in) :: context_code
       integer(int64), intent(out) :: calls, steps_sum, rhs_evals_sum, error_test_fails_sum
       integer(int64), intent(out) :: nonlinear_iters_sum, nonlinear_conv_fails_sum, step_solve_fails_sum
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      type(intode_diagnostics_context_t), pointer :: active_diagnostics
       integer :: idx
 
       idx = normalize_context_code(context_code)
-      calls = intode_cvode_calls_ctx(idx)
-      steps_sum = intode_cvode_steps_ctx(idx)
-      rhs_evals_sum = intode_cvode_rhs_evals_ctx(idx)
-      error_test_fails_sum = intode_cvode_error_test_fails_ctx(idx)
-      nonlinear_iters_sum = intode_cvode_nonlinear_iters_ctx(idx)
-      nonlinear_conv_fails_sum = intode_cvode_nonlinear_conv_fails_ctx(idx)
-      step_solve_fails_sum = intode_cvode_step_solve_fails_ctx(idx)
+      call resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
+      calls = active_diagnostics%cvode_calls_ctx(idx)
+      steps_sum = active_diagnostics%cvode_steps_ctx(idx)
+      rhs_evals_sum = active_diagnostics%cvode_rhs_evals_ctx(idx)
+      error_test_fails_sum = active_diagnostics%cvode_error_test_fails_ctx(idx)
+      nonlinear_iters_sum = active_diagnostics%cvode_nonlinear_iters_ctx(idx)
+      nonlinear_conv_fails_sum = active_diagnostics%cvode_nonlinear_conv_fails_ctx(idx)
+      step_solve_fails_sum = active_diagnostics%cvode_step_solve_fails_ctx(idx)
    end subroutine get_intode_cvode_context_stats
 
+   subroutine get_intode_odex_context_stats(context_code, calls, accepted_steps_sum, rejected_steps_sum, rhs_evals_sum, &
+                                            midpoint_rows_sum, kplus1_attempts_sum, intode_diagnostics)
+      implicit none
+      integer, intent(in) :: context_code
+      integer(int64), intent(out) :: calls, accepted_steps_sum, rejected_steps_sum, rhs_evals_sum
+      integer(int64), intent(out) :: midpoint_rows_sum, kplus1_attempts_sum
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      type(intode_diagnostics_context_t), pointer :: active_diagnostics
+      integer :: idx
+
+      idx = normalize_context_code(context_code)
+      call resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
+      calls = active_diagnostics%odex_calls_ctx(idx)
+      accepted_steps_sum = active_diagnostics%odex_accepted_steps_ctx(idx)
+      rejected_steps_sum = active_diagnostics%odex_rejected_steps_ctx(idx)
+      rhs_evals_sum = active_diagnostics%odex_rhs_evals_ctx(idx)
+      midpoint_rows_sum = active_diagnostics%odex_midpoint_rows_ctx(idx)
+      kplus1_attempts_sum = active_diagnostics%odex_kplus1_attempts_ctx(idx)
+   end subroutine get_intode_odex_context_stats
+
    subroutine get_intode_fallback_context_stats(attempt_flowz, attempt_flowzr, attempt_flow, attempt_unknown, &
-                                                fail_flowz, fail_flowzr, fail_flow, fail_unknown)
+                                                fail_flowz, fail_flowzr, fail_flow, fail_unknown, intode_diagnostics)
       implicit none
       integer, intent(out) :: attempt_flowz, attempt_flowzr, attempt_flow, attempt_unknown
       integer, intent(out) :: fail_flowz, fail_flowzr, fail_flow, fail_unknown
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      type(intode_diagnostics_context_t), pointer :: active_diagnostics
 
-      attempt_flowz = intode_fallback_attempts_ctx(intode_ctx_flowz)
-      attempt_flowzr = intode_fallback_attempts_ctx(intode_ctx_flowzr)
-      attempt_flow = intode_fallback_attempts_ctx(intode_ctx_flow)
-      attempt_unknown = intode_fallback_attempts_ctx(intode_ctx_unknown)
-      fail_flowz = intode_fallback_failures_ctx(intode_ctx_flowz)
-      fail_flowzr = intode_fallback_failures_ctx(intode_ctx_flowzr)
-      fail_flow = intode_fallback_failures_ctx(intode_ctx_flow)
-      fail_unknown = intode_fallback_failures_ctx(intode_ctx_unknown)
+      call resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
+      attempt_flowz = active_diagnostics%fallback_attempts_ctx(intode_ctx_flowz)
+      attempt_flowzr = active_diagnostics%fallback_attempts_ctx(intode_ctx_flowzr)
+      attempt_flow = active_diagnostics%fallback_attempts_ctx(intode_ctx_flow)
+      attempt_unknown = active_diagnostics%fallback_attempts_ctx(intode_ctx_unknown)
+      fail_flowz = active_diagnostics%fallback_failures_ctx(intode_ctx_flowz)
+      fail_flowzr = active_diagnostics%fallback_failures_ctx(intode_ctx_flowzr)
+      fail_flow = active_diagnostics%fallback_failures_ctx(intode_ctx_flow)
+      fail_unknown = active_diagnostics%fallback_failures_ctx(intode_ctx_unknown)
    end subroutine get_intode_fallback_context_stats
 
    subroutine get_intode_rescue_stats(success_radau_adaptive, success_radau_adaptive_robust, success_radau_fixed_tol, &
@@ -766,34 +1186,41 @@ contains
       adapt_hmin_hit = 0
    end subroutine get_intode_radau_diag_stats
 
-   subroutine get_intode_last_failure_meta(available, reason_code, context_code, state_dim, t_remaining)
+   subroutine get_intode_last_failure_meta(available, reason_code, context_code, state_dim, t_remaining, intode_diagnostics)
       implicit none
       logical, intent(out) :: available
       integer, intent(out) :: reason_code, context_code, state_dim
       real(dp), intent(out) :: t_remaining
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      type(intode_diagnostics_context_t), pointer :: active_diagnostics
 
-      available = intode_last_failure_available .and. allocated(intode_last_failure_y)
-      reason_code = intode_last_failure_reason
-      context_code = intode_last_failure_context
-      t_remaining = intode_last_failure_t
-      if (allocated(intode_last_failure_y)) then
-         state_dim = size(intode_last_failure_y)
+      call resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
+      available = active_diagnostics%last_failure_available .and. allocated(active_diagnostics%last_failure_y)
+      reason_code = active_diagnostics%last_failure_reason
+      context_code = active_diagnostics%last_failure_context
+      t_remaining = active_diagnostics%last_failure_t
+      if (allocated(active_diagnostics%last_failure_y)) then
+         state_dim = size(active_diagnostics%last_failure_y)
       else
          state_dim = 0
       end if
    end subroutine get_intode_last_failure_meta
 
-   subroutine get_intode_last_failure_trace(available, rattle_step, rattle_substep, stage_code, newton_iter, quasi_iter)
+   subroutine get_intode_last_failure_trace(available, rattle_step, rattle_substep, stage_code, newton_iter, quasi_iter, &
+                                            intode_diagnostics)
       implicit none
       logical, intent(out) :: available
       integer, intent(out) :: rattle_step, rattle_substep, stage_code, newton_iter, quasi_iter
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      type(intode_diagnostics_context_t), pointer :: active_diagnostics
 
-      available = intode_last_failure_available
-      rattle_step = intode_last_failure_rattle_step
-      rattle_substep = intode_last_failure_rattle_substep
-      stage_code = intode_last_failure_stage
-      newton_iter = intode_last_failure_newton_iter
-      quasi_iter = intode_last_failure_quasi_iter
+      call resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
+      available = active_diagnostics%last_failure_available
+      rattle_step = active_diagnostics%last_failure_rattle_step
+      rattle_substep = active_diagnostics%last_failure_rattle_substep
+      stage_code = active_diagnostics%last_failure_stage
+      newton_iter = active_diagnostics%last_failure_newton_iter
+      quasi_iter = active_diagnostics%last_failure_quasi_iter
    end subroutine get_intode_last_failure_trace
 
    function vector_has_invalid(values) result(has_invalid)
@@ -811,61 +1238,65 @@ contains
       end do
    end function vector_has_invalid
 
-   subroutine flowz(x, z, error, status, workspace)
+   subroutine flowz(x, z, error, status, workspace, intode_diagnostics)
       real(dp), intent(in)::x(:)
       complex(dp), intent(inout)::z(:)
       logical, intent(out)::error
       integer, intent(out), optional :: status
       type(flow_workspace_t), intent(inout), optional :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       type(flow_workspace_t) :: local_workspace
 
       if (present(workspace)) then
-         call flowz_with_workspace(x, z, error, status, workspace)
+         call flowz_with_workspace(x, z, error, status, workspace, intode_diagnostics)
       else
-         call flowz_with_workspace(x, z, error, status, local_workspace)
+         call flowz_with_workspace(x, z, error, status, local_workspace, intode_diagnostics)
       end if
    end subroutine flowz
 
-   subroutine flowzr(x, z, error, status, workspace)
+   subroutine flowzr(x, z, error, status, workspace, intode_diagnostics)
       real(dp), intent(in)::x(:)
       complex(dp), intent(inout)::z(:)
       logical, intent(out)::error
       integer, intent(out), optional :: status
       type(flow_workspace_t), intent(inout), optional :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       type(flow_workspace_t) :: local_workspace
 
       if (present(workspace)) then
-         call flowzr_with_workspace(x, z, error, status, workspace)
+         call flowzr_with_workspace(x, z, error, status, workspace, intode_diagnostics)
       else
-         call flowzr_with_workspace(x, z, error, status, local_workspace)
+         call flowzr_with_workspace(x, z, error, status, local_workspace, intode_diagnostics)
       end if
    end subroutine flowzr
 
-   subroutine flow(x, z, j, error, status, workspace)
+   subroutine flow(x, z, j, error, status, workspace, intode_diagnostics)
       real(dp), intent(in)::x(:)
       complex(dp), intent(inout)::z(:)
       complex(dp), dimension(:, :), intent(inout)::j
       logical, intent(out)::error
       integer, intent(out), optional :: status
       type(flow_workspace_t), intent(inout), optional :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       type(flow_workspace_t) :: local_workspace
 
       if (present(workspace)) then
-         call flow_with_workspace(x, z, j, error, status, workspace)
+         call flow_with_workspace(x, z, j, error, status, workspace, intode_diagnostics)
       else
-         call flow_with_workspace(x, z, j, error, status, local_workspace)
+         call flow_with_workspace(x, z, j, error, status, local_workspace, intode_diagnostics)
       end if
    end subroutine flow
 
-   subroutine flowz_with_workspace(x, z, error, status, workspace)
+   subroutine flowz_with_workspace(x, z, error, status, workspace, intode_diagnostics)
       real(dp), intent(in)::x(:)
       complex(dp), intent(inout)::z(:)
       logical, intent(out)::error
       integer, intent(out), optional :: status
       type(flow_workspace_t), intent(inout) :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
       integer::n, n_complex
       integer :: flow_status_local
       real(dp)::t1
@@ -885,11 +1316,11 @@ contains
 
       workspace%flow_vec_y(1:n:2) = x(2:)
       workspace%flow_vec_y(2:n:2) = 0.0_dp
-      intode_current_context = intode_ctx_flowz
+      workspace%intode_trace%current_context = intode_ctx_flowz
       workspace%flow_vec_rhs_scale = 1.0_dp
       call intode_with_context(rhs_flow_vec_context, workspace%flow_vec_y(1:n), t1, workspace%flow_vec_yf(1:n), error, &
-                               flow_status_local, workspace)
-      intode_current_context = intode_ctx_unknown
+                               flow_status_local, workspace, intode_diagnostics)
+      workspace%intode_trace%current_context = intode_ctx_unknown
       call set_intode_status(status, flow_status_local)
       if (error) then
          call perf_toc(PERF_FLOWZ, t_prof)
@@ -899,12 +1330,13 @@ contains
       call perf_toc(PERF_FLOWZ, t_prof)
    end subroutine flowz_with_workspace
 
-   subroutine flowzr_with_workspace(x, z, error, status, workspace)
+   subroutine flowzr_with_workspace(x, z, error, status, workspace, intode_diagnostics)
       real(dp), intent(in)::x(:)
       complex(dp), intent(inout)::z(:)
       logical, intent(out)::error
       integer, intent(out), optional :: status
       type(flow_workspace_t), intent(inout) :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
       integer::n, n_complex
       integer :: flow_status_local
       real(dp)::t1
@@ -923,11 +1355,11 @@ contains
       call ensure_complex_workspace(workspace%flow_vec_ds, n_complex)
 
       call complex_to_real(z, workspace%flow_vec_y(1:n))
-      intode_current_context = intode_ctx_flowzr
+      workspace%intode_trace%current_context = intode_ctx_flowzr
       workspace%flow_vec_rhs_scale = -1.0_dp
       call intode_with_context(rhs_flow_vec_context, workspace%flow_vec_y(1:n), t1, workspace%flow_vec_yf(1:n), error, &
-                               flow_status_local, workspace)
-      intode_current_context = intode_ctx_unknown
+                               flow_status_local, workspace, intode_diagnostics)
+      workspace%intode_trace%current_context = intode_ctx_unknown
       workspace%flow_vec_rhs_scale = 1.0_dp
       call set_intode_status(status, flow_status_local)
       if (error) then
@@ -938,13 +1370,14 @@ contains
       call perf_toc(PERF_FLOWZR, t_prof)
    end subroutine flowzr_with_workspace
 
-   subroutine flow_with_workspace(x, z, j, error, status, workspace)
+   subroutine flow_with_workspace(x, z, j, error, status, workspace, intode_diagnostics)
       real(dp), intent(in)::x(:)
       complex(dp), intent(inout)::z(:)
       complex(dp), dimension(:, :), intent(inout)::j
       logical, intent(out)::error
       integer, intent(out), optional :: status
       type(flow_workspace_t), intent(inout) :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
       integer::n, m, n_complex, n_jac
       integer :: total_n
       integer :: flow_status_local
@@ -971,10 +1404,10 @@ contains
       workspace%flow_jac_y(1:n:2) = x(2:)
       workspace%flow_jac_y(2:n:2) = 0.0_dp
       call fill_identity_real_map(workspace%flow_jac_y(n + 1:total_n), n_jac)
-      intode_current_context = intode_ctx_flow
+      workspace%intode_trace%current_context = intode_ctx_flow
       call intode_with_context(rhs_flow_jac_context, workspace%flow_jac_y(1:total_n), t1, workspace%flow_jac_yf(1:total_n), error, &
-                               flow_status_local, workspace)
-      intode_current_context = intode_ctx_unknown
+                               flow_status_local, workspace, intode_diagnostics)
+      workspace%intode_trace%current_context = intode_ctx_unknown
       call set_intode_status(status, flow_status_local)
       if (error) then
          call perf_toc(PERF_FLOW, t_prof)
@@ -1130,6 +1563,7 @@ contains
       if (allocated(workspace%intode_odex_workspace%invexp)) deallocate (workspace%intode_odex_workspace%invexp)
       if (allocated(workspace%intode_odex_workspace%ratio)) deallocate (workspace%intode_odex_workspace%ratio)
       workspace%flow_vec_rhs_scale = 1.0_dp
+      call reset_intode_runtime_trace_context(workspace%intode_trace)
       workspace%intode_odex_workspace%tables_ready = .false.
       workspace%intode_odex_workspace%table_k = 0
    end subroutine release_flow_workspace

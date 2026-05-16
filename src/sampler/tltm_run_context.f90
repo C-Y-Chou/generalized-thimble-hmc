@@ -1,6 +1,6 @@
 module tltm_run_context_mod
    use perf_profile, only: perf_profile_context_t, release_perf_profile_context
-   use solve_flow, only: flow_workspace_t, release_flow_workspace
+   use solve_flow, only: flow_workspace_t, release_flow_workspace, intode_diagnostics_context_t, release_intode_diagnostics_context
    use hmc_state_buffers, only: rattle_step_workspace_t, release_rattle_step_workspace
    use hmc_integrator_core, only: hmc_replay_runtime_context_t
    use hmc_reversibility_checks, only: hmc_reversibility_context_t, release_hmc_reversibility_context
@@ -40,6 +40,7 @@ module tltm_run_context_mod
 
    type :: tltm_diagnostics_context_t
       type(hmc_reversibility_context_t) :: hmc_reversibility
+      type(intode_diagnostics_context_t) :: intode
    end type tltm_diagnostics_context_t
 
    type :: tltm_config_context_t
@@ -97,6 +98,7 @@ contains
       type(tltm_diagnostics_context_t), intent(inout) :: context
 
       call release_hmc_reversibility_context(context%hmc_reversibility)
+      call release_intode_diagnostics_context(context%intode)
    end subroutine release_tltm_diagnostics_context
 
    subroutine release_tltm_profile_context(context)

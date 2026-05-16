@@ -4,7 +4,8 @@ Date: 2026-05-16 JST
 Scope: `src/physics/solve_flow.f90`, `src/physics/odex_backend.f90`, and the
 Stage1/Stage2 run-context path that calls `flowz`, `flowzr`, `flow`, and
 `intode*`.
-Status: decision packet for the next source slice; no source behavior change
+Status: decision packet implemented by
+`F18B3A_ODEX_FLOW_STATE_PRODUCTIZATION_20260516.md`; no source behavior change
 authorized by this document.
 
 ## Decision Summary
@@ -172,9 +173,22 @@ Metropolis behavior change.
 
 ## Immediate Next Step
 
-Implement F18b.3a as a behavior-preserving state productization slice.
+F18b.3a is implemented as a behavior-preserving state productization slice.
 
 Do not start an ODEX controller alignment patch.  The controller behavior was
 already accepted as TLTM endpoint policy for modernization closure in F18b.2,
 and any future controller alignment remains a separate behavior-changing
 decision.
+
+## Implementation Addendum
+
+Implemented record:
+`F18B3A_ODEX_FLOW_STATE_PRODUCTIZATION_20260516.md`.
+
+The implementation created explicit `intode_diagnostics_context_t` and
+`intode_runtime_trace_context_t` ownership, threaded diagnostics through
+Stage1/Stage2 product flow/HMC/QN paths including Stage2 adaptive preflow
+initialization, preserved legacy module fallback APIs, and added focused ODEX
+foundation contract checks for context isolation and workspace trace
+attribution. M4 guardrails and retained-core ODEX/QN/RATTLE/RG contracts pass
+under the embedded official DFO-LS environment.

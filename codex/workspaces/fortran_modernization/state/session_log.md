@@ -1188,3 +1188,592 @@
 - Updated F18b runbooks, workstream matrix, state brief, open items, and
   decision registry so the next operational source patch is F18b.3a
   diagnostics/runtime-trace context ownership.
+
+## 2026-05-16 JST - Handwritten mismatch decisions confirmed
+
+- User confirmed the first mismatch-resolution rows:
+  HWM-ODEX-001 changes toward Hairer/paper or stronger-reference controller
+  behavior, HWM-RATTLE-001 keeps rejection-as-stay-put as TLTM project policy,
+  and HWM-MET-001 resets rejection output buffers as a Metropolis API contract.
+- Added `HANDWRITTEN_MISMATCH_RESOLUTION_TABLE_20260516.md` as the row-level
+  decision table and `F18B4_ODEX_CONTROLLER_PAPER_ALIGNMENT_PLAN_20260516.md`
+  as the selected ODEX execution entry point.
+- Updated state brief, workstream matrix, open items, and caveats so F18b.2's
+  old no-controller-change recommendation is historical/superseded rather than
+  the active policy.
+- No numerical behavior change is authorized by this decision record alone.
+  The next step is F18b.4 spec plus deterministic branch tests before patching
+  any controller family.
+
+## 2026-05-16 JST - F18b.4a ODEX controller alignment spec/probe target
+
+- Added behavior-free `odex_observe_order_transition` to expose current
+  final-order branch policy to deterministic tests.
+- Added and wired `test_odex_controller_alignment_spec`, including M4 coverage.
+- The target protects already-aligned surfaces (`IWORK(3)=3`, signed step
+  proposal, positive work estimate) and records four expected current gaps:
+  `h0=0.01*t`, missing explicit growth bound, demotion threshold `0.9` versus
+  the Hairer-style separate decrease threshold near `0.8`, and default
+  stability policy off.
+- Focused readback passed.  This slice does not change endpoint integration
+  behavior.  Next F18b.4 source-facing behavior family is growth/shrink bounds
+  plus order-threshold alignment with F8/M4 and 1k paired screen before 10k.
+
+## 2026-05-16 JST - F18b.4b ODEX controller bounds/order patch
+
+- Implemented the first behavior-changing HWM-ODEX-001 controller family:
+  Hairer-style growth/shrink bounds plus separate order demotion/promotion
+  factors.
+- Added `step_size_bound_fac1=0.02`, `step_size_bound_fac2=4.0`,
+  `order_decrease_factor=0.8`, and `order_increase_factor=0.9` to
+  `odex_options`, routed `calculate_hk`/`calculate_wk` through a bounded
+  `odex_step_scale`, and updated deterministic observation helpers to use the
+  same normalized policy.
+- Updated `test_odex_controller_alignment_spec` so expected controller gaps are
+  now two: `h0=0.01*t` and default stability policy off. Growth/shrink bounds
+  and order thresholds are now alignment checks rather than expected gaps.
+- Focused tests passed:
+  `make -C build test_odex_controller_alignment_spec test_odex_controller_observation_contract`.
+- Added `F18B4B_ODEX_CONTROLLER_BOUNDS_ORDER_ALIGNMENT_20260516.md` as the F8
+  statement and focused readback.  This patch still needs full M4 and a 1k
+  paired screen before canonical acceptance or any 10k rerun.
+
+## 2026-05-16 JST - F18b.4b affected-baseline acceptance
+
+- Full M4 initially failed only at the post-B deterministic Stage2 summary
+  anchor, with a stable new hash:
+  `ecd5973ff2f578af962a62b2fb8dd94b183158726b88f0674de4986dfbd668d2`.
+- Ran local current-worktree 10seed/1k screen:
+  `output/tests/f18b4b_odex_bounds_order_10seed_1k_20260516T063826`.
+  Readback was close to the prior 1k base row: `no_fb` unresolved `890`,
+  `fb_norefine` unresolved `16`, pair0 acceptance about `0.440/0.436`, and no
+  max-step/invalid/reverse-replay failure surface.
+- Ran local current-worktree 10seed/10k screen:
+  `output/tests/f18b4b_odex_bounds_order_10seed_10k_20260516T064256`.
+  Compared with the accepted npt5_r0055 assist-off baseline, `no_fb` failures
+  were `8300` vs `8340`, mean Re/Im were
+  `0.0019528482220934804/-0.02786044660484825` vs
+  `-0.002818340294982019/-0.02465681851224433`; `fb_norefine` failures were
+  `166` vs `167`, mean Re/Im were
+  `0.02311080440482635/0.004007786293613718` vs
+  `0.02974362444598664/-0.002988766099182953`.
+- Updated `POST_B_RNG_REFERENCE_ANCHOR_V1.json` to the new deterministic
+  Stage2 summary hash after the 1k/10k screens accepted the trajectory change.
+- Reran full M4: `make -C build modernization_guardrails` passed.  F18b.4b is
+  accepted for the local modernization tree, not as production-comparison redo
+  evidence.  Remaining ODEX controller families are h0 estimator,
+  h-min/rejection status, and stability policy.
+
+## 2026-05-16 JST - F18b.4c ODEX initialization alignment screen invalidated
+
+- Temporarily implemented a Hairer-style initial `H`/initial `K` observer and
+  core initialization patch.  Focused alignment/observation/result-contract
+  tests passed in that temporary source.
+- The completed 10seed/1k `H=0 -> 1e-4`, `KMAX=10` screen at
+  `output/tests/f18b4c_odex_initialization_10seed_1k_20260516T124415`
+  was initially read as blocking adoption because `no_fb` and `fb_norefine`
+  both had 882 unresolved samples, 0 reverse-gate rejects, and identical means;
+  the accepted F18b.4b 1k screen had `fb_norefine` unresolved 16.
+- Follow-up log inspection invalidated that interpretation.  The `fb_norefine`
+  Stage2 logs contain `ModuleNotFoundError: No module named 'dfols'` and
+  `Official DFO-LS bridge failed: status=12 flag=-999`; the manifest also
+  lacked `TLTM_OFFICIAL_DFOLS_PYTHONPATH` and the intended QN/reverse-gate
+  tolerance env.  Since F19 deliberately removed internal fallback, every QN
+  attempt was rejected and the accepted path collapsed to nofb-like behavior.
+- The `H=1e-3,KMAX=10`, `H=1e-3,KMAX=5`, and `H=0,KMAX=5` probes were stopped
+  because their 1k runtime extrapolation was already unreasonable before the
+  first 10 `no_fb` tasks completed.
+- Backed out active source/test changes to F18b.4b behavior.  Focused
+  alignment/observation/result contracts pass again with expected gaps restored
+  to `h0_fraction_policy` and default stability policy off.  No 10k or M4
+  anchor update is authorized for F18b.4c because the 1k screen is invalid
+  evidence, not an ODEX initialization conclusion.
+
+## 2026-05-16 JST - F18b.4d Hairer route skeleton selected
+
+- User selected continuing toward the Hairer route despite the invalidated
+  isolated F18b.4c initialization screen.
+- Added behavior-free Hairer controller observers:
+  `odex_observe_hairer_initial_state`,
+  `odex_observe_hairer_step_entry`, `odex_observe_hairer_kopt`, and
+  `odex_observe_hairer_reject_update`.
+- Extended `test_odex_controller_alignment_spec` to pin the official-style
+  initial state, step-entry, `KOPT`, and rejected-step update surfaces without
+  changing endpoint integration behavior.
+- Focused readback passed:
+  `make -C build test_odex_controller_alignment_spec`, with
+  `hairer_route_skeleton init=T step=T kopt=T reject=T` and expected gaps still
+  equal to 2.
+- Full M4 guardrails also passed:
+  `make -C build modernization_guardrails`, artifact root
+  `output/tests/m4_guardrails`.
+- Added `F18B4D_HAIRER_CONTROLLER_ROUTE_SKELETON_20260516.md`.  The next slice
+  is F18b.4e: current-vs-Hairer delta map plus first opt-in/tightly gated
+  behavior patch design before retrying initial `H`/`K`.
+
+## 2026-05-16 JST - F18b.4e Hairer delta map and opt-in gate
+
+- Added explicit ODEX controller-policy constants and parser:
+  `odex_controller_policy_tltm_endpoint`,
+  `odex_controller_policy_hairer_experimental`,
+  `odex_apply_controller_policy_name`, and `odex_controller_policy_name`.
+- `solve_flow` now parses `TLTM_ODE_CONTROLLER_POLICY`; accepted experimental
+  names include `hairer`, `hairer_experimental`, `hairer_route`, and
+  `experimental`.
+- Active default behavior remains F18b.4b.  The new policy gate validates
+  tokens but does not yet attach Hairer behavior to the endpoint loop.
+- Added `F18B4E_HAIRER_DELTA_MAP_AND_OPTIN_GATE_20260516.md`, using official
+  Hairer/Wanner `odex.f` controller regions as the delta-map reference.
+- Focused readback passed:
+  `make -C build test_odex_controller_alignment_spec test_odex_result_contract`,
+  including `hairer_route_policy_gate ok=T` and
+  `controller_policy_name ok=T policy=hairer_experimental`.
+- Full M4 guardrails also passed:
+  `make -C build modernization_guardrails`, artifact root
+  `output/tests/m4_guardrails`.
+- Next slice is F18b.4f: first opt-in behavior under
+  `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental`, starting with first/last
+  step, `KOPT`, and reject-history coupling before retrying initial `H`/`K`.
+
+## 2026-05-16 JST - F18b.4d/e detail readback correction
+
+- User challenged whether the current detail implementation had actually been
+  checked beyond matching names.
+- Re-read the Hairer/Wanner `ODXCOR` controller path against the local observer
+  skeleton and found one real issue: the first
+  `odex_observe_hairer_reject_update` helper was too compressed and could not
+  represent `K=MIN(K,KC,KM-1)` followed by the `W(K-1)<W(K)*FAC3` demotion
+  using arbitrary `W(:)`/`HH(:)` rows.
+- Corrected `odex_observe_hairer_reject_update` to take full `work_values(:)`
+  and `step_values(:)`, then extended `test_odex_controller_alignment_spec` to
+  pin both no-demotion and demotion-after-min rejected-step cases.
+- Focused readback passed:
+  `make -C build test_odex_controller_alignment_spec
+  test_odex_controller_observation_contract test_odex_result_contract`.
+- This correction is still only a reference-map fix.  It does not certify full
+  Hairer behavior; after-rejected accepted-step handling, accept-side next-`H`
+  update, `SCAL`/`ERROLD`/`ATOV`, `SAFE*`, `HOPTDE`, stability, and full outer
+  loop behavior remain F18b.4f/later work.
+
+## 2026-05-16 JST - F18b.4f pre-implementation handwritten ODEX line audit
+
+- Per user request, performed a line-by-line audit of the active handwritten
+  ODEX endpoint path instead of only checking the controller spec/observer
+  names.
+- Added
+  `F18B4F_PRE_IMPLEMENTATION_HANDWRITTEN_ODEX_LINE_AUDIT_20260516.md`.
+- Confirmed matched-core surfaces: autonomous modified-midpoint row structure,
+  smoothing endpoint formula, even-power extrapolation tableau, Hairer
+  `IWORK(3)=3` sequence, `A(k)` work-sum helper, positive work estimate for
+  signed intervals, and signed endpoint direction handling.
+- Found concrete bug candidates requiring decisions or patches before any
+  paper-correctness claim: direct `res` size guard occurs after `res=y`;
+  success `accepted_steps` counts attempts rather than accepted steps; accepted
+  promotion next-step factor likely uses mutated `k`; invalid RHS is currently
+  routed through repeated rejection/h-min rather than invalid failure.
+- Confirmed paper mismatches/open surfaces: active `k_min=4` blocks Hairer
+  `K=2`; live outer controller lacks Hairer `REJECT/LAST/KC/KOPT/HOPTDE`
+  state machine; local `SCAL`, large-error/hope thresholds, and stability logic
+  are not line-equivalent Hairer `odex.f`.
+- No behavior source patch was made in this audit.  Recommended first handling
+  is API guard bug HODEX-LB-001, then counter semantics, then deterministic
+  branch test/decision for the promotion-ratio bug candidate before F18b.4f
+  opt-in controller behavior.
+
+## 2026-05-16 JST - F18b.4g ODEX API guard hardening
+
+- User reminded that all handwritten code must eventually receive the same
+  line-audit treatment as ODEX; added
+  `ALL_HANDWRITTEN_LINE_AUDIT_REQUIREMENT_20260516.md`.
+- Implemented HODEX-LB-001 from the ODEX line audit.  `odex_integrate_endpoint`
+  and `odex_integrate_endpoint_context` now check output buffer size before
+  assigning `res = y`; mismatched direct callers return invalid status instead
+  of risking a shape error.
+- Added direct package-contract coverage for mismatched output size in both
+  legacy and context-aware endpoint APIs.
+- Focused readback passed:
+  `make -C build test_odex_backend_package_contract`, including
+  `package_output_size_guard ok=T context=T status=102 context_status=102`.
+- Remaining ODEX line-audit decisions are HODEX-LB-002 counter semantics and
+  HODEX-LB-003 promotion-ratio correction scope before F18b.4f opt-in
+  controller behavior.
+
+## 2026-05-16 JST - F18b.4h ODEX counter and promotion alignment
+
+- Implemented HODEX-LB-002 from the ODEX line audit.  The handwritten endpoint
+  entry points now maintain explicit accepted-step counters and set
+  `odex_result%accepted_steps` to accepted endpoint steps rather than total
+  attempts.
+- Implemented HODEX-LB-003 from the ODEX line audit.  The accepted-promotion
+  next-step update now uses the Hairer-style `A(new K)/A(old K)` ratio through
+  `odex_hairer_promotion_step` rather than the previous mutated-index ratio.
+- Added `odex_observe_hairer_promotion_step` and extended
+  `test_odex_controller_alignment_spec` to pin the promotion branch as
+  `promote=T`.
+- Extended `test_odex_backend_package_contract` so a success case with rejected
+  attempts pins accepted-counter semantics:
+  `package_stability_surface ok=T status=0 accepted=70 rejects=76 stability=76`.
+- Focused readback passed:
+  `make -C build test_odex_controller_alignment_spec
+  test_odex_controller_observation_contract test_odex_result_contract
+  test_odex_backend_package_contract`.
+- Full M4 initially failed only at the post-B Stage2 summary hash.  The repeat
+  check was stable, Stage1 and Stage2 label-trace hashes stayed unchanged, and
+  the available normalized before/after diff was only the final printed digits
+  of Stage2 `last_accept_prob`
+  (`1.067747828730300E-002 -> 1.067747828730291E-002`).
+- Updated `POST_B_RNG_REFERENCE_ANCHOR_V1.json` through the post-B anchor task;
+  the new Stage2 summary hash is
+  `998434b44cdb8e1f7c9eef9638fa19c21a08a94cc6d656ff55a8b1d39594736e`.
+- Full M4 then passed:
+  `make -C build modernization_guardrails`, artifacts
+  `output/tests/m4_guardrails`.
+- Next ODEX line-audit decision is HODEX-LB-004 invalid-RHS classification
+  before first opt-in Hairer outer-controller behavior.
+
+## 2026-05-16 JST - F18b.4i ODEX invalid-RHS classification
+
+- Implemented HODEX-LB-004 from the ODEX line audit.  Non-finite RHS values
+  now return direct invalid failure (`odex_reason_invalid` / status `102`)
+  from both legacy and context-aware handwritten ODEX endpoint APIs, instead
+  of shrinking until the h-min floor.
+- `odex_step` and `odex_step_context` now distinguish `invalid_rhs` from
+  conservative stability rejection.  Finite conservative stability rejection
+  still uses the rejection/h-min path and remains covered separately as
+  status `103`.
+- Added/updated package, observation, and foundation contracts so invalid RHS
+  is pinned at the package layer and through the `intode` diagnostics wrapper:
+  `package_invalid_rhs ok=T context=T status=102 context_status=102`,
+  `initial_invalid_rhs_observation ok=T status=102 accepted=0 rejected=0`,
+  `later_invalid_rhs_observation ok=T status=102 accepted=0 rejected=0`, and
+  `unknown_context_failure ok=T status=102 attempts=1 success=0 failure=1
+  invalid=1 hmin=0 assist_success=0`.
+- Focused readback passed:
+  `make -C build test_odex_controller_observation_contract
+  test_odex_backend_package_contract test_odex_controller_alignment_spec
+  test_odex_result_contract test_odex_foundation_contract`.
+- Full M4 passed:
+  `make -C build modernization_guardrails`, artifacts
+  `output/tests/m4_guardrails`.
+- Next ODEX step is first opt-in Hairer outer-controller behavior under
+  `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental`, starting with
+  first/last-step, `KOPT`, and reject-history coupling.
+
+## 2026-05-16 JST - F18b.4j Hairer outer-controller screen invalidated
+
+- Implemented a temporary opt-in Hairer-style outer-controller branch under
+  `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental` after HODEX-LB-001/002/003/004
+  were resolved.  The temporary branch covered first/last step handling,
+  endpoint clipping, `KC`/`KOPT`, reject history, rejected-step update,
+  accepted-step next-`H`, and after-rejected accepted-step clamping while
+  leaving the default route at the accepted F18b.4i behavior.
+- Temporary direct package evidence passed on an exponential endpoint case:
+  `package_hairer_experimental ok=T context=T order=8 context_order=8
+  err=4.9960E-16 context_err=4.9960E-16`.
+- Focused ODEX tests and default-route M4 passed in the temporary source, so
+  the failed screen was not a compile/API failure or default-route regression.
+- Ran a 10seed/1k opt-in TLTM screen in
+  `output/tests/f18b4f_hairer_outer_controller_10seed_1k_20260516T150233`.
+  Both `fb_norefine` and `no_fb` produced the same bad shape: `878`
+  unresolved failures, `0` reverse-gate candidates/rejects, mean Re
+  `0.12406758222359959`, mean Im `0.048830547047550736`, Zmean Re
+  `0.7663972069608074`, and Zmean Im `0.37917289850995584`.
+- Reopened the screen after the user questioned why `fb_norefine` would become
+  identical to `no_fb`.  The user was right: the equality came from a broken
+  official DFO-LS bridge environment, not from a valid ODEX conclusion.
+- The invalid run log contains `ModuleNotFoundError: No module named 'dfols'`
+  followed by `Official DFO-LS bridge failed: status=12 flag=-999; QN attempt
+  will be rejected without internal fallback.`
+- The invalid run manifest lacks `TLTM_OFFICIAL_DFOLS_PYTHONPATH` and the
+  intended QN/reverse-gate env keys.  By contrast, the accepted F18b.4b
+  10seed/1k manifest includes the local `.venv-dfols` site-packages path,
+  `QN_SOLVER_BACKEND=official_dfols`, `QN_REVERSE_GATE_ENABLED=1`,
+  `QN_REVERSE_GATE_TOL=1e-8`, and the production QN policy env.
+- Corrected decision: do not use this screen to accept or reject the Hairer
+  outer-controller transplant.  The temporary source behavior and temporary
+  package test were removed, while the behavior-free `hairer_experimental`
+  policy/observer gate and accepted F18b.4g/h/i hardening remain.
+- Hardened `scripts/run_stage3_3_multiseed.py` so protocol solver policy now
+  supplies default `QN_*` env keys and local `.venv-dfols` supplies
+  `TLTM_OFFICIAL_DFOLS_PYTHONPATH` when the caller did not set it.  Verified
+  with `python3 -m py_compile scripts/run_stage3_3_multiseed.py` and a direct
+  helper check that the invalid screen config now materializes the missing
+  official DFO-LS/QN env defaults.
+- Post-backout focused readback passed:
+  `make -C build test_odex_controller_alignment_spec
+  test_odex_backend_package_contract test_odex_controller_observation_contract
+  test_odex_result_contract test_odex_foundation_contract`.
+- Added
+  `F18B4J_HAIRER_OUTER_CONTROLLER_ATTEMPT_BLOCKED_20260516.md`, updated
+  `STATE_BRIEF.md`, `WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`,
+  `OPEN_ITEMS.tsv`, and `CAVEATS.tsv`.
+- Next ODEX action is to recreate the opt-in Hairer screen with official
+  DFO-LS env preflight and rerun the 1k evidence before making a controller
+  route decision.
+
+## 2026-05-16 JST - F18b.4m Hairer screen moved to remote PBS only
+
+- Corrected the Stage3 runner provenance path so protocol execution-line fields
+  can materialize explicit official DFO-LS controls
+  `QN_OFFICIAL_DFOLS_NPT/MAXFUN/RHOBEG/RHOEND` and so
+  `TLTM_ODE_CONTROLLER_POLICY` is captured in selected manifests.
+- A corrected 10seed/1k `hairer_experimental` screen with explicit
+  `npt5_r0055` showed the bridge/env issue was fixed: manifests recorded
+  `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental`,
+  `QN_SOLVER_BACKEND=official_dfols`, `QN_OFFICIAL_DFOLS_NPT=5`,
+  `QN_OFFICIAL_DFOLS_MAXFUN=500`, `QN_OFFICIAL_DFOLS_RHOBEG=0.055`, and the
+  `.venv-dfols` site-packages path; logs had zero `ModuleNotFoundError`.
+  Readback: `fb_norefine` failures `16`, reverse-gate rejects `123`, Zmean
+  Re/Im `0.7035843190552878`/`0.893974293965999`; `no_fb` failures `880`,
+  reverse-gate rejects `114`, Zmean Re/Im
+  `0.9467801565324562`/`0.46123446238203003`.
+- The earlier preset-only corrected screen is not an apples-to-apples
+  `npt5_r0055` result because current `stable_gate77` maps to
+  `npt=4`, `maxfun=250`, `rhobeg=0.018`; do not use that result for route
+  decisions.
+- User set the operational rule: do not run TLTM simulation screens locally.
+  The in-progress local F18b.4m 10seed/10k screen was terminated immediately;
+  parent and all 10 `run_tltm_stage2` children were stopped with no survivors.
+- Added PBS script
+  `codex/workspaces/fortran_modernization/tasks/pbs/f18b4m_hairer_outer_npt5_r0055_10seed_10k_20260516.pbs`.
+  The dirty experimental source was rsynced to the canonical remote worktree
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`; the PBS job
+  records `GIT_DIRTY_COUNT`, `git_status_short.txt`, and `git_diff_stat.txt`.
+- Submitted C12 job `15533.anode01`, but PBS kept it queued with
+  `Insufficient amount of resource: Qlist`; cancelled it before execution.
+- Submitted replacement C16 PBS job `15534.anode01`; it failed before
+  simulation during build/link because `-lpython3.11` could not be found.
+  Submitted `15535.anode01` after adding local `.deps/python-devel-3.11`
+  include/lib handling; it also failed before simulation because that `.deps`
+  `libpython3.11.so` is a broken symlink.  Patched the PBS script to fall back
+  to `/usr/lib64/libpython3.11.so.1.0`.
+- Submitted C16 PBS job `15536.anode01`; it entered running on `cnode01/0*10`
+  at 2026-05-16 16:45 JST.  Artifact roots:
+  `output/tests/f18b4m_hairer_outer_controller_npt5_r0055_10seed_10k_20260516T164503_243c09ceb99f/paired`
+  and
+  `output/logs/f18b4m_hairer_outer_controller_npt5_r0055_10seed_10k_20260516T164503_243c09ceb99f/paired`.
+  Initial boot/provenance readback confirmed `PBS_JOBID=15536.anode01`,
+  `PBS_QUEUE=C16`, `GIT_DIRTY_COUNT=45`,
+  `PYTHON_EMBED_LDFLAGS=/usr/lib64/libpython3.11.so.1.0 -lpthread -ldl -lutil -lm`,
+  `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental`,
+  `QN_OFFICIAL_DFOLS_NPT=5`, `QN_OFFICIAL_DFOLS_MAXFUN=500`,
+  `QN_OFFICIAL_DFOLS_RHOBEG=0.055`, and a valid remote
+  `TLTM_OFFICIAL_DFOLS_PYTHONPATH`.  The build linked
+  `run_tltm_stage2`/`evaluate_expectations`, then reached
+  `[RUN] paired seed workers=10`.
+- Added
+  `F18B4M_HAIRER_OUTER_CONTROLLER_REMOTE_SCREEN_20260516.md`.  User then
+  rejected the paired 10-worker shape as too slow, so job `15536.anode01` was
+  cancelled before it could become numerical evidence.
+- Patched the PBS script to accept `TLTM_METHODS`, `TLTM_SCHEDULE`,
+  `TLTM_PAIR_ORDER`, and `TLTM_TASK_METHOD_ORDER` overrides.  Submitted the
+  task-parallel replacement job `15537.anode01` on C16/cnode01 with
+  `ncpus=20`, `TLTM_RUN_JOBS=20`, `TLTM_SCHEDULE=task`, and
+  `TLTM_TASK_METHOD_ORDER=no_fb_first`.  Artifact roots:
+  `output/tests/f18b4n_hairer_outer_controller_npt5_r0055_10seed_10k_task20_20260516T170524_243c09ceb99f/paired`
+  and
+  `output/logs/f18b4n_hairer_outer_controller_npt5_r0055_10seed_10k_task20_20260516T170524_243c09ceb99f/paired`.
+  Initial readback confirmed `PBS_JOBID=15537.anode01`, `PBS_QUEUE=C16`,
+  `GIT_DIRTY_COUNT=45`,
+  `PYTHON_EMBED_LDFLAGS=/usr/lib64/libpython3.11.so.1.0 -lpthread -ldl -lutil -lm`,
+  `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental`,
+  `QN_OFFICIAL_DFOLS_NPT=5`, `QN_OFFICIAL_DFOLS_MAXFUN=500`,
+  `QN_OFFICIAL_DFOLS_RHOBEG=0.055`, and a valid remote
+  `TLTM_OFFICIAL_DFOLS_PYTHONPATH`.  Next step is remote PBS readback of job
+  `15537.anode01`; do not run TLTM Stage2/Stage3 screens locally.
+- Cluster parallelism note: future cluster screens should use full seed-method
+  task parallelism or method-split PBS jobs when resources allow, rather than
+  paired workers that serialize the second method inside each seed.
+
+## 2026-05-16 JST - F18b.4n Hairer task-parallel PBS readback complete
+
+- PBS job `15537.anode01` completed successfully on C16 with
+  `Exit_status=0`, `walltime=00:20:00`, `ncpus=20`, and `cput=04:52:43`.
+- Artifact roots:
+  `output/tests/f18b4n_hairer_outer_controller_npt5_r0055_10seed_10k_task20_20260516T170524_243c09ceb99f/paired`
+  and
+  `output/logs/f18b4n_hairer_outer_controller_npt5_r0055_10seed_10k_task20_20260516T170524_243c09ceb99f/paired`.
+- Final manifest readback confirmed `TLTM_ODE_CONTROLLER_POLICY=hairer_experimental`,
+  `QN_SOLVER_BACKEND=official_dfols`, `QN_OFFICIAL_DFOLS_NPT=5`,
+  `QN_OFFICIAL_DFOLS_MAXFUN=500`, `QN_OFFICIAL_DFOLS_RHOBEG=0.055`,
+  `QN_OFFICIAL_DFOLS_RHOEND=1e-16`, `SCHEDULE=task`, and
+  `TASK_METHOD_ORDER=no_fb_first`.
+- Log scan found zero `ModuleNotFoundError` and zero `No module named dfols`;
+  official DFO-LS preset lines appeared in all 10 `fb_norefine` logs.  The
+  residual-callback traceback count (`112`) is comparable to accepted F18b.4b
+  (`119`) and is not the F18b.4j env failure.
+- Aggregate comparison against accepted F18b.4b 10seed/10k:
+  `fb_norefine` proposal failures `166 -> 164`, reverse-gate rejects
+  `1274 -> 1293`, mean Re/Im
+  `0.02311080440482635/0.004007786293613718 ->
+  0.01785509409267819/-0.0027746433596665537`, Zmean Re/Im
+  `0.4197458251236253/0.10935044927261645 ->
+  0.32496204954662317/-0.08152739034564842`, mean runtime
+  `844.1522926 -> 1122.4772538000002`.
+- `no_fb` proposal failures `8300 -> 8253`, reverse-gate rejects
+  `1076 -> 1018`, mean Re/Im
+  `0.0019528482220934804/-0.02786044660484825 ->
+  0.004357625029658546/-0.030944450937682166`, Zmean Re/Im
+  `0.03382818583627952/-0.6644160270087625 ->
+  0.07533238767174515/-0.705294915826479`, mean runtime
+  `494.7982082 -> 634.8367814000001`.
+- Interpretation: corrected `hairer_experimental` is valid affected-baseline
+  evidence and is behavior-near F18b.4b at this scale, but carries a material
+  runtime penalty of about `+33%` for `fb_norefine` and `+28%` for `no_fb`.
+  It should stay opt-in until the route decision explicitly accepts, tunes, or
+  removes that cost.
+
+## 2026-05-16 JST - F18b.4o ODEX telemetry policy compare
+
+- Added ODEX internal-work telemetry: ODEX RHS evaluations, midpoint rows,
+  K+1 attempts/rejects, and accept branch counts are now carried through
+  `odex_result`, `intode_diagnostics_context_t`, Stage2 `# odex_stats`, and
+  Stage3.3 per-seed/aggregate CSVs.  Focused local verification passed:
+  `python3 -m py_compile scripts/run_stage3_3_multiseed.py`,
+  `git diff --check`, and
+  `make -C build test_odex_result_contract test_odex_backend_package_contract`.
+  No TLTM Stage2/Stage3 screen was run locally.
+- Added `docs/production_comparison_official_dfols_20260511_10seed_1k_nofb_withfb.json`
+  and PBS script
+  `codex/workspaces/fortran_modernization/tasks/pbs/f18b4o_odex_telemetry_policy_compare_10seed_1k_20260516.pbs`.
+  Submitted PBS job `15538.anode01` on C16/cnode01 with `ncpus=20`; it ran
+  both `tltm_endpoint` and `hairer_experimental` policies concurrently with
+  `TLTM_RUN_JOBS_PER_POLICY=10`, official DFO-LS `npt5_r0055`, assist off,
+  reverse gate on, and Stage2 RNG v2.
+- Job `15538.anode01` completed with `Exit_status=0`, `walltime=00:04:22`.
+  Artifact root:
+  `output/tests/f18b4o_odex_telemetry_policy_compare_npt5_r0055_10seed_1k_20260516T175507_243c09ceb99f`;
+  log root:
+  `output/logs/f18b4o_odex_telemetry_policy_compare_npt5_r0055_10seed_1k_20260516T175507_243c09ceb99f`.
+- The first aggregate CSVs had blank `odex_*` fields because `run_one_seed()`
+  omitted `odex_stat_columns()` from the row dictionary even though Stage2
+  summaries already emitted `# odex_stats`.  Patched the Python row propagation,
+  synced it, and repaired the existing CSV artifacts by reparsing the existing
+  `tltm_stage2_summary.dat` files.  No Stage2/Stage3 rerun was needed for this
+  artifact repair.
+- Repaired aggregate readback:
+  `no_fb` runtime `57.324 -> 62.890` (`1.097x`), RHS/call
+  `244.639 -> 273.335` (`1.117x`), accepted steps/call
+  `6.366 -> 7.158` (`1.124x`), K+1 attempts/call
+  `0.222 -> 0.176` (`0.794x`), K+1 rejects/call
+  `0.00305 -> 0.00925` (`3.036x`).
+- `fb_norefine` runtime `102.409 -> 115.198` (`1.125x`), RHS/call
+  `267.814 -> 328.065` (`1.225x`), accepted steps/call
+  `6.649 -> 11.065` (`1.664x`), midpoint rows/call
+  `35.763 -> 49.486` (`1.384x`), K+1 attempts/call
+  `0.252 -> 2.203` (`8.761x`), K+1 rejects/call
+  `0.00291 -> 0.02581` (`8.869x`).
+- Interpretation: the partial Hairer route is not merely slower due to more
+  rejected steps; it accepts much more endpoint work, especially the K+1 path
+  for `fb_norefine`.  This supports the user concern that the not-yet-wired
+  coherent Hairer pieces (`H/K`, signed step-entry state, `SCAL`, and
+  large-error/convergence thresholds) are likely key.  Added
+  `F18B4O_ODEX_TELEMETRY_POLICY_COMPARE_20260516.md`.  Latest `qstat -u
+  cychou` shows no active jobs.
+
+## 2026-05-16 JST - F18b.5 ODEX Hairer alignment replan
+
+- User pointed out that the plan was being steered by individual reminders
+  such as `K=2` and requested a complete route from the current handwritten
+  TLTM ODEX to Hairer alignment that does not start by blowing up runtime and
+  then repairing backwards.
+- Re-read the official Hairer/Wanner Geneva `odex.f` reference and the current
+  `src/physics/odex_backend.f90` implementation.  The key structural finding is
+  that Hairer `ODXCOR` owns the outer controller state machine, while `MIDEX(J)`
+  computes a single row and returns row-local `ERR`, `HH(J)`, `W(J)`, and
+  `ATOV`.  Current TLTM `odex_step*` still mixes multi-row computation with
+  controller decisions and internal `h/k` mutation.
+- Stopped the in-flight clean-build telemetry job `15542.anode01` after the
+  user requested replan.  It reached `job_state=E`, `Exit_status=271`; retain
+  only as partial diagnostic evidence.  Earlier `15541.anode01` remains invalid
+  build evidence because the login-shell `gfortran` attempt left module files
+  that conflicted with PBS `ifx` until `build/.obj` was cleaned.
+- Added `F18B5_ODEX_HAIRER_ALIGNMENT_REPLAN_20260516.md`.  It reclassifies
+  F18b.4m/F18b.4n/F18b.4o as valid hybrid-controller debug evidence rather
+  than evidence for the runtime cost of a coherent Hairer controller.
+- New safe order: F18b.5a identity-map/branch counters, F18b.5b single-row
+  `MIDEX(J)` primitive, F18b.5c `SCAL/HH/W/ERROLD/ATOV` row lifecycle,
+  F18b.5d pure outer controller state machine, F18b.5e opt-in endpoint wiring,
+  F18b.5f analytic plus tiny remote gates, and only then F18b.5g 1k/10k
+  telemetry promotion.
+- Updated `OPEN_ITEMS.tsv`, `STATE_BRIEF.md`, and
+  `WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md` so the next ODEX action is
+  identity-map/row-primitive work, not direct runtime tuning or another
+  1k/10seed screen.
+
+## 2026-05-16 JST - F18b.5a ODEX identity-map counters
+
+- Implemented F18b.5a without changing ODEX numerical decisions.  Added
+  explicit identity counters to `odex_result` and per-step telemetry for:
+  policy step entries, first/last/basic step-entry branches, row-J buckets,
+  `J=1` no-error returns, error-scale estimates, convergence and K+1 hope
+  rejects, reject-by-KC buckets, KOPT accept updates/transitions, reject
+  updates, and the currently absent Hairer `ERROLD`, `ATOV`, and
+  after-rejected accepted-step clamp branches.
+- Plumbed the counters through `intode_diagnostics_context_t`, Stage2
+  `# odex_stats`, and Stage3.3 per-seed/aggregate CSV columns.  Multiple
+  `# odex_stats` lines are intentionally supported by the existing parser.
+- Updated focused tests so default `tltm_endpoint` still reports TLTM policy
+  steps and zero Hairer-KOPT updates, while `hairer_experimental` reports
+  Hairer policy steps, row/scale identity, and KOPT updates equal to accepted
+  steps.  The zero `ERROLD`/`ATOV`/after-reject-clamp counters are now explicit
+  evidence that those branches are not yet implemented.
+- Verification passed:
+  `git diff --check`;
+  `python3 -m py_compile scripts/run_stage3_3_multiseed.py`;
+  `make -C build test_odex_result_contract test_odex_backend_package_contract test_odex_controller_alignment_spec`.
+  No local TLTM Stage2/Stage3 screen was run.
+- Updated `F18B5_ODEX_HAIRER_ALIGNMENT_REPLAN_20260516.md`,
+  `OPEN_ITEMS.tsv`, `STATE_BRIEF.md`, and
+  `WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`.  Next ODEX action is F18b.5b:
+  extract and test a single-row `MIDEX(J)` primitive before any more
+  1k/10seed Hairer telemetry.
+
+## 2026-05-16 JST - F18b.5b ODEX single-row primitive
+
+- Implemented a test-facing single-row primitive:
+  `odex_observe_hairer_midex_row` plus `odex_row_result` in
+  `src/physics/odex_backend.f90`.
+- The primitive follows the official Hairer `MIDEX(J)` structure for the row
+  layer: explicit midpoint row, polynomial extrapolation for `J>1`, mutable
+  `SCAL(:)`, first legal error estimate at `J=2`, `ERROLD` monotonic guard,
+  positive `HH/W`, and `SAFE3=0.5` ATOV shrink while preserving signed `H`.
+- It is not wired into `odex_step*` or the live endpoint loop.  Default
+  `tltm_endpoint` behavior is unchanged by this slice.
+- Added focused tests in `test_odex_controller_alignment_spec`: `J=1`
+  no-error row, `J=2` first-error row, signed-H with positive `HH/W`,
+  non-ATOV `J=3`, and forced `J=3` ATOV.
+- Verification passed:
+  `git diff --check`;
+  `python3 -m py_compile scripts/run_stage3_3_multiseed.py`;
+  `make -C build test_odex_controller_alignment_spec test_odex_backend_package_contract test_odex_result_contract`.
+  No local TLTM Stage2/Stage3 simulation screen was run.
+- Updated `F18B5_ODEX_HAIRER_ALIGNMENT_REPLAN_20260516.md`,
+  `OPEN_ITEMS.tsv`, `STATE_BRIEF.md`, and
+  `WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`.  Next ODEX action is F18b.5c:
+  make `SCAL(:)`, `HH(:)`, `W(:)`, `ERROLD`, and `ATOV` first-class
+  row-lifecycle state before outer-controller wiring or further 1k telemetry.
+
+## 2026-05-16 JST - F18b.5c ODEX row lifecycle
+
+- Implemented a test-facing row lifecycle around the single-row primitive:
+  `odex_hairer_row_lifecycle`, `odex_hairer_errold_initial`,
+  `odex_observe_hairer_row_lifecycle_begin`, and
+  `odex_observe_hairer_midex_lifecycle_row` in
+  `src/physics/odex_backend.f90`.
+- The lifecycle owns Hairer row state for focused tests: initial `SCAL(:)`,
+  `HH(:)`, `W(:)`, `ERROLD=1D10`, `ATOV`, row counts, RHS counts, and the
+  signed `H` after each row.  `J=1` leaves `HH/W` unset; accepted `J>=2`
+  stores `HH/W`; forced `ATOV` shrinks `H` without fabricating rejected-row
+  `HH/W`.
+- Added `test_odex_controller_alignment_spec` coverage for lifecycle
+  initialization, `J=1`, `J=2`, forced `J=3` ATOV, and reset.
+- Verification passed:
+  `git diff --check -- src/physics/odex_backend.f90 tests/test_odex_controller_alignment_spec.f90`;
+  `make -C build test_odex_controller_alignment_spec test_odex_backend_package_contract test_odex_result_contract`.
+  No local TLTM Stage2/Stage3 simulation screen was run.
+- Updated `F18B5_ODEX_HAIRER_ALIGNMENT_REPLAN_20260516.md`,
+  `OPEN_ITEMS.tsv`, `STATE_BRIEF.md`, and
+  `WORKSTREAM_MATRIX_AND_CURRENT_POSITION.md`.  Next ODEX action is F18b.5d:
+  implement a pure or near-pure outer controller state machine before endpoint
+  wiring or any more 1k/10seed telemetry.

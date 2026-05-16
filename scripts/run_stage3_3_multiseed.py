@@ -79,6 +79,50 @@ CVODE_STAT_NAMES = [
     "max_final_order",
 ]
 
+ODEX_STAT_NAMES = [
+    "calls",
+    "success",
+    "failure",
+    "accepted_steps",
+    "rejected_steps",
+    "stability_rejects",
+    "rhs_evals",
+    "midpoint_rows",
+    "kplus1_attempts",
+    "accept_k_minus_1",
+    "accept_k",
+    "accept_k_plus_1",
+    "large_error_rejects",
+    "kplus1_rejects",
+    "hairer_policy_steps",
+    "tltm_policy_steps",
+    "first_step_entries",
+    "last_step_entries",
+    "basic_step_entries",
+    "row_j1_calls",
+    "row_j2_calls",
+    "row_jge3_calls",
+    "row_j1_no_error_returns",
+    "error_estimates",
+    "hairer_scal_estimates",
+    "default_scal_estimates",
+    "errold_checks",
+    "atov_events",
+    "convergence_rejects",
+    "kplus1_hope_rejects",
+    "reject_kc_k_minus_1",
+    "reject_kc_k",
+    "reject_kc_k_plus_1",
+    "kopt_accept_updates",
+    "kopt_demotions",
+    "kopt_keeps",
+    "kopt_promotions",
+    "after_reject_clamps",
+    "reject_updates",
+    "final_order_sum",
+    "max_final_order",
+]
+
 METHOD_SPECS = {
     "no_fb": {
         "fallback_enabled": False,
@@ -99,6 +143,45 @@ METHOD_SPECS = {
         },
     },
 }
+
+
+def bool_env(value):
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    text = str(value).strip().lower()
+    return "1" if text in ("1", "true", "yes", "on", "t") else "0"
+
+
+def infer_official_dfols_pythonpath(repo_root):
+    venv_python = repo_root / ".venv-dfols" / "bin" / "python"
+    if not venv_python.exists():
+        return ""
+    proc = subprocess.run(
+        [
+            str(venv_python),
+            "-c",
+            "import dfols, site; print(site.getsitepackages()[0])",
+        ],
+        cwd=str(repo_root),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return ""
+    return proc.stdout.strip().splitlines()[-1].strip()
+
+
+def apply_protocol_solver_env(repo_root, env, setup):
+    for key, value in setup.get("solver_env_defaults", {}).items():
+        if value != "":
+            env.setdefault(key, str(value))
+    if env.get("TLTM_OFFICIAL_DFOLS_PYTHONPATH", "").strip():
+        return
+    pythonpath = infer_official_dfols_pythonpath(repo_root)
+    if pythonpath:
+        env["TLTM_OFFICIAL_DFOLS_PYTHONPATH"] = pythonpath
 
 
 def reverse_gate_count_columns():
@@ -170,6 +253,21 @@ def cvode_aggregate_columns():
         "mean_cvode_steps_per_call",
         "mean_cvode_nonlinear_iters_per_call",
         "mean_cvode_error_test_fails_per_call",
+    ]
+
+
+def odex_stat_columns():
+    return ["odex_{0}".format(name) for name in ODEX_STAT_NAMES]
+
+
+def odex_aggregate_columns():
+    return ["total_{0}".format(column) for column in odex_stat_columns()] + [
+        "mean_odex_rhs_per_call",
+        "mean_odex_accepted_steps_per_call",
+        "mean_odex_rejected_steps_per_call",
+        "mean_odex_midpoint_rows_per_call",
+        "mean_odex_kplus1_attempts_per_call",
+        "mean_odex_kplus1_rejects_per_call",
     ]
 
 
@@ -370,6 +468,48 @@ def read_protocol(repo_root, config_path):
         raise ValueError("Protocol must contain frozen_setup or candidate_setup.")
     sampling = protocol["sampling_plan"]
     observable_def = protocol.get("observable_definition", {})
+    execution_line = protocol.get("execution_line", {})
+    solver_policy = protocol.get("solver_and_gate_policy", {})
+
+    solver_env_defaults = {}
+    if execution_line.get("qn_backend"):
+        solver_env_defaults["QN_SOLVER_BACKEND"] = str(execution_line["qn_backend"])
+    if execution_line.get("qn_official_dfols_preset"):
+        solver_env_defaults["QN_OFFICIAL_DFOLS_PRESET"] = str(execution_line["qn_official_dfols_preset"])
+    if execution_line.get("qn_official_dfols_npt") is not None:
+        solver_env_defaults["QN_OFFICIAL_DFOLS_NPT"] = str(execution_line["qn_official_dfols_npt"])
+    if execution_line.get("qn_official_dfols_maxfun") is not None:
+        solver_env_defaults["QN_OFFICIAL_DFOLS_MAXFUN"] = str(execution_line["qn_official_dfols_maxfun"])
+    if execution_line.get("qn_official_dfols_objfun_has_noise") is not None:
+        solver_env_defaults["QN_OFFICIAL_DFOLS_OBJFUN_HAS_NOISE"] = bool_env(
+            execution_line["qn_official_dfols_objfun_has_noise"]
+        )
+    if execution_line.get("qn_official_dfols_rhobeg") is not None:
+        solver_env_defaults["QN_OFFICIAL_DFOLS_RHOBEG"] = str(execution_line["qn_official_dfols_rhobeg"])
+    if execution_line.get("qn_official_dfols_rhoend") is not None:
+        solver_env_defaults["QN_OFFICIAL_DFOLS_RHOEND"] = str(execution_line["qn_official_dfols_rhoend"])
+    if execution_line.get("qn_official_dfols_model_abs_tol") is not None:
+        solver_env_defaults["QN_OFFICIAL_DFOLS_MODEL_ABS_TOL"] = str(
+            execution_line["qn_official_dfols_model_abs_tol"]
+        )
+    if execution_line.get("qn_official_dfols_model_rel_tol") is not None:
+        solver_env_defaults["QN_OFFICIAL_DFOLS_MODEL_REL_TOL"] = str(
+            execution_line["qn_official_dfols_model_rel_tol"]
+        )
+    if solver_policy.get("quasi_tol") is not None:
+        solver_env_defaults["QN_QUASI_TOL_OVERRIDE"] = str(solver_policy["quasi_tol"])
+    if solver_policy.get("reverse_gate_enabled") is not None:
+        solver_env_defaults["QN_REVERSE_GATE_ENABLED"] = bool_env(solver_policy["reverse_gate_enabled"])
+    if solver_policy.get("reverse_gate_tol") is not None:
+        solver_env_defaults["QN_REVERSE_GATE_TOL"] = str(solver_policy["reverse_gate_tol"])
+    if solver_policy.get("near_rescue_enabled") is not None:
+        solver_env_defaults["QN_S1_NEAR_RESCUE_ENABLED"] = bool_env(solver_policy["near_rescue_enabled"])
+    if solver_policy.get("nonnear_rescue_enabled") is not None:
+        solver_env_defaults["QN_S1_NONNEAR_RESCUE_ENABLED"] = bool_env(solver_policy["nonnear_rescue_enabled"])
+    if solver_policy.get("global_fallback_enabled") is not None:
+        solver_env_defaults["QN_QUASI_GLOBAL_FALLBACK_ENABLED"] = bool_env(solver_policy["global_fallback_enabled"])
+    if solver_policy.get("p") is not None:
+        solver_env_defaults["QN_S1_PROBE_MAX_ITER"] = str(solver_policy["p"])
 
     seed_list = sampling.get("seed_list")
     if seed_list is None:
@@ -422,6 +562,7 @@ def read_protocol(repo_root, config_path):
         "write_all_replica_history": bool(
             protocol.get("write_all_replica_history", frozen.get("write_all_replica_history", False))
         ),
+        "solver_env_defaults": solver_env_defaults,
     }
     return setup
 
@@ -566,6 +707,7 @@ def selected_manifest_env(env):
         "NUMEXPR_NUM_THREADS",
         "TLTM_OFFICIAL_DFOLS_PYTHONPATH",
         "TLTM_ODE_BACKEND",
+        "TLTM_ODE_CONTROLLER_POLICY",
     }
     prefixes = (
         "INTODE_",
@@ -671,6 +813,7 @@ def parse_stage2_summary(summary_path):
     qn_eval_flow_status_stats = {name: 0 for name in QN_EVAL_FLOW_STATUS_NAMES}
     reverse_gate_replay_status_stats = {name: 0 for name in REVERSE_GATE_REPLAY_STATUS_NAMES}
     cvode_stats = {name: 0 for name in CVODE_STAT_NAMES}
+    odex_stats = {name: 0 for name in ODEX_STAT_NAMES}
     reverse_gate_route_stats = {
         "candidate": {route_name: 0 for route_name in REVERSE_GATE_ROUTE_NAMES},
         "pass": {route_name: 0 for route_name in REVERSE_GATE_ROUTE_NAMES},
@@ -718,6 +861,12 @@ def parse_stage2_summary(summary_path):
             for key in cvode_stats:
                 if key in kv:
                     cvode_stats[key] = int(kv[key])
+            continue
+        if line.startswith("# odex_stats "):
+            kv = parse_key_value_ints(line[len("# odex_stats ") :])
+            for key in odex_stats:
+                if key in kv:
+                    odex_stats[key] = int(kv[key])
             continue
         if line.startswith("# constraint_stats "):
             kv = parse_key_value_ints(line[len("# constraint_stats ") :])
@@ -916,6 +1065,7 @@ def parse_stage2_summary(summary_path):
             for name in REVERSE_GATE_REPLAY_STATUS_NAMES
         },
         **{"cvode_{0}".format(name): cvode_stats[name] for name in CVODE_STAT_NAMES},
+        **{"odex_{0}".format(name): odex_stats[name] for name in ODEX_STAT_NAMES},
         **{"local_{0}_count".format(name): local_transition_stats[name] for name in LOCAL_TRANSITION_NAMES},
         "accepted_local_total": accepted_local_census["accepted_total"],
         "accepted_local_newton_only_count": accepted_local_census["newton_only"],
@@ -1132,6 +1282,7 @@ def run_one_seed(
 
     env_stage2 = dict(os.environ)
     configure_thread_env(env_stage2, stage2_threads)
+    apply_protocol_solver_env(repo_root, env_stage2, setup)
     env_stage2.update(
         {
             "CHAIN_RNG_SEED": str(seed_id),
@@ -1299,6 +1450,7 @@ def run_one_seed(
         **{column: stage2_metrics[column] for column in qn_eval_flow_status_count_columns()},
         **{column: stage2_metrics[column] for column in reverse_gate_replay_status_count_columns()},
         **{column: stage2_metrics[column] for column in cvode_stat_columns()},
+        **{column: stage2_metrics[column] for column in odex_stat_columns()},
         **{column: stage2_metrics[column] for column in local_transition_count_columns()},
         "accepted_local_total": stage2_metrics["accepted_local_total"],
         "accepted_local_newton_only_count": stage2_metrics["accepted_local_newton_only_count"],
@@ -1520,6 +1672,23 @@ def aggregate_rows(rows, observable_exact_re=0.0, observable_exact_im=0.0):
             agg["mean_cvode_steps_per_call"] = float("nan")
             agg["mean_cvode_nonlinear_iters_per_call"] = float("nan")
             agg["mean_cvode_error_test_fails_per_call"] = float("nan")
+        for column in odex_stat_columns():
+            agg["total_{0}".format(column)] = int(sum(as_finite_number(r.get(column)) or 0.0 for r in group))
+        odex_calls = agg.get("total_odex_calls", 0)
+        if odex_calls > 0:
+            agg["mean_odex_rhs_per_call"] = agg.get("total_odex_rhs_evals", 0) / float(odex_calls)
+            agg["mean_odex_accepted_steps_per_call"] = agg.get("total_odex_accepted_steps", 0) / float(odex_calls)
+            agg["mean_odex_rejected_steps_per_call"] = agg.get("total_odex_rejected_steps", 0) / float(odex_calls)
+            agg["mean_odex_midpoint_rows_per_call"] = agg.get("total_odex_midpoint_rows", 0) / float(odex_calls)
+            agg["mean_odex_kplus1_attempts_per_call"] = agg.get("total_odex_kplus1_attempts", 0) / float(odex_calls)
+            agg["mean_odex_kplus1_rejects_per_call"] = agg.get("total_odex_kplus1_rejects", 0) / float(odex_calls)
+        else:
+            agg["mean_odex_rhs_per_call"] = float("nan")
+            agg["mean_odex_accepted_steps_per_call"] = float("nan")
+            agg["mean_odex_rejected_steps_per_call"] = float("nan")
+            agg["mean_odex_midpoint_rows_per_call"] = float("nan")
+            agg["mean_odex_kplus1_attempts_per_call"] = float("nan")
+            agg["mean_odex_kplus1_rejects_per_call"] = float("nan")
         out.append(agg)
     return out
 
@@ -1921,6 +2090,7 @@ def main():
         *qn_eval_flow_status_count_columns(),
         *reverse_gate_replay_status_count_columns(),
         *cvode_stat_columns(),
+        *odex_stat_columns(),
         *local_transition_count_columns(),
         "accepted_local_total",
         "accepted_local_newton_only_count",
@@ -2004,6 +2174,7 @@ def main():
         *qn_eval_flow_status_aggregate_columns(),
         *reverse_gate_replay_status_aggregate_columns(),
         *cvode_aggregate_columns(),
+        *odex_aggregate_columns(),
         *local_transition_aggregate_columns(),
     ]
 

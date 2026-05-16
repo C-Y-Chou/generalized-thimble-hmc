@@ -1,22 +1,66 @@
 module test_odex_backend_package_rhs
+   use, intrinsic :: ieee_arithmetic, only: ieee_quiet_nan, ieee_value
    use utils, only: dp
    implicit none
    real(dp) :: exp_lambda = 0.0_dp
+   type :: dummy_context_t
+      integer :: unused = 0
+   end type dummy_context_t
 contains
    function rhs_exp(y) result(dy)
       real(dp), intent(in) :: y(:)
       real(dp) :: dy(size(y))
 
+      dy = 0.0_dp
       dy(1) = exp_lambda*y(1)
    end function rhs_exp
+
+   function rhs_nan(y) result(dy)
+      real(dp), intent(in) :: y(:)
+      real(dp) :: dy(size(y))
+
+      dy = ieee_value(0.0_dp, ieee_quiet_nan)
+   end function rhs_nan
+
+   function rhs_exp_context(y, context) result(dy)
+      real(dp), intent(in) :: y(:)
+      class(*), intent(inout) :: context
+      real(dp) :: dy(size(y))
+
+      dy = 0.0_dp
+      select type (context)
+      type is (dummy_context_t)
+         context%unused = context%unused + 0
+      class default
+         continue
+      end select
+      dy(1) = exp_lambda*y(1)
+   end function rhs_exp_context
+
+   function rhs_nan_context(y, context) result(dy)
+      real(dp), intent(in) :: y(:)
+      class(*), intent(inout) :: context
+      real(dp) :: dy(size(y))
+
+      select type (context)
+      type is (dummy_context_t)
+         context%unused = context%unused + 0
+      class default
+         continue
+      end select
+      dy = ieee_value(0.0_dp, ieee_quiet_nan)
+   end function rhs_nan_context
 end module test_odex_backend_package_rhs
 
 program test_odex_backend_package_contract
-   use odex_backend, only: build_nsteps, odex_default_options, odex_integrate_endpoint, &
-                           odex_options, odex_result, odex_status_failure_invalid, odex_status_success, &
+   use odex_backend, only: build_nsteps, odex_controller_policy_hairer_experimental, &
+                           odex_default_options, odex_integrate_endpoint, &
+	                           odex_integrate_endpoint_context, &
+	                           odex_options, odex_result, odex_status_failure_invalid, odex_status_success, &
                            odex_status_success_zero_time, odex_step_sequence_iwork3, &
                            odex_stability_control_conservative, odex_workspace
-   use test_odex_backend_package_rhs, only: exp_lambda, rhs_exp
+   use test_odex_backend_package_rhs, only: dummy_context_t, exp_lambda, rhs_exp, rhs_exp_context, &
+                                            rhs_nan, rhs_nan_context
    use utils, only: dp
    implicit none
 
@@ -27,9 +71,12 @@ program test_odex_backend_package_contract
 
    call check_iwork3_sequence(failures)
    call check_endpoint_accuracy(failures)
+   call check_hairer_experimental_endpoint_accuracy(failures)
    call check_forward_backward(failures)
-   call check_conservative_stability_surface(failures)
-   call check_invalid_options_failure(failures)
+	   call check_conservative_stability_surface(failures)
+	   call check_invalid_options_failure(failures)
+   call check_invalid_rhs_failure(failures)
+   call check_output_size_guard(failures)
 
    if (failures /= 0) then
       write (*, '(A,I0)') "[ERROR] standalone ODEX backend package failures=", failures
@@ -70,7 +117,22 @@ contains
       y_exact(1) = y0(1)*exp(exp_lambda)
       err = maxval(abs(y_out - y_exact))
       ok = (.not. failed) .and. result_state%status == odex_status_success .and. &
-           result_state%endpoint_available .and. err <= 2.0e-12_dp
+           result_state%endpoint_available .and. result_state%odex_rhs_evals > 0 .and. &
+           result_state%odex_midpoint_rows > 0 .and. &
+           result_state%odex_accept_k_minus_1 + result_state%odex_accept_k + result_state%odex_accept_k_plus_1 == &
+           result_state%accepted_steps .and. &
+           result_state%odex_tltm_policy_steps == result_state%accepted_steps + result_state%rejected_steps .and. &
+           result_state%odex_hairer_policy_steps == 0 .and. result_state%odex_first_step_entries == 1 .and. &
+           result_state%odex_last_step_entries == 1 .and. &
+           result_state%odex_row_j1_calls + result_state%odex_row_j2_calls + result_state%odex_row_jge3_calls == &
+           result_state%odex_midpoint_rows .and. result_state%odex_error_estimates > 0 .and. &
+           result_state%odex_row_j1_no_error_returns == result_state%odex_row_j1_calls .and. &
+           result_state%odex_default_scal_estimates == result_state%odex_error_estimates .and. &
+           result_state%odex_hairer_scal_estimates == 0 .and. result_state%odex_kopt_accept_updates == 0 .and. &
+           result_state%odex_kopt_demotions + result_state%odex_kopt_keeps + result_state%odex_kopt_promotions == 0 .and. &
+           result_state%odex_errold_checks == 0 .and. result_state%odex_atov_events == 0 .and. &
+           result_state%odex_after_reject_clamps == 0 .and. &
+           err <= 2.0e-12_dp
       write (*, '(A,L1,A,I0,A,ES12.4)') "[CHECK] package_endpoint_accuracy ok=", ok, &
          " status=", result_state%status, " err=", err
       if (.not. ok) then
@@ -78,6 +140,49 @@ contains
          write (*, '(A)') "[FAIL] standalone backend endpoint accuracy changed."
       end if
    end subroutine check_endpoint_accuracy
+
+   subroutine check_hairer_experimental_endpoint_accuracy(failures)
+      integer, intent(inout) :: failures
+      type(odex_options) :: options
+      type(odex_workspace) :: workspace
+      type(odex_result) :: result_state
+      real(dp) :: y0(1), y_out(1), y_exact(1), err
+      logical :: failed, ok
+
+      call odex_default_options(options, 3.0e-14_dp, 3.0e-14_dp)
+      options%controller_policy = odex_controller_policy_hairer_experimental
+      exp_lambda = -2.0_dp
+      y0(1) = 1.0_dp
+      call odex_integrate_endpoint(rhs_exp, y0, 1.0_dp, y_out, failed, result_state, workspace, options)
+      y_exact(1) = y0(1)*exp(exp_lambda)
+      err = maxval(abs(y_out - y_exact))
+      ok = (.not. failed) .and. result_state%status == odex_status_success .and. &
+           result_state%endpoint_available .and. result_state%final_order >= 2 .and. &
+           result_state%odex_rhs_evals > 0 .and. result_state%odex_midpoint_rows > 0 .and. &
+           result_state%odex_accept_k_minus_1 + result_state%odex_accept_k + result_state%odex_accept_k_plus_1 == &
+           result_state%accepted_steps .and. result_state%accepted_steps < 1000 .and. &
+           result_state%odex_rhs_evals < 100000 .and. &
+           result_state%odex_hairer_policy_steps == result_state%accepted_steps + result_state%rejected_steps .and. &
+           result_state%odex_tltm_policy_steps == 0 .and. result_state%odex_first_step_entries == 1 .and. &
+           result_state%odex_last_step_entries == 1 .and. &
+           result_state%odex_row_j1_calls + result_state%odex_row_j2_calls + result_state%odex_row_jge3_calls == &
+           result_state%odex_midpoint_rows .and. result_state%odex_error_estimates > 0 .and. &
+           result_state%odex_row_j1_no_error_returns == result_state%odex_row_j1_calls .and. &
+           result_state%odex_hairer_scal_estimates == result_state%odex_error_estimates .and. &
+           result_state%odex_default_scal_estimates == 0 .and. &
+           result_state%odex_kopt_accept_updates == result_state%accepted_steps .and. &
+           result_state%odex_kopt_demotions + result_state%odex_kopt_keeps + result_state%odex_kopt_promotions == &
+           result_state%odex_kopt_accept_updates .and. result_state%odex_errold_checks == 0 .and. &
+           result_state%odex_atov_events == 0 .and. result_state%odex_after_reject_clamps == 0 .and. &
+           err <= 2.0e-12_dp
+      write (*, '(A,L1,A,I0,A,I0,A,I0,A,ES12.4)') "[CHECK] package_hairer_experimental ok=", ok, &
+         " order=", result_state%final_order, " accepted=", result_state%accepted_steps, &
+         " rhs=", result_state%odex_rhs_evals, " err=", err
+      if (.not. ok) then
+         failures = failures + 1
+         write (*, '(A)') "[FAIL] opt-in Hairer experimental endpoint contract changed."
+      end if
+   end subroutine check_hairer_experimental_endpoint_accuracy
 
    subroutine check_forward_backward(failures)
       integer, intent(inout) :: failures
@@ -120,16 +225,19 @@ contains
       call odex_integrate_endpoint(rhs_exp, y0, 1.0e-8_dp, y_out, failed, result_state, workspace, options)
       ok = (.not. failed) .and. result_state%status == odex_status_success .and. &
            result_state%stability_rejects > 0 .and. result_state%rejected_steps >= result_state%stability_rejects
-      write (*, '(A,L1,A,I0,A,I0,A,I0)') "[CHECK] package_stability_surface ok=", ok, &
-         " status=", result_state%status, " rejects=", result_state%rejected_steps, &
+      ok = ok .and. result_state%accepted_steps > 0 .and. &
+           result_state%accepted_steps < result_state%rejected_steps
+      write (*, '(A,L1,A,I0,A,I0,A,I0,A,I0)') "[CHECK] package_stability_surface ok=", ok, &
+         " status=", result_state%status, " accepted=", result_state%accepted_steps, &
+         " rejects=", result_state%rejected_steps, &
          " stability=", result_state%stability_rejects
       if (.not. ok) then
          failures = failures + 1
          write (*, '(A)') "[FAIL] conservative stability-control surface did not fire as expected."
       end if
-   end subroutine check_conservative_stability_surface
+	   end subroutine check_conservative_stability_surface
 
-   subroutine check_invalid_options_failure(failures)
+	   subroutine check_invalid_options_failure(failures)
       integer, intent(inout) :: failures
       type(odex_options) :: options
       type(odex_workspace) :: workspace
@@ -151,5 +259,69 @@ contains
          write (*, '(A)') "[FAIL] standalone backend invalid-option failure contract changed."
       end if
    end subroutine check_invalid_options_failure
+
+   subroutine check_invalid_rhs_failure(failures)
+      integer, intent(inout) :: failures
+      type(odex_options) :: options
+      type(odex_workspace) :: workspace
+      type(odex_result) :: result_state, result_context
+      type(dummy_context_t) :: rhs_context
+      real(dp) :: y0(1), y_out(1), y_out_context(1)
+      logical :: failed, failed_context, ok, ok_context
+
+      call odex_default_options(options, 3.0e-14_dp, 3.0e-14_dp)
+      y0(1) = 1.0_dp
+      call odex_integrate_endpoint(rhs_nan, y0, 1.0_dp, y_out, failed, result_state, workspace, options)
+      ok = failed .and. result_state%status == odex_status_failure_invalid .and. &
+           result_state%accepted_steps == 0 .and. result_state%rejected_steps == 0 .and. &
+           result_state%odex_rhs_evals == 1 .and. result_state%odex_midpoint_rows == 0 .and. &
+           .not. result_state%endpoint_available
+
+      call odex_integrate_endpoint_context(rhs_nan_context, y0, 1.0_dp, y_out_context, failed_context, &
+                                           result_context, workspace, options, rhs_context)
+      ok_context = failed_context .and. result_context%status == odex_status_failure_invalid .and. &
+                   result_context%accepted_steps == 0 .and. result_context%rejected_steps == 0 .and. &
+                   result_context%odex_rhs_evals == 1 .and. result_context%odex_midpoint_rows == 0 .and. &
+                   .not. result_context%endpoint_available
+
+      write (*, '(A,L1,A,L1,A,I0,A,I0)') "[CHECK] package_invalid_rhs ok=", ok, &
+         " context=", ok_context, " status=", result_state%status, " context_status=", result_context%status
+      if (.not. (ok .and. ok_context)) then
+         failures = failures + 1
+         write (*, '(A)') "[FAIL] standalone backend invalid-RHS failure contract changed."
+      end if
+   end subroutine check_invalid_rhs_failure
+
+   subroutine check_output_size_guard(failures)
+      integer, intent(inout) :: failures
+      type(odex_options) :: options
+      type(odex_workspace) :: workspace
+      type(odex_result) :: result_state, result_context
+      type(dummy_context_t) :: rhs_context
+      real(dp) :: y0(2), y_out(1), y_out_context(1)
+      logical :: failed, failed_context, ok, ok_context
+
+      call odex_default_options(options, 3.0e-14_dp, 3.0e-14_dp)
+      exp_lambda = -2.0_dp
+      y0 = [1.0_dp, 2.0_dp]
+      y_out = -999.0_dp
+      y_out_context = -999.0_dp
+
+      call odex_integrate_endpoint(rhs_exp, y0, 1.0_dp, y_out, failed, result_state, workspace, options)
+      ok = failed .and. result_state%status == odex_status_failure_invalid .and. &
+           .not. result_state%endpoint_available
+
+      call odex_integrate_endpoint_context(rhs_exp_context, y0, 1.0_dp, y_out_context, failed_context, &
+                                           result_context, workspace, options, rhs_context)
+      ok_context = failed_context .and. result_context%status == odex_status_failure_invalid .and. &
+                   .not. result_context%endpoint_available
+
+      write (*, '(A,L1,A,L1,A,I0,A,I0)') "[CHECK] package_output_size_guard ok=", ok, &
+         " context=", ok_context, " status=", result_state%status, " context_status=", result_context%status
+      if (.not. (ok .and. ok_context)) then
+         failures = failures + 1
+         write (*, '(A)') "[FAIL] standalone backend output-size guard changed."
+      end if
+   end subroutine check_output_size_guard
 
 end program test_odex_backend_package_contract

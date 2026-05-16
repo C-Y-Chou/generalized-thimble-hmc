@@ -491,6 +491,7 @@ def run_guardrails(args):
                     "test_odex_flow_jacobian_contract",
                     "test_odex_backend_package_contract",
                     "test_odex_controller_observation_contract",
+                    "test_odex_controller_alignment_spec",
                     "test_official_dfols_preset_contract",
                     "test_tltm_swap_kernel_contract",
                     "test_mt95_state_contract",

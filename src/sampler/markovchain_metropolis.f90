@@ -12,7 +12,7 @@ module markovchain_metropolis
    use hmc_integrator_core, only: hmc_policy_context_t, hmc_replay_diagnostics_context_t
    use hmc_constraints, only: newton_eval_flow_status_context_t
    use hmc_reversibility_checks, only: hmc_reversibility_context_t
-   use solve_flow, only: flow_workspace_t
+   use solve_flow, only: flow_workspace_t, intode_diagnostics_context_t
    use tltm_run_context_mod, only: tltm_hmc_context_t
    use quasi_newton_solver_mod, only: qn_context_t, qn_diagnostics_context_t, qn_policy_context_t
    implicit none
@@ -21,7 +21,7 @@ contains
 
    subroutine metropolis_step(x, z, j, total_step_size, num_steps, x_new, z_new, j_new, accept, proposal_failed, transition_status, &
                               h_initial_out, h_final_out, delta_h_out, accept_probability_out, &
-	                              initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
+	                              initial_momentum_out, final_momentum_out, context, flow_workspace, intode_diagnostics, qn_context, qn_diagnostics, qn_policy, &
 	                              hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, momentum_rng_state, accept_rng_state, &
 	                              momentum_in, accept_uniform)
       implicit none
@@ -42,6 +42,7 @@ contains
       real(dp), intent(out), optional :: initial_momentum_out(:), final_momentum_out(:)
       type(tltm_hmc_context_t), intent(inout), optional :: context
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
       type(qn_context_t), intent(inout), optional, target :: qn_context
       type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
@@ -86,10 +87,10 @@ contains
       z_new = z
       j_new = j
 
-	      call integrate_hmc_proposal(x, z, total_step_size, num_steps, x_new, z_new, h_initial, h_final, j, j_new, &
-	                                  proposal_ok, hmc_status, initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, &
-	                                  qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, &
-	                                  momentum_rng_state, momentum_in)
+		      call integrate_hmc_proposal(x, z, total_step_size, num_steps, x_new, z_new, h_initial, h_final, j, j_new, &
+		                                  proposal_ok, hmc_status, initial_momentum_out, final_momentum_out, context, flow_workspace, qn_context, &
+		                                  qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, &
+		                                  intode_diagnostics, momentum_rng_state, momentum_in)
       call publish_metropolis_diagnostics(h_initial, h_final, delta_h, accept_probability, &
                                           h_initial_out, h_final_out, delta_h_out, accept_probability_out)
 

@@ -4,9 +4,9 @@ Date: 2026-05-16 JST
 Scope: `src/physics/odex_backend.f90`, the `solve_flow:intode*` endpoint
 wrapper path, and deterministic endpoint-flow tests.
 Status: F18b.0/F18b.1 source map and observation contract implemented;
-F18b.2 controller decision packet added; F18b.3 state/behavior-correction
-decision packet added; no production ODEX integration behavior change
-intended.
+F18b.2 controller decision packet added and later superseded; F18b.3/F18b.3a
+state productization implemented; HWM-ODEX-001 selected F18b.4 controller
+alignment; F18b.4a spec/probe target implemented.
 
 ## Decision
 
@@ -14,7 +14,9 @@ Return the ODE-controller modernization route to the handwritten endpoint ODEX
 backend, after the F18 SUNDIALS CVODE evaluation failed to produce a better
 canonical production route.
 
-This is not a decision to claim full Hairer ODEX paper correctness.
+This is not a decision to claim the current backend is already full Hairer ODEX
+paper-correctness.  The user has selected changing controller surfaces toward
+Hairer/paper or stronger-reference behavior through F18b.4.
 
 The target claim is:
 
@@ -73,13 +75,13 @@ Open-needs-proof or TLTM-specific:
 - large-error demotion threshold;
 - `1.0e-14` error floor in controller estimates;
 - optional conservative stability branch and default no-stability policy;
-- ODEX/flow counters, traces, and last-failure snapshots still mixed with
-  broader hidden state/productization work.
+- broader hidden state/productization work is still active outside the F18b.3a
+  ODEX/flow diagnostics and runtime-trace slice.
 
-The list above is not yet accepted TLTM policy.  It is the decision surface:
-first observe and test current behavior, then explicitly decide whether each
-item is accepted as TLTM endpoint policy, patched toward Hairer-style behavior,
-or deferred behind a product-scope boundary.
+The list above was the decision surface.  The current confirmed decision is:
+patch ODEX controller surfaces toward Hairer/paper or stronger-reference
+behavior, but only after F18b.4 writes the spec, branch tests, F8 statement, and
+affected-baseline plan.
 
 ## F18b.0 Source Map
 
@@ -173,6 +175,11 @@ Result: `[M4][SUMMARY] all guardrails passed`, artifacts under
 The controller decision packet is
 `F18B_CONTROLLER_DECISION_PACKET_20260516.md`.
 
+2026-05-16 update: this decision packet is now superseded by HWM-ODEX-001 in
+`HANDWRITTEN_MISMATCH_RESOLUTION_TABLE_20260516.md`.  The historical summary
+below records what was recommended, but it must not be treated as final
+authorization to leave the non-paper-exact surfaces unchanged.
+
 Summary:
 
 - accept the narrow TLTM endpoint ODEX/GBS claim with Hairer `IWORK(3)=3`;
@@ -186,10 +193,14 @@ Summary:
 - require F8, M4, focused branch/failure tests, and affected-baseline evidence
   before any future behavior-changing controller patch.
 
-This closes F18b controller policy for source-modernization purposes, but it
-does not close universal paper-correctness.  The next low-risk source-facing
-slice is F18b.3 ODEX/flow state productization for counters, traces, and
-last-failure snapshots.
+This historical packet no longer closes F18b controller policy by itself.  It
+still documents the previous conservative recommendation and the required gates
+for any behavior-changing controller patch.
+
+The active follow-up is
+`F18B4_ODEX_CONTROLLER_PAPER_ALIGNMENT_PLAN_20260516.md`.  Its first spec/probe
+slice adds `test_odex_controller_alignment_spec` and exposes the current
+order-transition branch for deterministic testing.
 
 ## F18b.3 State And Behavior-Correction Decision
 
@@ -311,16 +322,20 @@ Gate:
 - focused context-isolation tests;
 - exact-output or affected-baseline comparison for any counter/status surface.
 
-### F18b.4 - Optional Controller Alignment Patch
+### F18b.4 - Selected Controller Alignment Patch
 
-Goal: only after F18b.1/F18b.2, decide whether to patch controller behavior.
+Goal: implement the confirmed HWM-ODEX-001 direction by aligning controller
+behavior toward Hairer/paper or stronger-reference behavior, without batching all
+controller surfaces into one risky source patch.
 
-Candidate behavior-changing patches:
+Selected behavior-changing patch families:
 
-- Hairer-style initial-step estimator;
+- Hairer-style or stronger-reference initial-step estimator;
 - explicit step-size growth/shrink bounds;
-- corrected decrease/increase order thresholds;
-- broader stability check.
+- paper-aligned or reference-backed order decrease/increase thresholds;
+- h-min/min-step policy and failure classification;
+- rejected-step/status branch behavior;
+- stability policy.
 
 Gate:
 
@@ -333,14 +348,14 @@ Gate:
 
 ## Immediate Next Step
 
-Start F18b.3a, not a behavior-changing ODEX controller patch.
+F18b.3a has been implemented as a behavior-preserving state-productization
+slice, and F18b.4a has added the first spec/probe test target without changing
+endpoint integration behavior.
 
-The first source-facing patch should add explicit INTODE/ODEX diagnostics
-context ownership and focused context-isolation tests while preserving the
-current solver kernel, status mapping, public counters, and output summaries.
-If implementation reveals that a public diagnostic/status definition itself is
-wrong, stop and write a separate F4/F7/F8 behavior-correction packet before
-changing semantics.
+The next source-facing step is the first behavior-changing F18b.4 family:
+growth/shrink bounds plus order-threshold alignment.  Patch one controller
+family at a time.  Each family needs a row-specific F8 statement, focused tests,
+M4 gate, and affected-baseline plan before changing production behavior.
 
 ## Relationship To Other Workstreams
 

@@ -24,6 +24,17 @@ contains
 
       dy = ieee_value(0.0_dp, ieee_quiet_nan)
    end function rhs_nan
+
+   function rhs_late_nan(y) result(dy)
+      real(dp), intent(in) :: y(:)
+      real(dp) :: dy(size(y))
+
+      if (any(abs(y - 1.0_dp) > 1.0e-14_dp)) then
+         dy = ieee_value(0.0_dp, ieee_quiet_nan)
+      else
+         dy = 1.0_dp
+      end if
+   end function rhs_late_nan
 end module test_odex_controller_observation_rhs
 
 program test_odex_controller_observation_contract
@@ -31,10 +42,11 @@ program test_odex_controller_observation_contract
                            odex_integrate_endpoint, odex_observe_controller_estimate, &
                            odex_observe_h_min, odex_observe_initial_step, &
                            odex_observe_large_error_threshold, odex_observe_stability_reject, &
-                           odex_options, odex_reason_h_min, odex_reason_max_steps, odex_result, &
-                           odex_status_failure_h_min, odex_status_failure_max_steps, odex_status_success, &
+                           odex_options, odex_reason_h_min, odex_reason_invalid, odex_reason_max_steps, odex_result, &
+                           odex_status_failure_h_min, odex_status_failure_invalid, &
+                           odex_status_failure_max_steps, odex_status_success, &
                            odex_stability_control_conservative, odex_workspace
-   use test_odex_controller_observation_rhs, only: exp_lambda, rhs_exp, rhs_nan, rhs_zero
+   use test_odex_controller_observation_rhs, only: exp_lambda, rhs_exp, rhs_late_nan, rhs_nan, rhs_zero
    use utils, only: dp
    implicit none
 
@@ -91,26 +103,31 @@ contains
 
    subroutine check_step_sequence_and_work_estimate(failures)
       integer, intent(inout) :: failures
+      type(odex_options) :: options
       type(odex_workspace) :: workspace
       integer :: actual(6), expected(6), order_idx
       real(dp) :: h, er1, h_candidate, work_estimate, scale, ak_expected
-      real(dp) :: h_floor_candidate, work_floor_estimate, floor_scale
+      real(dp) :: h_floor_candidate, work_floor_estimate, facmin, floor_scale
       logical :: ok
 
       expected = [2, 4, 6, 8, 12, 16]
+      call odex_default_options(options, 1.0e-12_dp, 1.0e-12_dp)
       call build_nsteps(size(actual), actual)
       call ensure_odex_workspace_object(workspace, 6, 1)
 
       order_idx = 4
       h = -0.125_dp
       er1 = 0.25_dp
-      call odex_observe_controller_estimate(workspace, h, er1, order_idx, h_candidate, work_estimate)
       scale = 0.94_dp*(0.65_dp/er1)**(1.0_dp/(2.0_dp*real(order_idx, dp) - 1.0_dp))
+      facmin = options%step_size_bound_fac1**(1.0_dp/(2.0_dp*real(order_idx, dp) - 1.0_dp))
+      scale = min(1.0_dp/facmin, max(facmin/options%step_size_bound_fac2, scale))
+      call odex_observe_controller_estimate(workspace, h, er1, order_idx, h_candidate, work_estimate, options)
       ak_expected = 1.0_dp + sum(real(expected(1:order_idx), dp))
 
       call odex_observe_controller_estimate(workspace, abs(h), 0.0_dp, order_idx, &
-                                            h_floor_candidate, work_floor_estimate)
+                                            h_floor_candidate, work_floor_estimate, options)
       floor_scale = 0.94_dp*(0.65_dp/1.0e-14_dp)**(1.0_dp/(2.0_dp*real(order_idx, dp) - 1.0_dp))
+      floor_scale = min(1.0_dp/facmin, max(facmin/options%step_size_bound_fac2, floor_scale))
 
       ok = all(actual == expected) .and. h_candidate < 0.0_dp .and. work_estimate > 0.0_dp .and. &
            nearly_equal(h_candidate, h*scale, 1.0e-14_dp) .and. &
@@ -151,7 +168,7 @@ contains
       type(odex_workspace) :: workspace
       type(odex_result) :: result_state
       real(dp) :: y0(1), y_out(1)
-      logical :: failed, ok_budget, ok_hmin
+      logical :: failed, ok_budget, ok_hmin, ok_initial_invalid, ok_late_invalid
 
       call odex_default_options(options, 1.0e-10_dp, 1.0e-10_dp)
       options%max_steps = 1
@@ -170,7 +187,14 @@ contains
 
       call odex_default_options(options, 1.0e-10_dp, 1.0e-10_dp)
       options%max_steps = 1000
-      call odex_integrate_endpoint(rhs_nan, y0, 1.0_dp, y_out, failed, result_state, workspace, options)
+      options%stability_control = odex_stability_control_conservative
+      options%stability_growth_limit = 1.0001_dp
+      options%h_min_c_fp = 0.0_dp
+      options%h_min_c_tol = 1.0e12_dp
+      options%h_min_c_span = 0.5_dp
+      exp_lambda = 1.0e6_dp
+      y0(1) = 1.0e6_dp
+      call odex_integrate_endpoint(rhs_exp, y0, 1.0_dp, y_out, failed, result_state, workspace, options)
       ok_hmin = failed .and. result_state%status == odex_status_failure_h_min .and. &
                 result_state%failure_reason == odex_reason_h_min .and. &
                 result_state%rejected_steps > 0 .and. .not. result_state%endpoint_available
@@ -178,6 +202,28 @@ contains
          " status=", result_state%status, " rejected=", result_state%rejected_steps, &
          " final_h=", result_state%final_step_size
       call count_failure(ok_hmin, "[FAIL] h-min rejection classification changed.", failures)
+
+      call odex_default_options(options, 1.0e-10_dp, 1.0e-10_dp)
+      y0(1) = 1.0_dp
+      call odex_integrate_endpoint(rhs_nan, y0, 1.0_dp, y_out, failed, result_state, workspace, options)
+      ok_initial_invalid = failed .and. result_state%status == odex_status_failure_invalid .and. &
+                           result_state%failure_reason == odex_reason_invalid .and. &
+                           result_state%accepted_steps == 0 .and. result_state%rejected_steps == 0 .and. &
+                           .not. result_state%endpoint_available
+      write (*, '(A,L1,A,I0,A,I0,A,I0)') "[CHECK] initial_invalid_rhs_observation ok=", ok_initial_invalid, &
+         " status=", result_state%status, " accepted=", result_state%accepted_steps, &
+         " rejected=", result_state%rejected_steps
+      call count_failure(ok_initial_invalid, "[FAIL] initial invalid-RHS classification changed.", failures)
+
+      call odex_integrate_endpoint(rhs_late_nan, y0, 1.0_dp, y_out, failed, result_state, workspace, options)
+      ok_late_invalid = failed .and. result_state%status == odex_status_failure_invalid .and. &
+                        result_state%failure_reason == odex_reason_invalid .and. &
+                        result_state%accepted_steps == 0 .and. result_state%rejected_steps == 0 .and. &
+                        .not. result_state%endpoint_available
+      write (*, '(A,L1,A,I0,A,I0,A,I0)') "[CHECK] later_invalid_rhs_observation ok=", ok_late_invalid, &
+         " status=", result_state%status, " accepted=", result_state%accepted_steps, &
+         " rejected=", result_state%rejected_steps
+      call count_failure(ok_late_invalid, "[FAIL] later invalid-RHS classification changed.", failures)
    end subroutine check_failure_classification_surfaces
 
    subroutine check_stability_observation(failures)

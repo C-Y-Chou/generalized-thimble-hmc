@@ -126,7 +126,8 @@ contains
          call x_set_flow_time(replica%x, replica%flow_time)
          call x_set_seed_real(replica%x, x_seed)
          flow_status = intode_status_unknown
-         call flow(replica%x, replica%z, replica%jac, flow_failed, flow_status, run_context%flow%workspace)
+         call flow(replica%x, replica%z, replica%jac, flow_failed, flow_status, run_context%flow%workspace, &
+                   run_context%diagnostics%intode)
          if ((.not. flow_failed) .and. intode_status_is_strict_success(flow_status)) then
             ok = .true.
             exit
@@ -169,7 +170,7 @@ contains
                               qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
                               hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
                               hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
-                              newton_flow_status=newton_flow_status_context)
+                              newton_flow_status=newton_flow_status_context, intode_diagnostics=run_context%diagnostics%intode)
          if (accepted) then
             replica%x = x_new
             replica%z = z_new

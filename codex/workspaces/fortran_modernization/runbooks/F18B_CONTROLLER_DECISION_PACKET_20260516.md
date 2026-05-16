@@ -3,9 +3,26 @@
 Date: 2026-05-16 JST
 Scope: handwritten endpoint ODEX controller surfaces in
 `src/physics/odex_backend.f90`.
-Status: recommended F18b.2 policy packet; no production ODEX behavior change.
+Status: superseded on 2026-05-16 by confirmed HWM-ODEX-001 controller
+alignment decision; historical recommended F18b.2 policy packet, not a final
+no-change authorization.
 
-## Decision Summary
+## 2026-05-16 Supersession Addendum
+
+The user explicitly reopened the handwritten mismatch resolution question after
+the all-handwritten audit.  Therefore this packet must not be treated as a
+silent final decision to keep ODEX controller mismatches unchanged.
+
+Use
+`HANDWRITTEN_MISMATCH_RESOLUTION_TABLE_20260516.md`
+as the active decision entry point.  The user has now confirmed HWM-ODEX-001:
+change ODEX controller surfaces toward Hairer/paper or stronger-reference
+behavior.  This supersedes the previous "freeze current controller behavior"
+recommendation.  It does not by itself authorize an immediate numerical patch:
+F18b.4 must first write the controller spec, branch tests, F8 statement, and
+affected-baseline plan.
+
+## Historical Decision Summary
 
 F18b.2 keeps the handwritten ODEX backend as TLTM-owned endpoint code, freezes
 the current controller behavior as the modernization baseline, and does not
@@ -69,16 +86,15 @@ If a later patch changes a controller surface, classify it as follows:
 | default stability enablement | behavior-changing failure-surface patch | conservative-stability tests, M4, small paired screen |
 | error-floor/tolerance change | behavior-changing tolerance/precision patch | F20 precision profile packet plus paired baseline |
 
-## Immediate Consequence
+## Superseding Consequence
 
-F18b controller policy is closed for source modernization at the current
-behavioral baseline, but universal paper-correctness remains blocked.
+F18b controller policy is not closed at the current behavioral baseline.
+Universal paper-correctness remains blocked, and HWM-ODEX-001 selects a future
+controller alignment path.
 
-Next source-facing work should not be an ODEX controller behavior patch unless
-the user explicitly selects one of the candidate patch families above.  The
-lower-risk next modernization slice is F18b.3: ODEX/flow state productization
-for counters, traces, and last-failure snapshots, preserving the current
-solver kernel and output contracts.
+The next source-facing ODEX work is F18b.4 spec/branch-tests first.  Numerical
+controller behavior must still be patched in small families only after the
+row-specific F8 statement, focused tests, M4, and affected-baseline screen plan.
 
 The F18b.3 decision packet is
 `F18B3_ODEX_FLOW_STATE_AND_BEHAVIOR_CORRECTION_DECISION_20260516.md`.  Its
@@ -87,3 +103,6 @@ current public counters/status/output; any discovered counter/schema/status
 semantic fix must stop and become a separate F4/F7/F8 behavior-correction
 packet; any endpoint/final-flow/reverse-gate/proposal change remains a separate
 numerical behavior change.
+
+The F18b.4 plan is
+`F18B4_ODEX_CONTROLLER_PAPER_ALIGNMENT_PLAN_20260516.md`.

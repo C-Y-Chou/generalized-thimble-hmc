@@ -1,7 +1,7 @@
 module markovchain_mod
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use runtime_env_mod, only: read_string_env, runtime_to_lower_ascii => to_lower_ascii
-   use solve_flow, only: flow, &
+   use solve_flow, only: flow, flow_workspace_t, intode_diagnostics_context_t, &
                          get_intode_fallback_stats, &
                          get_intode_fallback_context_stats, &
                          get_intode_rescue_stats, &
@@ -295,7 +295,7 @@ contains
    end subroutine initialize_random_start
 
    subroutine adaptive_preflow_to_target(x_state, target_flow_time, trajectory_length, integration_steps, relax_level, success, stage_count, &
-                                         newton_flow_status)
+                                         newton_flow_status, flow_workspace, intode_diagnostics)
       implicit none
       real(dp), intent(inout) :: x_state(:)
       real(dp), intent(in) :: target_flow_time, trajectory_length
@@ -303,6 +303,8 @@ contains
       logical, intent(out) :: success
       integer, intent(out) :: stage_count
       type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
+      type(flow_workspace_t), intent(inout), optional, target :: flow_workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       real(dp), parameter :: near_zero_tol = 1.0e-12_dp
       real(dp), parameter :: min_dt_floor = 1.0e-8_dp
@@ -358,14 +360,15 @@ contains
             x_candidate = x_state
             call x_set_flow_time(x_candidate, t_next)
             flow_status = intode_status_unknown
-            call flow(x_candidate, z_candidate, jac_candidate, flow_failed, flow_status)
+            call flow(x_candidate, z_candidate, jac_candidate, flow_failed, flow_status, flow_workspace, intode_diagnostics)
             if (flow_failed .or. (.not. intode_status_is_strict_success(flow_status))) then
                dt_try = dt_try*step_shrink
                cycle
             end if
 
             call relax_with_zero_momentum(x_candidate, z_candidate, jac_candidate, relax_step_size, relax_steps, &
-                                          action_rel_tol, max_relax_iter, relax_ok, action_delta, relax_iter, newton_flow_status)
+                                          action_rel_tol, max_relax_iter, relax_ok, action_delta, relax_iter, newton_flow_status, &
+                                          flow_workspace, intode_diagnostics)
             if (.not. relax_ok) then
                dt_try = dt_try*step_shrink
                cycle
@@ -393,7 +396,7 @@ contains
    end subroutine adaptive_preflow_to_target
 
    subroutine relax_with_zero_momentum(x_state, z_state, jac_state, step_size, num_steps, action_rel_tol, max_iter, &
-                                       success, action_delta, iter_used, newton_flow_status)
+                                       success, action_delta, iter_used, newton_flow_status, flow_workspace, intode_diagnostics)
       implicit none
       real(dp), intent(inout) :: x_state(:)
       complex(dp), intent(inout) :: z_state(:), jac_state(:, :)
@@ -403,6 +406,8 @@ contains
       real(dp), intent(out) :: action_delta
       integer, intent(out) :: iter_used
       type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
+      type(flow_workspace_t), intent(inout), optional, target :: flow_workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       real(dp), allocatable :: x_trial(:)
       complex(dp), allocatable :: z_trial(:), jac_trial(:, :)
@@ -419,7 +424,8 @@ contains
 
       do iter = 1, max_iter
          call integrate_hmc_warmup(x_state, z_state, step_size, num_steps, x_trial, z_trial, h_initial, h_proposed, jac_state, &
-                                   jac_trial, newton_flow_status=newton_flow_status)
+                                   jac_trial, flow_workspace=flow_workspace, newton_flow_status=newton_flow_status, &
+                                   intode_diagnostics=intode_diagnostics)
          if ((.not. ieee_is_finite(h_initial)) .or. (.not. ieee_is_finite(h_proposed))) exit
 
          action_delta = abs(h_proposed - h_initial)

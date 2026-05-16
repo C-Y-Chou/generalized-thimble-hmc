@@ -2,7 +2,8 @@ module hmc_constraints
    use utils, only: dp, complex_to_real, map_to_real_mat, real_to_complex, real_vec
    use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-   use solve_flow, only: flowz, flow_workspace_t, set_intode_stage_trace, set_intode_newton_iter_trace, intode_stage_newton, &
+   use solve_flow, only: flowz, flow_workspace_t, intode_diagnostics_context_t, set_intode_stage_trace, set_intode_newton_iter_trace, &
+                         intode_stage_newton, &
                          intode_status_unknown, intode_status_success, intode_status_success_zero_time, &
                          intode_status_success_stiff_rescue, intode_status_success_solver_assist, &
                          intode_status_failure_max_steps, intode_status_failure_invalid, intode_status_failure_h_min
@@ -119,7 +120,7 @@ contains
    end subroutine reset_constraint_newton_warm_start
 
    subroutine solve_constraint_newton(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, x_seed, Jl_seed, workspace, &
-                                      flow_workspace, newton_flow_status)
+                                      flow_workspace, newton_flow_status, intode_diagnostics)
       implicit none
 
       integer, intent(in)          :: max_iter
@@ -135,20 +136,21 @@ contains
       type(newton_constraint_workspace_t), intent(inout), optional :: workspace
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
       type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       type(newton_constraint_workspace_t) :: local_workspace
 
       if (present(workspace)) then
          call solve_constraint_newton_with_workspace(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, &
-                                                     x_seed, Jl_seed, workspace, flow_workspace, newton_flow_status)
+                                                     x_seed, Jl_seed, workspace, flow_workspace, newton_flow_status, intode_diagnostics)
       else
          call solve_constraint_newton_with_workspace(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, &
-                                                     x_seed, Jl_seed, local_workspace, flow_workspace, newton_flow_status)
+                                                     x_seed, Jl_seed, local_workspace, flow_workspace, newton_flow_status, intode_diagnostics)
       end if
    end subroutine solve_constraint_newton
 
    subroutine solve_constraint_newton_with_workspace(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, &
-                                                     x_seed, Jl_seed, workspace, flow_workspace, newton_flow_status)
+                                                     x_seed, Jl_seed, workspace, flow_workspace, newton_flow_status, intode_diagnostics)
       implicit none
 
       integer, intent(in)          :: max_iter
@@ -164,6 +166,7 @@ contains
       type(newton_constraint_workspace_t), intent(inout) :: workspace
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
       type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       integer :: n, n2, info
       logical :: attempt_ok
@@ -229,7 +232,7 @@ contains
       call solve_constraint_newton_seeded(tol, max_iter, xt, z, del_z, workspace%jacr, workspace%jacr_lu, workspace%ipiv, &
                                           workspace%u_seed, workspace%ld_seed, workspace%B, workspace%xtu, workspace%u, &
                                           workspace%ld, workspace%dxi, workspace%au, workspace%av, attempt_ok, &
-                                          workspace%x_trial, flow_workspace, newton_flow_status)
+                                          workspace%x_trial, flow_workspace, newton_flow_status, intode_diagnostics)
 
       if (attempt_ok) then
          x_new = workspace%x_trial
@@ -243,7 +246,7 @@ contains
 
    subroutine solve_constraint_newton_seeded(tol, max_iter, xt, z, del_z, jacr, jacr_lu, ipiv, &
                                              u_seed, ld_seed, B, xtu, u, ld, dxi, au, av, converged, x_new, flow_workspace, &
-                                             newton_flow_status)
+                                             newton_flow_status, intode_diagnostics)
       implicit none
 
       integer, intent(in) :: max_iter
@@ -258,6 +261,7 @@ contains
       real(dp), intent(out) :: x_new(:)
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
       type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       real(dp) :: residual, residual_prev, residual_best, rel_improvement
       real(dp) :: near_tol, stagnation_floor, diverge_floor
@@ -286,10 +290,10 @@ contains
          residual_prev = norm2(B)
       else
          xtu(2:) = xt(2:) + u
-         call set_intode_stage_trace(intode_stage_newton)
-         call set_intode_newton_iter_trace(0)
+         call set_intode_stage_trace(intode_stage_newton, flow_workspace)
+         call set_intode_newton_iter_trace(0, flow_workspace)
          flow_status = intode_status_unknown
-         call flowz(xtu, z_new, solve_failed, flow_status, flow_workspace)
+         call flowz(xtu, z_new, solve_failed, flow_status, flow_workspace, intode_diagnostics)
          call record_newton_eval_flow_status(flow_status, newton_flow_status)
          if (solve_failed) then
             return
@@ -332,10 +336,10 @@ contains
          end do
 
          xtu(2:) = xt(2:) + u
-         call set_intode_stage_trace(intode_stage_newton)
-         call set_intode_newton_iter_trace(iter)
+         call set_intode_stage_trace(intode_stage_newton, flow_workspace)
+         call set_intode_newton_iter_trace(iter, flow_workspace)
          flow_status = intode_status_unknown
-         call flowz(xtu, z_new, solve_failed, flow_status, flow_workspace)
+         call flowz(xtu, z_new, solve_failed, flow_status, flow_workspace, intode_diagnostics)
          call record_newton_eval_flow_status(flow_status, newton_flow_status)
          if (solve_failed) return
 

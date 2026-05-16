@@ -2,7 +2,7 @@ module hmc_integrator_core
    use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use runtime_env_mod, only: read_string_env
-   use solve_flow, only: flow, flowz, flowzr, flow_workspace_t, set_intode_stage_trace, set_intode_newton_iter_trace, &
+   use solve_flow, only: flow, flowz, flowzr, flow_workspace_t, intode_diagnostics_context_t, set_intode_stage_trace, set_intode_newton_iter_trace, &
                          set_intode_quasi_iter_trace, set_intode_residual_role_trace, &
                          intode_stage_newton, intode_stage_quasi, intode_stage_rattle_flow, intode_stage_external, &
                          intode_role_nt_strict, intode_role_qn_navigation, intode_role_final_flow, intode_role_reverse_replay, &
@@ -199,7 +199,7 @@ contains
 
    subroutine rattle_step_core(state_x, state_z, step_size, final_x, final_z, jaci, jacf, momentum, &
                                method_converged, ws, step_status, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
-                               hmc_policy, hmc_replay_runtime, hmc_replay_diagnostics, newton_flow_status)
+                               hmc_policy, hmc_replay_runtime, hmc_replay_diagnostics, newton_flow_status, intode_diagnostics)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -221,6 +221,7 @@ contains
       type(hmc_replay_runtime_context_t), intent(inout), optional, target :: hmc_replay_runtime
       type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
       type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       integer :: n_state
       logical :: has_error
@@ -340,28 +341,28 @@ contains
 
       ws%del_z = step_size*momentum - step_size**2*ws%dV
 
-      call set_intode_stage_trace(intode_stage_newton)
+      call set_intode_stage_trace(intode_stage_newton, flow_workspace)
       if (active_hmc_replay_runtime%qn_reverse_gate_active) then
-         call set_intode_residual_role_trace(intode_role_reverse_replay)
+         call set_intode_residual_role_trace(intode_role_reverse_replay, flow_workspace)
       else
-         call set_intode_residual_role_trace(intode_role_nt_strict)
+         call set_intode_residual_role_trace(intode_role_nt_strict, flow_workspace)
       end if
-      call set_intode_newton_iter_trace(0)
-      call set_intode_quasi_iter_trace(0)
+      call set_intode_newton_iter_trace(0, flow_workspace)
+      call set_intode_quasi_iter_trace(0, flow_workspace)
       call solve_constraint_newton(cttol, 100, ws%temp_x, ws%temp_z, ws%del_z, step_size, has_error, ws%Jl, final_x, &
                                    ws%temp_jac, workspace=ws%newton_ws, flow_workspace=flow_workspace, &
-                                   newton_flow_status=newton_flow_status)
+                                   newton_flow_status=newton_flow_status, intode_diagnostics=intode_diagnostics)
       if (.not. has_error) then
          call record_constraint_solver_newton_success()
       else
          if (quasi_fallback_enabled) then
-            call set_intode_stage_trace(intode_stage_quasi)
+            call set_intode_stage_trace(intode_stage_quasi, flow_workspace)
             if (active_hmc_replay_runtime%qn_reverse_gate_active) then
-               call set_intode_residual_role_trace(intode_role_reverse_replay)
+               call set_intode_residual_role_trace(intode_role_reverse_replay, flow_workspace)
             else
-               call set_intode_residual_role_trace(intode_role_qn_navigation)
+               call set_intode_residual_role_trace(intode_role_qn_navigation, flow_workspace)
             end if
-            call set_intode_quasi_iter_trace(0)
+            call set_intode_quasi_iter_trace(0, flow_workspace)
             quasi_tol = cttol
             trace_stats_available = .false.
             trace_all_eval_ok = .false.
@@ -382,7 +383,7 @@ contains
 
             ! Official DFO-LS bridge: one package attempt, then classify failures for reject/RG diagnostics.
             call try_quasi_stage(quasi_tol, official_dfols_stage_marker_iter, constraint_quasi_stage_probe, ws, has_error, final_x, &
-                                 flow_workspace, qn_context, qn_diagnostics, qn_policy)
+                                 flow_workspace, qn_context, qn_diagnostics, qn_policy, intode_diagnostics)
             if (.not. has_error) then
                quasi_solved_ok = .true.
             else
@@ -454,7 +455,7 @@ contains
 
             if (has_error) then
                call get_intode_fallback_context_stats(attempt_flowz, attempt_flowzr, attempt_flow, attempt_unknown, &
-                                                      fail_flowz, fail_flowzr, fail_flow, fail_unknown)
+                                                      fail_flowz, fail_flowzr, fail_flow, fail_unknown, intode_diagnostics)
                call get_intode_rescue_stats(success_radau_adaptive, success_radau_adaptive_robust, &
                                             success_radau_fixed_tol, success_radau_chunked, success_final_resort, &
                                             fail_radau_adaptive_robust, fail_radau_fixed_tol, fail_radau_chunked, &
@@ -513,7 +514,7 @@ contains
          else
             call record_constraint_far_fail()
             call get_intode_fallback_context_stats(attempt_flowz, attempt_flowzr, attempt_flow, attempt_unknown, &
-                                                   fail_flowz, fail_flowzr, fail_flow, fail_unknown)
+                                                   fail_flowz, fail_flowzr, fail_flow, fail_unknown, intode_diagnostics)
             call get_intode_rescue_stats(success_radau_adaptive, success_radau_adaptive_robust, &
                                          success_radau_fixed_tol, success_radau_chunked, success_final_resort, &
                                          fail_radau_adaptive_robust, fail_radau_fixed_tol, fail_radau_chunked, &
@@ -546,15 +547,15 @@ contains
          return
       end if
 
-      call set_intode_stage_trace(intode_stage_rattle_flow)
+      call set_intode_stage_trace(intode_stage_rattle_flow, flow_workspace)
       if (active_hmc_replay_runtime%qn_reverse_gate_active) then
-         call set_intode_residual_role_trace(intode_role_reverse_replay)
+         call set_intode_residual_role_trace(intode_role_reverse_replay, flow_workspace)
       else
-         call set_intode_residual_role_trace(intode_role_final_flow)
+         call set_intode_residual_role_trace(intode_role_final_flow, flow_workspace)
       end if
-      call set_intode_newton_iter_trace(0)
-      call set_intode_quasi_iter_trace(0)
-      call flow(final_x, final_z, ws%temp_jac, has_error, final_flow_status, flow_workspace)
+      call set_intode_newton_iter_trace(0, flow_workspace)
+      call set_intode_quasi_iter_trace(0, flow_workspace)
+      call flow(final_x, final_z, ws%temp_jac, has_error, final_flow_status, flow_workspace, intode_diagnostics)
       if (has_error .or. (.not. intode_status_is_strict_success(final_flow_status))) then
          has_error = .true.
          if (present(step_status)) step_status = hmc_step_status_from_final_flow_status(final_flow_status)
@@ -594,7 +595,8 @@ contains
          reverse_gate_passed = qn_reverse_gate_accepts(state_x, state_z, initial_momentum_for_gate, &
                                                        final_x, final_z, jaci, ws%temp_jac, momentum, step_size, flow_workspace, &
                                                        qn_context, qn_diagnostics, qn_policy, active_hmc_policy, &
-                                                       active_hmc_replay_runtime, active_hmc_replay_diagnostics, newton_flow_status)
+                                                       active_hmc_replay_runtime, active_hmc_replay_diagnostics, newton_flow_status, &
+                                                       intode_diagnostics)
          call record_constraint_solver_reverse_gate(reverse_gate_passed, reverse_gate_used_probe_only, &
                                                     reverse_gate_used_full_stage, reverse_gate_used_near_rescue, &
                                                     reverse_gate_used_nonnear_route, reverse_gate_used_class_local, &
@@ -618,7 +620,7 @@ contains
       jacf = ws%temp_jac
       method_converged = .true.
       if (present(step_status)) step_status = hmc_step_status_success
-      call set_intode_stage_trace(intode_stage_external)
+      call set_intode_stage_trace(intode_stage_external, flow_workspace)
       if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
       call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
    end subroutine rattle_step_core
@@ -643,7 +645,8 @@ contains
 
    logical function qn_reverse_gate_accepts(state_x, state_z, initial_momentum, final_x, final_z, initial_jac, final_jac, &
                                             final_momentum, step_size, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
-                                            hmc_policy, hmc_replay_runtime, hmc_replay_diagnostics, newton_flow_status) result(accepts)
+                                            hmc_policy, hmc_replay_runtime, hmc_replay_diagnostics, newton_flow_status, &
+                                            intode_diagnostics) result(accepts)
       implicit none
       real(dp), intent(in) :: state_x(:), initial_momentum(:), final_x(:), final_momentum(:), step_size
       complex(dp), intent(in) :: state_z(:), final_z(:), initial_jac(:, :), final_jac(:, :)
@@ -655,6 +658,7 @@ contains
       type(hmc_replay_runtime_context_t), intent(inout), optional, target :: hmc_replay_runtime
       type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
       type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       real(dp), allocatable :: reverse_x(:), reverse_momentum(:)
       complex(dp), allocatable :: reverse_z(:), reverse_jac(:, :)
@@ -684,7 +688,8 @@ contains
       call push_constraint_solver_stats_suppression()
       call rattle_step_core(final_x, final_z, step_size, reverse_x, reverse_z, final_jac, reverse_jac, reverse_momentum, &
                             reverse_ok, reverse_ws, reverse_step_status, flow_workspace, qn_context, qn_diagnostics, qn_policy, &
-                            active_hmc_policy, active_hmc_replay_runtime, active_hmc_replay_diagnostics, newton_flow_status)
+                            active_hmc_policy, active_hmc_replay_runtime, active_hmc_replay_diagnostics, newton_flow_status, &
+                            intode_diagnostics)
       call pop_constraint_solver_stats_suppression()
       active_hmc_replay_runtime%qn_reverse_gate_active = .false.
       call record_reverse_gate_replay_status(reverse_step_status, active_hmc_replay_diagnostics)
@@ -706,7 +711,7 @@ contains
    end function qn_reverse_gate_accepts
 
    subroutine try_quasi_stage(quasi_tol, quasi_max_iter, stage_code, ws, has_error, final_x, flow_workspace, qn_context, qn_diagnostics, &
-                              qn_policy)
+                              qn_policy, intode_diagnostics)
       implicit none
       real(dp), intent(in) :: quasi_tol
       integer, intent(in) :: quasi_max_iter, stage_code
@@ -717,11 +722,12 @@ contains
       type(qn_context_t), intent(inout), optional, target :: qn_context
       type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
       type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
       call record_constraint_solver_quasi_stage_attempt(stage_code)
       call solve_constraint_quasi_newton(evaluate_constraint_residual, quasi_tol, quasi_max_iter, ws%temp_x, ws%temp_z, ws%del_z, &
                                          has_error, ws%Jl, final_x, ws%temp_jac, flow_workspace=flow_workspace, qn_context=qn_context, &
-                                         qn_diagnostics=qn_diagnostics, qn_policy=qn_policy)
+                                         qn_diagnostics=qn_diagnostics, qn_policy=qn_policy, intode_diagnostics=intode_diagnostics)
       if (.not. has_error) then
          call record_constraint_solver_quasi_stage_success(stage_code)
       end if
