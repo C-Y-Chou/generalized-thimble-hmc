@@ -1,6 +1,6 @@
 # TLTM Codex L0 Boot
 
-Generated: 2026-05-17T23:11:36+09:00
+Generated: 2026-05-17T23:17:39+09:00
 Remote refreshed: 2026-05-17T23:04:22+09:00
 
 ## Canonical Entry
@@ -18,6 +18,7 @@ Remote refreshed: 2026-05-17T23:04:22+09:00
 - Before local TLTM `git pull`, branch switch, cleanup, or overwrite, run `bash codex/tasks/refresh_local_state.sh` and `bash codex/tasks/render_l0_boot.sh`.
 - If a remote worktree has active pinned jobs, do not fast-forward or clean it.
 - For cluster02 queue choice, work splitting, submission, or job repair, use the cluster02 scheduling agent.
+- Modernization/source agents may prepare dry-runs and scheduler request rows, but real `qsub` requires cluster02 scheduler authority variables.
 - Do not use `qmove` as the official repair path; cancel/resubmit/rebuild dependencies.
 - Default read set is `HANDOFF_MIN -> L0_BOOT -> CAVEATS -> L1_INDEX -> chosen workspace STATE_BRIEF`.
 

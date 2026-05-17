@@ -16,6 +16,8 @@ cd "${repo_root}"
 : "${TLTM_BUILD_JOBS:=16}"
 : "${TLTM_ALLOW_OVERWRITE:=0}"
 : "${TLTM_DRY_RUN:=0}"
+: "${TLTM_CLUSTER02_SCHEDULER_AUTHORITY:=}"
+: "${TLTM_SCHEDULER_REQUEST_ID:=}"
 
 # First single-feasible profile: still executed in double precision for this
 # sensitivity gate, but the tolerances are deliberately no tighter than a
@@ -39,6 +41,11 @@ short_commit="$(git rev-parse --short=12 "${TLTM_EXPECTED_GIT_COMMIT}")"
 if [ "${TLTM_DRY_RUN}" != "1" ]; then
   if ! command -v qsub >/dev/null 2>&1; then
     echo "[ERROR] qsub not found. Run this launcher on the PBS login host or set TLTM_DRY_RUN=1." >&2
+    exit 2
+  fi
+  if [ "${TLTM_CLUSTER02_SCHEDULER_AUTHORITY}" != "cluster02_scheduler" ] || [ -z "${TLTM_SCHEDULER_REQUEST_ID}" ]; then
+    echo "[ERROR] Actual PBS submission is owned by the cluster02 scheduling agent." >&2
+    echo "[ERROR] Modernization agents may use TLTM_DRY_RUN=1, but qsub requires TLTM_CLUSTER02_SCHEDULER_AUTHORITY=cluster02_scheduler and TLTM_SCHEDULER_REQUEST_ID=<request-id>." >&2
     exit 2
   fi
   if [ -n "$(git status --porcelain)" ]; then
@@ -116,6 +123,8 @@ merge_job="$(run_qsub \
 manifest="${TLTM_ROOT_LOG_SUBDIR}/submit/submit_manifest_${stamp}.env"
 {
   echo "submitted_at=$(date '+%Y-%m-%dT%H:%M:%S%z')"
+  echo "scheduler_authority=${TLTM_CLUSTER02_SCHEDULER_AUTHORITY:-dry_run}"
+  echo "scheduler_request_id=${TLTM_SCHEDULER_REQUEST_ID:-dry_run}"
   echo "profile=${TLTM_F20_PROFILE}"
   echo "worktree=${TLTM_WORKTREE}"
   echo "expected_branch=${TLTM_EXPECTED_GIT_BRANCH}"

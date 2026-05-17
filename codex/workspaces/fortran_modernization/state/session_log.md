@@ -2140,3 +2140,23 @@
   `.deps/python-devel-3.11` cache is present.
 - Local checks passed: Python compile for the dynamic submitter, R2-only dry
   run, and `git diff --check`.
+
+## 2026-05-17 JST - Scheduler authority boundary hardening
+
+- User identified that modernization/scheduler interaction was not following
+  the stricter scheduler-owner pattern used in the active F23 work.  The issue
+  was not only a prompt problem: active modernization launchers still allowed a
+  source agent to perform real `qsub` if it had shell access.
+- Added a request ledger,
+  `state/CLUSTER02_SCHEDULER_REQUESTS.tsv`, and documented the authority split:
+  modernization owns physics intent, config, readiness, dry-runs, and
+  acceptance checks; cluster02 scheduler owns queue choice, work splitting,
+  real submission, cancellation/repair, and merge-dependency rebuilds.
+- Added technical submit guards: real M6 dynamic submission, F20 loose-double
+  submission, and the legacy single-seed RG submit helper now require
+  `TLTM_CLUSTER02_SCHEDULER_AUTHORITY=cluster02_scheduler` plus
+  `TLTM_SCHEDULER_REQUEST_ID=<request-id>`.  Dry-runs remain available for
+  modernization readiness checks.
+- Made the scheduler utility compatible with the cluster default Python 3.6
+  command path so `python3 .../cluster02_scheduler_agent.py show-policy` is a
+  usable scheduler entrypoint on the login host.

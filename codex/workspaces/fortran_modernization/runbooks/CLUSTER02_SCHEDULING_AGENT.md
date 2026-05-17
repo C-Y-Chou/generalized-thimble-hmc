@@ -37,6 +37,40 @@ The scheduler agent must therefore treat its memory as priors, not as a fixed tr
 - Treat failures as data: job id, queue, node, resource shape, exit status, action, and note.
 - Repair by cancel/resubmit/rebuild-merge, not by moving existing jobs.
 
+## Authority Boundary
+
+The scheduler agent owns queue mechanics. A modernization/source agent owns
+physics intent and readiness, but it must not become the scheduler.
+
+Modernization/source agents may:
+
+- define the science task, config, scale, methods, expected output root, and
+  acceptance/readback checks;
+- ensure the local and remote worktrees are on the intended branch/commit and
+  are clean;
+- run submitter `--dry-run` modes to verify the request shape;
+- add or update a request row in
+  `codex/workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_REQUESTS.tsv`.
+
+Modernization/source agents must not:
+
+- choose queues as an authority decision;
+- submit `qsub` jobs, cancel/requeue/repair jobs, or rebuild merge dependencies;
+- bypass the scheduler by running a job-specific submitter directly;
+- fast-forward an execution worktree while pinned jobs from that worktree are
+  active.
+
+Actual PBS submission requires both environment variables below. They are the
+technical guard that marks the caller as the scheduling authority:
+
+```bash
+export TLTM_CLUSTER02_SCHEDULER_AUTHORITY=cluster02_scheduler
+export TLTM_SCHEDULER_REQUEST_ID=<request-id-from-request-ledger>
+```
+
+Without these variables, active submit launchers must allow dry-runs but refuse
+real `qsub`.
+
 ## Submission Protocol
 
 1. Confirm the local branch and commit are the intended source.
@@ -46,7 +80,9 @@ The scheduler agent must therefore treat its memory as priors, not as a fixed tr
 5. Verify branch, commit, clean status, and `qsub`.
 6. Run the scheduler agent snapshot.
 7. If the batch is large or queue pressure is ambiguous, run short production-shape probes before bulk optimization.
-8. Run the dynamic launcher or a job-specific launcher that consumes the same knowledge file.
+8. Verify there is a request row in `CLUSTER02_SCHEDULER_REQUESTS.tsv`, export
+   the scheduler authority variables, then run the dynamic launcher or a
+   job-specific launcher that consumes the same knowledge file.
 9. Record the manifest, queue plan, and any follow-up observations.
 
 ## Current Long-Term Policy

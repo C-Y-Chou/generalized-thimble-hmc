@@ -28,10 +28,13 @@ Refresh local worktree state before local git switching/pulling/cleanup:
 
 Cluster/PBS rule:
 - If the work involves iTHEMS cluster02 queues, PBS submission, dataset generation, or job repair, the responsible scheduling authority is the task-local cluster02 scheduling agent.
+- Modernization/source agents may prepare configs, readiness checks, request rows, and dry-runs, but must not perform real `qsub`, queue choice, cancellation, repair submission, or merge-dependency rebuild themselves.
+- Actual submit launchers require `TLTM_CLUSTER02_SCHEDULER_AUTHORITY=cluster02_scheduler` and `TLTM_SCHEDULER_REQUEST_ID=<request-id>`.
 - For fortran_modernization, read /Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/fortran_modernization/runbooks/CLUSTER02_SCHEDULING_AGENT.md before choosing queues or splitting work.
 - Use the persistent scheduler knowledge and observation log before live qstat-based decisions:
   /Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_KNOWLEDGE.json
   /Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/fortran_modernization/state/CLUSTER02_QUEUE_OBSERVATIONS.tsv
+  /Users/ccy/Documents/TLTM_qn_error_handling/codex/workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_REQUESTS.tsv
 
 Then choose exactly one task workspace and continue there.
 Read that workspace's context/TASK.md and context/STATE_BRIEF.md if present.

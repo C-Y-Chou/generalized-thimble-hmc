@@ -14,6 +14,8 @@ Workflow rule:
 - Any cluster02 PBS scheduling, work splitting, queue choice, or failed-job repair must consult this agent first.
 - The agent reads persistent queue knowledge before live `qstat -Qf`.
 - Remote worktree safety still comes from the shared control-plane registries in `codex/state/`.
+- Modernization agents may prepare configs, readiness checks, acceptance criteria, and dry-runs, but they must not perform actual `qsub`, queue rebalance, or repair submission themselves.
+- Actual submit launchers require scheduler authority: `TLTM_CLUSTER02_SCHEDULER_AUTHORITY=cluster02_scheduler` plus `TLTM_SCHEDULER_REQUEST_ID=<request-id>`.
 
 Migration note:
 

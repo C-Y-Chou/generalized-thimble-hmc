@@ -64,6 +64,17 @@ The active launcher is:
 bash codex/workspaces/fortran_modernization/tasks/scripts/submit_m6_reference_datasets.sh
 ```
 
+Modernization/source agents may run the launcher with `--dry-run` to verify the
+requested work shape. Real PBS submission is scheduler-owned and requires:
+
+```bash
+export TLTM_CLUSTER02_SCHEDULER_AUTHORITY=cluster02_scheduler
+export TLTM_SCHEDULER_REQUEST_ID=<request-id-from-CLUSTER02_SCHEDULER_REQUESTS.tsv>
+```
+
+If those variables are absent, the launcher must refuse real `qsub` instead of
+letting modernization act as its own scheduler.
+
 That shell entrypoint delegates to:
 
 ```bash
@@ -75,10 +86,12 @@ The persistent scheduler memory is:
 ```bash
 codex/workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_KNOWLEDGE.json
 codex/workspaces/fortran_modernization/state/CLUSTER02_QUEUE_OBSERVATIONS.tsv
+codex/workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_REQUESTS.tsv
 codex/workspaces/fortran_modernization/runbooks/CLUSTER02_SCHEDULING_AGENT.md
 ```
 
-Future queue/work splitting decisions must consult this scheduler memory first, then live `qstat -Qf`.
+Future queue/work splitting decisions must originate from a request row, consult
+this scheduler memory first, then live `qstat -Qf`.
 
 ## Probe Update - 2026-05-10 19:45 JST
 

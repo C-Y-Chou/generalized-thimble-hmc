@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Persistent scheduler utility for iTHEMS cluster02 TLTM work."""
 
-from __future__ import annotations
-
 import argparse
 import json
 import os
@@ -34,7 +32,7 @@ def run(args: List[str], *, cwd: Path, check: bool = True) -> str:
         args,
         cwd=str(cwd),
         check=check,
-        text=True,
+        universal_newlines=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -191,7 +189,7 @@ def record_observation(root: Path, args: argparse.Namespace) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Persistent cluster02 scheduler agent utility.")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("show-policy")
     subparsers.add_parser("snapshot")
     check_parser = subparsers.add_parser("check-jobs")
@@ -206,6 +204,9 @@ def main() -> int:
     record_parser.add_argument("--action", required=True)
     record_parser.add_argument("--note", required=True)
     args = parser.parse_args()
+    if not args.command:
+        parser.print_help(sys.stderr)
+        return 2
 
     root = repo_root()
     os.chdir(str(root))

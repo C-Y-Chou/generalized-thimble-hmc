@@ -85,6 +85,9 @@ POLICY_EXCLUDED_QUEUES: Dict[str, str] = {
 DEFAULT_KNOWLEDGE_PATH = Path(
     "codex/workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_KNOWLEDGE.json"
 )
+SCHEDULER_AUTHORITY_ENV = "TLTM_CLUSTER02_SCHEDULER_AUTHORITY"
+SCHEDULER_REQUEST_ENV = "TLTM_SCHEDULER_REQUEST_ID"
+SCHEDULER_AUTHORITY_VALUE = "cluster02_scheduler"
 
 LEVELS: Tuple[LevelSpec, ...] = (
     LevelSpec(
@@ -399,6 +402,26 @@ def timestamp_utc() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def require_scheduler_authority(*, dry_run: bool) -> int:
+    if dry_run:
+        return 0
+    authority = os.environ.get(SCHEDULER_AUTHORITY_ENV, "")
+    request_id = os.environ.get(SCHEDULER_REQUEST_ENV, "")
+    if authority == SCHEDULER_AUTHORITY_VALUE and request_id:
+        return 0
+    print(
+        "[ERROR] Actual PBS submission is owned by the cluster02 scheduling agent. "
+        "Modernization agents may use --dry-run, but qsub requires "
+        "{}={} and {}=<request-id>.".format(
+            SCHEDULER_AUTHORITY_ENV,
+            SCHEDULER_AUTHORITY_VALUE,
+            SCHEDULER_REQUEST_ENV,
+        ),
+        file=sys.stderr,
+    )
+    return 2
+
+
 def qsub(
     root: Path,
     args: List[str],
@@ -564,6 +587,9 @@ def main() -> int:
     if not args.dry_run and shutil_which("qsub") is None:
         print("[ERROR] qsub not found. Re-run on the PBS cluster or use --dry-run.", file=sys.stderr)
         return 2
+    authority_error = require_scheduler_authority(dry_run=args.dry_run)
+    if authority_error:
+        return authority_error
     if not args.dry_run:
         status = git_value(root, "status", "--porcelain")
         if status:
@@ -633,6 +659,8 @@ def main() -> int:
         f"worktree={tltm_worktree}",
         f"expected_branch={expected_branch}",
         f"expected_commit={expected_commit}",
+        f"scheduler_authority={os.environ.get(SCHEDULER_AUTHORITY_ENV, 'dry_run')}",
+        f"scheduler_request_id={os.environ.get(SCHEDULER_REQUEST_ENV, 'dry_run')}",
         f"run_guardrails={run_guardrails}",
         f"allow_overwrite={allow_overwrite}",
         f"build_queue={build_queue}",
@@ -643,6 +671,8 @@ def main() -> int:
         "dry_run": args.dry_run,
         "manual_source": "ithems_cluster02_users_guide_rev10.0_en.pdf",
         "knowledge_file": args.knowledge or str(DEFAULT_KNOWLEDGE_PATH),
+        "scheduler_authority": os.environ.get(SCHEDULER_AUTHORITY_ENV, "dry_run"),
+        "scheduler_request_id": os.environ.get(SCHEDULER_REQUEST_ENV, "dry_run"),
         "policy_excluded_queues": excluded_queues,
         "queue_penalty_overrides": penalty_overrides,
         "build": {"job": build_job, "queue": build_queue},
