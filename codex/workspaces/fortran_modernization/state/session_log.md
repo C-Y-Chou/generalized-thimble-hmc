@@ -2093,3 +2093,30 @@
   focused helper/RG/RATTLE tests, synthetic product-wrapper retired-field
   filtering, script evidence audit, precision readiness audit, and
   `git diff --check`.  No local Stage2/Stage3 simulation screen was run.
+
+## 2026-05-17 JST - Pre-production handoff freeze
+
+- Committed and pushed F9 hygiene as
+  `0b0237ed874897f79b447c7cde3a7d917a6bfa9a`
+  (`Close pre-handoff hygiene sweep`).
+- Fast-forwarded the canonical remote modernization worktree to that commit.
+  Remote static/script gates passed, but remote precision readiness caught a
+  Linux case-sensitivity issue: the audit referenced `build/Makefile` while
+  the tracked file is `build/makefile`.
+- Fixed the precision audit and F20 runbook casing, committed and pushed
+  `8ab252e62eb8f5cbb55ebf8f36c0959e55ac4e02`
+  (`Fix precision audit build file casing`).
+- Fast-forwarded
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization` cleanly to
+  `8ab252e62eb8f5cbb55ebf8f36c0959e55ac4e02`.
+- Remote no-simulation handoff gates passed at that frozen code contract:
+  `git diff --check`, Python compile for product/Stage3/M4/audit scripts,
+  script evidence audit (`tracked_count=112`, `audited_count=112`), precision
+  readiness audit (`checks=12`), and product wrapper validate-only on the
+  canonical F12 artifact.
+- No additional Stage2/Stage3 simulation screen was launched after F9.  The
+  latest canonical PBS tiny-wrapper execution remains job `15552.anode01`; the
+  existing artifact was revalidated with the updated wrapper.
+- `MODERNIZATION_CANONICAL_HANDOFF_CLOSURE_20260517.md` now records the frozen
+  code contract, product wrapper boundary, raw Stage compatibility boundary,
+  and production-comparison handoff readiness.
