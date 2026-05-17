@@ -8,6 +8,10 @@ from pathlib import Path
 
 
 METHODS = ("no_fb", "fb_norefine")
+METHOD_ALIASES = {
+    "no_fb": ("no_fb", "nofb"),
+    "fb_norefine": ("fb_norefine", "withfb"),
+}
 
 
 def parse_args():
@@ -79,9 +83,10 @@ def fmt(value):
 
 
 def method_file(root, method, filename):
-    path = root / method / filename
-    if path.exists():
-        return path
+    for method_dir in METHOD_ALIASES.get(method, (method,)):
+        path = root / method_dir / filename
+        if path.exists():
+            return path
     direct = root / filename
     if direct.exists():
         return direct

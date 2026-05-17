@@ -32,15 +32,7 @@ module load mkl/2025.3
 
 cd "${TLTM_WORKTREE}"
 
-: "${TLTM_PYTHON_DEVEL_ROOT:=${TLTM_WORKTREE}/.deps/python-devel-3.11}"
-if [ -f "${TLTM_PYTHON_DEVEL_ROOT}/usr/include/python3.11/Python.h" ] && \
-   [ -e "${TLTM_PYTHON_DEVEL_ROOT}/usr/lib64/libpython3.11.so" ]; then
-  : "${PYTHON:=python3.11}"
-  : "${PYTHON_EMBED_CFLAGS:=-I${TLTM_PYTHON_DEVEL_ROOT}/usr/include/python3.11}"
-  : "${PYTHON_EMBED_LDFLAGS:=${TLTM_PYTHON_DEVEL_ROOT}/usr/lib64/libpython3.11.so -lpthread -ldl -lutil -lm}"
-  export PYTHON PYTHON_EMBED_CFLAGS PYTHON_EMBED_LDFLAGS
-  export LD_LIBRARY_PATH="${TLTM_PYTHON_DEVEL_ROOT}/usr/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
-fi
+. codex/workspaces/fortran_modernization/tasks/scripts/python_embed_env.sh
 
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 CURRENT_COMMIT="$(git rev-parse HEAD)"
