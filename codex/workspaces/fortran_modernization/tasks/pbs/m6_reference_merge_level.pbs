@@ -26,6 +26,13 @@ module load mkl/2025.3
 : "${TLTM_EXPECTED_ROWS_PER_METHOD:?TLTM_EXPECTED_ROWS_PER_METHOD is required}"
 : "${TLTM_REQUESTED_CPUS:=0}"
 : "${TLTM_CHUNKS_LABEL:=chunks}"
+: "${TLTM_TOLERANCE_PROFILE_LABEL:=strict_double}"
+: "${TLTM_STAGE2_ABS_TOL_OVERRIDE:=3e-14}"
+: "${TLTM_STAGE2_REL_TOL_OVERRIDE:=3e-14}"
+: "${TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE:=1e-13}"
+: "${QN_QUASI_TOL_OVERRIDE:=1e-13}"
+: "${QN_REVERSE_GATE_TOL:=1e-8}"
+: "${TLTM_REFERENCE_COMPARISON_ROOT:=}"
 
 cd "${TLTM_WORKTREE}"
 
@@ -173,6 +180,14 @@ manifest = {
     "root": str(root),
     "methods": list(methods),
     "expected_rows_per_method": expected,
+    "tolerance_profile_label": os.environ.get("TLTM_TOLERANCE_PROFILE_LABEL", "strict_double"),
+    "tolerances": {
+        "abs_tol": os.environ.get("TLTM_STAGE2_ABS_TOL_OVERRIDE", "3e-14"),
+        "rel_tol": os.environ.get("TLTM_STAGE2_REL_TOL_OVERRIDE", "3e-14"),
+        "constraint_tol": os.environ.get("TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE", "1e-13"),
+        "qn_quasi_tol": os.environ.get("QN_QUASI_TOL_OVERRIDE", "1e-13"),
+        "reverse_gate_tol": os.environ.get("QN_REVERSE_GATE_TOL", "1e-8"),
+    },
     "protocol": "local_update_swap_measure_history_label_trace",
     "physical_point": {"t": 0.35, "L": 2, "nstep": 20},
     "canonical_route": "Newton -> p28 QN BTN/backflow rescue residual -> reverse gate -> Metropolis",
@@ -191,6 +206,20 @@ PY
   echo "config=${TLTM_CONFIG_JSON}"
   echo "root=${TLTM_ROOT_SUBDIR}"
   echo "expected_rows_per_method=${TLTM_EXPECTED_ROWS_PER_METHOD}"
+  echo "tolerance_profile_label=${TLTM_TOLERANCE_PROFILE_LABEL}"
+  echo "abs_tol_override=${TLTM_STAGE2_ABS_TOL_OVERRIDE}"
+  echo "rel_tol_override=${TLTM_STAGE2_REL_TOL_OVERRIDE}"
+  echo "constraint_tol_override=${TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE}"
+  echo "qn_quasi_tol_override=${QN_QUASI_TOL_OVERRIDE}"
+  echo "reverse_gate_tol=${QN_REVERSE_GATE_TOL}"
 } > "${MERGE_LOG_DIR}/run_manifest.txt"
+
+if [ -n "${TLTM_REFERENCE_COMPARISON_ROOT}" ]; then
+  python3 codex/workspaces/fortran_modernization/tasks/scripts/compare_tolerance_profile_to_reference.py \
+    --reference-root "${TLTM_REFERENCE_COMPARISON_ROOT}" \
+    --candidate-root "${TLTM_ROOT_SUBDIR}" \
+    --output-root "${TLTM_ROOT_SUBDIR}/reference_comparison" \
+    --candidate-label "${TLTM_REF_LABEL}_${TLTM_TOLERANCE_PROFILE_LABEL}"
+fi
 
 date -Is

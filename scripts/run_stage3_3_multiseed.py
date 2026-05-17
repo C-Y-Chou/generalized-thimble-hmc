@@ -726,6 +726,8 @@ def render_parameters_text(
     warmup_cycles,
     x_history_file,
     initial_flow_time=None,
+    abs_tol_override=None,
+    rel_tol_override=None,
     constraint_tol_override=None,
 ):
     lines = base_parameters_text.splitlines()
@@ -750,6 +752,12 @@ def render_parameters_text(
     if initial_flow_time is not None:
         lines = set_key(lines, "initial_flow_time", "{0:g}".format(initial_flow_time))
     lines = set_key(lines, "warmup", str(warmup_cycles))
+    if abs_tol_override is not None:
+        lines = set_key(lines, "abs_tol", "{0:.17e}".format(float(abs_tol_override)))
+        lines = set_key(lines, "at", "{0:.17e}".format(float(abs_tol_override)))
+    if rel_tol_override is not None:
+        lines = set_key(lines, "rel_tol", "{0:.17e}".format(float(rel_tol_override)))
+        lines = set_key(lines, "rt", "{0:.17e}".format(float(rel_tol_override)))
     if constraint_tol_override is not None:
         lines = set_key(lines, "constraint_tol", "{0:.17e}".format(float(constraint_tol_override)))
         lines = set_key(lines, "cttol", "{0:.17e}".format(float(constraint_tol_override)))
@@ -1270,6 +1278,8 @@ def run_one_seed(
         warmup_cycles=setup["warmup_cycles"],
         x_history_file=x_history_file,
         initial_flow_time=setup.get("max_flow_time"),
+        abs_tol_override=os.environ.get("TLTM_STAGE2_ABS_TOL_OVERRIDE"),
+        rel_tol_override=os.environ.get("TLTM_STAGE2_REL_TOL_OVERRIDE"),
         constraint_tol_override=os.environ.get("TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE"),
     )
     (work_data_dir / "parameters.dat").write_text(isolated_params)

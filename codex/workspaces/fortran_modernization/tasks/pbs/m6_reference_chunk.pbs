@@ -56,14 +56,29 @@ export OMP_PROC_BIND=true
 export OMP_PLACES=cores
 export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
 
-export TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-13
+: "${TLTM_TOLERANCE_PROFILE_LABEL:=strict_double}"
+: "${TLTM_STAGE2_ABS_TOL_OVERRIDE:=3e-14}"
+: "${TLTM_STAGE2_REL_TOL_OVERRIDE:=3e-14}"
+: "${TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE:=1e-13}"
+: "${QN_QUASI_TOL_OVERRIDE:=1e-13}"
+: "${QN_REVERSE_GATE_TOL:=1e-8}"
+: "${QN_OFFICIAL_DFOLS_RHOEND:=1e-16}"
+: "${QN_OFFICIAL_DFOLS_MODEL_ABS_TOL:=1e-30}"
+: "${QN_OFFICIAL_DFOLS_MODEL_REL_TOL:=0}"
+export TLTM_TOLERANCE_PROFILE_LABEL
+export TLTM_STAGE2_ABS_TOL_OVERRIDE
+export TLTM_STAGE2_REL_TOL_OVERRIDE
+export TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE
 export QN_REVERSE_GATE_ENABLED=1
-export QN_REVERSE_GATE_TOL=1e-8
+export QN_REVERSE_GATE_TOL
 export QN_S1_PROBE_MAX_ITER=28
 export QN_S1_NEAR_RESCUE_ENABLED=0
 export QN_S1_NONNEAR_RESCUE_ENABLED=0
 export QN_QUASI_GLOBAL_FALLBACK_ENABLED=0
-export QN_QUASI_TOL_OVERRIDE=1e-13
+export QN_QUASI_TOL_OVERRIDE
+export QN_OFFICIAL_DFOLS_RHOEND
+export QN_OFFICIAL_DFOLS_MODEL_ABS_TOL
+export QN_OFFICIAL_DFOLS_MODEL_REL_TOL
 
 OUT_SUBDIR="${TLTM_ROOT_SUBDIR}/${TLTM_METHOD}/chunk_${TLTM_CHUNK_ID}"
 LOG_SUBDIR="${TLTM_ROOT_LOG_SUBDIR}/${TLTM_METHOD}/chunk_${TLTM_CHUNK_ID}"
@@ -107,10 +122,16 @@ fi
   echo "seed_offset=${TLTM_SEED_OFFSET}"
   echo "max_seeds=${TLTM_MAX_SEEDS}"
   echo "jobs=${TLTM_JOBS}"
+  echo "tolerance_profile_label=${TLTM_TOLERANCE_PROFILE_LABEL}"
+  echo "abs_tol_override=${TLTM_STAGE2_ABS_TOL_OVERRIDE}"
+  echo "rel_tol_override=${TLTM_STAGE2_REL_TOL_OVERRIDE}"
   echo "constraint_tol_override=${TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE}"
   echo "qn_quasi_tol_override=${QN_QUASI_TOL_OVERRIDE}"
   echo "reverse_gate_enabled=${QN_REVERSE_GATE_ENABLED}"
   echo "reverse_gate_tol=${QN_REVERSE_GATE_TOL}"
+  echo "qn_official_dfols_rhoend=${QN_OFFICIAL_DFOLS_RHOEND}"
+  echo "qn_official_dfols_model_abs_tol=${QN_OFFICIAL_DFOLS_MODEL_ABS_TOL}"
+  echo "qn_official_dfols_model_rel_tol=${QN_OFFICIAL_DFOLS_MODEL_REL_TOL}"
   echo "qn_s1_probe_max_iter=${QN_S1_PROBE_MAX_ITER}"
   echo "stage2_v1_sidecars=on"
   echo "stage2_protocol_audit=auto"
