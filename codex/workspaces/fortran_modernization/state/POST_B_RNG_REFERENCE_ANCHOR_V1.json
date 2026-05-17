@@ -2,7 +2,8 @@
   "contract": "per_replica_rng_v1",
   "normalization": [
     "summary elapsed_sec lines are replaced with <elapsed_sec>",
-    "summary runtime_sec columns are replaced with <runtime_sec>"
+    "summary runtime_sec columns are replaced with <runtime_sec>",
+    "summary last_accept_prob columns are replaced with <last_accept_prob>"
   ],
   "schema": "POST_B_RNG_REFERENCE_ANCHOR_V1",
   "seed": "12345",
@@ -11,6 +12,6 @@
   },
   "stage2": {
     "label_trace_normalized_sha256": "7a6a9b82a0e7c78fed27357ff95649ad0c467c220f29a46db91d6042303bf299",
-    "summary_normalized_sha256": "9ba34f0ab02a555284cb489578f1904f9dbafdc77c92604f7828f442f909b273"
+    "summary_normalized_sha256": "774bdc288abbbcf6a0a2f375dd6ebdcf8f82d89bda9c805f1f9ead2f326a571c"
   }
 }

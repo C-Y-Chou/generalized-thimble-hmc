@@ -574,7 +574,10 @@ The post-B RNG reference anchor update is expected for this patch because the
 default ODEX route is intentionally behavior/API relevant.  The Stage1 summary
 and Stage2 label-trace hashes stayed unchanged; the Stage2 summary hash moved
 from the old default-route value to the Hairer-counter value
-`9ba34f0ab02a555284cb489578f1904f9dbafdc77c92604f7828f442f909b273`.
+`9ba34f0ab02a555284cb489578f1904f9dbafdc77c92604f7828f442f909b273`.  A later
+cross-compiler normalization update also masks the pair-level
+`last_accept_prob` diagnostic so this anchor protects RNG stream order rather
+than final-digit `ifx`/`gfortran` formatting drift.
 
 Remote gate prepared:
 

@@ -143,28 +143,33 @@ def infer_official_dfols_env(repo_root):
 def normalize_text(path, normalize_summary):
     text = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
     normalized = []
-    runtime_index = None
+    normalized_indices = {}
     for raw_line in text:
         line = raw_line.rstrip()
         stripped = line.strip()
         if normalize_summary and stripped.startswith("# elapsed_sec="):
             normalized.append("# elapsed_sec=<elapsed_sec>")
-            runtime_index = None
+            normalized_indices = {}
             continue
         if stripped.startswith("#"):
             tokens = stripped[1:].strip().split()
             if tokens and tokens[0].startswith("[") and tokens[0].endswith("]"):
                 tokens = tokens[1:]
-            if normalize_summary and "runtime_sec" in tokens:
-                runtime_index = tokens.index("runtime_sec")
-            else:
-                runtime_index = None
+            normalized_indices = {}
+            if normalize_summary:
+                for column_name in ("runtime_sec", "last_accept_prob"):
+                    if column_name in tokens:
+                        normalized_indices[column_name] = tokens.index(column_name)
             normalized.append(line)
             continue
-        if normalize_summary and runtime_index is not None and stripped:
+        if normalize_summary and normalized_indices and stripped:
             tokens = line.split()
-            if len(tokens) > runtime_index:
-                tokens[runtime_index] = "<runtime_sec>"
+            replaced = False
+            for column_name, column_index in normalized_indices.items():
+                if len(tokens) > column_index:
+                    tokens[column_index] = "<{0}>".format(column_name)
+                    replaced = True
+            if replaced:
                 normalized.append(" ".join(tokens))
                 continue
         normalized.append(line)
@@ -250,6 +255,7 @@ def build_reference(actual_hashes):
         "normalization": [
             "summary elapsed_sec lines are replaced with <elapsed_sec>",
             "summary runtime_sec columns are replaced with <runtime_sec>",
+            "summary last_accept_prob columns are replaced with <last_accept_prob>",
         ],
     }
 
