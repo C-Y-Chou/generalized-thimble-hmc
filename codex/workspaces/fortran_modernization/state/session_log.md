@@ -2035,3 +2035,32 @@
   walltime because the paired worker already ran both policy drivers in
   parallel on 20 cores.  Treat `00:23:28` versus F18b.5i `00:27:49` as
   task-tail/scheduler behavior, not a new performance claim.
+
+## 2026-05-17 JST - Canonical modernization handoff closure
+
+- User approved direct rebuild of the canonical remote tree after remote-only
+  source inspection found no source improvement that should block replacing the
+  dirty remote snapshot.
+- Rebuilt `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization` from the
+  clean pushed commit `68f494a918a1a661b6dd26ea6883f1dc1c803b22` on branch
+  `codex/fortran-modernization`.
+- Preserved the old dirty remote tree at
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization_dirty_saved_20260517T035700Z`
+  and preserved the patch/untracked archive at
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization_dirty_archive_20260517T034954Z`.
+- Local and rebuilt remote no-simulation static gates passed:
+  Python compile for the product wrapper, Stage3, M4, protocol audit, F14, and
+  precision scripts; `bash -n` for the F12 PBS scaffold; JSON validation for
+  the F12 config.
+- First canonical F12 PBS attempt `15551.anode01` failed before build and
+  before Stage2/Stage3 execution because the rebuilt canonical tree lacked the
+  untracked `.deps/python-devel-3.11` header cache.  Restored the cache without
+  dirtying the worktree.
+- Repaired canonical F12 PBS handoff `15552.anode01` passed on C8/cnode17 with
+  `Exit_status=0`, `walltime=00:01:08`, wrapper manifest validation `pass`,
+  product tables `pass`, product methods `nofb,withfb`, raw methods
+  `fb_norefine,no_fb`, and zero missing sidecar/protocol/resolved-config paths.
+- Added `runbooks/MODERNIZATION_CANONICAL_HANDOFF_CLOSURE_20260517.md` as the
+  durable handoff packet and updated StateBrief, WorkMatrix, OpenItems,
+  ProgressTracker, and cluster queue observations.  The F4 local-transition
+  audit fixture remains separate from the F12 product-wrapper artifact.

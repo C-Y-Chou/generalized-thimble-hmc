@@ -137,8 +137,58 @@ raw_method = fb_norefine,no_fb
 
 The raw Stage3 tables remain compatibility/readback artifacts; product-facing tables expose canonical public method names while preserving `raw_method`.
 
+## Canonical Remote Handoff Readback
+
+After the scratch readback, the canonical remote target was rebuilt directly from the clean modernization commit:
+
+```text
+remote = /lustre1/home/cychou/TLTM_worktrees/fortran_modernization
+commit = 68f494a918a1a661b6dd26ea6883f1dc1c803b22
+status = clean
+old_dirty_tree = /lustre1/home/cychou/TLTM_worktrees/fortran_modernization_dirty_saved_20260517T035700Z
+dirty_patch_archive = /lustre1/home/cychou/TLTM_worktrees/fortran_modernization_dirty_archive_20260517T034954Z
+```
+
+The first canonical F12 submission failed before build and before Stage2/Stage3 execution because the rebuilt tree did not yet have the untracked Python 3.11 development-header cache:
+
+```text
+job = 15551.anode01
+Exit_status = 4
+first_error = missing Python.h
+```
+
+The cache was restored under `.deps/python-devel-3.11` without making the canonical git worktree dirty, and the canonical PBS handoff passed:
+
+```text
+job = 15552.anode01
+queue = C8
+node = cnode17
+Exit_status = 0
+walltime = 00:01:08
+artifact_root = output/tests/fortran_modernization/f12_product_wrapper_canonical_handoff_20260517_20260517T040448Z_68f494a918a1/product_wrapper
+```
+
+Canonical readback:
+
+```text
+product_wrapper_manifest.schema_version = tltm.product.wrapper.v1alpha1
+validation.status = pass
+method_set = canonical_pair
+canonical_route_id = constrained_hmc_reverse_gate_metropolis_v1
+precision_policy_id = double_strict_v1
+product_tables.status = pass
+per_seed_summary_table rows = 2
+product_per_seed_summary_table rows = 2
+product_aggregated_summary_table rows = 2
+product_method = nofb,withfb
+raw_method = fb_norefine,no_fb
+missing sidecar/protocol/resolved-config paths = 0
+```
+
+`scripts/run_tltm_product.py --validate-only` passed on the canonical artifact. See `MODERNIZATION_CANONICAL_HANDOFF_CLOSURE_20260517.md` for the complete closure packet and the F14/F4 fixture boundary.
+
 ## Next
 
 1. Keep F14's optional product-wrapper readback path wired into M4: wrapper validate-only must run before F14 when a wrapper output is supplied, and F14 records the F12 readback in its manifest scope.
-2. Keep raw Stage script deprecation deferred until wrapper readback and production-comparison handoff are accepted.
-3. Freeze a clean modernization commit before production-comparison handoff.
+2. Keep raw Stage script deprecation deferred until accepted-scale wrapper handoff and production-comparison consumption.
+3. Treat the rebuilt canonical commit as the modernization source/product-surface handoff point; production-comparison regeneration remains external.
