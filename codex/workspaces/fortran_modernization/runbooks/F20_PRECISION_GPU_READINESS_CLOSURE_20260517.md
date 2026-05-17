@@ -27,7 +27,7 @@ rejected at build time until a separate certification packet passes.
 
 ## Implemented Source/Build Contract
 
-- `build/Makefile` defines `TLTM_PRECISION ?= double` and
+- `build/makefile` defines `TLTM_PRECISION ?= double` and
   `TLTM_TOLERANCE_PROFILE ?= strict_double`.
 - The build fails if a user requests unsupported `single`, `mixed`, or weaker
   tolerance profiles.

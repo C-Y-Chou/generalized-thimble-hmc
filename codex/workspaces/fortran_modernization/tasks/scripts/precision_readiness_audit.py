@@ -73,7 +73,7 @@ REQUIRED_CHECKS = (
     },
     {
         "id": "build_profile_gate",
-        "path": "build/Makefile",
+        "path": "build/makefile",
         "patterns": (r"TLTM_PRECISION\s*\?=\s*double", r"TLTM_TOLERANCE_PROFILE\s*\?=\s*strict_double", r"SUPPORTED_TLTM_PRECISIONS\s*:=\s*double"),
         "boundary": "build-time profile interface exists and currently accepts only certified strict double",
     },
