@@ -8,6 +8,7 @@ Current implementation lives in the Fortran modernization workspace because it w
 - `codex/workspaces/fortran_modernization/tasks/scripts/cluster02_scheduler_agent.py`
 - `codex/workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_KNOWLEDGE.json`
 - `codex/workspaces/fortran_modernization/state/CLUSTER02_QUEUE_OBSERVATIONS.tsv`
+- `codex/agents/cluster02_scheduler/cluster02_qsub_gate.sh`
 
 Workflow rule:
 
@@ -16,6 +17,7 @@ Workflow rule:
 - Remote worktree safety still comes from the shared control-plane registries in `codex/state/`.
 - Modernization agents may prepare configs, readiness checks, acceptance criteria, and dry-runs, but they must not perform actual `qsub`, queue rebalance, or repair submission themselves.
 - Actual submit launchers require scheduler authority: `TLTM_CLUSTER02_SCHEDULER_AUTHORITY=cluster02_scheduler` plus `TLTM_SCHEDULER_REQUEST_ID=<request-id>`.
+- Real PBS submission should flow through the minimal shell gate `cluster02_qsub_gate.sh`; Python or other higher-level code may build plans but should not be the final authority boundary.
 
 Migration note:
 

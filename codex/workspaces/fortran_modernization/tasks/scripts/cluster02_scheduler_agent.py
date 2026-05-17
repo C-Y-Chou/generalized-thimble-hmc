@@ -21,7 +21,7 @@ def repo_root() -> Path:
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         check=True,
-        text=True,
+        universal_newlines=True,
         stdout=subprocess.PIPE,
     )
     return Path(result.stdout.strip()).resolve()

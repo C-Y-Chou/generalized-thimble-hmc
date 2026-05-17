@@ -428,7 +428,8 @@ def qsub(
     *,
     dry_run: bool,
 ) -> str:
-    return run(["qsub", *args], cwd=root, dry_run=dry_run, capture=not dry_run).strip()
+    gate = root / "codex/agents/cluster02_scheduler/cluster02_qsub_gate.sh"
+    return run([str(gate), *args], cwd=root, dry_run=dry_run, capture=not dry_run).strip()
 
 
 def join_deps(job_ids: List[str]) -> str:

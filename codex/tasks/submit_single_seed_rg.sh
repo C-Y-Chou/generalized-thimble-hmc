@@ -16,5 +16,5 @@ if [ "${TLTM_CLUSTER02_SCHEDULER_AUTHORITY}" != "cluster02_scheduler" ] || [ -z 
   exit 2
 fi
 
-jobid=$(qsub "$PBS_FILE")
+jobid=$(codex/agents/cluster02_scheduler/cluster02_qsub_gate.sh "$PBS_FILE")
 echo "submitted: $jobid"

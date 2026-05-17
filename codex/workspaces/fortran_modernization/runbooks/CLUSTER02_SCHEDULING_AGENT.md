@@ -71,6 +71,18 @@ export TLTM_SCHEDULER_REQUEST_ID=<request-id-from-request-ledger>
 Without these variables, active submit launchers must allow dry-runs but refuse
 real `qsub`.
 
+The final real-submit boundary is intentionally a small POSIX shell gate:
+
+```bash
+codex/agents/cluster02_scheduler/cluster02_qsub_gate.sh
+```
+
+Higher-level wrappers may be Python or another language for planning and
+readback, but the last step that calls PBS should stay low-dependency and easy
+to audit.  A compiled Go/Rust scheduler CLI can be reconsidered only if the
+planning layer outgrows shell/Python; it should still call through the same
+authority gate or preserve the same environment/request-ledger contract.
+
 ## Submission Protocol
 
 1. Confirm the local branch and commit are the intended source.

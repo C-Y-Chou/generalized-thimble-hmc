@@ -75,6 +75,12 @@ export TLTM_SCHEDULER_REQUEST_ID=<request-id-from-CLUSTER02_SCHEDULER_REQUESTS.t
 If those variables are absent, the launcher must refuse real `qsub` instead of
 letting modernization act as its own scheduler.
 
+The real PBS call should go through the shared shell gate:
+
+```bash
+codex/agents/cluster02_scheduler/cluster02_qsub_gate.sh
+```
+
 That shell entrypoint delegates to:
 
 ```bash

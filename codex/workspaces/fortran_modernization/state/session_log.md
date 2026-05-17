@@ -2160,3 +2160,7 @@
 - Made the scheduler utility compatible with the cluster default Python 3.6
   command path so `python3 .../cluster02_scheduler_agent.py show-policy` is a
   usable scheduler entrypoint on the login host.
+- Added `codex/agents/cluster02_scheduler/cluster02_qsub_gate.sh` as the
+  low-dependency final submit boundary.  Higher-level Python/shell launchers can
+  prepare plans and dry-runs, but real PBS submission now funnels through the
+  same scheduler-authority environment/request-id check.

@@ -69,7 +69,7 @@ run_qsub() {
     } >&2
     echo "DRYRUN_${stamp}_${RANDOM}"
   else
-    qsub "$@"
+    codex/agents/cluster02_scheduler/cluster02_qsub_gate.sh "$@"
   fi
 }
 
