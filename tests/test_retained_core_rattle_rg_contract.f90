@@ -2,7 +2,7 @@ program test_retained_core_rattle_rg_contract
    use hmc_integrator_core, only: get_reverse_gate_replay_status_counts, hmc_step_status_success, &
                                   hmc_step_status_final_flow_failed, hmc_replay_diagnostics_context_t, &
                                   record_reverse_gate_replay_status, reset_reverse_gate_replay_status_counts, rattle_step_core
-   use hmc_kernels, only: decompose2
+   use hmc_kernels, only: decompose_tangent_projection
    use hmc_state_buffers, only: release_rattle_step_workspace, rattle_step_workspace_t
    use constraint_solver_stats_mod, only: constraint_solver_stats_context_t, bind_constraint_solver_stats_context, &
                                           bind_module_constraint_solver_stats_context, release_constraint_solver_stats_context, &
@@ -119,7 +119,7 @@ contains
       real(dp) :: normal_norm
       real(dp), parameter :: tolerance = 5.0e-11_dp
 
-      call decompose2(momentum, tangent, tangent_component, normal_component, jacf, failed)
+      call decompose_tangent_projection(momentum, tangent, tangent_component, normal_component, jacf, failed)
       normal_norm = norm2(normal_component)
       ok = (.not. failed) .and. ieee_is_finite(normal_norm) .and. normal_norm <= tolerance
       write (*, '(A,L1,A,ES12.4,A,ES12.4)') "[CHECK] rattle_final_momentum_tangent ok=", ok, &

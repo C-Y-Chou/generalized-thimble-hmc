@@ -6,7 +6,7 @@ program test_retained_core_rg_reject_identity
                   hmc_proposal_status_step_failed, hmc_proposal_status_success, &
                   integrate_hmc_proposal, integrate_hmc_warmup
    use hmc_integrator_core, only: hmc_policy_context_t, hmc_step_status_reverse_gate_rejected, rattle_step_core
-   use hmc_kernels, only: decompose2
+   use hmc_kernels, only: decompose_tangent_projection
    use hmc_state_buffers, only: release_rattle_step_workspace, rattle_step_workspace_t
    use markovchain_metropolis, only: metropolis_status_from_hmc_status, metropolis_step
    use markovchain_transition_status, only: metropolis_status_accepted, metropolis_status_output_size_mismatch, &
@@ -62,6 +62,7 @@ program test_retained_core_rg_reject_identity
    call check_transition_accounting(accepted, proposal_failed, transition_status, failures)
    call check_direct_core_rg_reject_identity(failures)
    call check_warmup_failure_output_reset(failures)
+   call check_explicit_momentum_precedence(failures)
    call check_hmc_to_metropolis_status_mapping(failures)
    call check_finite_metropolis_reject_output_reset(failures)
 
@@ -206,7 +207,7 @@ contains
       do i_step = 1, size(step_candidates)
          do i_scale = 1, size(momentum_scales)
             call fill_trial_momentum(momentum, momentum_scales(i_scale))
-            call decompose2(momentum, full_coord, tangent, normal, jac, failed)
+            call decompose_tangent_projection(momentum, full_coord, tangent, normal, jac, failed)
             if (failed) cycle
             momentum = tangent
             hmc_x = -999.0_dp
@@ -281,6 +282,36 @@ contains
          " dx=", dx, " dz=", dz, " dj=", dj
       if (.not. ok) failures = failures + 1
    end subroutine check_warmup_failure_output_reset
+
+   subroutine check_explicit_momentum_precedence(failures)
+      integer, intent(inout) :: failures
+
+      real(dp), allocatable :: explicit_momentum(:), projected_coord(:), expected_tangent(:), expected_normal(:)
+      real(dp), allocatable :: initial_momentum(:), final_momentum(:)
+      logical :: projection_failed, proposal_ok, ok
+      integer :: proposal_status
+      real(dp) :: h_initial, h_final, dp_initial
+
+      allocate (explicit_momentum(2*n_seed), projected_coord(2*n_seed), expected_tangent(2*n_seed), expected_normal(2*n_seed))
+      allocate (initial_momentum(2*n_seed), final_momentum(2*n_seed))
+
+      call fill_trial_momentum(explicit_momentum, 0.35_dp)
+      call set_test_momentum(2.0_dp)
+      call decompose_tangent_projection(explicit_momentum, projected_coord, expected_tangent, expected_normal, jac, projection_failed)
+      call integrate_hmc_proposal(x, z, 0.0002_dp, 1, hmc_x, hmc_z, h_initial, h_final, jac, hmc_jac, &
+                                  proposal_ok, proposal_status, initial_momentum_out=initial_momentum, &
+                                  final_momentum_out=final_momentum, momentum_in=explicit_momentum)
+
+      dp_initial = maxabs_real(initial_momentum - expected_tangent)
+      ok = (.not. projection_failed) .and. ieee_is_finite(dp_initial) .and. dp_initial == 0.0_dp
+      write (*, '(A,L1,A,ES12.4,A,L1,A,I0)') &
+         "[CHECK] explicit_momentum_precedes_legacy_testmom ok=", ok, " dp=", dp_initial, &
+         " proposal_ok=", proposal_ok, " status=", proposal_status
+      if (.not. ok) failures = failures + 1
+
+      deallocate (explicit_momentum, projected_coord, expected_tangent, expected_normal)
+      deallocate (initial_momentum, final_momentum)
+   end subroutine check_explicit_momentum_precedence
 
    subroutine check_hmc_to_metropolis_status_mapping(failures)
       integer, intent(inout) :: failures

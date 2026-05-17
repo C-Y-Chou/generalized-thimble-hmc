@@ -6,7 +6,7 @@ module hmc
    use mt95, only: mt95_get_state, mt95_set_state, mt95_state_t
    use solve_flow, only: flow_workspace_t, intode_diagnostics_context_t, set_intode_rattle_trace, clear_intode_runtime_trace, &
                          get_intode_fallback_stats
-   use hmc_kernels, only: decompose2, calculate_hamiltonian
+   use hmc_kernels, only: calculate_hamiltonian, decompose_tangent_projection
    use hmc_constraints, only: reset_constraint_newton_warm_start, newton_eval_flow_status_context_t
    use hmc_state_buffers, only: rattle_step_workspace_t, release_rattle_step_workspace
    use tltm_run_context_mod, only: tltm_hmc_context_t
@@ -111,9 +111,10 @@ contains
       type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
       type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
 
-      call rattle2(state_x, state_z, step_size, num_steps, final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, &
-                   context, flow_workspace, qn_context, qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, &
-                   newton_flow_status, intode_diagnostics)
+      call integrate_hmc_warmup_core(state_x, state_z, step_size, num_steps, final_x, final_z, &
+                                     initial_hamiltonian, final_hamiltonian, jaci, jacf, context, flow_workspace, qn_context, &
+                                     qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, &
+                                     newton_flow_status, intode_diagnostics)
    end subroutine integrate_hmc_warmup
 
    subroutine rattle(state_x, state_z, step_size, num_steps, &
@@ -180,22 +181,22 @@ contains
       call clear_optional_momentum(initial_momentum_out)
       call clear_optional_momentum(final_momentum_out)
 
-	      if (size(final_x) /= size(state_x) .or. size(final_z) /= state_size) then
-	         proposal_status = hmc_proposal_status_output_size_mismatch
-	         jacf = jaci
-	         return
-	      end if
-	      if (present(momentum_in)) then
-	         if (size(momentum_in) /= 2*state_size) then
-	            proposal_status = hmc_proposal_status_output_size_mismatch
-	            final_x = state_x
-	            final_z = state_z
-	            jacf = jaci
-	            return
-	         end if
-	      end if
+      if (size(final_x) /= size(state_x) .or. size(final_z) /= state_size) then
+         proposal_status = hmc_proposal_status_output_size_mismatch
+         jacf = jaci
+         return
+      end if
+      if (present(momentum_in)) then
+         if (size(momentum_in) /= 2*state_size) then
+            proposal_status = hmc_proposal_status_output_size_mismatch
+            final_x = state_x
+            final_z = state_z
+            jacf = jaci
+            return
+         end if
+      end if
 
-	      allocate (momentum(2*state_size))
+      allocate (momentum(2*state_size))
       allocate (momentumuv(2*state_size), momentumu(2*state_size), momentumv(2*state_size))
       allocate (temp_x(size(state_x)), temp_z(state_size))
       allocate (temp_jac(size(jaci, 1), size(jaci, 2)))
@@ -208,20 +209,22 @@ contains
       jacf = jaci
       temp_jac = jaci
 
-	      if (present(momentum_in)) then
-	         momentum = momentum_in
-	      else if (present(momentum_rng_state)) then
-	         call mt95_set_state(momentum_rng_state)
-	         call grand(momentum)
-	         call mt95_get_state(momentum_rng_state)
+      if (present(momentum_in)) then
+         momentum = momentum_in
+      else if (istest) then
+         momentum = testmom
+      else if (present(momentum_rng_state)) then
+         call mt95_set_state(momentum_rng_state)
+         call grand(momentum)
+         call mt95_get_state(momentum_rng_state)
       else
          call grand(momentum)
       end if
-      if (istest) momentum = testmom
       if (present(context)) then
-         call decompose2(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, context%proposal_ws%decompose_ws)
+         call decompose_tangent_projection(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, &
+                                           context%proposal_ws%decompose_ws)
       else
-         call decompose2(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, ws%decompose_ws)
+         call decompose_tangent_projection(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, ws%decompose_ws)
       end if
       if (has_error) then
          proposal_status = hmc_proposal_status_initial_projection_failed
@@ -264,9 +267,10 @@ contains
       call report_state_progress_diagnostic("proposal", temp_x, final_x, hmc_reversibility)
 
       if (present(context)) then
-         call decompose2(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, context%proposal_ws%decompose_ws)
+         call decompose_tangent_projection(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, &
+                                           context%proposal_ws%decompose_ws)
       else
-         call decompose2(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, ws%decompose_ws)
+         call decompose_tangent_projection(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, ws%decompose_ws)
       end if
       if (has_error) then
          proposal_status = hmc_proposal_status_final_projection_failed
@@ -390,11 +394,11 @@ contains
          call report_state_progress_diagnostic("reverse_probe", local_prev_x, out_x, hmc_reversibility)
 
          if (present(context)) then
-            call decompose2(local_momentum, local_momentumuv, local_momentumu, local_momentumv, local_jac, local_error, &
-                            context%reverse_probe_ws%decompose_ws)
+            call decompose_tangent_projection(local_momentum, local_momentumuv, local_momentumu, local_momentumv, local_jac, &
+                                              local_error, context%reverse_probe_ws%decompose_ws)
          else
-            call decompose2(local_momentum, local_momentumuv, local_momentumu, local_momentumv, local_jac, local_error, &
-                            local_ws%decompose_ws)
+            call decompose_tangent_projection(local_momentum, local_momentumuv, local_momentumu, local_momentumv, local_jac, &
+                                              local_error, local_ws%decompose_ws)
          end if
          if (local_error) then
             local_proposal_status = hmc_proposal_status_final_projection_failed
@@ -527,6 +531,40 @@ contains
                       final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, context, flow_workspace, qn_context, &
                       qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, &
                       intode_diagnostics)
+      implicit none
+
+      real(dp), intent(in) :: state_x(:)
+      complex(dp), intent(in) :: state_z(:)
+      real(dp), intent(in) :: step_size
+      integer, intent(in) :: num_steps
+      complex(dp), intent(in) :: jaci(:, :)
+      complex(dp), intent(out) :: jacf(:, :)
+
+      real(dp), intent(out) :: final_x(:)
+      complex(dp), intent(out) :: final_z(:)
+      real(dp), intent(out) :: initial_hamiltonian
+      real(dp), intent(out) :: final_hamiltonian
+      type(tltm_hmc_context_t), intent(inout), optional :: context
+      type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(qn_context_t), intent(inout), optional, target :: qn_context
+      type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
+      type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+      type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
+      type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
+      type(hmc_reversibility_context_t), intent(inout), optional, target :: hmc_reversibility
+      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+
+      call integrate_hmc_warmup_core(state_x, state_z, step_size, num_steps, final_x, final_z, &
+                                     initial_hamiltonian, final_hamiltonian, jaci, jacf, context, flow_workspace, qn_context, &
+                                     qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, &
+                                     newton_flow_status, intode_diagnostics)
+   end subroutine rattle2
+
+   subroutine integrate_hmc_warmup_core(state_x, state_z, step_size, num_steps, &
+                                        final_x, final_z, initial_hamiltonian, final_hamiltonian, jaci, jacf, context, flow_workspace, qn_context, &
+                                        qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, &
+                                        intode_diagnostics)
       implicit none
 
       real(dp), intent(in) :: state_x(:)
@@ -714,7 +752,7 @@ contains
          call deallocate_all()
       end subroutine abort_with_failure
 
-   end subroutine rattle2
+   end subroutine integrate_hmc_warmup_core
 
    real(dp) function unavailable_hamiltonian() result(value)
       implicit none

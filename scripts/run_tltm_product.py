@@ -37,6 +37,27 @@ METHOD_SETS = {
 METHOD_ALIAS_SCHEMA = Path("codex/workspaces/fortran_modernization/schema/F7_METHOD_ALIASES_V1.json")
 PRODUCT_PER_SEED_TABLE = "product_per_seed_summary_table.csv"
 PRODUCT_AGGREGATED_TABLE = "product_aggregated_summary_table.csv"
+RETIRED_PRODUCT_RAW_FIELDS = {
+    "accepted_local_nonnear_route_count",
+    "quasi_watchdog_hit_count",
+    "quasi_watchdog_used_sum",
+    "quasi_watchdog_used_max",
+    "quasi_watchdog_budget_last",
+    "total_accepted_local_nonnear_route_count",
+    "total_quasi_watchdog_hit_count",
+    "total_quasi_watchdog_used_sum",
+    "total_quasi_watchdog_used_max",
+    "total_quasi_watchdog_budget_last",
+}
+RETIRED_PRODUCT_RAW_PREFIXES = (
+    "cvode_",
+    "mean_cvode_",
+    "total_cvode_",
+)
+RETIRED_PRODUCT_RAW_SUBSTRINGS = (
+    "post_refine",
+    "solver_assist",
+)
 
 
 def parse_args():
@@ -220,9 +241,31 @@ def load_method_aliases(repo_root):
     return mapping
 
 
+def is_product_raw_field_retired(key):
+    if key in RETIRED_PRODUCT_RAW_FIELDS:
+        return True
+    if any(key.startswith(prefix) for prefix in RETIRED_PRODUCT_RAW_PREFIXES):
+        return True
+    if any(fragment in key for fragment in RETIRED_PRODUCT_RAW_SUBSTRINGS):
+        return True
+    return False
+
+
+def collect_fieldnames(rows):
+    fieldnames = []
+    seen = set()
+    for row in rows:
+        for key in row:
+            if key not in seen:
+                seen.add(key)
+                fieldnames.append(key)
+    return fieldnames
+
+
 def productize_rows(rows, alias_map):
     product_rows = []
     unknown = []
+    excluded = set()
     for row in rows:
         raw_method = row.get("method", "")
         product_method = alias_map.get(raw_method, "")
@@ -232,16 +275,21 @@ def productize_rows(rows, alias_map):
         product_row = {"product_method": product_method, "raw_method": raw_method}
         product_row.update(PRODUCT_IDS)
         for key, value in row.items():
-            if key != "method":
-                product_row[key] = value
+            if key == "method":
+                continue
+            if is_product_raw_field_retired(key):
+                excluded.add(key)
+                continue
+            product_row[key] = value
         product_rows.append(product_row)
-    return product_rows, sorted(set(unknown))
+    return product_rows, sorted(set(unknown)), sorted(excluded)
 
 
 def write_product_tables(repo_root, output_dir):
     alias_map = load_method_aliases(repo_root)
     generated = {}
     unknown_methods = []
+    excluded_raw_fields = set()
     for source_name, target_name in (
         ("per_seed_summary_table.csv", PRODUCT_PER_SEED_TABLE),
         ("aggregated_summary_table.csv", PRODUCT_AGGREGATED_TABLE),
@@ -249,10 +297,11 @@ def write_product_tables(repo_root, output_dir):
         source_path = output_dir / source_name
         target_path = output_dir / target_name
         rows = read_csv_rows(source_path)
-        product_rows, unknown = productize_rows(rows, alias_map)
+        product_rows, unknown, excluded = productize_rows(rows, alias_map)
         unknown_methods.extend(unknown)
+        excluded_raw_fields.update(excluded)
         if product_rows:
-            fieldnames = list(product_rows[0].keys())
+            fieldnames = collect_fieldnames(product_rows)
         else:
             fieldnames = ["product_method", "raw_method"] + list(PRODUCT_IDS.keys())
         write_csv_rows(target_path, fieldnames, product_rows)
@@ -261,6 +310,7 @@ def write_product_tables(repo_root, output_dir):
         "status": "pass" if not unknown_methods else "warning",
         "generated": generated,
         "unknown_raw_methods": sorted(set(unknown_methods)),
+        "excluded_raw_fields": sorted(excluded_raw_fields),
     }
 
 

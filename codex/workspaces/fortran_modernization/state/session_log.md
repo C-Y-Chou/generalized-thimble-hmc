@@ -2064,3 +2064,32 @@
   durable handoff packet and updated StateBrief, WorkMatrix, OpenItems,
   ProgressTracker, and cluster queue observations.  The F4 local-transition
   audit fixture remains separate from the F12 product-wrapper artifact.
+
+## 2026-05-17 JST - F9 code-driven pre-handoff hygiene closure
+
+- User challenged whether the hygiene scope was genuinely code-scanned or just
+  based on ad hoc examples.  The initial patch was reclassified as incomplete,
+  then replaced with a tracked-code sweep over source, tests, scripts, PBS
+  scaffolds, and product wrapper output fields.
+- The sweep found an active RATTLE-core `decompose2` call missed by the first
+  pass; `src/sampler/hmc_integrator_core.f90` now uses
+  `decompose_tangent_projection`, and
+  `tests/test_retained_core_rattle_rg_contract.f90` follows the semantic entry.
+- `src/sampler/hmc_kernels.f90` exposes `decompose_tangent_projection` as the
+  active semantic helper while keeping `decompose2` as a compatibility wrapper.
+  `src/sampler/hmc.f90` exposes `integrate_hmc_warmup_core` while keeping
+  `rattle2` as a compatibility wrapper.
+- Explicit HMC `momentum_in` now takes precedence over the legacy
+  `istest/testmom` test hook; the deterministic test hook is used only when no
+  explicit momentum is supplied.
+- Deleted tracked root-level legacy helper copies:
+  `run_stage3_3_multiseed.py` and `run_rg_zacc_single.pbs`.  The canonical
+  current driver remains `scripts/run_stage3_3_multiseed.py`.
+- `scripts/run_tltm_product.py` now filters retired raw
+  diagnostic/comparison fields from `product_per_seed_summary_table.csv` and
+  `product_aggregated_summary_table.csv`, recording excluded fields in
+  `product_wrapper_manifest.json`; raw Stage tables are unchanged.
+- Verification passed: Python compile for product/Stage3/M4/audit scripts,
+  focused helper/RG/RATTLE tests, synthetic product-wrapper retired-field
+  filtering, script evidence audit, precision readiness audit, and
+  `git diff --check`.  No local Stage2/Stage3 simulation screen was run.

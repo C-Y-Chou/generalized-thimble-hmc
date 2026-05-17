@@ -31,6 +31,24 @@ contains
       dV = E0_real/2.0_dp
    end subroutine calculate_dV
 
+   subroutine decompose_tangent_projection(b, x, tangent, normal, jac, ierr, workspace)
+      implicit none
+      real(dp), intent(in)    :: b(:)
+      real(dp), intent(inout) :: x(:)
+      real(dp), intent(out)   :: tangent(:), normal(:)
+      complex(dp), intent(in) :: jac(:, :)
+      logical, intent(out)    :: ierr
+      type(decompose2_workspace_t), intent(inout), optional :: workspace
+
+      type(decompose2_workspace_t) :: local_workspace
+
+      if (present(workspace)) then
+         call decompose_tangent_projection_with_workspace(b, x, tangent, normal, jac, ierr, workspace)
+      else
+         call decompose_tangent_projection_with_workspace(b, x, tangent, normal, jac, ierr, local_workspace)
+      end if
+   end subroutine decompose_tangent_projection
+
    subroutine decompose2(b, x, au, av, jac, ierr, workspace)
       implicit none
       real(dp), intent(in)    :: b(:)
@@ -40,20 +58,14 @@ contains
       logical, intent(out)    :: ierr
       type(decompose2_workspace_t), intent(inout), optional :: workspace
 
-      type(decompose2_workspace_t) :: local_workspace
-
-      if (present(workspace)) then
-         call decompose2_with_workspace(b, x, au, av, jac, ierr, workspace)
-      else
-         call decompose2_with_workspace(b, x, au, av, jac, ierr, local_workspace)
-      end if
+      call decompose_tangent_projection(b, x, au, av, jac, ierr, workspace)
    end subroutine decompose2
 
-   subroutine decompose2_with_workspace(b, x, au, av, jac, ierr, workspace)
+   subroutine decompose_tangent_projection_with_workspace(b, x, tangent, normal, jac, ierr, workspace)
       implicit none
       real(dp), intent(in)    :: b(:)
       real(dp), intent(inout) :: x(:)
-      real(dp), intent(out)   :: au(:), av(:)
+      real(dp), intent(out)   :: tangent(:), normal(:)
       complex(dp), intent(in) :: jac(:, :)
       logical, intent(out)    :: ierr
       type(decompose2_workspace_t), intent(inout) :: workspace
@@ -66,15 +78,15 @@ contains
       n = size(b)
       ierr = .true.
       x = 0.0_dp
-      au = 0.0_dp
-      av = 0.0_dp
-      if (size(x) /= n .or. size(au) /= n .or. size(av) /= n) then
-         write (*, *) "Error(decompose2): b, x, au, av must have the same length."
+      tangent = 0.0_dp
+      normal = 0.0_dp
+      if (size(x) /= n .or. size(tangent) /= n .or. size(normal) /= n) then
+         write (*, *) "Error(decompose_tangent_projection): b, x, tangent, normal must have the same length."
          call perf_toc(PERF_DECOMPOSE2, t_prof)
          return
       end if
       if (size(jac, 1) /= size(jac, 2) .or. n /= 2*size(jac, 1)) then
-         write (*, *) "Error(decompose2): jac must be square and match the 2n real momentum dimension."
+         write (*, *) "Error(decompose_tangent_projection): jac must be square and match the 2n real momentum dimension."
          call perf_toc(PERF_DECOMPOSE2, t_prof)
          return
       end if
@@ -101,13 +113,13 @@ contains
          return
       end if
 
-      au = x
-      call real_vec(au)
-      call dgemv('N', n, n, 1.0_dp, workspace%jacr, n, au, 1, 0.0_dp, av, 1)
-      au = av
-      av = b - au
+      tangent = x
+      call real_vec(tangent)
+      call dgemv('N', n, n, 1.0_dp, workspace%jacr, n, tangent, 1, 0.0_dp, normal, 1)
+      tangent = normal
+      normal = b - tangent
       call perf_toc(PERF_DECOMPOSE2, t_prof)
-   end subroutine decompose2_with_workspace
+   end subroutine decompose_tangent_projection_with_workspace
 
    subroutine calculate_hamiltonian(z, p, h)
       implicit none

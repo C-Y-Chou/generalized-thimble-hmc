@@ -12,7 +12,7 @@ module hmc_integrator_core
    use param_mod, only: cttol, quasi_fallback_enabled
    use utils, only: dp, complex_to_real
    use model, only: ds
-   use hmc_kernels, only: calculate_dV, decompose2
+   use hmc_kernels, only: calculate_dV, decompose_tangent_projection
    use hmc_constraints, only: solve_constraint_newton, newton_eval_flow_status_context_t
    use hmc_state_buffers, only: rattle_step_workspace_t, ensure_rattle_step_workspace, release_rattle_step_workspace
    use quasi_newton_solver_mod, only: solve_constraint_quasi_newton, evaluate_constraint_residual, &
@@ -573,7 +573,7 @@ contains
       end if
 
       momentum = momentum - step_size*ws%dV
-      call decompose2(momentum, ws%E0_perp, ws%del_z, ws%Jl, ws%temp_jac, has_error, ws%decompose_ws)
+      call decompose_tangent_projection(momentum, ws%E0_perp, ws%del_z, ws%Jl, ws%temp_jac, has_error, ws%decompose_ws)
       if (has_error) then
          call abort_failed_step(hmc_step_status_final_projection_failed)
          return

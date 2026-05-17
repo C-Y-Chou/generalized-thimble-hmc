@@ -1,5 +1,5 @@
 program test_numerical_helper_contracts
-   use hmc_kernels, only: calculate_hamiltonian, decompose2
+   use hmc_kernels, only: calculate_hamiltonian, decompose2, decompose_tangent_projection
    use param_mod, only: read_parameters
    use utils, only: complex_to_real, dp, log_determinant, map_to_complex, map_to_complex_mat, &
                     map_to_real, map_to_real_mat, real_to_complex
@@ -109,7 +109,7 @@ contains
       jac = cmplx(0.0_dp, 0.0_dp, dp)
       jac(1, 1) = cmplx(1.0_dp, 0.0_dp, dp)
       jac(2, 2) = cmplx(1.0_dp, 0.0_dp, dp)
-      call decompose2(b, x, au, av, jac, ierr)
+      call decompose_tangent_projection(b, x, au, av, jac, ierr)
       ok = (.not. ierr) .and. maxval(abs(x - b)) == 0.0_dp .and. &
            maxval(abs(au - [1.0_dp, 0.0_dp, -3.0_dp, 0.0_dp])) == 0.0_dp .and. &
            maxval(abs(av - [0.0_dp, 2.0_dp, 0.0_dp, 4.0_dp])) == 0.0_dp
@@ -117,8 +117,16 @@ contains
       x = 9.0_dp
       au = 9.0_dp
       av = 9.0_dp
+      call decompose2(b, x, au, av, jac, ierr)
+      ok = ok .and. (.not. ierr) .and. maxval(abs(x - b)) == 0.0_dp .and. &
+           maxval(abs(au - [1.0_dp, 0.0_dp, -3.0_dp, 0.0_dp])) == 0.0_dp .and. &
+           maxval(abs(av - [0.0_dp, 2.0_dp, 0.0_dp, 4.0_dp])) == 0.0_dp
+
+      x = 9.0_dp
+      au = 9.0_dp
+      av = 9.0_dp
       bad_jac = cmplx(1.0_dp, 0.0_dp, dp)
-      call decompose2(b, x, au, av, bad_jac, ierr)
+      call decompose_tangent_projection(b, x, au, av, bad_jac, ierr)
       ok = ok .and. ierr .and. maxval(abs(x)) == 0.0_dp .and. maxval(abs(au)) == 0.0_dp .and. &
            maxval(abs(av)) == 0.0_dp
 
