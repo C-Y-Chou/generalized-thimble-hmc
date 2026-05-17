@@ -197,13 +197,15 @@ def validate_claim_policy(repo_root, failures, keep_going):
     rules = policy.get("reporting_rules", [])
     forbidden = policy.get("forbidden_claims", [])
     required_runtime = set(official.get("required_runtime_fields", []))
+    required_manifest = set(official.get("required_manifest_fields", []))
     ok = (
         policy.get("schema_version") == "DFOLS_CLAIM_PROVENANCE_POLICY_V1"
         and official.get("backend_label") == "official_dfols"
         and official.get("package_distribution") == "DFO-LS"
         and official.get("package_version") == EXPECTED_DFOLS_VERSION
         and official.get("package_license") == EXPECTED_DFOLS_LICENSE
-        and {"ENABLE_OFFICIAL_DFOLS", "TLTM_OFFICIAL_DFOLS_PYTHONPATH", "QN_SOLVER_BACKEND", "QN_OFFICIAL_DFOLS_PRESET"}.issubset(required_runtime)
+        and {"ENABLE_OFFICIAL_DFOLS", "TLTM_OFFICIAL_DFOLS_PYTHONPATH", "QN_OFFICIAL_DFOLS_PRESET"}.issubset(required_runtime)
+        and {"qn_solver_policy_id"}.issubset(required_manifest)
         and historical.get("backend_label") == "internal_or_historical_dfols_style"
         and len(rules) >= 3
         and len(forbidden) >= 2

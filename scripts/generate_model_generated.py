@@ -110,7 +110,36 @@ module model_generated
    use utils, only: dp
    implicit none
 
+   type, public :: model_context_t
+      integer :: reserved = 0
+   end type model_context_t
+
+   type(model_context_t), target, save :: module_model_context
+   type(model_context_t), pointer, save :: active_model_context => null()
+
+   public :: bind_model_context, bind_module_model_context, release_model_context
+
 contains
+
+   subroutine bind_model_context(context)
+      type(model_context_t), intent(inout), target :: context
+
+      active_model_context => context
+   end subroutine bind_model_context
+
+   subroutine bind_module_model_context()
+      active_model_context => module_model_context
+   end subroutine bind_module_model_context
+
+   subroutine release_model_context(context)
+      type(model_context_t), intent(inout), target :: context
+      logical :: was_active
+
+      was_active = associated(active_model_context)
+      if (was_active) was_active = associated(active_model_context, context)
+      context = model_context_t()
+      if (was_active) call bind_module_model_context()
+   end subroutine release_model_context
 
    subroutine calculate_action_generated(z, alpha, beta, s)
       complex(dp), intent(in) :: z(:)
@@ -197,19 +226,65 @@ def _generate_tape_fortran(body_text: str, body_path: Path) -> str:
 ! Backend: tape-generic
 module model_generated
    use utils, only: dp
-   use model_tape_ad, only: rev_t, tape_begin, tape_input, tape_const, tape_set_inputs, &
+   use model_tape_ad, only: rev_t, model_tape_context_t, bind_model_tape_context, &
+                            bind_module_model_tape_context, release_model_tape_context, &
+                            tape_begin, tape_input, tape_const, tape_set_inputs, &
                             tape_forward_values, tape_grad, tape_hvp, &
                             operator(+), operator(-), operator(*), operator(/), operator(**), log, exp
    implicit none
-   logical, save :: tape_ready = .false.
-   logical, save :: tape_point_ready = .false.
-   integer, save :: tape_n = 0
-   integer, save :: tape_out_id = 0
-   complex(dp), save :: tape_alpha = cmplx(0.0_dp, 0.0_dp, dp)
-   complex(dp), save :: tape_beta = cmplx(0.0_dp, 0.0_dp, dp)
-   complex(dp), allocatable, save :: tape_last_z(:)
+
+   type, public :: model_context_t
+      type(model_tape_context_t) :: tape_context
+      logical :: tape_ready = .false.
+      logical :: tape_point_ready = .false.
+      integer :: tape_n = 0
+      integer :: tape_out_id = 0
+      complex(dp) :: tape_alpha = cmplx(0.0_dp, 0.0_dp, dp)
+      complex(dp) :: tape_beta = cmplx(0.0_dp, 0.0_dp, dp)
+      complex(dp), allocatable :: tape_last_z(:)
+   end type model_context_t
+
+   type(model_context_t), target, save :: module_model_context
+   type(model_context_t), pointer, save :: active_model_context => null()
+
+   public :: bind_model_context, bind_module_model_context, release_model_context
 
 contains
+
+   subroutine ensure_model_context_bound()
+      if (.not. associated(active_model_context)) call bind_module_model_context()
+      call bind_model_tape_context(active_model_context%tape_context)
+   end subroutine ensure_model_context_bound
+
+   subroutine bind_model_context(context)
+      type(model_context_t), intent(inout), target :: context
+
+      active_model_context => context
+      call bind_model_tape_context(active_model_context%tape_context)
+   end subroutine bind_model_context
+
+   subroutine bind_module_model_context()
+      active_model_context => module_model_context
+      call bind_module_model_tape_context()
+      call bind_model_tape_context(active_model_context%tape_context)
+   end subroutine bind_module_model_context
+
+   subroutine release_model_context(context)
+      type(model_context_t), intent(inout), target :: context
+      logical :: was_active
+
+      was_active = associated(active_model_context)
+      if (was_active) was_active = associated(active_model_context, context)
+      if (allocated(context%tape_last_z)) deallocate (context%tape_last_z)
+      call release_model_tape_context(context%tape_context)
+      context%tape_ready = .false.
+      context%tape_point_ready = .false.
+      context%tape_n = 0
+      context%tape_out_id = 0
+      context%tape_alpha = cmplx(0.0_dp, 0.0_dp, dp)
+      context%tape_beta = cmplx(0.0_dp, 0.0_dp, dp)
+      if (was_active) call bind_module_model_context()
+   end subroutine release_model_context
 
    subroutine calculate_action_generated(z, alpha, beta, s)
       complex(dp), intent(in) :: z(:)
@@ -234,6 +309,7 @@ contains
       complex(dp), parameter :: three = cmplx(3.0_dp, 0.0_dp, dp)
       integer :: i, n
 
+      call ensure_model_context_bound()
       n = size(z_in)
       call tape_begin(n)
 
@@ -252,25 +328,27 @@ contains
       complex(dp), intent(in) :: alpha, beta
       integer :: n
 
+      call ensure_model_context_bound()
       n = size(z)
-      if (.not. tape_ready .or. tape_n /= n .or. alpha /= tape_alpha .or. beta /= tape_beta) then
-         call build_action_tape(z, alpha, beta, tape_out_id)
-         tape_n = n
-         tape_alpha = alpha
-         tape_beta = beta
-         tape_ready = .true.
-         if (allocated(tape_last_z)) then
-            if (size(tape_last_z) /= n) deallocate (tape_last_z)
+      if (.not. active_model_context%tape_ready .or. active_model_context%tape_n /= n .or. &
+          alpha /= active_model_context%tape_alpha .or. beta /= active_model_context%tape_beta) then
+         call build_action_tape(z, alpha, beta, active_model_context%tape_out_id)
+         active_model_context%tape_n = n
+         active_model_context%tape_alpha = alpha
+         active_model_context%tape_beta = beta
+         active_model_context%tape_ready = .true.
+         if (allocated(active_model_context%tape_last_z)) then
+            if (size(active_model_context%tape_last_z) /= n) deallocate (active_model_context%tape_last_z)
          end if
-         if (.not. allocated(tape_last_z)) allocate (tape_last_z(n))
-         tape_last_z = z
-         tape_point_ready = .true.
+         if (.not. allocated(active_model_context%tape_last_z)) allocate (active_model_context%tape_last_z(n))
+         active_model_context%tape_last_z = z
+         active_model_context%tape_point_ready = .true.
       else
-         if (.not. tape_point_ready .or. any(z /= tape_last_z)) then
+         if (.not. active_model_context%tape_point_ready .or. any(z /= active_model_context%tape_last_z)) then
             call tape_set_inputs(z)
             call tape_forward_values()
-            tape_last_z = z
-            tape_point_ready = .true.
+            active_model_context%tape_last_z = z
+            active_model_context%tape_point_ready = .true.
          end if
       end if
    end subroutine ensure_action_tape
@@ -288,7 +366,7 @@ contains
       end if
 
       call ensure_action_tape(z, alpha, beta)
-      call tape_grad(tape_out_id, s)
+      call tape_grad(active_model_context%tape_out_id, s)
    end subroutine ds_generated
 
    subroutine hessian_generated(z, alpha, beta, h)
@@ -310,7 +388,7 @@ contains
       do j = 1, n
          e = cmplx(0.0_dp, 0.0_dp, dp)
          e(j) = cmplx(1.0_dp, 0.0_dp, dp)
-         call tape_hvp(tape_out_id, e, h(:, j))
+         call tape_hvp(active_model_context%tape_out_id, e, h(:, j))
       end do
    end subroutine hessian_generated
 
@@ -328,7 +406,7 @@ contains
       end if
 
       call ensure_action_tape(z, alpha, beta)
-      call tape_hvp(tape_out_id, v, hv)
+      call tape_hvp(active_model_context%tape_out_id, v, hv)
    end subroutine hessian_vec_generated
 
 end module model_generated

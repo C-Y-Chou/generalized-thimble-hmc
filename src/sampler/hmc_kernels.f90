@@ -63,12 +63,27 @@ contains
       external :: dgetrf, dgetrs, dgemv
 
       call perf_tic(t_prof)
-      call ensure_real_mat(workspace%jacr, 2*size(jac, 1), 2*size(jac, 2))
-      call ensure_real_mat(workspace%jacr_lu, 2*size(jac, 1), 2*size(jac, 2))
+      n = size(b)
+      ierr = .true.
+      x = 0.0_dp
+      au = 0.0_dp
+      av = 0.0_dp
+      if (size(x) /= n .or. size(au) /= n .or. size(av) /= n) then
+         write (*, *) "Error(decompose2): b, x, au, av must have the same length."
+         call perf_toc(PERF_DECOMPOSE2, t_prof)
+         return
+      end if
+      if (size(jac, 1) /= size(jac, 2) .or. n /= 2*size(jac, 1)) then
+         write (*, *) "Error(decompose2): jac must be square and match the 2n real momentum dimension."
+         call perf_toc(PERF_DECOMPOSE2, t_prof)
+         return
+      end if
+
+      call ensure_real_mat(workspace%jacr, n, n)
+      call ensure_real_mat(workspace%jacr_lu, n, n)
       call map_to_real_mat(jac, workspace%jacr)
       ierr = .false.
 
-      n = size(b)
       call ensure_int_vec(workspace%ipiv, n)
       workspace%jacr_lu = workspace%jacr
       x = b
@@ -104,6 +119,8 @@ contains
 
       if (2*size(z) /= size(p)) then
          write (*, *) "Warning: z and p differ in length in calculate_hamiltonian."
+         h = huge(1.0_dp)
+         return
       end if
 
       call calculate_action(z, s)

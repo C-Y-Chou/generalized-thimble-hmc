@@ -30,9 +30,7 @@ int tltm_official_dfols_solve(
     void *ctx,
     tltm_dfols_objfun_cb objfun)
 {
-    (void)n;
-    (void)x0;
-    (void)x_out;
+    int i;
     (void)npt;
     (void)rhobeg;
     (void)rhoend;
@@ -45,6 +43,9 @@ int tltm_official_dfols_solve(
     if (package_residual_norm) *package_residual_norm = HUGE_VAL;
     if (nf) *nf = 0;
     if (flag) *flag = -1000;
+    if (n > 0 && x0 && x_out) {
+        for (i = 0; i < n; ++i) x_out[i] = x0[i];
+    }
     return 1000;
 }
 
@@ -333,11 +334,13 @@ int tltm_official_dfols_solve(
     PyObject *soln_resid = NULL;
     PyObject *attr = NULL;
     int status = 0;
+    int i = 0;
 
     if (package_residual_norm) *package_residual_norm = HUGE_VAL;
     if (nf) *nf = 0;
     if (flag) *flag = -999;
     if (n <= 0 || !x0 || !x_out || !objfun) return 1;
+    for (i = 0; i < n; ++i) x_out[i] = x0[i];
 
     if (!Py_IsInitialized()) {
         Py_Initialize();

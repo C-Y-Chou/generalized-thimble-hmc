@@ -1238,6 +1238,50 @@ contains
       end do
    end function vector_has_invalid
 
+   function complex_vector_has_invalid(values) result(has_invalid)
+      implicit none
+      complex(dp), intent(in) :: values(:)
+      logical :: has_invalid
+      integer :: idx
+
+      has_invalid = .false.
+      do idx = 1, size(values)
+         if (.not. ieee_is_finite(real(values(idx), dp)) .or. .not. ieee_is_finite(aimag(values(idx)))) then
+            has_invalid = .true.
+            return
+         end if
+      end do
+   end function complex_vector_has_invalid
+
+   logical function flow_x_z_shape_ok(x, z) result(ok)
+      implicit none
+      real(dp), intent(in) :: x(:)
+      complex(dp), intent(in) :: z(:)
+
+      ok = (size(z) > 0) .and. (size(x) == size(z) + 1)
+   end function flow_x_z_shape_ok
+
+   logical function flow_x_z_j_shape_ok(x, z, j) result(ok)
+      implicit none
+      real(dp), intent(in) :: x(:)
+      complex(dp), intent(in) :: z(:)
+      complex(dp), intent(in) :: j(:, :)
+
+      ok = flow_x_z_shape_ok(x, z) .and. size(j, 1) == size(z) .and. size(j, 2) == size(z)
+   end function flow_x_z_j_shape_ok
+
+   subroutine set_complex_identity(mat)
+      implicit none
+      complex(dp), intent(out) :: mat(:, :)
+      integer :: idx, n
+
+      mat = cmplx(0.0_dp, 0.0_dp, dp)
+      n = min(size(mat, 1), size(mat, 2))
+      do idx = 1, n
+         mat(idx, idx) = cmplx(1.0_dp, 0.0_dp, dp)
+      end do
+   end subroutine set_complex_identity
+
    subroutine flowz(x, z, error, status, workspace, intode_diagnostics)
       real(dp), intent(in)::x(:)
       complex(dp), intent(inout)::z(:)
@@ -1304,10 +1348,23 @@ contains
 
       call perf_tic(t_prof)
       call set_intode_status(status, intode_status_unknown)
+      if (.not. flow_x_z_shape_ok(x, z)) then
+         error = .true.
+         call set_intode_status(status, intode_status_failure_invalid)
+         call perf_toc(PERF_FLOWZ, t_prof)
+         return
+      end if
       n = size(z)*2
       n_complex = size(z)
       t1 = x(1)
       error = .false.
+      z = cmplx(x(2:), 0.0_dp, dp)
+      if (vector_has_invalid(x)) then
+         error = .true.
+         call set_intode_status(status, intode_status_failure_invalid)
+         call perf_toc(PERF_FLOWZ, t_prof)
+         return
+      end if
 
       call ensure_real_workspace(workspace%flow_vec_y, n)
       call ensure_real_workspace(workspace%flow_vec_yf, n)
@@ -1344,10 +1401,22 @@ contains
 
       call perf_tic(t_prof)
       call set_intode_status(status, intode_status_unknown)
+      if (.not. flow_x_z_shape_ok(x, z)) then
+         error = .true.
+         call set_intode_status(status, intode_status_failure_invalid)
+         call perf_toc(PERF_FLOWZR, t_prof)
+         return
+      end if
       n = size(z)*2
       n_complex = size(z)
       t1 = x(1)
       error = .false.
+      if (vector_has_invalid(x) .or. complex_vector_has_invalid(z)) then
+         error = .true.
+         call set_intode_status(status, intode_status_failure_invalid)
+         call perf_toc(PERF_FLOWZR, t_prof)
+         return
+      end if
 
       call ensure_real_workspace(workspace%flow_vec_y, n)
       call ensure_real_workspace(workspace%flow_vec_yf, n)
@@ -1386,6 +1455,12 @@ contains
 
       call perf_tic(t_prof)
       call set_intode_status(status, intode_status_unknown)
+      if (.not. flow_x_z_j_shape_ok(x, z, j)) then
+         error = .true.
+         call set_intode_status(status, intode_status_failure_invalid)
+         call perf_toc(PERF_FLOW, t_prof)
+         return
+      end if
       n = size(z)*2
       n_complex = size(z)
       n_jac = size(j, 1)
@@ -1393,6 +1468,14 @@ contains
       total_n = n + m
       t1 = x(1)
       error = .false.
+      z = cmplx(x(2:), 0.0_dp, dp)
+      call set_complex_identity(j)
+      if (vector_has_invalid(x)) then
+         error = .true.
+         call set_intode_status(status, intode_status_failure_invalid)
+         call perf_toc(PERF_FLOW, t_prof)
+         return
+      end if
 
       call ensure_real_workspace(workspace%flow_jac_y, total_n)
       call ensure_real_workspace(workspace%flow_jac_yf, total_n)

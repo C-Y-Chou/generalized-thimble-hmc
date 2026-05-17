@@ -1,0 +1,44 @@
+{
+  "stage_3_3_todo": {
+    "version": "f12-product-wrapper-tiny-stage3-v1",
+    "name": "f12_product_wrapper_tiny_stage3",
+    "goal": "Run a tiny remote product-wrapper sidecar/readback screen. This is wrapper validation only, not production physics evidence.",
+    "frozen_setup": {
+      "model": "1d_toy_model",
+      "flow_time_ladder": [0.0, 0.05],
+      "max_flow_time": 0.05,
+      "trajectory_length_L": 0.2,
+      "nstep": 2,
+      "local_updates_per_cycle": 1,
+      "swap_scheme": "adjacent_pair",
+      "swap_schedule": "odd_even_alternating",
+      "stage2_init_mode": "direct",
+      "write_all_replica_history": false,
+      "all_replicas_share_same_local_parameters": true
+    },
+    "comparison_policy": {
+      "matched_controls": true,
+      "same_seed_set_for_all_methods": true,
+      "same_initialization_policy": true,
+      "same_cycle_count": true,
+      "same_measurement_protocol": true,
+      "judgment_sets": ["nofb", "withfb"]
+    },
+    "observable_definition": {
+      "observable_name": "virial",
+      "exact_re": 0.0,
+      "exact_im": 0.0,
+      "error_source": "error_robust_virial_re_im",
+      "error_source_note": "Observable output is incidental here; wrapper sidecar/readback is the test target."
+    },
+    "sampling_plan": {
+      "independent_runs_unit": "seed",
+      "n_seeds": 1,
+      "seed_list": [20260421],
+      "cycles_per_seed": 4,
+      "warmup_cycles_optional": 0,
+      "measurement_stride": 1,
+      "diagnostic_stride": 1
+    }
+  }
+}

@@ -2,7 +2,8 @@ module model
    use param_mod, only: alpha, beta
    use utils, only: dp
    use mt95, only: gaussrnd
-   use model_generated, only: calculate_action_generated, ds_generated, hessian_generated, hessian_vec_generated
+   use model_generated, only: calculate_action_generated, ds_generated, hessian_generated, hessian_vec_generated, &
+                              model_context_t, bind_model_context, bind_module_model_context, release_model_context
 
    implicit none
 

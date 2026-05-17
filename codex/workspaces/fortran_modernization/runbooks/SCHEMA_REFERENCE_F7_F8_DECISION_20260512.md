@@ -50,7 +50,7 @@ Current patch classification:
 - `behavior_level`: `behavior_relevant`
 - `affected_surfaces`: `counters`, `flow_policy`, `guardrail`,
   `reverse_gate`, `schema`, `solver_route`, `wrapper`
-- `allowed_drift`: `explicitly_accepted_assist_default_off`
+- `allowed_drift`: `explicitly_accepted_deleted_solver_policy`
 - `decision`: `pass`
 
 Reference anchors:

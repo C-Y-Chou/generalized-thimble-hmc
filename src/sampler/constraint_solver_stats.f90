@@ -5,83 +5,16 @@ module constraint_solver_stats_mod
    use, intrinsic :: iso_fortran_env, only: int64
    implicit none
 
-   integer(int64), save :: newton_success_count = 0_int64
-   integer(int64), save :: quasi_success_count = 0_int64
-   integer(int64), save :: quasi_probe_attempt_count = 0_int64
-   integer(int64), save :: quasi_probe_success_count = 0_int64
-   integer(int64), save :: quasi_full_attempt_count = 0_int64
-   integer(int64), save :: quasi_full_success_count = 0_int64
-   integer(int64), save :: quasi_class_local_count = 0_int64
-   integer(int64), save :: quasi_class_mid_count = 0_int64
-   integer(int64), save :: quasi_class_global_count = 0_int64
-   integer(int64), save :: quasi_far_route_skip_count = 0_int64
-   integer(int64), save :: quasi_far_route_light_count = 0_int64
-   integer(int64), save :: quasi_far_route_anchor_count = 0_int64
-   integer(int64), save :: fail_count = 0_int64
-   integer(int64), save :: near_fail_candidate_count = 0_int64
-   integer(int64), save :: far_fail_count = 0_int64
-   integer(int64), save :: near_rescue_attempt_count = 0_int64
-   integer(int64), save :: near_rescue_success_count = 0_int64
-   integer(int64), save :: near_unusable_count = 0_int64
-   integer(int64), save :: near_fail_fast_count = 0_int64
-   integer(int64), save :: far_fail_fast_count = 0_int64
-   integer(int64), save :: far_rescue_scope_count = 0_int64
-   integer(int64), save :: far_rescue_success_count = 0_int64
-   integer(int64), save :: far_rescue_fail_count = 0_int64
-   integer(int64), save :: far_rescue_fail_fast_case_count = 0_int64
-   integer(int64), save :: far_rescue_spent_success_count = 0_int64
-   integer(int64), save :: far_rescue_spent_fail_count = 0_int64
-   integer(int64), save :: far_rescue_flowzr_used_sum = 0_int64
-   integer(int64), save :: far_rescue_final_resort_used_sum = 0_int64
-   integer(int64), save :: far_rescue_flowzr_used_success_sum = 0_int64
-   integer(int64), save :: far_rescue_final_resort_used_success_sum = 0_int64
-   integer(int64), save :: far_rescue_flowzr_used_fail_sum = 0_int64
-   integer(int64), save :: far_rescue_final_resort_used_fail_sum = 0_int64
-   integer(int64), save :: quasi_budget_hit_count = 0_int64
-   integer(int64), save :: quasi_budget_used_sum = 0_int64
-   integer, save :: quasi_budget_used_max = 0
-   integer, save :: quasi_budget_limit_last = 0
-   integer(int64), save :: quasi_global_filter_candidate_count = 0_int64
-   integer(int64), save :: quasi_global_filter_pass_count = 0_int64
-   integer(int64), save :: quasi_global_filter_reject_count = 0_int64
    ! Failure capture policy:
    ! - limit <= 0 means unlimited capture.
    ! - default values can be overridden by environment variables:
    !   CONSTRAINT_FAIL_CAPTURE_LIMIT, CONSTRAINT_FAIL_CAPTURE_START_SAMPLE
    integer, parameter :: failure_capture_limit_default = 100
-   integer, save :: failure_capture_limit_runtime = failure_capture_limit_default
-   integer, save :: failure_capture_start_sample = 0
-   logical, save :: failure_capture_policy_ready = .false.
-   integer, save :: failure_capture_count = 0
-   integer, save :: failure_capture_z0_unit = -1
-   integer, save :: failure_capture_delz_unit = -1
-   integer, save :: failure_capture_x0_unit = -1
-   integer, save :: failure_capture_quasi_unit = -1
-   integer, save :: failure_capture_meta_unit = -1
-   logical, save :: failure_capture_files_ready = .false.
-   logical, save :: failure_capture_write_error = .false.
    character(len=*), parameter :: failure_capture_z0_name = "constraint_solver_fail_z0.dat"
    character(len=*), parameter :: failure_capture_delz_name = "constraint_solver_fail_delz.dat"
    character(len=*), parameter :: failure_capture_x0_name = "constraint_solver_fail_x0.dat"
    character(len=*), parameter :: failure_capture_quasi_name = "constraint_solver_fail_quasi_trace.csv"
    character(len=*), parameter :: failure_capture_meta_name = "constraint_solver_fail_meta.csv"
-   character(len=512), save :: failure_capture_z0_file = ""
-   character(len=512), save :: failure_capture_delz_file = ""
-   character(len=512), save :: failure_capture_x0_file = ""
-   character(len=512), save :: failure_capture_quasi_file = ""
-   character(len=512), save :: failure_capture_meta_file = ""
-   integer, save :: context_chain_sample_idx = 0
-   integer, save :: context_hmc_repeat_idx = 0
-   integer, save :: prev_meta_attempt_flowz = 0
-   integer, save :: prev_meta_attempt_flowzr = 0
-   integer, save :: prev_meta_attempt_flow = 0
-   integer, save :: prev_meta_attempt_unknown = 0
-   integer, save :: prev_meta_fail_flowz = 0
-   integer, save :: prev_meta_fail_flowzr = 0
-   integer, save :: prev_meta_fail_flow = 0
-   integer, save :: prev_meta_fail_unknown = 0
-   integer, save :: prev_meta_success_final_resort = 0
-   integer, save :: prev_meta_fail_final_resort = 0
    integer, parameter :: constraint_quasi_stage_probe = 1
    integer, parameter :: constraint_quasi_stage_full = 2
    integer, parameter :: constraint_quasi_class_local = 1
@@ -102,20 +35,276 @@ module constraint_solver_stats_mod
    integer, parameter :: constraint_reverse_gate_path_far_skip = 9
    integer, parameter :: constraint_reverse_gate_path_far_light = 10
    integer, parameter :: constraint_reverse_gate_path_far_anchor = 11
-   integer(int64), save :: reverse_gate_candidate_count(constraint_reverse_gate_path_count) = 0_int64
-   integer(int64), save :: reverse_gate_pass_count(constraint_reverse_gate_path_count) = 0_int64
-   integer(int64), save :: reverse_gate_reject_count(constraint_reverse_gate_path_count) = 0_int64
-   integer, save :: constraint_solver_stats_suppression_depth = 0
+   type :: constraint_solver_stats_context_t
+      integer(int64) :: newton_success_count = 0_int64
+      integer(int64) :: quasi_success_count = 0_int64
+      integer(int64) :: quasi_probe_attempt_count = 0_int64
+      integer(int64) :: quasi_probe_success_count = 0_int64
+      integer(int64) :: quasi_full_attempt_count = 0_int64
+      integer(int64) :: quasi_full_success_count = 0_int64
+      integer(int64) :: quasi_class_local_count = 0_int64
+      integer(int64) :: quasi_class_mid_count = 0_int64
+      integer(int64) :: quasi_class_global_count = 0_int64
+      integer(int64) :: quasi_far_route_skip_count = 0_int64
+      integer(int64) :: quasi_far_route_light_count = 0_int64
+      integer(int64) :: quasi_far_route_anchor_count = 0_int64
+      integer(int64) :: fail_count = 0_int64
+      integer(int64) :: near_fail_candidate_count = 0_int64
+      integer(int64) :: far_fail_count = 0_int64
+      integer(int64) :: near_rescue_attempt_count = 0_int64
+      integer(int64) :: near_rescue_success_count = 0_int64
+      integer(int64) :: near_unusable_count = 0_int64
+      integer(int64) :: near_fail_fast_count = 0_int64
+      integer(int64) :: far_fail_fast_count = 0_int64
+      integer(int64) :: far_rescue_scope_count = 0_int64
+      integer(int64) :: far_rescue_success_count = 0_int64
+      integer(int64) :: far_rescue_fail_count = 0_int64
+      integer(int64) :: far_rescue_fail_fast_case_count = 0_int64
+      integer(int64) :: far_rescue_spent_success_count = 0_int64
+      integer(int64) :: far_rescue_spent_fail_count = 0_int64
+      integer(int64) :: far_rescue_flowzr_used_sum = 0_int64
+      integer(int64) :: far_rescue_final_resort_used_sum = 0_int64
+      integer(int64) :: far_rescue_flowzr_used_success_sum = 0_int64
+      integer(int64) :: far_rescue_final_resort_used_success_sum = 0_int64
+      integer(int64) :: far_rescue_flowzr_used_fail_sum = 0_int64
+      integer(int64) :: far_rescue_final_resort_used_fail_sum = 0_int64
+      integer(int64) :: quasi_budget_hit_count = 0_int64
+      integer(int64) :: quasi_budget_used_sum = 0_int64
+      integer :: quasi_budget_used_max = 0
+      integer :: quasi_budget_limit_last = 0
+      integer(int64) :: quasi_global_filter_candidate_count = 0_int64
+      integer(int64) :: quasi_global_filter_pass_count = 0_int64
+      integer(int64) :: quasi_global_filter_reject_count = 0_int64
+      integer :: failure_capture_limit_runtime = failure_capture_limit_default
+      integer :: failure_capture_start_sample = 0
+      logical :: failure_capture_policy_ready = .false.
+      integer :: failure_capture_count = 0
+      integer :: failure_capture_z0_unit = -1
+      integer :: failure_capture_delz_unit = -1
+      integer :: failure_capture_x0_unit = -1
+      integer :: failure_capture_quasi_unit = -1
+      integer :: failure_capture_meta_unit = -1
+      logical :: failure_capture_files_ready = .false.
+      logical :: failure_capture_write_error = .false.
+      character(len=512) :: failure_capture_z0_file = ""
+      character(len=512) :: failure_capture_delz_file = ""
+      character(len=512) :: failure_capture_x0_file = ""
+      character(len=512) :: failure_capture_quasi_file = ""
+      character(len=512) :: failure_capture_meta_file = ""
+      integer :: context_chain_sample_idx = 0
+      integer :: context_hmc_repeat_idx = 0
+      integer :: prev_meta_attempt_flowz = 0
+      integer :: prev_meta_attempt_flowzr = 0
+      integer :: prev_meta_attempt_flow = 0
+      integer :: prev_meta_attempt_unknown = 0
+      integer :: prev_meta_fail_flowz = 0
+      integer :: prev_meta_fail_flowzr = 0
+      integer :: prev_meta_fail_flow = 0
+      integer :: prev_meta_fail_unknown = 0
+      integer :: prev_meta_success_final_resort = 0
+      integer :: prev_meta_fail_final_resort = 0
+      integer(int64) :: reverse_gate_candidate_count(constraint_reverse_gate_path_count) = 0_int64
+      integer(int64) :: reverse_gate_pass_count(constraint_reverse_gate_path_count) = 0_int64
+      integer(int64) :: reverse_gate_reject_count(constraint_reverse_gate_path_count) = 0_int64
+      integer :: constraint_solver_stats_suppression_depth = 0
+   end type constraint_solver_stats_context_t
+
+   type(constraint_solver_stats_context_t), target, save :: module_constraint_solver_stats_context
+   integer(int64), pointer, save :: newton_success_count => module_constraint_solver_stats_context%newton_success_count
+   integer(int64), pointer, save :: quasi_success_count => module_constraint_solver_stats_context%quasi_success_count
+   integer(int64), pointer, save :: quasi_probe_attempt_count => module_constraint_solver_stats_context%quasi_probe_attempt_count
+   integer(int64), pointer, save :: quasi_probe_success_count => module_constraint_solver_stats_context%quasi_probe_success_count
+   integer(int64), pointer, save :: quasi_full_attempt_count => module_constraint_solver_stats_context%quasi_full_attempt_count
+   integer(int64), pointer, save :: quasi_full_success_count => module_constraint_solver_stats_context%quasi_full_success_count
+   integer(int64), pointer, save :: quasi_class_local_count => module_constraint_solver_stats_context%quasi_class_local_count
+   integer(int64), pointer, save :: quasi_class_mid_count => module_constraint_solver_stats_context%quasi_class_mid_count
+   integer(int64), pointer, save :: quasi_class_global_count => module_constraint_solver_stats_context%quasi_class_global_count
+   integer(int64), pointer, save :: quasi_far_route_skip_count => module_constraint_solver_stats_context%quasi_far_route_skip_count
+   integer(int64), pointer, save :: quasi_far_route_light_count => module_constraint_solver_stats_context%quasi_far_route_light_count
+   integer(int64), pointer, save :: quasi_far_route_anchor_count => module_constraint_solver_stats_context%quasi_far_route_anchor_count
+   integer(int64), pointer, save :: fail_count => module_constraint_solver_stats_context%fail_count
+   integer(int64), pointer, save :: near_fail_candidate_count => module_constraint_solver_stats_context%near_fail_candidate_count
+   integer(int64), pointer, save :: far_fail_count => module_constraint_solver_stats_context%far_fail_count
+   integer(int64), pointer, save :: near_rescue_attempt_count => module_constraint_solver_stats_context%near_rescue_attempt_count
+   integer(int64), pointer, save :: near_rescue_success_count => module_constraint_solver_stats_context%near_rescue_success_count
+   integer(int64), pointer, save :: near_unusable_count => module_constraint_solver_stats_context%near_unusable_count
+   integer(int64), pointer, save :: near_fail_fast_count => module_constraint_solver_stats_context%near_fail_fast_count
+   integer(int64), pointer, save :: far_fail_fast_count => module_constraint_solver_stats_context%far_fail_fast_count
+   integer(int64), pointer, save :: far_rescue_scope_count => module_constraint_solver_stats_context%far_rescue_scope_count
+   integer(int64), pointer, save :: far_rescue_success_count => module_constraint_solver_stats_context%far_rescue_success_count
+   integer(int64), pointer, save :: far_rescue_fail_count => module_constraint_solver_stats_context%far_rescue_fail_count
+   integer(int64), pointer, save :: far_rescue_fail_fast_case_count => module_constraint_solver_stats_context%far_rescue_fail_fast_case_count
+   integer(int64), pointer, save :: far_rescue_spent_success_count => module_constraint_solver_stats_context%far_rescue_spent_success_count
+   integer(int64), pointer, save :: far_rescue_spent_fail_count => module_constraint_solver_stats_context%far_rescue_spent_fail_count
+   integer(int64), pointer, save :: far_rescue_flowzr_used_sum => module_constraint_solver_stats_context%far_rescue_flowzr_used_sum
+   integer(int64), pointer, save :: far_rescue_final_resort_used_sum => module_constraint_solver_stats_context%far_rescue_final_resort_used_sum
+   integer(int64), pointer, save :: far_rescue_flowzr_used_success_sum => module_constraint_solver_stats_context%far_rescue_flowzr_used_success_sum
+   integer(int64), pointer, save :: far_rescue_final_resort_used_success_sum => module_constraint_solver_stats_context%far_rescue_final_resort_used_success_sum
+   integer(int64), pointer, save :: far_rescue_flowzr_used_fail_sum => module_constraint_solver_stats_context%far_rescue_flowzr_used_fail_sum
+   integer(int64), pointer, save :: far_rescue_final_resort_used_fail_sum => module_constraint_solver_stats_context%far_rescue_final_resort_used_fail_sum
+   integer(int64), pointer, save :: quasi_budget_hit_count => module_constraint_solver_stats_context%quasi_budget_hit_count
+   integer(int64), pointer, save :: quasi_budget_used_sum => module_constraint_solver_stats_context%quasi_budget_used_sum
+   integer, pointer, save :: quasi_budget_used_max => module_constraint_solver_stats_context%quasi_budget_used_max
+   integer, pointer, save :: quasi_budget_limit_last => module_constraint_solver_stats_context%quasi_budget_limit_last
+   integer(int64), pointer, save :: quasi_global_filter_candidate_count => module_constraint_solver_stats_context%quasi_global_filter_candidate_count
+   integer(int64), pointer, save :: quasi_global_filter_pass_count => module_constraint_solver_stats_context%quasi_global_filter_pass_count
+   integer(int64), pointer, save :: quasi_global_filter_reject_count => module_constraint_solver_stats_context%quasi_global_filter_reject_count
+   integer, pointer, save :: failure_capture_limit_runtime => module_constraint_solver_stats_context%failure_capture_limit_runtime
+   integer, pointer, save :: failure_capture_start_sample => module_constraint_solver_stats_context%failure_capture_start_sample
+   logical, pointer, save :: failure_capture_policy_ready => module_constraint_solver_stats_context%failure_capture_policy_ready
+   integer, pointer, save :: failure_capture_count => module_constraint_solver_stats_context%failure_capture_count
+   integer, pointer, save :: failure_capture_z0_unit => module_constraint_solver_stats_context%failure_capture_z0_unit
+   integer, pointer, save :: failure_capture_delz_unit => module_constraint_solver_stats_context%failure_capture_delz_unit
+   integer, pointer, save :: failure_capture_x0_unit => module_constraint_solver_stats_context%failure_capture_x0_unit
+   integer, pointer, save :: failure_capture_quasi_unit => module_constraint_solver_stats_context%failure_capture_quasi_unit
+   integer, pointer, save :: failure_capture_meta_unit => module_constraint_solver_stats_context%failure_capture_meta_unit
+   logical, pointer, save :: failure_capture_files_ready => module_constraint_solver_stats_context%failure_capture_files_ready
+   logical, pointer, save :: failure_capture_write_error => module_constraint_solver_stats_context%failure_capture_write_error
+   character(len=512), pointer, save :: failure_capture_z0_file => module_constraint_solver_stats_context%failure_capture_z0_file
+   character(len=512), pointer, save :: failure_capture_delz_file => module_constraint_solver_stats_context%failure_capture_delz_file
+   character(len=512), pointer, save :: failure_capture_x0_file => module_constraint_solver_stats_context%failure_capture_x0_file
+   character(len=512), pointer, save :: failure_capture_quasi_file => module_constraint_solver_stats_context%failure_capture_quasi_file
+   character(len=512), pointer, save :: failure_capture_meta_file => module_constraint_solver_stats_context%failure_capture_meta_file
+   integer, pointer, save :: context_chain_sample_idx => module_constraint_solver_stats_context%context_chain_sample_idx
+   integer, pointer, save :: context_hmc_repeat_idx => module_constraint_solver_stats_context%context_hmc_repeat_idx
+   integer, pointer, save :: prev_meta_attempt_flowz => module_constraint_solver_stats_context%prev_meta_attempt_flowz
+   integer, pointer, save :: prev_meta_attempt_flowzr => module_constraint_solver_stats_context%prev_meta_attempt_flowzr
+   integer, pointer, save :: prev_meta_attempt_flow => module_constraint_solver_stats_context%prev_meta_attempt_flow
+   integer, pointer, save :: prev_meta_attempt_unknown => module_constraint_solver_stats_context%prev_meta_attempt_unknown
+   integer, pointer, save :: prev_meta_fail_flowz => module_constraint_solver_stats_context%prev_meta_fail_flowz
+   integer, pointer, save :: prev_meta_fail_flowzr => module_constraint_solver_stats_context%prev_meta_fail_flowzr
+   integer, pointer, save :: prev_meta_fail_flow => module_constraint_solver_stats_context%prev_meta_fail_flow
+   integer, pointer, save :: prev_meta_fail_unknown => module_constraint_solver_stats_context%prev_meta_fail_unknown
+   integer, pointer, save :: prev_meta_success_final_resort => module_constraint_solver_stats_context%prev_meta_success_final_resort
+   integer, pointer, save :: prev_meta_fail_final_resort => module_constraint_solver_stats_context%prev_meta_fail_final_resort
+   integer(int64), pointer, save :: reverse_gate_candidate_count(:) => module_constraint_solver_stats_context%reverse_gate_candidate_count
+   integer(int64), pointer, save :: reverse_gate_pass_count(:) => module_constraint_solver_stats_context%reverse_gate_pass_count
+   integer(int64), pointer, save :: reverse_gate_reject_count(:) => module_constraint_solver_stats_context%reverse_gate_reject_count
+   integer, pointer, save :: constraint_solver_stats_suppression_depth => &
+      module_constraint_solver_stats_context%constraint_solver_stats_suppression_depth
+   logical, save :: constraint_solver_stats_aliases_bound = .false.
 
 contains
 
+   subroutine ensure_constraint_solver_stats_aliases_bound()
+      implicit none
+
+      if (.not. constraint_solver_stats_aliases_bound) call bind_module_constraint_solver_stats_context()
+   end subroutine ensure_constraint_solver_stats_aliases_bound
+
+   subroutine bind_constraint_solver_stats_context(context)
+      implicit none
+      type(constraint_solver_stats_context_t), intent(inout), target :: context
+
+      call bind_constraint_solver_stats_aliases(context)
+   end subroutine bind_constraint_solver_stats_context
+
+   subroutine bind_module_constraint_solver_stats_context()
+      implicit none
+
+      call bind_constraint_solver_stats_aliases(module_constraint_solver_stats_context)
+   end subroutine bind_module_constraint_solver_stats_context
+
+   subroutine release_constraint_solver_stats_context(context)
+      implicit none
+      type(constraint_solver_stats_context_t), intent(inout), target :: context
+      logical :: was_active
+
+      was_active = .false.
+      if (constraint_solver_stats_aliases_bound) was_active = associated(newton_success_count, context%newton_success_count)
+      if (.not. was_active) call bind_constraint_solver_stats_aliases(context)
+      call reset_constraint_failure_capture()
+      context = constraint_solver_stats_context_t()
+      call bind_module_constraint_solver_stats_context()
+   end subroutine release_constraint_solver_stats_context
+
+   subroutine bind_constraint_solver_stats_aliases(context)
+      implicit none
+      type(constraint_solver_stats_context_t), intent(inout), target :: context
+
+      newton_success_count => context%newton_success_count
+      quasi_success_count => context%quasi_success_count
+      quasi_probe_attempt_count => context%quasi_probe_attempt_count
+      quasi_probe_success_count => context%quasi_probe_success_count
+      quasi_full_attempt_count => context%quasi_full_attempt_count
+      quasi_full_success_count => context%quasi_full_success_count
+      quasi_class_local_count => context%quasi_class_local_count
+      quasi_class_mid_count => context%quasi_class_mid_count
+      quasi_class_global_count => context%quasi_class_global_count
+      quasi_far_route_skip_count => context%quasi_far_route_skip_count
+      quasi_far_route_light_count => context%quasi_far_route_light_count
+      quasi_far_route_anchor_count => context%quasi_far_route_anchor_count
+      fail_count => context%fail_count
+      near_fail_candidate_count => context%near_fail_candidate_count
+      far_fail_count => context%far_fail_count
+      near_rescue_attempt_count => context%near_rescue_attempt_count
+      near_rescue_success_count => context%near_rescue_success_count
+      near_unusable_count => context%near_unusable_count
+      near_fail_fast_count => context%near_fail_fast_count
+      far_fail_fast_count => context%far_fail_fast_count
+      far_rescue_scope_count => context%far_rescue_scope_count
+      far_rescue_success_count => context%far_rescue_success_count
+      far_rescue_fail_count => context%far_rescue_fail_count
+      far_rescue_fail_fast_case_count => context%far_rescue_fail_fast_case_count
+      far_rescue_spent_success_count => context%far_rescue_spent_success_count
+      far_rescue_spent_fail_count => context%far_rescue_spent_fail_count
+      far_rescue_flowzr_used_sum => context%far_rescue_flowzr_used_sum
+      far_rescue_final_resort_used_sum => context%far_rescue_final_resort_used_sum
+      far_rescue_flowzr_used_success_sum => context%far_rescue_flowzr_used_success_sum
+      far_rescue_final_resort_used_success_sum => context%far_rescue_final_resort_used_success_sum
+      far_rescue_flowzr_used_fail_sum => context%far_rescue_flowzr_used_fail_sum
+      far_rescue_final_resort_used_fail_sum => context%far_rescue_final_resort_used_fail_sum
+      quasi_budget_hit_count => context%quasi_budget_hit_count
+      quasi_budget_used_sum => context%quasi_budget_used_sum
+      quasi_budget_used_max => context%quasi_budget_used_max
+      quasi_budget_limit_last => context%quasi_budget_limit_last
+      quasi_global_filter_candidate_count => context%quasi_global_filter_candidate_count
+      quasi_global_filter_pass_count => context%quasi_global_filter_pass_count
+      quasi_global_filter_reject_count => context%quasi_global_filter_reject_count
+      failure_capture_limit_runtime => context%failure_capture_limit_runtime
+      failure_capture_start_sample => context%failure_capture_start_sample
+      failure_capture_policy_ready => context%failure_capture_policy_ready
+      failure_capture_count => context%failure_capture_count
+      failure_capture_z0_unit => context%failure_capture_z0_unit
+      failure_capture_delz_unit => context%failure_capture_delz_unit
+      failure_capture_x0_unit => context%failure_capture_x0_unit
+      failure_capture_quasi_unit => context%failure_capture_quasi_unit
+      failure_capture_meta_unit => context%failure_capture_meta_unit
+      failure_capture_files_ready => context%failure_capture_files_ready
+      failure_capture_write_error => context%failure_capture_write_error
+      failure_capture_z0_file => context%failure_capture_z0_file
+      failure_capture_delz_file => context%failure_capture_delz_file
+      failure_capture_x0_file => context%failure_capture_x0_file
+      failure_capture_quasi_file => context%failure_capture_quasi_file
+      failure_capture_meta_file => context%failure_capture_meta_file
+      context_chain_sample_idx => context%context_chain_sample_idx
+      context_hmc_repeat_idx => context%context_hmc_repeat_idx
+      prev_meta_attempt_flowz => context%prev_meta_attempt_flowz
+      prev_meta_attempt_flowzr => context%prev_meta_attempt_flowzr
+      prev_meta_attempt_flow => context%prev_meta_attempt_flow
+      prev_meta_attempt_unknown => context%prev_meta_attempt_unknown
+      prev_meta_fail_flowz => context%prev_meta_fail_flowz
+      prev_meta_fail_flowzr => context%prev_meta_fail_flowzr
+      prev_meta_fail_flow => context%prev_meta_fail_flow
+      prev_meta_fail_unknown => context%prev_meta_fail_unknown
+      prev_meta_success_final_resort => context%prev_meta_success_final_resort
+      prev_meta_fail_final_resort => context%prev_meta_fail_final_resort
+      reverse_gate_candidate_count => context%reverse_gate_candidate_count
+      reverse_gate_pass_count => context%reverse_gate_pass_count
+      reverse_gate_reject_count => context%reverse_gate_reject_count
+      constraint_solver_stats_suppression_depth => context%constraint_solver_stats_suppression_depth
+      constraint_solver_stats_aliases_bound = .true.
+   end subroutine bind_constraint_solver_stats_aliases
+
    subroutine push_constraint_solver_stats_suppression()
       implicit none
+      call ensure_constraint_solver_stats_aliases_bound()
       constraint_solver_stats_suppression_depth = constraint_solver_stats_suppression_depth + 1
    end subroutine push_constraint_solver_stats_suppression
 
    subroutine pop_constraint_solver_stats_suppression()
       implicit none
+      call ensure_constraint_solver_stats_aliases_bound()
       if (constraint_solver_stats_suppression_depth > 0) then
          constraint_solver_stats_suppression_depth = constraint_solver_stats_suppression_depth - 1
       end if
@@ -123,11 +312,13 @@ contains
 
    logical function constraint_solver_stats_are_suppressed() result(is_suppressed)
       implicit none
+      call ensure_constraint_solver_stats_aliases_bound()
       is_suppressed = (constraint_solver_stats_suppression_depth > 0)
    end function constraint_solver_stats_are_suppressed
 
    subroutine reset_constraint_solver_stats()
       implicit none
+      call ensure_constraint_solver_stats_aliases_bound()
       newton_success_count = 0_int64
       quasi_success_count = 0_int64
       quasi_probe_attempt_count = 0_int64
@@ -177,6 +368,7 @@ contains
       implicit none
       integer, intent(in) :: chain_sample_idx, hmc_repeat_idx
 
+      call ensure_constraint_solver_stats_aliases_bound()
       context_chain_sample_idx = chain_sample_idx
       context_hmc_repeat_idx = hmc_repeat_idx
    end subroutine set_constraint_solver_runtime_context
@@ -391,6 +583,7 @@ contains
       implicit none
       logical, intent(in) :: local_success
 
+      call ensure_constraint_solver_stats_aliases_bound()
       if (constraint_solver_stats_are_suppressed()) return
       quasi_global_filter_candidate_count = quasi_global_filter_candidate_count + 1_int64
       if (local_success) then
@@ -465,6 +658,7 @@ contains
       integer(int64), intent(out) :: candidate_count(:), pass_count(:), reject_count(:)
       integer :: n_candidate, n_pass, n_reject
 
+      call ensure_constraint_solver_stats_aliases_bound()
       candidate_count = 0_int64
       pass_count = 0_int64
       reject_count = 0_int64
@@ -480,6 +674,7 @@ contains
       implicit none
       integer(int64), intent(out) :: candidate_count, pass_count, reject_count
 
+      call ensure_constraint_solver_stats_aliases_bound()
       candidate_count = quasi_global_filter_candidate_count
       pass_count = quasi_global_filter_pass_count
       reject_count = quasi_global_filter_reject_count
@@ -494,6 +689,7 @@ contains
       integer(int64), intent(out), optional :: near_fail_fast_unsolvable_count
       integer(int64), intent(out), optional :: far_fail_fast_unsolvable_count
 
+      call ensure_constraint_solver_stats_aliases_bound()
       near_candidate_count = near_fail_candidate_count
       far_count = far_fail_count
       near_attempt_count = near_rescue_attempt_count
@@ -508,6 +704,7 @@ contains
       integer, intent(out) :: captured_count, capture_limit
       logical, intent(out) :: reached_limit
 
+      call ensure_constraint_solver_stats_aliases_bound()
       call load_failure_capture_policy()
       captured_count = failure_capture_count
       capture_limit = failure_capture_limit_runtime
@@ -521,6 +718,7 @@ contains
       real(dp), intent(out) :: newton_ratio, quasi_ratio, fail_ratio
       real(dp) :: denom
 
+      call ensure_constraint_solver_stats_aliases_bound()
       newton_count = newton_success_count
       quasi_count = quasi_success_count
       failed_count = fail_count
@@ -544,6 +742,7 @@ contains
       integer(int64), intent(out) :: probe_attempt_count, probe_success_count
       integer(int64), intent(out) :: full_attempt_count, full_success_count
 
+      call ensure_constraint_solver_stats_aliases_bound()
       probe_attempt_count = quasi_probe_attempt_count
       probe_success_count = quasi_probe_success_count
       full_attempt_count = quasi_full_attempt_count
@@ -554,6 +753,7 @@ contains
       implicit none
       integer(int64), intent(out) :: local_count, mid_count, global_count
 
+      call ensure_constraint_solver_stats_aliases_bound()
       local_count = quasi_class_local_count
       mid_count = quasi_class_mid_count
       global_count = quasi_class_global_count
@@ -563,6 +763,7 @@ contains
       implicit none
       integer(int64), intent(out) :: skip_count, light_count, anchor_count
 
+      call ensure_constraint_solver_stats_aliases_bound()
       skip_count = quasi_far_route_skip_count
       light_count = quasi_far_route_light_count
       anchor_count = quasi_far_route_anchor_count
@@ -573,6 +774,7 @@ contains
       integer(int64), intent(out) :: hit_count, used_sum
       integer, intent(out) :: used_max, budget_last
 
+      call ensure_constraint_solver_stats_aliases_bound()
       hit_count = quasi_budget_hit_count
       used_sum = quasi_budget_used_sum
       used_max = quasi_budget_used_max
@@ -591,6 +793,7 @@ contains
       integer(int64), intent(out) :: flowzr_used_success_sum, final_resort_used_success_sum
       integer(int64), intent(out) :: flowzr_used_fail_sum, final_resort_used_fail_sum
 
+      call ensure_constraint_solver_stats_aliases_bound()
       scope_count = far_rescue_scope_count
       success_count = far_rescue_success_count
       fail_count = far_rescue_fail_count
@@ -726,6 +929,7 @@ contains
    subroutine reset_constraint_failure_capture()
       implicit none
 
+      call ensure_constraint_solver_stats_aliases_bound()
       if (failure_capture_z0_unit /= -1) close (unit=failure_capture_z0_unit)
       if (failure_capture_delz_unit /= -1) close (unit=failure_capture_delz_unit)
       if (failure_capture_x0_unit /= -1) close (unit=failure_capture_x0_unit)
@@ -764,6 +968,7 @@ contains
    subroutine load_failure_capture_policy()
       implicit none
 
+      call ensure_constraint_solver_stats_aliases_bound()
       if (failure_capture_policy_ready) return
       failure_capture_policy_ready = .true.
 
@@ -787,6 +992,7 @@ contains
       logical, intent(out) :: io_ok
       integer :: ios
 
+      call ensure_constraint_solver_stats_aliases_bound()
       call load_failure_capture_policy()
       io_ok = .true.
       if (failure_capture_files_ready) return
@@ -888,6 +1094,7 @@ contains
       implicit none
       character(len=512) :: out_dir
 
+      call ensure_constraint_solver_stats_aliases_bound()
       call extract_parent_dir(trim(x_history_file), out_dir)
       if (len_trim(out_dir) > 0) then
          failure_capture_z0_file = join_path(out_dir, failure_capture_z0_name)
@@ -974,6 +1181,7 @@ contains
       integer :: sample_idx, n_z, n_delz, n_x, ios
       logical :: io_ok, force_capture_local
 
+      call ensure_constraint_solver_stats_aliases_bound()
       call load_failure_capture_policy()
       force_capture_local = .false.
       if (present(force_capture)) force_capture_local = force_capture
@@ -1081,6 +1289,7 @@ contains
       logical, intent(out) :: io_ok
       integer :: i, ios, n_trace, accepted_flag, eval_ok_flag
 
+      call ensure_constraint_solver_stats_aliases_bound()
       io_ok = .true.
       n_trace = size(quasi_res_norm)
       do i = 1, n_trace
@@ -1137,6 +1346,7 @@ contains
       integer :: d_fail_flowz, d_fail_flowzr, d_fail_flow, d_fail_unknown
       integer :: d_success_final_resort, d_fail_final_resort
 
+      call ensure_constraint_solver_stats_aliases_bound()
       io_ok = .true.
       v_quasi_case = optional_int(quasi_case, -1)
       v_online_class = optional_int(online_class, -1)
@@ -1290,6 +1500,7 @@ contains
       implicit none
       character(len=*), intent(in) :: message
 
+      call ensure_constraint_solver_stats_aliases_bound()
       write (*, '(A)') trim(message)
       if (failure_capture_z0_unit /= -1) close (unit=failure_capture_z0_unit)
       if (failure_capture_delz_unit /= -1) close (unit=failure_capture_delz_unit)

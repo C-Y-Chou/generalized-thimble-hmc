@@ -4,6 +4,10 @@ program test_retained_core_rattle_rg_contract
                                   record_reverse_gate_replay_status, reset_reverse_gate_replay_status_counts, rattle_step_core
    use hmc_kernels, only: decompose2
    use hmc_state_buffers, only: release_rattle_step_workspace, rattle_step_workspace_t
+   use constraint_solver_stats_mod, only: constraint_solver_stats_context_t, bind_constraint_solver_stats_context, &
+                                          bind_module_constraint_solver_stats_context, release_constraint_solver_stats_context, &
+                                          reset_constraint_solver_stats, record_constraint_solver_newton_success, &
+                                          record_constraint_solver_quasi_success, get_constraint_solver_stats
    use param_mod, only: cttol, read_parameters, state_seed_size_cfg
    use solve_flow, only: flow, intode_status_is_strict_success, intode_status_unknown
    use utils, only: dp, x_set_flow_time, x_set_seed_real
@@ -46,6 +50,7 @@ program test_retained_core_rattle_rg_contract
    call check_final_momentum_tangent(momentum, jacf, tangent, tangent_component, normal_component, failures)
    call check_reverse_gate_replay(failures)
    call check_replay_diagnostics_context_isolation(failures)
+   call check_constraint_stats_context_isolation(failures)
    call check_step_status(converged, step_status, failures)
 
    call release_rattle_step_workspace(ws)
@@ -176,5 +181,38 @@ contains
          " success_b=", success_b, " final_flow_failed_b=", final_flow_failed_b
       if (.not. ok) failures = failures + 1
    end subroutine check_replay_diagnostics_context_isolation
+
+   subroutine check_constraint_stats_context_isolation(failures)
+      integer, intent(inout) :: failures
+      type(constraint_solver_stats_context_t) :: stats_a, stats_b
+      integer(int64) :: total_a, newton_a, quasi_a, failed_a
+      integer(int64) :: total_b, newton_b, quasi_b, failed_b
+      real(dp) :: newton_ratio, quasi_ratio, fail_ratio
+      logical :: ok
+
+      call bind_constraint_solver_stats_context(stats_a)
+      call reset_constraint_solver_stats()
+      call record_constraint_solver_newton_success()
+
+      call bind_constraint_solver_stats_context(stats_b)
+      call reset_constraint_solver_stats()
+      call record_constraint_solver_quasi_success()
+      call record_constraint_solver_quasi_success()
+      call get_constraint_solver_stats(total_b, newton_b, quasi_b, failed_b, newton_ratio, quasi_ratio, fail_ratio)
+
+      call bind_constraint_solver_stats_context(stats_a)
+      call get_constraint_solver_stats(total_a, newton_a, quasi_a, failed_a, newton_ratio, quasi_ratio, fail_ratio)
+
+      ok = total_a == 1_int64 .and. newton_a == 1_int64 .and. quasi_a == 0_int64 .and. failed_a == 0_int64 .and. &
+           total_b == 2_int64 .and. newton_b == 0_int64 .and. quasi_b == 2_int64 .and. failed_b == 0_int64
+      write (*, '(A,L1,A,I0,A,I0,A,I0,A,I0)') "[CHECK] constraint_stats_context_isolation ok=", ok, &
+         " newton_a=", newton_a, " quasi_a=", quasi_a, " newton_b=", newton_b, " quasi_b=", quasi_b
+      if (.not. ok) failures = failures + 1
+
+      call release_constraint_solver_stats_context(stats_a)
+      call release_constraint_solver_stats_context(stats_b)
+      call bind_module_constraint_solver_stats_context()
+      call reset_constraint_solver_stats()
+   end subroutine check_constraint_stats_context_isolation
 
 end program test_retained_core_rattle_rg_contract

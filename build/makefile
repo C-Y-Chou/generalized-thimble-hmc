@@ -56,6 +56,17 @@ ifneq ($(PYTHON_GE_38),1)
 $(error $(PYTHON) is not usable for code generation. Use Python >=3.8, e.g. PYTHON=python3.11)
 endif
 
+TLTM_PRECISION ?= double
+TLTM_TOLERANCE_PROFILE ?= strict_double
+SUPPORTED_TLTM_PRECISIONS := double
+SUPPORTED_TLTM_TOLERANCE_PROFILES := strict_double
+ifeq ($(filter $(TLTM_PRECISION),$(SUPPORTED_TLTM_PRECISIONS)),)
+$(error TLTM_PRECISION=$(TLTM_PRECISION) is not certified in this tree. Supported now: $(SUPPORTED_TLTM_PRECISIONS). Single/mixed precision remains experimental until F20 certification gates pass.)
+endif
+ifeq ($(filter $(TLTM_TOLERANCE_PROFILE),$(SUPPORTED_TLTM_TOLERANCE_PROFILES)),)
+$(error TLTM_TOLERANCE_PROFILE=$(TLTM_TOLERANCE_PROFILE) is not certified in this tree. Supported now: $(SUPPORTED_TLTM_TOLERANCE_PROFILES). Weaker tolerance profiles require F20 certification gates.)
+endif
+
 ENABLE_OFFICIAL_DFOLS ?= 1
 PYTHON_EMBED_CFLAGS ?= $(shell $(PYTHON)-config --includes 2>/dev/null || \
                     $(PYTHON) -c "import sysconfig; print('-I' + sysconfig.get_paths()['include'])")
@@ -212,6 +223,7 @@ SOURCES_TEST_TLTM_SWAP := $(SOURCES_COMMON) $(TEST_DIR)/test_tltm_swap_kernel_co
 SOURCES_TEST_MT95_STATE := $(call mk_src,core/mtdefs core/mt95 core/tltm_rng) $(TEST_DIR)/test_mt95_state_contract.f90
 SOURCES_TEST_TLTM_RNG := $(call mk_src,core/mtdefs core/mt95 core/tltm_rng) $(TEST_DIR)/test_tltm_rng_contract.f90
 SOURCES_TEST_PERF_PROFILE := $(call mk_src,core/lapack_fallback core/utils config/runtime_env_mod core/perf_profile) $(TEST_DIR)/test_perf_profile_context_contract.f90
+SOURCES_TEST_NUMERICAL_HELPERS := $(SOURCES_COMMON) $(TEST_DIR)/test_numerical_helper_contracts.f90
 SOURCES_TEST_HMC_REVERSIBILITY := $(call mk_src,core/lapack_fallback core/utils config/runtime_env_mod sampler/hmc_reversibility_checks) $(TEST_DIR)/test_hmc_reversibility_context_contract.f90
 SOURCES_TEST_NEWTON_FLOW_STATUS := $(call mk_src,core/mtdefs core/mt95 core/tltm_rng core/lapack_fallback core/utils core/perf_profile config/runtime_env_mod config/param_mod physics/model_autodiff physics/model_tape_ad physics/model_generated physics/model physics/odex_backend physics/solve_flow sampler/hmc_constraints) $(TEST_DIR)/test_newton_eval_flow_status_context_contract.f90
 SOURCES_TEST_RETAINED_NEWTON := $(SOURCES_COMMON) $(TEST_DIR)/test_retained_core_newton_contract.f90
@@ -267,6 +279,8 @@ OBJECTS_TEST_TLTM_RNG := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_T
                          $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_TLTM_RNG)))
 OBJECTS_TEST_PERF_PROFILE := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_PERF_PROFILE))) \
                              $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_PERF_PROFILE)))
+OBJECTS_TEST_NUMERICAL_HELPERS := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_NUMERICAL_HELPERS))) \
+                                  $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_NUMERICAL_HELPERS))) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_TEST_HMC_REVERSIBILITY := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_HMC_REVERSIBILITY))) \
                                   $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST_HMC_REVERSIBILITY)))
 OBJECTS_TEST_NEWTON_FLOW_STATUS := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST_NEWTON_FLOW_STATUS))) \
@@ -301,6 +315,7 @@ OBJECTS_TEST_TLTM_SWAP += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST_MT95_STATE += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST_TLTM_RNG += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST_PERF_PROFILE += $(SUNDIALS_CVODE_C_OBJECT)
+OBJECTS_TEST_NUMERICAL_HELPERS += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST_HMC_REVERSIBILITY += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST_NEWTON_FLOW_STATUS += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST_RETAINED_NEWTON += $(SUNDIALS_CVODE_C_OBJECT)
@@ -317,7 +332,8 @@ SOURCES_DEP := $(sort $(SOURCES_STEP2) $(SOURCES_STEP3) $(SOURCES_STEP9) $(SOURC
                 $(SOURCES_TEST_SUNDIALS_CVODE_BACKEND) \
                 $(SOURCES_TEST_OFFICIAL_DFOLS_PRESET) $(SOURCES_TEST_TLTM_SWAP) $(SOURCES_TEST_MT95_STATE) \
                 $(SOURCES_TEST_TLTM_RNG) \
-                $(SOURCES_TEST_PERF_PROFILE) $(SOURCES_TEST_HMC_REVERSIBILITY) $(SOURCES_TEST_NEWTON_FLOW_STATUS) \
+                $(SOURCES_TEST_PERF_PROFILE) $(SOURCES_TEST_NUMERICAL_HELPERS) \
+                $(SOURCES_TEST_HMC_REVERSIBILITY) $(SOURCES_TEST_NEWTON_FLOW_STATUS) \
                 $(SOURCES_TEST_RETAINED_NEWTON) $(SOURCES_TEST_RETAINED_RATTLE_RG) \
                 $(SOURCES_TEST_RETAINED_QN_ROUTE) $(SOURCES_TEST_RETAINED_RG_REJECT))
 
@@ -342,7 +358,8 @@ BINARIES     = generate_markov_chain evaluate_expectations \
                test_sundials_cvode_backend_contract \
                test_official_dfols_preset_contract test_tltm_swap_kernel_contract \
                test_mt95_state_contract test_tltm_rng_contract \
-               test_perf_profile_context_contract test_hmc_reversibility_context_contract \
+               test_perf_profile_context_contract test_numerical_helper_contracts \
+               test_hmc_reversibility_context_contract \
                test_newton_eval_flow_status_context_contract \
                test_retained_core_newton_contract test_retained_core_rattle_rg_contract \
                test_retained_core_qn_route_contract test_retained_core_rg_reject_identity
@@ -354,7 +371,7 @@ EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 .DEFAULT_GOAL := all
 override FFLAGS := $(FFLAGS_OPT) $(FFLAGS_INC)
 
-.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_odex_controller_observation_contract test_odex_controller_alignment_spec test_sundials_cvode_backend_contract test_official_dfols_preset_contract evaluate_btn_residual_case test_tltm_swap_kernel_contract test_mt95_state_contract test_tltm_rng_contract test_perf_profile_context_contract test_hmc_reversibility_context_contract test_newton_eval_flow_status_context_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails f14_pre_redo_complete_gate official_line_kernel_correctness_gate post_b_rng_reference_anchor stage2_rng_v2_anchor script_evidence_audit_gate FORCE \
+.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_odex_controller_observation_contract test_odex_controller_alignment_spec test_sundials_cvode_backend_contract test_official_dfols_preset_contract evaluate_btn_residual_case test_tltm_swap_kernel_contract test_mt95_state_contract test_tltm_rng_contract test_perf_profile_context_contract test_numerical_helper_contracts test_hmc_reversibility_context_contract test_newton_eval_flow_status_context_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails f14_pre_redo_complete_gate official_line_kernel_correctness_gate post_b_rng_reference_anchor stage2_rng_v2_anchor script_evidence_audit_gate precision_readiness_audit FORCE \
         test1_fb_on test1_fb_off test2_fb_on test2_fb_off test_fb_matrix \
         prepare_outputs clean_outputs clean veryclean
 all: regen_model_derivatives $(EXECUTABLES)
@@ -458,6 +475,9 @@ $(BIN_DIR)/test_tltm_rng_contract: $(OBJECTS_TEST_TLTM_RNG) | $(BIN_DIR)
 $(BIN_DIR)/test_perf_profile_context_contract: $(OBJECTS_TEST_PERF_PROFILE) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
 
+$(BIN_DIR)/test_numerical_helper_contracts: $(OBJECTS_TEST_NUMERICAL_HELPERS) $(OFFICIAL_DFOLS_MODE_STAMP) | $(BIN_DIR)
+	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
+
 $(BIN_DIR)/test_hmc_reversibility_context_contract: $(OBJECTS_TEST_HMC_REVERSIBILITY) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
 
@@ -492,6 +512,7 @@ help:
 	@echo "  make ENABLE_OFFICIAL_DFOLS=1 - build the embedded official DFO-LS backend (default)"
 	@echo "  make ENABLE_OFFICIAL_DFOLS=0 - build a stub bridge for package-off route tests"
 	@echo "  make ENABLE_SUNDIALS_CVODE=1 SUNDIALS_PREFIX=<prefix> - build the disabled-by-default SUNDIALS CVODE ODE backend"
+	@echo "  make TLTM_PRECISION=double TLTM_TOLERANCE_PROFILE=strict_double - selected certified precision/tolerance profile (only supported mode for now)"
 	@echo "  make GNU_LINALG_LIBS='-lopenblas'   - optionally link external BLAS/LAPACK on GNU"
 	@echo "  make regen_model_derivatives - regenerate src/physics/model_generated.f90 (GEN_BACKEND=auto|symbolic|tape|st_auto|st_tapenade|st_enzyme; default=auto)"
 	@echo "    uses ST_TAPENADE_CMD if set; otherwise auto-detects ~/tools/tapenade-3.16-v2/bin/tapenade"
@@ -523,6 +544,7 @@ help:
 	@echo "  make test_mt95_state_contract - run explicit mt95 RNG-state contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_tltm_rng_contract - run counter-based TLTM RNG v2 contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_perf_profile_context_contract - run explicit profiler-context contract test (log -> $(OUT_LOG_DIR))"
+	@echo "  make test_numerical_helper_contracts - run numerical helper API contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_hmc_reversibility_context_contract - run HMC reversibility/progress context contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_newton_eval_flow_status_context_contract - run Newton eval-flow status context contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make modernization_guardrails - run M4 local compile/build/audit/smoke guardrails"
@@ -530,6 +552,7 @@ help:
 	@echo "  make post_b_rng_reference_anchor - run post-B per-replica RNG reference anchor"
 	@echo "  make stage2_rng_v2_anchor - run Stage2 kernel RNG v2 deterministic anchor"
 	@echo "  make script_evidence_audit_gate - run CV-005 script/evidence audit coverage gate"
+	@echo "  make precision_readiness_audit - run F20 precision/GPU readiness boundary gate"
 	@echo "  make test1_fb_on / test1_fb_off - run test1 with fallback forced on/off"
 	@echo "  make test2_fb_on / test2_fb_off - run test2 with fallback forced on/off"
 	@echo "  make test_fb_matrix - run (test1,test2) x (fallback on,off)"
@@ -663,6 +686,11 @@ script_evidence_audit_gate: prepare_outputs
 	$(PYTHON) ../codex/workspaces/fortran_modernization/tasks/scripts/validate_script_evidence_audit.py --repo-root .. \
 	2>&1 | tee $(OUT_LOG_DIR)/script_evidence_audit_gate.log
 
+precision_readiness_audit: prepare_outputs
+	@set -o pipefail; \
+	$(PYTHON) ../codex/workspaces/fortran_modernization/tasks/scripts/precision_readiness_audit.py --repo-root .. \
+	2>&1 | tee $(OUT_LOG_DIR)/precision_readiness_audit.log
+
 test1: $(BIN_DIR)/test_program prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_program 2>&1 | tee $(OUT_LOG_DIR)/test_hamiltonian_conservation.log
 	@for f in hamiltonian_conservation.dat hamiltonian_conservation_loglog.gp hamiltonian_conservation_loglog.png; do \
@@ -718,6 +746,9 @@ test_tltm_rng_contract: $(BIN_DIR)/test_tltm_rng_contract prepare_outputs
 
 test_perf_profile_context_contract: $(BIN_DIR)/test_perf_profile_context_contract prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_perf_profile_context_contract 2>&1 | tee $(OUT_LOG_DIR)/test_perf_profile_context_contract.log
+
+test_numerical_helper_contracts: $(BIN_DIR)/test_numerical_helper_contracts prepare_outputs
+	@set -o pipefail; $(BIN_DIR)/test_numerical_helper_contracts 2>&1 | tee $(OUT_LOG_DIR)/test_numerical_helper_contracts.log
 
 test_hmc_reversibility_context_contract: $(BIN_DIR)/test_hmc_reversibility_context_contract prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_hmc_reversibility_context_contract 2>&1 | tee $(OUT_LOG_DIR)/test_hmc_reversibility_context_contract.log

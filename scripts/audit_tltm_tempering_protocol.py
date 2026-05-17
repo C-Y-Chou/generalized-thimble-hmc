@@ -639,7 +639,16 @@ def csv_row_count(path):
         return None
 
 
-def check_stage3_cross(summary, label_trace, stage3, rate_tol):
+def paths_match(path_a, path_b):
+    if not path_a or not path_b:
+        return False
+    try:
+        return Path(path_a).resolve() == Path(path_b).resolve()
+    except OSError:
+        return str(path_a) == str(path_b)
+
+
+def check_stage3_cross(summary, label_trace, stage3, manifest, protocol, rate_tol):
     checks = []
     if stage3 is None:
         add_check(
@@ -664,6 +673,9 @@ def check_stage3_cross(summary, label_trace, stage3, rate_tol):
     pairs = rows_by_int_key(section_rows(summary, "pairs"), "pair_id")
     labels = rows_by_int_key(section_rows(summary, "labels"), "label_id")
     slots = rows_by_int_key(section_rows(summary, "slots"), "slot_id")
+    manifest_data = None if manifest is None else manifest.get("data")
+    protocol_data = None if protocol is None else protocol.get("data")
+    manifest_schema = "" if manifest_data is None else manifest_data.get("schema_version", "")
 
     if "pair0_accept_rate" in row and 0 in pairs:
         add_check(
@@ -720,6 +732,62 @@ def check_stage3_cross(summary, label_trace, stage3, rate_tol):
             details={"stage3": row["hot_end_hit_count"], "label_trace": hot_hits_label0},
         )
 
+    if row.get("stage2_v1_sidecar_enabled") == "1":
+        manifest_text = row.get("stage2_v1_manifest_file", "")
+        protocol_text = row.get("stage2_v1_protocol_file", "")
+        config_text = row.get("stage2_v1_resolved_config_file", "")
+        add_check(
+            checks,
+            "Stage3 records v1 manifest file",
+            bool(manifest_text) and Path(manifest_text).exists(),
+            details={"stage3": manifest_text},
+        )
+        add_check(
+            checks,
+            "Stage3 records v1 protocol file",
+            bool(protocol_text) and Path(protocol_text).exists(),
+            details={"stage3": protocol_text},
+        )
+        if manifest is not None:
+            add_check(
+                checks,
+                "Stage3 manifest path matches audited manifest",
+                paths_match(manifest_text, manifest.get("path")),
+                details={"stage3": manifest_text, "audit_input": manifest.get("path")},
+            )
+        if protocol is not None:
+            add_check(
+                checks,
+                "Stage3 protocol path matches audited protocol",
+                paths_match(protocol_text, protocol.get("path")),
+                details={"stage3": protocol_text, "audit_input": protocol.get("path")},
+            )
+        if config_text or manifest_schema == "tltm.stage2.manifest.v1alpha2":
+            add_check(
+                checks,
+                "Stage3 records v1 resolved config file",
+                bool(config_text) and Path(config_text).exists(),
+                details={"stage3": config_text},
+            )
+            if manifest_data is not None:
+                manifest_config = manifest_data.get("outputs", {}).get("v1_resolved_config_file", "")
+                add_check(
+                    checks,
+                    "Stage3 resolved config path matches manifest",
+                    paths_match(config_text, manifest_config),
+                    details={"stage3": config_text, "manifest": manifest_config},
+                )
+        if protocol_data is not None and manifest_data is not None:
+            add_check(
+                checks,
+                "Stage3 sidecar audit uses one protocol family",
+                manifest_data.get("tempering_protocol_id") == protocol_data.get("protocol_id"),
+                details={
+                    "manifest": manifest_data.get("tempering_protocol_id"),
+                    "protocol": protocol_data.get("protocol_id"),
+                },
+            )
+
     return {
         "checks": checks,
         "summary": {
@@ -763,9 +831,23 @@ def check_v1_sidecars(summary, manifest, protocol, rate_tol):
         add_check(
             checks,
             "v1 manifest schema_version",
-            manifest_data.get("schema_version") == "tltm.stage2.manifest.v1alpha1",
+            manifest_data.get("schema_version")
+            in ("tltm.stage2.manifest.v1alpha1", "tltm.stage2.manifest.v1alpha2"),
             details={"observed": manifest_data.get("schema_version")},
         )
+        if manifest_data.get("schema_version") == "tltm.stage2.manifest.v1alpha2":
+            add_check(
+                checks,
+                "v1 manifest product route identity",
+                manifest_data.get("canonical_route_id") == "constrained_hmc_reverse_gate_metropolis_v1"
+                and manifest_data.get("flow_policy_id") == "odex_hairer_endpoint_v1"
+                and manifest_data.get("qn_solver_policy_id") == "official_dfols_residual_certified_v1",
+                details={
+                    "canonical_route_id": manifest_data.get("canonical_route_id"),
+                    "flow_policy_id": manifest_data.get("flow_policy_id"),
+                    "qn_solver_policy_id": manifest_data.get("qn_solver_policy_id"),
+                },
+            )
         add_check(
             checks,
             "v1 manifest timing convention",
@@ -821,6 +903,44 @@ def check_v1_sidecars(summary, manifest, protocol, rate_tol):
                 details={"manifest": manifest_ladder, "slots": slot_flow_times, "tolerance": rate_tol},
             )
 
+        if manifest_data.get("schema_version") == "tltm.stage2.manifest.v1alpha2":
+            outputs = manifest_data.get("outputs", {})
+            config_path = outputs.get("v1_resolved_config_file")
+            config_exists = bool(config_path) and Path(config_path).exists()
+            add_check(
+                checks,
+                "v1 resolved config exists",
+                config_exists,
+                details={"path": config_path},
+            )
+            if config_exists:
+                try:
+                    config_data = json.loads(Path(config_path).read_text())
+                    config_parse_ok = True
+                except json.JSONDecodeError as exc:
+                    config_data = {}
+                    config_parse_ok = False
+                    config_error = str(exc)
+                else:
+                    config_error = None
+                add_check(
+                    checks,
+                    "v1 resolved config parses as JSON",
+                    config_parse_ok,
+                    details={"path": config_path, "error": config_error},
+                )
+                if config_parse_ok:
+                    add_check(
+                        checks,
+                        "v1 resolved config product schema",
+                        config_data.get("schema_version") == "tltm.stage2.config.resolved.v1alpha1"
+                        and config_data.get("precision", {}).get("precision_policy_id") == "double_strict_v1",
+                        details={
+                            "schema_version": config_data.get("schema_version"),
+                            "precision_policy_id": config_data.get("precision", {}).get("precision_policy_id"),
+                        },
+                    )
+
         diagnostics = manifest_data.get("diagnostics", {})
         diagnostics_written = bool(diagnostics.get("v1_diagnostics_written"))
         if diagnostics_written:
@@ -852,7 +972,8 @@ def check_v1_sidecars(summary, manifest, protocol, rate_tol):
         add_check(
             checks,
             "v1 protocol schema_version",
-            protocol_data.get("schema_version") == "tltm.stage2.protocol.v1alpha1",
+            protocol_data.get("schema_version")
+            in ("tltm.stage2.protocol.v1alpha1", "tltm.stage2.protocol.v1alpha2"),
             details={"observed": protocol_data.get("schema_version")},
         )
         add_check(
@@ -925,7 +1046,7 @@ def summarize_checks(sections):
 def make_report(summary, label_trace, stage3, manifest, protocol, rate_tol):
     summary_checks = check_stage2_summary(summary, rate_tol)
     label_checks = check_label_trace(summary, label_trace)
-    stage3_checks = check_stage3_cross(summary, label_trace, stage3, rate_tol)
+    stage3_checks = check_stage3_cross(summary, label_trace, stage3, manifest, protocol, rate_tol)
     sidecar_checks = check_v1_sidecars(summary, manifest, protocol, rate_tol)
     check_summary = summarize_checks([summary_checks, label_checks, stage3_checks, sidecar_checks])
 

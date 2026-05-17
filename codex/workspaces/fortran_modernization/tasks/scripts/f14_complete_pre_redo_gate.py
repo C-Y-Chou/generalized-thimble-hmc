@@ -29,6 +29,17 @@ METHOD_SCHEMA = SCHEMA_REL / "F7_METHOD_ALIASES_V1.json"
 AUDIT_SCHEMA = SCHEMA_REL / "F4_LOCAL_TRANSITION_AUDIT_V1.json"
 REFERENCE_SCHEMA = SCHEMA_REL / "F8_PATCH_REFERENCE_STATEMENT_V1.json"
 M6_SUMMARY_REL = WORKSPACE_REL / "state/M6_REFERENCE_COMPARISON_SUMMARY.tsv"
+PRODUCT_IDS = {
+    "algorithm_id": "tltm_hmc_v1",
+    "canonical_route_id": "constrained_hmc_reverse_gate_metropolis_v1",
+    "integrator_policy_id": "rattle_v1",
+    "constraint_solver_policy_id": "newton_projection_v1",
+    "flow_policy_id": "odex_hairer_endpoint_v1",
+    "qn_solver_policy_id": "official_dfols_residual_certified_v1",
+    "reverse_gate_policy_id": "reverse_trajectory_certification_v1",
+    "failure_policy_id": "reject_stay_put_v1",
+    "precision_policy_id": "double_strict_v1",
+}
 
 
 def parse_args():
@@ -42,6 +53,11 @@ def parse_args():
         "--existing-stage3-output",
         default="",
         help="Existing Stage3 output directory to validate for F4 instead of launching a tiny smoke.",
+    )
+    parser.add_argument(
+        "--existing-product-wrapper-output",
+        default="",
+        help="Existing product-wrapper output directory with product_wrapper_manifest.json to validate as F12 readback evidence.",
     )
     parser.add_argument(
         "--output-root",
@@ -270,13 +286,31 @@ def read_first_csv_row(path):
         return next(csv.DictReader(handle))
 
 
-def validate_summary_counter_identities(summary_path, failures, keep_going):
+def read_csv_rows(path):
+    with Path(path).open(newline="", encoding="utf-8") as handle:
+        return list(csv.DictReader(handle))
+
+
+def validate_summary_counter_identities(repo_root, summary_path, failures, keep_going):
     row = read_first_csv_row(summary_path)
     errors = []
     if row.get("stage2_v1_sidecar_enabled") != "1":
         errors.append("stage2_v1_sidecar_enabled != 1")
     if row.get("stage2_protocol_audit_verdict") != "pass":
         errors.append("stage2_protocol_audit_verdict != pass")
+    resolved_config_text = row.get("stage2_v1_resolved_config_file", "")
+    if not resolved_config_text:
+        errors.append("stage2_v1_resolved_config_file is missing")
+    else:
+        resolved_config_path = resolve_path(repo_root, resolved_config_text)
+        if not resolved_config_path.exists():
+            errors.append("stage2_v1_resolved_config_file does not exist: {0}".format(resolved_config_text))
+        else:
+            config_data = json.loads(resolved_config_path.read_text(encoding="utf-8"))
+            if config_data.get("schema_version") != "tltm.stage2.config.resolved.v1alpha1":
+                errors.append("resolved config schema_version is not tltm.stage2.config.resolved.v1alpha1")
+            if config_data.get("precision", {}).get("precision_policy_id") != "double_strict_v1":
+                errors.append("resolved config precision_policy_id is not double_strict_v1")
     for prefix in (
         "reverse_gate_total",
         "reverse_gate_probe_only",
@@ -367,6 +401,130 @@ def validate_local_transition_audit(repo_root, stage3_out, failures, keep_going)
     return checked
 
 
+def validate_product_wrapper_readback(repo_root, wrapper_out, failures, keep_going):
+    if not wrapper_out:
+        return {"mode": "not_requested"}
+
+    wrapper_out = Path(wrapper_out)
+    manifest_path = wrapper_out / "product_wrapper_manifest.json"
+    per_seed_csv = wrapper_out / "per_seed_summary_table.csv"
+    protocol_audit_csv = wrapper_out / "protocol_audit_summary.csv"
+    aggregate_csv = wrapper_out / "aggregated_summary_table.csv"
+    errors = []
+    data = {}
+
+    if not manifest_path.exists():
+        errors.append("product_wrapper_manifest.json missing: {0}".format(manifest_path))
+    else:
+        try:
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except ValueError as exc:
+            errors.append("product_wrapper_manifest.json is not valid JSON: {0}".format(exc))
+
+    if data:
+        if data.get("schema_version") != "tltm.product.wrapper.v1alpha1":
+            errors.append("wrapper manifest schema_version mismatch")
+        validation = data.get("validation", {})
+        if validation.get("status") != "pass":
+            errors.append("wrapper manifest validation.status is not pass")
+        if int(validation.get("row_count", 0) or 0) <= 0:
+            errors.append("wrapper manifest validation.row_count is empty")
+        product_ids = data.get("product_ids", {})
+        for key, expected in PRODUCT_IDS.items():
+            if product_ids.get(key) != expected:
+                errors.append("wrapper product id {0} mismatch: {1}".format(key, product_ids.get(key)))
+        enforced = data.get("enforced_policy", {})
+        if enforced.get("stage2_v1_sidecars") != "on":
+            errors.append("wrapper did not enforce stage2_v1_sidecars=on")
+        if enforced.get("stage2_protocol_audit") != "auto":
+            errors.append("wrapper did not enforce stage2_protocol_audit=auto")
+        if enforced.get("stage2_protocol_audit_fail_on") != "error":
+            errors.append("wrapper did not enforce stage2_protocol_audit_fail_on=error")
+        product_tables = data.get("product_tables", {})
+        if product_tables.get("status") != "pass":
+            errors.append("wrapper product_tables.status is not pass")
+        expected_outputs = data.get("expected_outputs", {})
+        for key in ("product_per_seed_summary_table", "product_aggregated_summary_table"):
+            path_text = expected_outputs.get(key, "")
+            if not path_text:
+                errors.append("wrapper expected_outputs.{0} is missing".format(key))
+                continue
+            table_path = resolve_path(repo_root, path_text)
+            if not table_path.exists():
+                errors.append("wrapper product table does not exist: {0}".format(path_text))
+                continue
+            table_rows = read_csv_rows(table_path)
+            if not table_rows:
+                errors.append("wrapper product table has no rows: {0}".format(path_text))
+                continue
+            required_columns = set(["product_method", "raw_method"] + list(PRODUCT_IDS.keys()))
+            missing_columns = sorted(required_columns.difference(table_rows[0].keys()))
+            if missing_columns:
+                errors.append("{0} missing product columns: {1}".format(path_text, ",".join(missing_columns)))
+
+    rows = []
+    for label, path in (
+        ("per_seed_summary_table", per_seed_csv),
+        ("aggregated_summary_table", aggregate_csv),
+        ("protocol_audit_summary", protocol_audit_csv),
+    ):
+        if not path.exists():
+            errors.append("{0} missing: {1}".format(label, path))
+    if per_seed_csv.exists():
+        rows = read_csv_rows(per_seed_csv)
+        if not rows:
+            errors.append("per_seed_summary_table has no rows")
+
+    for idx, row in enumerate(rows, start=2):
+        row_id = "row {0} method={1} seed={2}".format(idx, row.get("method", ""), row.get("seed_id", ""))
+        if row.get("stage2_v1_sidecar_enabled") != "1":
+            errors.append("{0}: stage2_v1_sidecar_enabled != 1".format(row_id))
+        if row.get("stage2_protocol_audit_verdict") != "pass":
+            errors.append("{0}: stage2_protocol_audit_verdict != pass".format(row_id))
+        for field_name in ("stage2_v1_manifest_file", "stage2_v1_protocol_file", "stage2_v1_resolved_config_file"):
+            field_text = row.get(field_name, "")
+            if not field_text:
+                errors.append("{0}: {1} missing".format(row_id, field_name))
+                continue
+            field_path = resolve_path(repo_root, field_text)
+            if not field_path.exists():
+                errors.append("{0}: {1} does not exist: {2}".format(row_id, field_name, field_text))
+                continue
+            if field_name == "stage2_v1_resolved_config_file":
+                config_data = json.loads(field_path.read_text(encoding="utf-8"))
+                if config_data.get("schema_version") != "tltm.stage2.config.resolved.v1alpha1":
+                    errors.append("{0}: resolved config schema_version mismatch".format(row_id))
+                if config_data.get("precision", {}).get("precision_policy_id") != "double_strict_v1":
+                    errors.append("{0}: resolved config precision_policy_id mismatch".format(row_id))
+
+    if protocol_audit_csv.exists():
+        audit_rows = read_csv_rows(protocol_audit_csv)
+        for row in audit_rows:
+            if int(row.get("errors", "0") or 0) != 0:
+                errors.append("protocol audit row has errors: {0}".format(json.dumps(row, sort_keys=True)))
+
+    info = {
+        "mode": "validated",
+        "output": relpath_text(repo_root, wrapper_out),
+        "manifest": relpath_text(repo_root, manifest_path),
+        "row_count": len(rows),
+        "methods": sorted({row.get("method", "") for row in rows}),
+        "validation_status": data.get("validation", {}).get("status") if data else "",
+    }
+    assert_condition(
+        "F12 product wrapper manifest readback",
+        not errors,
+        "wrapper_out={0}\nerrors={1}\nmanifest={2}".format(
+            wrapper_out,
+            "; ".join(errors),
+            json.dumps(data, indent=2, sort_keys=True),
+        ),
+        failures,
+        keep_going,
+    )
+    return info
+
+
 def run_f3_harness(repo_root, args, failures, keep_going, env):
     targets = [
         "test_retained_core_newton_contract",
@@ -423,7 +581,7 @@ def infer_patch_surfaces(changed_files):
     return sorted(surfaces)
 
 
-def write_reference_statement(repo_root, output_root, f3_info, audit_files):
+def write_reference_statement(repo_root, output_root, f3_info, audit_files, product_wrapper_info):
     changed = git_changed_files(repo_root)
     surfaces = infer_patch_surfaces(changed)
     behavior_relevant = "flow_policy" in surfaces or "solver_route" in surfaces or "reverse_gate" in surfaces
@@ -438,13 +596,15 @@ def write_reference_statement(repo_root, output_root, f3_info, audit_files):
         "commands": [
             "make -C build ... test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity",
             "python3 scripts/run_stage3_3_multiseed.py ... --stage2-v1-sidecars on --stage2-protocol-audit auto with TLTM_LOCAL_TRANSITION_AUDIT_BASE_DIR",
+            "python3 scripts/run_tltm_product.py ... --validate-only",
             "python3 codex/workspaces/fortran_modernization/tasks/scripts/f14_complete_pre_redo_gate.py",
         ],
-        "allowed_drift": "explicitly_accepted_assist_default_off" if behavior_relevant else "exact",
+        "allowed_drift": "explicitly_accepted_deleted_solver_policy" if behavior_relevant else "exact",
         "decision": "pass",
         "changed_files": changed,
         "f3_branch_measure": f3_info,
         "f4_audit_files": audit_files,
+        "f12_product_wrapper_readback": product_wrapper_info,
     }
     output_root.mkdir(parents=True, exist_ok=True)
     path = output_root / "F8_patch_reference_statement.json"
@@ -453,13 +613,17 @@ def write_reference_statement(repo_root, output_root, f3_info, audit_files):
     return statement, path
 
 
-def write_manifest(output_root, statement, stage3_out):
+def write_manifest(output_root, statement, stage3_out, product_wrapper_info):
+    scope = ["F3", "F4", "F7", "F8"]
+    if product_wrapper_info.get("mode") == "validated":
+        scope.append("F12")
     manifest = {
         "gate": "F14 complete pre-redo gate",
         "status": "pass",
-        "scope": ["F3", "F4", "F7", "F8"],
+        "scope": scope,
         "reduced_scope_accepted": False,
         "stage3_output": str(stage3_out),
+        "product_wrapper_readback": product_wrapper_info,
         "f8_statement": statement,
     }
     output_root.mkdir(parents=True, exist_ok=True)
@@ -488,9 +652,15 @@ def run_gate(args):
         stage3_out = resolve_path(repo_root, args.existing_stage3_output)
     else:
         stage3_out = run_stage3_f4_smoke(repo_root, output_root, logs_root, failures, args.keep_going, env)
-    validate_summary_counter_identities(stage3_out / "per_seed_summary_table.csv", failures, args.keep_going)
+    validate_summary_counter_identities(repo_root, stage3_out / "per_seed_summary_table.csv", failures, args.keep_going)
     audit_files = validate_local_transition_audit(repo_root, stage3_out, failures, args.keep_going)
-    statement, _ = write_reference_statement(repo_root, output_root, f3_info, audit_files)
+    product_wrapper_info = validate_product_wrapper_readback(
+        repo_root,
+        resolve_path(repo_root, args.existing_product_wrapper_output) if args.existing_product_wrapper_output else None,
+        failures,
+        args.keep_going,
+    )
+    statement, _ = write_reference_statement(repo_root, output_root, f3_info, audit_files, product_wrapper_info)
 
     assert_condition(
         "F8 patch reference decision is pass without reduced scope",
@@ -508,7 +678,7 @@ def run_gate(args):
             print(failure["output"][-4000:])
         return 1
 
-    write_manifest(output_root, statement, stage3_out)
+    write_manifest(output_root, statement, stage3_out, product_wrapper_info)
     print("[F14][SUMMARY] complete pre-redo gate passed")
     return 0
 

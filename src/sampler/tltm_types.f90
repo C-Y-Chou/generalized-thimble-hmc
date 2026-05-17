@@ -105,7 +105,7 @@ contains
       event%context_id = tltm_event_context_local_transition
       event%counter_denominator = tltm_counter_denominator_local_transition
       event%accepted = accepted
-      event%proposal_failed = proposal_failed
+      event%proposal_failed = proposal_failed .and. (.not. accepted)
       event%transition_status = transition_status
       if (accepted) event%transition_status = metropolis_status_accepted
    end function make_tltm_local_transition_event

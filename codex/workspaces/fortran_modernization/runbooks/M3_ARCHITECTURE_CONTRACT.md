@@ -13,10 +13,10 @@ The next phase must not begin with broad source refactors. It must first define 
 
 The architecture contract starts from the current canonical numerical policy:
 
-- Production p28 route: Newton first, then p28 QN BTN/backflow rescue residual, then reverse gate, then Metropolis.
-- QN route: DFO-LS-style solve on `evaluate_constraint_residual`, with non-p28 DFO-GN/Broyden/global-continuation/post-refine paths removed from active source.
-- Flow policy: ODEX primary integration plus solver-internal ODE assist only for NT/QN residual evaluation.
-- Final physical proposal/live-state construction: strict `flow(...)` only, accepting strict ODEX success or zero-time no-op; solver assist must not finalize proposals.
+- Product route id: `constrained_hmc_reverse_gate_metropolis_v1`.
+- QN policy: official DFO-LS residual-certified solve on `evaluate_constraint_residual`; problem dimensions are resolved-config metadata, not route identity.
+- Flow policy: Hairer-aligned endpoint ODEX for TLTM endpoint evaluation.
+- Final physical proposal/live-state construction: strict `flow(...)` only, accepting strict ODEX success or zero-time no-op.
 - Reverse gate: permanent production algorithm requirement, not a diagnostic option.
 - Output compatibility: current Stage-facing output schema remains `v0 compatibility` until a versioned replacement exists.
 - Superseding decision, 2026-05-10 JST: existing dataset/output-timing compatibility is no longer a governing constraint for Stage2 tempering modernization. Stage3_4 production outputs and modernization reference datasets are separate outputs under the selected canonical protocol; compatibility is preserved only where it does not conflict with the selected replica-exchange protocol and current schema/audit clarity.
@@ -24,7 +24,7 @@ The architecture contract starts from the current canonical numerical policy:
 
 ## Non-Negotiable Rules
 
-- No modernization step may silently change the physics, canonical p28 route, ODE assist boundary, reverse-gate definition, Metropolis rule, RNG order, or live-chain update semantics.
+- No modernization step may silently change the physics, canonical constrained-HMC route, flow endpoint policy, reverse-gate definition, Metropolis rule, RNG order, or live-chain update semantics.
 - No public output field may be removed or renamed until an explicit schema version exists and compatibility readers are updated.
 - No stage-specific script may be deleted only because it is ugly; deletion waits for wrapper compatibility or an explicit user decision.
 - No module-level `save` state migration may start as a broad rewrite. It must be split by ownership class and protected by affected baselines.
@@ -37,7 +37,7 @@ Long-term target: a unified TLTM wrapper/runner with config-driven modes and ver
 
 Working interface model:
 
-- `production`: canonical p28 TLTM sampling path.
+- `production`: canonical constrained-HMC TLTM sampling path.
 - `diagnostic`: explicit probes, failure capture, route/status accounting, and local audits.
 - `regression`: fixed-seed, low-volume comparisons for route/counter/schema checks.
 - `benchmark`: performance-oriented runs with explicit benchmark metadata.
@@ -64,8 +64,8 @@ Schema v0:
 Schema v1:
 
 - Must include an explicit schema version in machine-readable summaries.
-- Must include provenance: git commit, canonical algorithm id, config digest or config snapshot, ODEX policy, QN route id, reverse-gate policy, RNG/seed policy, and output writer version.
-- Should rename solver-assist fields away from legacy `final_resort` terminology.
+- Must include provenance: git commit, canonical algorithm id, route id, component policy ids, config digest or config snapshot, ODEX policy, QN policy id, reverse-gate policy, RNG/seed policy, and output writer version.
+- Should keep retired implementation-history fields out of the v1 product surface except through explicit compatibility mappings.
 - Should split proposal outcomes into explicit categories: proposal construction failure, reverse-gate rejection, invalid Hamiltonian, invalid `Delta H`, ordinary Metropolis rejection, and acceptance.
 - Should preserve an adapter or migration map from v0 names to v1 names.
 
@@ -104,7 +104,7 @@ Context ownership classes:
 - `tltm_run_context`: top-level config, provenance, output handles, and run mode.
 - `rng_context`: deterministic random stream state and seed provenance.
 - `flow_workspace`: ODEX work arrays, flow scratch buffers, failure/status diagnostics.
-- `constraint_solver_workspace`: Newton/QN residual scratch, traces, solver-assist budgets, evaluation statuses.
+- `constraint_solver_workspace`: Newton/QN residual scratch, traces, and evaluation statuses.
 - `hmc_workspace`: RATTLE/HMC proposal buffers, projection buffers, reverse-gate replay workspace.
 - `diagnostics_context`: counters, capture files, route/status summaries, suppression state.
 - `model_context`: generated model/tape cache strategy, if reentrant model evaluation becomes required.
@@ -164,7 +164,7 @@ Stop for user confirmation before:
 - Deleting stage workflow scripts or PBS wrappers.
 - Choosing the final unified wrapper executable name.
 - Moving RNG ownership or changing seed/stream semantics.
-- Changing the canonical p28 route, reverse-gate definition, ODE assist boundary, or final-flow strictness.
+- Changing the canonical constrained-HMC route, reverse-gate definition, flow endpoint policy, or final-flow strictness.
 - Replacing large module-level `save` state with a new context in a way that can alter counter timing, trace availability, or execution order.
 
 ## Recommended First Implementation Sequence

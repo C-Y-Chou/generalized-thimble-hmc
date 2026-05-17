@@ -1,9 +1,10 @@
 program test_odex_flow_jacobian_contract
    use param_mod, only: read_parameters, state_seed_size_cfg
    use solve_flow, only: flow, flowz, flowzr, flow_workspace_t, get_intode_fallback_stats, &
-                         intode_status_is_strict_success, intode_status_unknown, release_flow_workspace, &
+                         intode_status_failure_invalid, intode_status_is_strict_success, intode_status_unknown, release_flow_workspace, &
                          reset_intode_fallback_stats
    use utils, only: dp, x_set_flow_time, x_set_seed_real
+   use, intrinsic :: ieee_arithmetic, only: ieee_quiet_nan, ieee_value
    implicit none
 
    integer :: failures
@@ -26,6 +27,7 @@ program test_odex_flow_jacobian_contract
    call check_explicit_flow_context(seed, x, failures)
    call check_flowzr_inverse(seed, x, failures)
    call check_jacobian_finite_difference(seed, x, failures)
+   call check_flow_failure_output_contract(seed, x, failures)
    call check_no_fallbacks(failures)
 
    deallocate (seed, x)
@@ -237,6 +239,65 @@ contains
       deallocate (z, jac, z_plus, z_minus, fd_col)
       deallocate (seed_plus, seed_minus, x_plus, x_minus)
    end subroutine check_jacobian_finite_difference
+
+   subroutine check_flow_failure_output_contract(seed, x, failures)
+      real(dp), intent(in) :: seed(:)
+      real(dp), intent(inout) :: x(:)
+      integer, intent(inout) :: failures
+      complex(dp), allocatable :: z(:), z_before(:), z_rev(:), z_rev_before(:), jac(:, :), jac_before(:, :), jac_bad(:, :)
+      real(dp), allocatable :: x_bad(:)
+      logical :: failed, ok_shape, ok_flow, ok_flowz, ok_flowzr, ok
+      integer :: status
+      real(dp) :: nan_value
+
+      allocate (z(size(seed)), z_before(size(seed)), z_rev(size(seed)), z_rev_before(size(seed)))
+      allocate (jac(size(seed), size(seed)), jac_before(size(seed), size(seed)), jac_bad(size(seed) + 1, size(seed)))
+      allocate (x_bad(size(x)))
+
+      call set_x_from_seed(x, 0.08_dp, seed)
+      z_before = cmplx(9.0_dp, -3.0_dp, dp)
+      jac_before = cmplx(-7.0_dp, 2.0_dp, dp)
+      z = z_before
+      jac_bad = cmplx(-7.0_dp, 2.0_dp, dp)
+      status = intode_status_unknown
+      call flow(x, z, jac_bad, failed, status)
+      ok_shape = failed .and. status == intode_status_failure_invalid .and. maxval(abs(z - z_before)) == 0.0_dp .and. &
+                 maxval(abs(jac_bad - cmplx(-7.0_dp, 2.0_dp, dp))) == 0.0_dp
+
+      nan_value = ieee_value(0.0_dp, ieee_quiet_nan)
+      x_bad = x
+      x_bad(1) = nan_value
+
+      z = z_before
+      jac = jac_before
+      status = intode_status_unknown
+      call flow(x_bad, z, jac, failed, status)
+      ok_flow = failed .and. status == intode_status_failure_invalid .and. &
+                maxval(abs(z - cmplx(seed, 0.0_dp, dp))) == 0.0_dp .and. is_identity(jac, 0.0_dp)
+
+      z = z_before
+      status = intode_status_unknown
+      call flowz(x_bad, z, failed, status)
+      ok_flowz = failed .and. status == intode_status_failure_invalid .and. &
+                 maxval(abs(z - cmplx(seed, 0.0_dp, dp))) == 0.0_dp
+
+      z_rev_before = cmplx(seed, 0.125_dp, dp)
+      z_rev = z_rev_before
+      status = intode_status_unknown
+      call flowzr(x_bad, z_rev, failed, status)
+      ok_flowzr = failed .and. status == intode_status_failure_invalid .and. &
+                  maxval(abs(z_rev - z_rev_before)) == 0.0_dp
+
+      ok = ok_shape .and. ok_flow .and. ok_flowz .and. ok_flowzr
+      write (*, '(A,L1,A,L1,A,L1,A,L1,A,L1)') "[CHECK] flow_failure_output_contract ok=", ok, &
+         " shape=", ok_shape, " flow=", ok_flow, " flowz=", ok_flowz, " flowzr=", ok_flowzr
+      if (.not. ok) then
+         failures = failures + 1
+         write (*, '(A)') "[FAIL] flow APIs no longer fail closed on invalid direct inputs."
+      end if
+
+      deallocate (z, z_before, z_rev, z_rev_before, jac, jac_before, jac_bad, x_bad)
+   end subroutine check_flow_failure_output_contract
 
    subroutine check_no_fallbacks(failures)
       integer, intent(inout) :: failures

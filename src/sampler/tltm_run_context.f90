@@ -1,4 +1,5 @@
 module tltm_run_context_mod
+   use param_mod, only: simulation_config_t
    use perf_profile, only: perf_profile_context_t, release_perf_profile_context
    use solve_flow, only: flow_workspace_t, release_flow_workspace, intode_diagnostics_context_t, release_intode_diagnostics_context
    use hmc_state_buffers, only: rattle_step_workspace_t, release_rattle_step_workspace
@@ -12,12 +13,15 @@ module tltm_run_context_mod
    public :: tltm_hmc_context_t
    public :: tltm_flow_context_t
    public :: tltm_qn_context_t
+   public :: tltm_config_context_t
    public :: release_tltm_run_context
    public :: release_tltm_hmc_context
    public :: release_tltm_flow_context
    public :: release_tltm_qn_context
    public :: release_tltm_diagnostics_context
+   public :: release_tltm_config_context
    public :: release_tltm_profile_context
+   public :: set_tltm_config_context
 
    type :: tltm_hmc_context_t
       type(rattle_step_workspace_t) :: proposal_ws
@@ -44,7 +48,8 @@ module tltm_run_context_mod
    end type tltm_diagnostics_context_t
 
    type :: tltm_config_context_t
-      integer :: reserved = 0
+      type(simulation_config_t) :: snapshot
+      logical :: loaded = .false.
    end type tltm_config_context_t
 
    type :: tltm_profile_context_t
@@ -70,6 +75,7 @@ contains
       call release_tltm_flow_context(context%flow)
       call release_tltm_qn_context(context%qn)
       call release_tltm_diagnostics_context(context%diagnostics)
+      call release_tltm_config_context(context%config)
       call release_tltm_profile_context(context%profile)
    end subroutine release_tltm_run_context
 
@@ -100,6 +106,20 @@ contains
       call release_hmc_reversibility_context(context%hmc_reversibility)
       call release_intode_diagnostics_context(context%intode)
    end subroutine release_tltm_diagnostics_context
+
+   subroutine set_tltm_config_context(context, source_config)
+      type(tltm_config_context_t), intent(inout) :: context
+      type(simulation_config_t), intent(in) :: source_config
+
+      context%snapshot = source_config
+      context%loaded = .true.
+   end subroutine set_tltm_config_context
+
+   subroutine release_tltm_config_context(context)
+      type(tltm_config_context_t), intent(inout) :: context
+
+      context%loaded = .false.
+   end subroutine release_tltm_config_context
 
    subroutine release_tltm_profile_context(context)
       type(tltm_profile_context_t), intent(inout) :: context

@@ -304,11 +304,15 @@ contains
       quasi_budget_used = -1
       quasi_budget_limit = -1
 
-      if (size(final_x) /= size(state_x) .or. size(final_z) /= n_state) then
+      if (size(final_x) /= size(state_x) .or. size(final_z) /= n_state .or. &
+          size(jacf, 1) /= size(jaci, 1) .or. size(jacf, 2) /= size(jaci, 2)) then
          if (present(step_status)) step_status = hmc_step_status_output_size_mismatch
          call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
          return
       end if
+      final_x = state_x
+      final_z = state_z
+      jacf = jaci
       if (size(momentum) /= 2*n_state) then
          if (present(step_status)) step_status = hmc_step_status_momentum_size_mismatch
          call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
@@ -322,8 +326,6 @@ contains
          initial_momentum_for_gate = momentum
       end if
 
-      final_x = state_x
-      final_z = state_z
       ws%temp_jac = jaci
       ws%temp_x = final_x
       ws%temp_z = final_z
@@ -333,9 +335,7 @@ contains
       call complex_to_real(ws%E0, ws%E0_real)
       call calculate_dV(n_state, ws%E0_real, ws%E0_perp, ws%dV, has_error)
       if (has_error) then
-         if (present(step_status)) step_status = hmc_step_status_initial_force_failed
-         if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
-         call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
+         call abort_failed_step(hmc_step_status_initial_force_failed)
          return
       end if
 
@@ -541,9 +541,7 @@ contains
       end if
 
       if (has_error) then
-         if (present(step_status)) step_status = hmc_step_status_constraint_failed
-         if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
-         call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
+         call abort_failed_step(hmc_step_status_constraint_failed)
          return
       end if
 
@@ -558,9 +556,7 @@ contains
       call flow(final_x, final_z, ws%temp_jac, has_error, final_flow_status, flow_workspace, intode_diagnostics)
       if (has_error .or. (.not. intode_status_is_strict_success(final_flow_status))) then
          has_error = .true.
-         if (present(step_status)) step_status = hmc_step_status_from_final_flow_status(final_flow_status)
-         if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
-         call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
+         call abort_failed_step(hmc_step_status_from_final_flow_status(final_flow_status))
          return
       end if
       if (quasi_solved_ok) call record_constraint_solver_quasi_success()
@@ -572,18 +568,14 @@ contains
 
       call calculate_dV(n_state, ws%E0_real, ws%E0_perp, ws%dV, has_error)
       if (has_error) then
-         if (present(step_status)) step_status = hmc_step_status_final_force_failed
-         if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
-         call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
+         call abort_failed_step(hmc_step_status_final_force_failed)
          return
       end if
 
       momentum = momentum - step_size*ws%dV
       call decompose2(momentum, ws%E0_perp, ws%del_z, ws%Jl, ws%temp_jac, has_error, ws%decompose_ws)
       if (has_error) then
-         if (present(step_status)) step_status = hmc_step_status_final_projection_failed
-         if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
-         call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
+         call abort_failed_step(hmc_step_status_final_projection_failed)
          return
       end if
       momentum = ws%del_z
@@ -611,8 +603,7 @@ contains
                   real(state_z(1), dp), aimag(state_z(1)), ws%del_z(1), ws%del_z(2), state_x(2), &
                   real(final_z(1), dp), aimag(final_z(1)), final_x(2)
             end if
-            if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
-            call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
+            call abort_failed_step(hmc_step_status_reverse_gate_rejected)
             return
          end if
       end if
@@ -623,6 +614,21 @@ contains
       call set_intode_stage_trace(intode_stage_external, flow_workspace)
       if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
       call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
+
+   contains
+
+      subroutine abort_failed_step(status)
+         integer, intent(in) :: status
+
+         final_x = state_x
+         final_z = state_z
+         jacf = jaci
+         method_converged = .false.
+         if (present(step_status)) step_status = status
+         if (allocated(initial_momentum_for_gate)) deallocate (initial_momentum_for_gate)
+         call perf_toc(PERF_RATTLE_STEP_CORE, t_prof)
+      end subroutine abort_failed_step
+
    end subroutine rattle_step_core
 
    pure integer function hmc_step_status_from_final_flow_status(flow_status) result(status)

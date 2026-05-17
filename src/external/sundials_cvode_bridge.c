@@ -117,6 +117,7 @@ int tltm_sundials_cvode_integrate(int n,
     int last_order = 0;
     int retval = CV_SUCCESS;
     int status = TLTM_CVODE_STATUS_INVALID;
+    int i = 0;
     tltm_cvode_bridge_ctx bridge;
 
     if (num_steps_out != NULL) *num_steps_out = 0;
@@ -130,6 +131,7 @@ int tltm_sundials_cvode_integrate(int n,
     if (last_order_out != NULL) *last_order_out = 0;
 
     if (n <= 0 || y0 == NULL || y_out == NULL || rhs_cb == NULL) return TLTM_CVODE_STATUS_INVALID;
+    for (i = 0; i < n; ++i) y_out[i] = y0[i];
     if (abs_tol < 0.0 || rel_tol < 0.0 || (abs_tol == 0.0 && rel_tol == 0.0)) return TLTM_CVODE_STATUS_INVALID;
     if (!tltm_cvode_values_are_finite(y0, n)) return TLTM_CVODE_STATUS_INVALID;
 
@@ -272,8 +274,7 @@ int tltm_sundials_cvode_integrate(int n,
                                   void *user_ctx,
                                   tltm_cvode_rhs_cb rhs_cb)
 {
-    (void)n;
-    (void)y0;
+    int i;
     (void)t_final;
     (void)abs_tol;
     (void)rel_tol;
@@ -297,6 +298,9 @@ int tltm_sundials_cvode_integrate(int n,
     if (nonlinear_conv_fails_out != NULL) *nonlinear_conv_fails_out = 0;
     if (step_solve_fails_out != NULL) *step_solve_fails_out = 0;
     if (last_order_out != NULL) *last_order_out = 0;
+    if (n > 0 && y0 != NULL && y_out != NULL) {
+        for (i = 0; i < n; ++i) y_out[i] = y0[i];
+    }
     return TLTM_CVODE_STATUS_UNAVAILABLE;
 }
 

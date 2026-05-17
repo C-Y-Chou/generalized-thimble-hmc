@@ -205,6 +205,7 @@ contains
 
       final_x = state_x
       final_z = state_z
+      jacf = jaci
       temp_jac = jaci
 
 	      if (present(momentum_in)) then
@@ -706,6 +707,8 @@ contains
       end subroutine deallocate_all
 
       subroutine abort_with_failure()
+         final_x = state_x
+         final_z = state_z
          final_hamiltonian = unavailable_hamiltonian()
          jacf = jaci
          call deallocate_all()

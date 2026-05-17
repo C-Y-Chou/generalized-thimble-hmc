@@ -1,5 +1,6 @@
 module tltm_stage2_driver
    use, intrinsic :: iso_fortran_env, only: int64
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use param_mod, only: config, read_parameters
    use runtime_env_mod, only: parse_int_env, parse_real_env, parse_logical_env, read_string_env, parse_real_list, to_lower_ascii
    use utils, only: dp, log_determinant, wall_time_seconds, x_set_flow_time, x_set_seed_real
@@ -8,7 +9,7 @@ module tltm_stage2_driver
                          get_intode_odex_stats, get_intode_odex_context_stats, &
                          intode_ctx_unknown, intode_ctx_flowz, intode_ctx_flowzr, intode_ctx_flow, &
                          intode_status_unknown, intode_status_is_strict_success
-   use model, only: grand, calculate_action
+   use model, only: grand, calculate_action, model_context_t, bind_model_context, release_model_context
    use mt95, only: getseed, grnd, mt95_get_state, mt95_seed_state, mt95_set_state, mt95_state_t, sgrnd
    use tltm_rng, only: tltm_rng_domain_stage2_init, tltm_rng_domain_stage2_local_accept, &
                        tltm_rng_domain_stage2_local_momentum, tltm_rng_domain_stage2_swap_accept, &
@@ -23,7 +24,8 @@ module tltm_stage2_driver
    use quasi_newton_solver_mod, only: get_quasi_global_filter_stats, reset_quasi_eval_flow_status_counts, &
                                       get_quasi_eval_flow_status_counts, qn_diagnostics_context_t, &
                                       release_qn_diagnostics_context, qn_policy_context_t, release_qn_policy_context
-   use constraint_solver_stats_mod, only: reset_constraint_solver_stats, get_constraint_solver_stats, &
+   use constraint_solver_stats_mod, only: constraint_solver_stats_context_t, bind_constraint_solver_stats_context, &
+                                          release_constraint_solver_stats_context, reset_constraint_solver_stats, get_constraint_solver_stats, &
                                           get_constraint_solver_quasi_stage_stats, &
                                           get_constraint_solver_quasi_class_stats, &
                                           get_constraint_solver_far_route_stats, &
@@ -45,7 +47,7 @@ module tltm_stage2_driver
                                           constraint_reverse_gate_path_far_anchor
    use tltm_types_mod, only: tltm_slot_t, tltm_pair_stats_t, tltm_label_track_t, allocate_tltm_slot, release_tltm_slot, &
                              record_tltm_local_transition
-   use tltm_run_context_mod, only: tltm_run_context_t, release_tltm_run_context
+   use tltm_run_context_mod, only: tltm_run_context_t, release_tltm_run_context, set_tltm_config_context
    implicit none
 
    integer, parameter :: stage2_cycle_cap_default = 200
@@ -121,6 +123,8 @@ contains
       type(hmc_replay_diagnostics_context_t) :: hmc_replay_diagnostics_context
       type(newton_eval_flow_status_context_t) :: newton_flow_status_context
       type(intode_diagnostics_context_t) :: intode_diagnostics_summary
+      type(constraint_solver_stats_context_t) :: constraint_stats_context
+      type(model_context_t), target :: model_context
       type(mt95_state_t) :: swap_rng_state
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file, label_trace_file
@@ -164,6 +168,8 @@ contains
       integer(int64) :: reverse_gate_reject_counts(constraint_reverse_gate_path_count)
 
       call read_parameters()
+      call bind_model_context(model_context)
+      call bind_constraint_solver_stats_context(constraint_stats_context)
       call reset_intode_fallback_stats()
       call reset_constraint_solver_stats()
       call reset_newton_eval_flow_status_counts(newton_flow_status_context)
@@ -195,6 +201,7 @@ contains
       hot_slot = n_slots - 1
 
       allocate (slots(n_slots), label_tracks(n_slots), local_accept_census(n_slots), run_contexts(n_slots))
+      call seed_run_context_configs(run_contexts)
       if (n_slots > 1) then
          allocate (pair_stats(n_slots - 1))
       else
@@ -217,6 +224,8 @@ contains
             if (allocated(flow_ladder)) deallocate (flow_ladder)
             if (allocated(pair_stats)) deallocate (pair_stats)
             if (allocated(label_tracks)) deallocate (label_tracks)
+            call release_constraint_solver_stats_context(constraint_stats_context)
+            call release_model_context(model_context)
             error stop 1
          end if
       end do
@@ -454,6 +463,8 @@ contains
       call release_qn_policy_context(qn_policy_context)
       call release_all_run_contexts(run_contexts)
       call release_all_slots(slots)
+      call release_constraint_solver_stats_context(constraint_stats_context)
+      call release_model_context(model_context)
       if (allocated(flow_ladder)) deallocate (flow_ladder)
       if (allocated(pair_stats)) deallocate (pair_stats)
       if (allocated(label_tracks)) deallocate (label_tracks)
@@ -495,8 +506,11 @@ contains
       logical :: flow_failed
       logical :: preflow_success
       integer :: attempt, flow_status, stage_count
+      integer :: integration_steps
+      real(dp) :: trajectory_length
 
       ok = .false.
+      call resolve_run_integrator_controls(run_context, trajectory_length, integration_steps)
       allocate (x_seed(max(1, size(slot%x) - 1)))
       select case (trim(rng_stream_contract))
       case (stage2_rng_per_replica_v1)
@@ -521,8 +535,8 @@ contains
          call x_set_seed_real(slot%x, x_seed)
 
          if (trim(init_mode) /= "direct" .and. trim(init_mode) /= "legacy") then
-            call adaptive_preflow_to_target(slot%x, slot%flow_time, config%integrator%trajectory_length, &
-                                            config%integrator%integration_steps, attempt - 1, preflow_success, stage_count, &
+            call adaptive_preflow_to_target(slot%x, slot%flow_time, trajectory_length, &
+                                            integration_steps, attempt - 1, preflow_success, stage_count, &
                                             newton_flow_status=newton_flow_status_context, flow_workspace=run_context%flow%workspace, &
                                             intode_diagnostics=run_context%diagnostics%intode)
             if (.not. preflow_success) cycle
@@ -570,7 +584,9 @@ contains
       integer, intent(in) :: base_seed
 
       integer :: update_idx, z_size
+      integer :: integration_steps
       real(dp), allocatable :: x_new(:), x_before(:), initial_momentum(:), final_momentum(:), kernel_momentum(:)
+      real(dp) :: trajectory_length
       complex(dp), allocatable :: z_new(:), j_new(:, :), z_before(:), j_before(:, :)
       logical :: accepted, proposal_failed
       integer :: transition_status
@@ -579,6 +595,7 @@ contains
       logical :: capture_local_transition_audit
 
       z_size = size(slot%z)
+      call resolve_run_integrator_controls(run_context, trajectory_length, integration_steps)
       call load_local_transition_audit_config(audit_context)
       capture_local_transition_audit = audit_context%local_transition_audit_enabled
       allocate (x_new(size(slot%x)), x_before(size(slot%x)))
@@ -597,8 +614,8 @@ contains
                                       base_seed, cycle_idx, slot%slot_id, update_idx)
             accept_uniform = tltm_rng_uniform(tltm_rng_domain_stage2_local_accept, base_seed, cycle_idx, slot%slot_id, update_idx, 1)
             if (capture_local_transition_audit) then
-               call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
-                                    config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
+               call metropolis_step(slot%x, slot%z, slot%jac, trajectory_length, &
+                                    integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
                                     h_initial_out=h_initial, h_final_out=h_final, delta_h_out=delta_h, &
                                     accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
                                     final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
@@ -609,8 +626,8 @@ contains
 	                                    momentum_in=kernel_momentum, &
 	                                    accept_uniform=accept_uniform)
             else
-               call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
-                                    config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
+               call metropolis_step(slot%x, slot%z, slot%jac, trajectory_length, &
+                                    integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
                                     context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
 	                                    qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
 	                                    hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
@@ -621,8 +638,8 @@ contains
             end if
          else
             if (capture_local_transition_audit) then
-               call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
-                                    config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
+               call metropolis_step(slot%x, slot%z, slot%jac, trajectory_length, &
+                                    integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
                                     h_initial_out=h_initial, h_final_out=h_final, delta_h_out=delta_h, &
                                     accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
                                     final_momentum_out=final_momentum, context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
@@ -631,8 +648,8 @@ contains
 	                                    hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
 	                                    newton_flow_status=newton_flow_status_context, intode_diagnostics=run_context%diagnostics%intode)
             else
-               call metropolis_step(slot%x, slot%z, slot%jac, config%integrator%trajectory_length, &
-                                    config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
+               call metropolis_step(slot%x, slot%z, slot%jac, trajectory_length, &
+                                    integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
                                     context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
 	                                    qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
 	                                    hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
@@ -669,6 +686,30 @@ contains
       if (allocated(j_new)) deallocate (j_new)
       if (allocated(j_before)) deallocate (j_before)
    end subroutine run_local_updates
+
+   subroutine seed_run_context_configs(run_contexts)
+      type(tltm_run_context_t), intent(inout) :: run_contexts(:)
+
+      integer :: i
+
+      do i = 1, size(run_contexts)
+         call set_tltm_config_context(run_contexts(i)%config, config)
+      end do
+   end subroutine seed_run_context_configs
+
+   subroutine resolve_run_integrator_controls(run_context, trajectory_length, integration_steps)
+      type(tltm_run_context_t), intent(in) :: run_context
+      real(dp), intent(out) :: trajectory_length
+      integer, intent(out) :: integration_steps
+
+      if (run_context%config%loaded) then
+         trajectory_length = run_context%config%snapshot%integrator%trajectory_length
+         integration_steps = run_context%config%snapshot%integrator%integration_steps
+      else
+         trajectory_length = config%integrator%trajectory_length
+         integration_steps = config%integrator%integration_steps
+      end if
+   end subroutine resolve_run_integrator_controls
 
    subroutine record_rg_reject_audit(audit_context, cycle_idx, slot_id, update_idx, x_before, z_before, j_before, &
                                      x_after, z_after, j_after, x_proposal, z_proposal, j_proposal, &
@@ -1107,6 +1148,12 @@ contains
       complex(dp) :: s_val, log_det_j
       logical :: det_error
 
+      if (size(jac, 1) /= size(z) .or. size(jac, 2) /= size(z)) then
+         energy = 0.0_dp
+         ok = .false.
+         return
+      end if
+
       call calculate_action(z, s_val)
       call log_determinant(jac, log_det_j, det_error)
       if (det_error) then
@@ -1116,7 +1163,8 @@ contains
       end if
 
       energy = real(s_val, dp) - real(log_det_j, dp)
-      ok = .true.
+      ok = ieee_is_finite(energy) .and. ieee_is_finite(aimag(s_val)) .and. ieee_is_finite(aimag(log_det_j))
+      if (.not. ok) energy = 0.0_dp
    end subroutine compute_effective_energy
 
    subroutine free_swap_buffers(x_ap, x_bp, z_ap, z_bp, j_ap, j_bp)
@@ -1811,8 +1859,8 @@ contains
 
       max_flow_time = max(0.0_dp, default_max_flow)
       call parse_real_env("TLTM_STAGE2_MAX_FLOW_TIME", max_flow_time)
-      if (max_flow_time < 0.0_dp) then
-         write (*, '(A)') "[ERROR][TLTM-S2] TLTM_STAGE2_MAX_FLOW_TIME must be >= 0."
+      if ((.not. ieee_is_finite(max_flow_time)) .or. max_flow_time < 0.0_dp) then
+         write (*, '(A)') "[ERROR][TLTM-S2] TLTM_STAGE2_MAX_FLOW_TIME must be finite and >= 0."
          error stop 1
       end if
 
@@ -1827,6 +1875,10 @@ contains
          n_slots = size(parsed)
          allocate (flow_ladder(n_slots))
          flow_ladder = parsed
+         if (any(.not. ieee_is_finite(flow_ladder)) .or. any(flow_ladder < 0.0_dp)) then
+            write (*, '(A)') "[ERROR][TLTM-S2] TLTM_STAGE2_FLOW_TIME_LADDER values must be finite and >= 0."
+            error stop 1
+         end if
          max_flow_time = maxval(flow_ladder)
          if (allocated(parsed)) deallocate (parsed)
       else
@@ -1849,8 +1901,8 @@ contains
 
       init_sigma = stage2_init_sigma_default
       call parse_real_env("TLTM_STAGE2_INIT_SIGMA", init_sigma)
-      if (init_sigma <= 0.0_dp) then
-         write (*, '(A)') "[ERROR][TLTM-S2] TLTM_STAGE2_INIT_SIGMA must be > 0."
+      if ((.not. ieee_is_finite(init_sigma)) .or. init_sigma <= 0.0_dp) then
+         write (*, '(A)') "[ERROR][TLTM-S2] TLTM_STAGE2_INIT_SIGMA must be finite and > 0."
          error stop 1
       end if
 
@@ -1988,7 +2040,11 @@ contains
       type(tltm_label_track_t), intent(in) :: label_tracks(:)
 
       if (write_protocol) call write_stage2_v1_protocol(protocol_file)
-      if (write_package) call write_stage2_v1_diagnostics_package(output_dir, slots, pair_stats, label_tracks)
+      if (write_package) then
+         call write_stage2_v1_resolved_config(output_dir, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
+                                              local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled)
+         call write_stage2_v1_diagnostics_package(output_dir, slots, pair_stats, label_tracks)
+      end if
       if (write_manifest) call write_stage2_v1_manifest(manifest_file, protocol_file, write_protocol, &
                                                         summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, &
                                                         all_history_dir, write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, &
@@ -2015,7 +2071,7 @@ contains
       integer :: unit_manifest, ios
       logical :: path_ok
       character(len=128) :: git_commit
-      character(len=512) :: local_csv, swap_csv, label_csv, phase_csv
+      character(len=512) :: config_json, local_csv, swap_csv, label_csv, phase_csv
 
       call ensure_parent_directory_exists(manifest_file, path_ok)
       if (.not. path_ok) then
@@ -2032,13 +2088,18 @@ contains
       call resolve_git_commit(git_commit)
 
       write (unit_manifest, '(A)') "{"
-      call write_json_string_field(unit_manifest, "schema_version", "tltm.stage2.manifest.v1alpha1", .true.)
-      call write_json_string_field(unit_manifest, "writer_version", "stage2_sidecar_2026-05-10", .true.)
+      call write_json_string_field(unit_manifest, "schema_version", "tltm.stage2.manifest.v1alpha2", .true.)
+      call write_json_string_field(unit_manifest, "writer_version", "stage2_sidecar_2026-05-17_product_surface", .true.)
       call write_json_string_field(unit_manifest, "git_commit", trim(git_commit), .true.)
-      call write_json_string_field(unit_manifest, "algorithm_id", "TLTM-HMC", .true.)
-      call write_json_string_field(unit_manifest, "canonical_route_id", "newton_p28_btn_reverse_gate_metropolis", .true.)
-      call write_json_string_field(unit_manifest, "flow_policy_id", "nt_strict_qn_navassist_cert_strict_rg_metropolis_v1", .true.)
-      call write_json_string_field(unit_manifest, "reverse_gate_policy_id", "required_for_canonical_p28_route", .true.)
+      call write_json_string_field(unit_manifest, "algorithm_id", "tltm_hmc_v1", .true.)
+      call write_json_string_field(unit_manifest, "canonical_route_id", "constrained_hmc_reverse_gate_metropolis_v1", .true.)
+      call write_json_string_field(unit_manifest, "integrator_policy_id", "rattle_v1", .true.)
+      call write_json_string_field(unit_manifest, "constraint_solver_policy_id", "newton_projection_v1", .true.)
+      call write_json_string_field(unit_manifest, "flow_policy_id", "odex_hairer_endpoint_v1", .true.)
+      call write_json_string_field(unit_manifest, "qn_solver_policy_id", "official_dfols_residual_certified_v1", .true.)
+      call write_json_string_field(unit_manifest, "reverse_gate_policy_id", "reverse_trajectory_certification_v1", .true.)
+      call write_json_string_field(unit_manifest, "failure_policy_id", "reject_stay_put_v1", .true.)
+      call write_json_string_field(unit_manifest, "precision_policy_id", "double_strict_v1", .true.)
       call write_json_string_field(unit_manifest, "tempering_protocol_id", "stage2_replica_exchange_local_swap_measure", .true.)
       call write_json_string_field(unit_manifest, "sweep_order", "local_update_swap_measure_history_label_trace", .true.)
       call write_json_string_field(unit_manifest, "measurement_boundary", "post_swap", .true.)
@@ -2047,6 +2108,16 @@ contains
       call write_json_real_array_field(unit_manifest, "flow_ladder", flow_ladder, .true.)
       call write_json_string_field(unit_manifest, "rng_stream_contract", trim(rng_stream_contract), .true.)
       call write_json_string_field(unit_manifest, "seed_policy", trim(stage2_seed_policy_text(rng_stream_contract)), .true.)
+
+      write (unit_manifest, '(A)') '  "precision": {'
+      call write_json_string_field(unit_manifest, "precision_mode", "double", .true., 4)
+      call write_json_string_field(unit_manifest, "tolerance_profile", "strict_double", .true., 4)
+      call write_json_string_field(unit_manifest, "fortran_real_kind", "real64", .true., 4)
+      call write_json_string_field(unit_manifest, "ode_backend_precision", "double_real64", .true., 4)
+      call write_json_string_field(unit_manifest, "residual_certification_precision", "double_real64", .true., 4)
+      call write_json_string_field(unit_manifest, "output_binary_precision", "double_real64", .true., 4)
+      call write_json_string_field(unit_manifest, "single_mixed_status", "experimental_until_certified", .false., 4)
+      write (unit_manifest, '(A)') '  },'
 
       write (unit_manifest, '(A)') '  "resolved_stage2_controls": {'
       call write_json_int_field(unit_manifest, "base_seed", base_seed, .true., 4)
@@ -2092,9 +2163,6 @@ contains
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_OUTPUT_DIR", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_MANIFEST_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_PROTOCOL_FILE", .true., 4)
-      call write_json_env_field(unit_manifest, "INTODE_SOLVER_ASSIST_POLICY", .true., 4)
-      call write_json_env_field(unit_manifest, "INTODE_SOLVER_ASSIST_ENABLED", .true., 4)
-      call write_json_env_field(unit_manifest, "QN_SOLVER_BACKEND", .true., 4)
       call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_PRESET", .true., 4)
       call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_NPT", .true., 4)
       call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_MAXFUN", .true., 4)
@@ -2114,6 +2182,12 @@ contains
       call write_json_string_or_null_field(unit_manifest, "cold_phi_history_file", cold_phi_history_file, write_cold_history, .true., 4)
       call write_json_logical_field(unit_manifest, "all_replica_history_written", write_all_history, .true., 4)
       call write_json_string_or_null_field(unit_manifest, "all_replica_history_dir", all_history_dir, write_all_history, .true., 4)
+      if (write_package) then
+         call stage2_v1_package_path(output_dir, "config.resolved.json", config_json)
+      else
+         config_json = ""
+      end if
+      call write_json_string_or_null_field(unit_manifest, "v1_resolved_config_file", config_json, write_package, .true., 4)
       call write_json_logical_field(unit_manifest, "v1_protocol_written", write_protocol, .true., 4)
       call write_json_string_or_null_field(unit_manifest, "v1_protocol_file", protocol_file, write_protocol, .false., 4)
       write (unit_manifest, '(A)') '  },'
@@ -2148,6 +2222,84 @@ contains
 
       close (unit_manifest)
    end subroutine write_stage2_v1_manifest
+
+   subroutine write_stage2_v1_resolved_config(output_dir, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
+                                              local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled)
+      character(len=*), intent(in) :: output_dir
+      integer, intent(in) :: base_seed, swap_rng_seed, cycle_count, local_updates
+      real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma
+      character(len=*), intent(in) :: init_mode, rng_stream_contract
+      logical, intent(in) :: swap_enabled
+
+      character(len=512) :: config_file
+      integer :: unit_config, ios
+      logical :: path_ok
+
+      call stage2_v1_package_path(output_dir, "config.resolved.json", config_file)
+      call ensure_parent_directory_exists(config_file, path_ok)
+      if (.not. path_ok) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot prepare v1 resolved-config path:", trim(config_file)
+         error stop 1
+      end if
+
+      open (newunit=unit_config, file=trim(config_file), status='replace', action='write', iostat=ios)
+      if (ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot open v1 resolved-config file:", trim(config_file)
+         error stop 1
+      end if
+
+      write (unit_config, '(A)') "{"
+      call write_json_string_field(unit_config, "schema_version", "tltm.stage2.config.resolved.v1alpha1", .true.)
+      call write_json_string_field(unit_config, "writer_version", "stage2_sidecar_2026-05-17_product_surface", .true.)
+
+      write (unit_config, '(A)') '  "model": {'
+      call write_json_string_field(unit_config, "model_id", "tltm_configured_model_v1", .true., 4)
+      call write_json_int_field(unit_config, "x_size", config%state%x_size, .true., 4)
+      call write_json_int_field(unit_config, "z_size", config%state%z_size, .true., 4)
+      call write_json_int_field(unit_config, "constraint_dim", max(0, config%state%x_size - config%state%z_size), .true., 4)
+      call write_json_real_field(unit_config, "alpha_re", real(config%model%alpha, dp), .true., 4)
+      call write_json_real_field(unit_config, "alpha_im", real(aimag(config%model%alpha), dp), .true., 4)
+      call write_json_real_field(unit_config, "beta_re", real(config%model%beta, dp), .true., 4)
+      call write_json_real_field(unit_config, "beta_im", real(aimag(config%model%beta), dp), .true., 4)
+      call write_json_string_field(unit_config, "derivative_mode", trim(config%model%derivative_mode), .false., 4)
+      write (unit_config, '(A)') '  },'
+
+      write (unit_config, '(A)') '  "integrator": {'
+      call write_json_string_field(unit_config, "method", trim(config%integrator%method), .true., 4)
+      call write_json_real_field(unit_config, "trajectory_length", config%integrator%trajectory_length, .true., 4)
+      call write_json_int_field(unit_config, "integration_steps", config%integrator%integration_steps, .true., 4)
+      call write_json_real_field(unit_config, "initial_flow_time", config%integrator%initial_flow_time, .false., 4)
+      write (unit_config, '(A)') '  },'
+
+      write (unit_config, '(A)') '  "solver": {'
+      call write_json_real_field(unit_config, "abs_tol", config%solver%abs_tol, .true., 4)
+      call write_json_real_field(unit_config, "rel_tol", config%solver%rel_tol, .true., 4)
+      call write_json_real_field(unit_config, "constraint_tol", config%solver%constraint_tol, .true., 4)
+      call write_json_logical_field(unit_config, "qn_correction_enabled", config%solver%enable_quasi_fallback, .false., 4)
+      write (unit_config, '(A)') '  },'
+
+      write (unit_config, '(A)') '  "stage2": {'
+      call write_json_int_field(unit_config, "base_seed", base_seed, .true., 4)
+      call write_json_int_field(unit_config, "swap_rng_seed", swap_rng_seed, .true., 4)
+      call write_json_real_array_field(unit_config, "flow_ladder", flow_ladder, .true., 4)
+      call write_json_real_field(unit_config, "max_flow_time", max_flow_time, .true., 4)
+      call write_json_int_field(unit_config, "cycles", cycle_count, .true., 4)
+      call write_json_int_field(unit_config, "local_updates", local_updates, .true., 4)
+      call write_json_real_field(unit_config, "init_sigma", init_sigma, .true., 4)
+      call write_json_string_field(unit_config, "init_mode", trim(init_mode), .true., 4)
+      call write_json_string_field(unit_config, "rng_stream_contract", trim(rng_stream_contract), .true., 4)
+      call write_json_logical_field(unit_config, "swap_enabled", swap_enabled, .false., 4)
+      write (unit_config, '(A)') '  },'
+
+      write (unit_config, '(A)') '  "precision": {'
+      call write_json_string_field(unit_config, "precision_mode", "double", .true., 4)
+      call write_json_string_field(unit_config, "tolerance_profile", "strict_double", .true., 4)
+      call write_json_string_field(unit_config, "precision_policy_id", "double_strict_v1", .false., 4)
+      write (unit_config, '(A)') '  }'
+      write (unit_config, '(A)') "}"
+
+      close (unit_config)
+   end subroutine write_stage2_v1_resolved_config
 
    subroutine write_stage2_v1_diagnostics_package(output_dir, slots, pair_stats, label_tracks)
       character(len=*), intent(in) :: output_dir
@@ -2325,7 +2477,7 @@ contains
       end if
 
       write (unit_protocol, '(A)') "{"
-      call write_json_string_field(unit_protocol, "schema_version", "tltm.stage2.protocol.v1alpha1", .true.)
+      call write_json_string_field(unit_protocol, "schema_version", "tltm.stage2.protocol.v1alpha2", .true.)
       call write_json_string_field(unit_protocol, "protocol_id", "stage2_replica_exchange_local_swap_measure", .true.)
       call write_json_string_field(unit_protocol, "tempering_parameter", "flow_time", .true.)
       call write_json_string_field(unit_protocol, "fixed_zone_identifier", "slot_id", .true.)
@@ -2340,7 +2492,7 @@ contains
       call write_json_string_field(unit_protocol, "kernel", "HMC/RATTLE on each fixed flowed surface", .true., 4)
       call write_json_string_field(unit_protocol, "rng_stream", "contract-selected; see manifest rng_stream_contract and seed_policy", .true., 4)
       call write_json_string_field(unit_protocol, "proposal_failure_semantics", "legal rejection; live slot state unchanged", .true., 4)
-      call write_json_string_field(unit_protocol, "reverse_gate", "required for canonical p28 proposal validity", .true., 4)
+      call write_json_string_field(unit_protocol, "reverse_gate", "required for canonical proposal validity", .true., 4)
       call write_json_string_field(unit_protocol, "final_flow_policy", "strict final flow constructs accepted proposal states", .false., 4)
       write (unit_protocol, '(A)') '  },'
 

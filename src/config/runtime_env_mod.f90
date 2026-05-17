@@ -1,4 +1,5 @@
 module runtime_env_mod
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use utils, only: dp
    implicit none
    private
@@ -58,7 +59,7 @@ contains
       if (env_status /= 0 .or. env_len <= 0) return
 
       read (env_text(1:env_len), *, iostat=ios) parsed_value
-      if (ios == 0) value = parsed_value
+      if (ios == 0 .and. ieee_is_finite(parsed_value)) value = parsed_value
    end subroutine parse_real_env
 
    subroutine parse_logical_env(name, value)
@@ -119,7 +120,7 @@ contains
          if (.not. has_token) exit
          i = i + 1
          read (token, *, iostat=ios) values(i)
-         if (ios /= 0) then
+         if (ios /= 0 .or. (.not. ieee_is_finite(values(i)))) then
             deallocate (values)
             return
          end if

@@ -290,6 +290,16 @@ contains
       type(qn_policy_context_t), pointer :: active_policy
 
       n = 2*size(z)
+      ierr = .true.
+      Jl = 0.0_dp
+      if (size(x_new) == size(xt)) x_new = xt
+      if (present(x_best_solution)) then
+         if (size(x_best_solution) == n) x_best_solution = 0.0_dp
+      end if
+      if (size(z) <= 0 .or. size(xt) /= size(z) + 1 .or. size(del_z) /= n .or. &
+          size(Jl) /= n .or. size(x_new) /= size(xt) .or. &
+          size(jac, 1) /= size(z) .or. size(jac, 2) /= size(z) .or. &
+          (.not. ieee_is_finite(tol)) .or. tol <= 0.0_dp) return
       call resolve_qn_context(qn_context, active_context)
       call resolve_qn_diagnostics(qn_diagnostics, active_diagnostics)
       call resolve_qn_policy(qn_policy, active_policy)
@@ -310,9 +320,7 @@ contains
       x_best_first = x0_guess
       x_best_global = x0_guess
       if (max_iter > 32) global_filter_candidate = .true.
-      Jl = 0.0_dp
       Jl_best_global = 0.0_dp
-      x_new = xt
 
       attempt_idx = 1
       active_context%trace_route_code = 10
@@ -394,7 +402,8 @@ contains
 
       n = 2*size(z)
       converged = .false.
-      x_new = xt
+      Jl = 0.0_dp
+      if (size(x_new) == size(xt)) x_new = xt
       if (size(x_new) /= size(xt) .or. size(Jl) /= size(del_z)) return
 
       allocate (x_seed(n), x_solution(n), x_best(n), r(n), Jl_eval(n), Jl_best(n), x0_c(n), x_solution_c(n))
@@ -950,7 +959,8 @@ contains
       call resolve_qn_context(qn_context, active_context)
       call resolve_qn_diagnostics(qn_diagnostics, active_diagnostics)
       n = size(z)
-      if (size(xt) /= n + 1 .or. size(xi) /= 2*n .or. size(del_z) /= 2*n .or. size(fq) /= 2*n .or. size(Jl) /= 2*n) then
+      if (size(xt) /= n + 1 .or. size(xi) /= 2*n .or. size(del_z) /= 2*n .or. size(fq) /= 2*n .or. size(Jl) /= 2*n .or. &
+          size(jac, 1) /= n .or. size(jac, 2) /= n) then
          call mark_constraint_eval_invalid(fq, Jl, ierr, active_context)
          return
       end if

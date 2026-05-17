@@ -1,4 +1,5 @@
 module utils
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use, intrinsic :: iso_fortran_env, only: real64, int64
    integer, parameter :: dp = real64
    integer, parameter :: X_FLOW_TIME_INDEX = 1
@@ -38,6 +39,7 @@ contains
       ! Locals
       integer :: n, i, j
 
+      rmat = 0.0_dp
       n = size(cmat, 1)
       if (size(cmat, 2) /= n) then
          write (*, *) "Error(map_to_real_mat): cmat is not square."
@@ -73,6 +75,7 @@ contains
       ! Locals
       integer :: n, i, j
 
+      cmat = cmplx(0.0_dp, 0.0_dp, dp)
       n = size(cmat, 1)
       if (size(cmat, 2) /= n) then
          write (*, *) "Error(map_to_complex_mat): cmat is not square."
@@ -105,6 +108,7 @@ contains
       ! Locals
       integer :: i, n
 
+      r = 0.0_dp
       n = size(c)
       if (size(r) /= 2*n) then
          write (*, *) "Error(complex_to_real): r must have length 2*n."
@@ -131,6 +135,7 @@ contains
       ! Locals
       integer :: i, n
 
+      c = cmplx(0.0_dp, 0.0_dp, dp)
       n = size(c)
       if (size(r) /= 2*n) then
          write (*, *) "Error(real_to_complex): r must have length 2*n."
@@ -157,6 +162,7 @@ contains
       ! Locals
       integer :: i, j, n
 
+      vec = 0.0_dp
       n = size(mat, 1)
       if (size(mat, 2) /= n) then
          write (*, *) "Error(map_to_real): mat is not square."
@@ -256,6 +262,7 @@ contains
 
       integer :: i, j, n
 
+      mat = cmplx(0.0_dp, 0.0_dp, dp)
       n = size(mat, 1)
       if (size(mat, 2) /= n) then
          write (*, *) "Error(map_to_complex): mat is not square."
@@ -437,10 +444,16 @@ contains
       integer :: sign
       error_flag = .false.
       sign = 1
+      log_det = cmplx(0.0_dp, 0.0_dp, dp)
 
       n = size(matrix, 1)
       if (n /= size(matrix, 2)) then
          write (*, *) "Error(log_determinant): matrix must be square."
+         error_flag = .true.
+         return
+      end if
+      if (any(.not. ieee_is_finite(real(matrix, dp))) .or. any(.not. ieee_is_finite(aimag(matrix)))) then
+         write (*, *) "Error(log_determinant): matrix contains nonfinite values."
          error_flag = .true.
          return
       end if
@@ -458,7 +471,6 @@ contains
          return
       end if
 
-      log_det = cmplx(0.0_dp, 0.0_dp, dp)
       do i = 1, n
          log_det = log_det + log(lu_matrix(i, i))
          if (ipiv(i) /= i) sign = -sign

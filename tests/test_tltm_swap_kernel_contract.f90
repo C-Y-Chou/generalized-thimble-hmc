@@ -1,11 +1,13 @@
 program test_tltm_swap_kernel_contract
    use param_mod, only: read_parameters, state_seed_size_cfg
    use mt95, only: mt95_seed_state, mt95_state_t
+   use markovchain_phase, only: compute_phase_factor
    use solve_flow, only: flow, intode_status_is_strict_success, intode_status_unknown
    use tltm_stage2_driver, only: attempt_adjacent_swap, compute_effective_energy
    use tltm_run_context_mod, only: release_tltm_run_context, tltm_run_context_t
    use tltm_types_mod, only: allocate_tltm_slot, release_tltm_slot, tltm_pair_stats_t, tltm_slot_t
    use utils, only: dp, x_set_flow_time, x_set_seed_real
+   use, intrinsic :: ieee_arithmetic, only: ieee_quiet_nan, ieee_value
    implicit none
 
    integer, parameter :: rng_seed = 13579
@@ -20,10 +22,11 @@ program test_tltm_swap_kernel_contract
    integer :: n_seed, x_size
    real(dp), allocatable :: seed_a(:), seed_b(:)
    real(dp), allocatable :: x_a0(:), x_b0(:), x_ap(:), x_bp(:)
-   complex(dp), allocatable :: z_a0(:), z_b0(:), z_ap(:), z_bp(:)
-   complex(dp), allocatable :: j_a0(:, :), j_b0(:, :), j_ap(:, :), j_bp(:, :)
-   real(dp) :: e_a, e_b, e_ap, e_bp, delta, expected_probability
-   logical :: ok_a, ok_b, ok_ap, ok_bp
+   complex(dp), allocatable :: z_a0(:), z_b0(:), z_ap(:), z_bp(:), z_bad_energy(:)
+   complex(dp), allocatable :: j_a0(:, :), j_b0(:, :), j_ap(:, :), j_bp(:, :), j_bad(:, :), j_wrong_square(:, :)
+   complex(dp) :: phase_value
+   real(dp) :: e_a, e_b, e_ap, e_bp, e_bad, delta, expected_probability
+   logical :: ok_a, ok_b, ok_ap, ok_bp, ok_bad, phase_error
 
    call read_parameters()
    n_seed = state_seed_size_cfg()
@@ -31,8 +34,10 @@ program test_tltm_swap_kernel_contract
 
    allocate (seed_a(n_seed), seed_b(n_seed))
    allocate (x_a0(x_size), x_b0(x_size), x_ap(x_size), x_bp(x_size))
-   allocate (z_a0(n_seed), z_b0(n_seed), z_ap(n_seed), z_bp(n_seed))
+   allocate (z_a0(n_seed), z_b0(n_seed), z_ap(n_seed), z_bp(n_seed), z_bad_energy(n_seed))
    allocate (j_a0(n_seed, n_seed), j_b0(n_seed, n_seed), j_ap(n_seed, n_seed), j_bp(n_seed, n_seed))
+   allocate (j_bad(n_seed + 1, n_seed))
+   allocate (j_wrong_square(n_seed + 1, n_seed + 1))
 
    call allocate_tltm_slot(slot_a, x_size)
    call allocate_tltm_slot(slot_b, x_size)
@@ -53,6 +58,17 @@ program test_tltm_swap_kernel_contract
    call compute_effective_energy(slot_a%z, slot_a%jac, e_a, ok_a)
    call compute_effective_energy(slot_b%z, slot_b%jac, e_b, ok_b)
    call assert_true(ok_a .and. ok_b, "current swap energies are computable")
+   j_bad = cmplx(0.0_dp, 0.0_dp, dp)
+   call compute_phase_factor(slot_a%z, j_bad, phase_value, phase_error)
+   call assert_true(phase_error .and. abs(phase_value - cmplx(1.0_dp, 0.0_dp, dp)) == 0.0_dp, &
+                    "phase factor rejects z/J size mismatch as neutral-error")
+   j_wrong_square = cmplx(0.0_dp, 0.0_dp, dp)
+   call compute_effective_energy(slot_a%z, j_wrong_square, e_bad, ok_bad)
+   call assert_true((.not. ok_bad) .and. e_bad == 0.0_dp, "effective energy rejects z/J size mismatch")
+   z_bad_energy = slot_a%z
+   z_bad_energy(1) = cmplx(ieee_value(0.0_dp, ieee_quiet_nan), 0.0_dp, dp)
+   call compute_effective_energy(z_bad_energy, slot_a%jac, e_bad, ok_bad)
+   call assert_true((.not. ok_bad) .and. e_bad == 0.0_dp, "effective energy rejects nonfinite action/logdet")
 
    x_ap = slot_b%x
    call x_set_flow_time(x_ap, slot_a%flow_time)
@@ -121,8 +137,8 @@ program test_tltm_swap_kernel_contract
    call release_tltm_run_context(run_context_b)
    deallocate (seed_a, seed_b)
    deallocate (x_a0, x_b0, x_ap, x_bp)
-   deallocate (z_a0, z_b0, z_ap, z_bp)
-   deallocate (j_a0, j_b0, j_ap, j_bp)
+   deallocate (z_a0, z_b0, z_ap, z_bp, z_bad_energy)
+   deallocate (j_a0, j_b0, j_ap, j_bp, j_bad, j_wrong_square)
 
    write (*, '(A)') "[PASS] TLTM swap kernel contract"
 

@@ -16,6 +16,12 @@ contains
       complex(dp) :: log_det_j, s_val
       real(dp) :: s_imag
 
+      if (size(j, 1) /= size(z) .or. size(j, 2) /= size(z)) then
+         phi = cmplx(1.0_dp, 0.0_dp, dp)
+         error = .true.
+         return
+      end if
+
       ! log_det_j = log(det(J)); its imaginary part is the Jacobian phase.
       call log_determinant(j, log_det_j, error)
       if (error) then

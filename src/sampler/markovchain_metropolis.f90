@@ -149,6 +149,9 @@ contains
          if (present(transition_status)) transition_status = metropolis_status_accepted
       else
          accept = .false.
+         x_new = x
+         z_new = z
+         j_new = j
          if (present(transition_status)) transition_status = metropolis_status_rejected
       end if
    end subroutine metropolis_step

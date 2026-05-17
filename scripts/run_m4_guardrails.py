@@ -415,6 +415,7 @@ def run_guardrails(args):
             "scripts/run_stage3_3_multiseed.py",
             "scripts/merge_stage3_multiseed_chunks.py",
             "scripts/audit_tltm_tempering_protocol.py",
+            "scripts/run_tltm_product.py",
             "scripts/run_m4_guardrails.py",
             "codex/workspaces/fortran_modernization/tasks/scripts/odex_assist_revalidation.py",
             "codex/workspaces/fortran_modernization/tasks/scripts/odex_official_assist_onoff_readback.py",
@@ -426,6 +427,7 @@ def run_guardrails(args):
             "codex/workspaces/fortran_modernization/tasks/scripts/post_b_rng_reference_anchor.py",
             "codex/workspaces/fortran_modernization/tasks/scripts/stage2_rng_v2_anchor.py",
             "codex/workspaces/fortran_modernization/tasks/scripts/validate_script_evidence_audit.py",
+            "codex/workspaces/fortran_modernization/tasks/scripts/precision_readiness_audit.py",
         ],
         repo_root,
         failures,
@@ -441,6 +443,21 @@ def run_guardrails(args):
             ".",
             "--output-root",
             str(output_root / "script_evidence_audit"),
+        ],
+        repo_root,
+        failures,
+        args.keep_going,
+        guardrail_env,
+    )
+    run_step(
+        "F20 precision readiness audit",
+        [
+            sys.executable,
+            "codex/workspaces/fortran_modernization/tasks/scripts/precision_readiness_audit.py",
+            "--repo-root",
+            ".",
+            "--output-root",
+            str(output_root / "precision_readiness"),
         ],
         repo_root,
         failures,
@@ -497,6 +514,7 @@ def run_guardrails(args):
                     "test_mt95_state_contract",
                     "test_tltm_rng_contract",
                     "test_perf_profile_context_contract",
+                    "test_numerical_helper_contracts",
                     "test_hmc_reversibility_context_contract",
                     "test_newton_eval_flow_status_context_contract",
                     "test_retained_core_newton_contract",
@@ -582,13 +600,28 @@ def run_guardrails(args):
         failures,
         args.keep_going,
     )
-    sidecar_manifest = resolve_repo_path(repo_root, sidecar_row.get("stage2_v1_manifest_file", ""))
-    if sidecar_manifest.exists():
+    sidecar_manifest_text = sidecar_row.get("stage2_v1_manifest_file", "")
+    sidecar_manifest = resolve_repo_path(repo_root, sidecar_manifest_text) if sidecar_manifest_text else Path("")
+    assert_condition(
+        "sidecar-on row records stage2 v1 manifest file",
+        bool(sidecar_manifest_text) and sidecar_manifest.exists(),
+        json.dumps(sidecar_row, indent=2, sort_keys=True),
+        failures,
+        args.keep_going,
+    )
+    sidecar_config_text = sidecar_row.get("stage2_v1_resolved_config_file", "")
+    sidecar_config = resolve_repo_path(repo_root, sidecar_config_text) if sidecar_config_text else Path("")
+    assert_condition(
+        "sidecar-on row records resolved config file",
+        bool(sidecar_config_text) and sidecar_config.exists(),
+        json.dumps(sidecar_row, indent=2, sort_keys=True),
+        failures,
+        args.keep_going,
+    )
+    if sidecar_manifest_text and sidecar_manifest.exists():
         manifest_data = json.loads(sidecar_manifest.read_text())
         env_overrides = manifest_data.get("env_overrides", {})
         required_official_env = [
-            "INTODE_SOLVER_ASSIST_POLICY",
-            "QN_SOLVER_BACKEND",
             "QN_OFFICIAL_DFOLS_PRESET",
             "QN_OFFICIAL_DFOLS_NPT",
             "QN_OFFICIAL_DFOLS_MAXFUN",
@@ -614,9 +647,54 @@ def run_guardrails(args):
         failures,
         args.keep_going,
     )
+    banned_product_env = [
+        key
+        for key in ("INTODE_SOLVER_ASSIST_POLICY", "INTODE_SOLVER_ASSIST_ENABLED", "QN_SOLVER_BACKEND")
+        if key in env_overrides
+    ]
+    assert_condition(
+        "stage2 sidecar omits retired product env knobs",
+        not banned_product_env,
+        "Manifest {0} still exposes retired product env keys: {1}".format(
+            sidecar_manifest, ", ".join(banned_product_env)
+        ),
+        failures,
+        args.keep_going,
+    )
 
     run_step(
-        "F14 complete pre-redo gate validates F3/F4/F7/F8",
+        "F12 product wrapper validates sidecar-on output",
+        [
+            sys.executable,
+            "scripts/run_tltm_product.py",
+            "--repo-root",
+            ".",
+            "--config",
+            str(tiny_config),
+            "--output-subdir",
+            str(sidecar_out),
+            "--validate-only",
+        ],
+        repo_root,
+        failures,
+        args.keep_going,
+        guardrail_env,
+    )
+    product_wrapper_manifest = sidecar_out / "product_wrapper_manifest.json"
+    if product_wrapper_manifest.exists():
+        product_wrapper_data = json.loads(product_wrapper_manifest.read_text())
+    else:
+        product_wrapper_data = {}
+    assert_condition(
+        "product wrapper readback manifest passes",
+        product_wrapper_data.get("schema_version") == "tltm.product.wrapper.v1alpha1"
+        and product_wrapper_data.get("validation", {}).get("status") == "pass",
+        "Manifest {0}\n{1}".format(product_wrapper_manifest, json.dumps(product_wrapper_data, indent=2, sort_keys=True)),
+        failures,
+        args.keep_going,
+    )
+    run_step(
+        "F14 complete pre-redo gate validates F3/F4/F7/F8 plus F12 wrapper readback",
         [
             sys.executable,
             "codex/workspaces/fortran_modernization/tasks/scripts/f14_complete_pre_redo_gate.py",
@@ -624,6 +702,8 @@ def run_guardrails(args):
             ".",
             "--skip-build",
             "--existing-stage3-output",
+            str(sidecar_out),
+            "--existing-product-wrapper-output",
             str(sidecar_out),
             "--output-root",
             str(output_root / "f14_complete_pre_redo_gate"),
@@ -752,10 +832,14 @@ def run_guardrails(args):
         guardrail_env,
     )
     merge_row = read_first_csv_row(merge_root / "per_seed_summary_table.csv")
+    merge_config_text = merge_row.get("stage2_v1_resolved_config_file", "")
+    merge_config = resolve_repo_path(repo_root, merge_config_text) if merge_config_text else Path("")
     assert_condition(
         "merged row preserves sidecar metadata",
         merge_row.get("stage2_v1_sidecar_enabled") == "1"
         and merge_row.get("stage2_protocol_audit_verdict") == "pass"
+        and bool(merge_config_text)
+        and merge_config.exists()
         and (merge_root / "protocol_audit_summary.csv").exists(),
         json.dumps(merge_row, indent=2, sort_keys=True),
         failures,

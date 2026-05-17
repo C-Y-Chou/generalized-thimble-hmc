@@ -1,4 +1,5 @@
 module param_mod
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use utils, only: dp
    implicit none
 
@@ -118,6 +119,28 @@ contains
       end if
       if (config%chain%warmup < 0) then
          write (*, *) "Invalid config: warmup must be >= 0."
+         error stop 1
+      end if
+      if ((.not. ieee_is_finite(config%integrator%trajectory_length)) .or. &
+          config%integrator%trajectory_length <= 0.0_dp) then
+         write (*, *) "Invalid config: trajectory_length must be finite and > 0."
+         error stop 1
+      end if
+      if ((.not. ieee_is_finite(config%integrator%initial_flow_time)) .or. &
+          config%integrator%initial_flow_time < 0.0_dp) then
+         write (*, *) "Invalid config: initial_flow_time must be finite and >= 0."
+         error stop 1
+      end if
+      if ((.not. ieee_is_finite(config%solver%abs_tol)) .or. &
+          (.not. ieee_is_finite(config%solver%rel_tol)) .or. &
+          config%solver%abs_tol < 0.0_dp .or. config%solver%rel_tol < 0.0_dp .or. &
+          (config%solver%abs_tol == 0.0_dp .and. config%solver%rel_tol == 0.0_dp)) then
+         write (*, *) "Invalid config: abs_tol/rel_tol must be finite, nonnegative, and not both zero."
+         error stop 1
+      end if
+      if ((.not. ieee_is_finite(config%solver%constraint_tol)) .or. &
+          config%solver%constraint_tol <= 0.0_dp) then
+         write (*, *) "Invalid config: constraint_tol must be finite and > 0."
          error stop 1
       end if
       if (config%analysis%bootstrap_samples < 0) then

@@ -1,6 +1,6 @@
 # M3 Tempering Protocol And Output Schema Design
 
-Updated: 2026-05-10 JST
+Updated: 2026-05-17 JST
 Scope: design-only contract for TLTM tempering correctness and the future versioned output schema. No Fortran source, output writer, production workflow, or job submission changes are implied by this document.
 
 ## Purpose
@@ -18,7 +18,7 @@ TLTM-specific rules:
 
 - `references/1912.13303_TLTM_HMC.pdf`: HMC implementation on TLTM.
 - `references/2311.10663v4.pdf`: constrained HMC / RATTLE / simplified Newton mechanics used by the local kernel.
-- `references/new_algorithm__Copy_.pdf`: project-specific p28 BTN/backflow rescue and QN loss design.
+- `references/new_algorithm__Copy_.pdf`: project-specific BTN/backflow residual and QN loss design.
 
 Standard tempering rules:
 
@@ -89,8 +89,8 @@ Local kernel invariant:
 
 - For every fixed slot `a`, the local transition kernel must preserve `pi_a`.
 - HMC/RATTLE proposal failure is a legal rejection and must leave the slot state unchanged.
-- Reverse gate is part of the canonical p28 proposal validity boundary.
-- Solver-internal ODE assist may help NT/QN residual evaluation, but strict final `flow(...)` must construct accepted physical states.
+- Reverse gate is part of the canonical proposal validity boundary.
+- Strict final `flow(...)` must construct accepted physical states.
 
 Swap kernel invariant:
 
@@ -240,8 +240,13 @@ run/
 - `git_commit`.
 - `algorithm_id`.
 - `canonical_route_id`.
+- `integrator_policy_id`.
+- `constraint_solver_policy_id`.
 - `flow_policy_id`.
+- `qn_solver_policy_id`.
 - `reverse_gate_policy_id`.
+- `failure_policy_id`.
+- `precision_policy_id`.
 - `tempering_protocol_id`.
 - `sweep_order`.
 - `measurement_boundary`.
@@ -249,6 +254,7 @@ run/
 - `seed_policy`.
 - `config_digest`.
 - `config_file`.
+- `resolved_config_file`.
 - `env_overrides`.
 - `output_units`.
 - `compatibility_outputs_written`.
@@ -330,13 +336,12 @@ run/
 - Newton/QN attempt and success counts.
 - QN route counts.
 - accepted-route census.
-- solver-assist counters.
 - denominator fields for each group: residual evaluations, local proposals, accepted local proposals, or failure captures.
 
 `diagnostics/flow_status_summary.csv`:
 
 - `context`: initialization, local residual, QN residual, final proposal, swap reflow, history reflow if applicable.
-- strict success, zero-time success, solver-assist success, max-step failure, invalid-state failure, h-min failure, unknown.
+- strict success, zero-time success, max-step failure, invalid-state failure, h-min failure, unknown.
 
 `diagnostics/reverse_gate_summary.csv`:
 
@@ -351,9 +356,9 @@ Compatibility mappings:
 
 - `projection_failure_count` maps to a v1 sum over proposal-construction and proposal-boundary failure categories, not to ordinary Metropolis rejection.
 - `proposal_failed` maps to `proposal_construction_failed` or boundary-failed categories depending on transition status.
-- `final_resort_*` maps to `solver_assist_*` when it refers to retained residual-evaluation assist.
+- `final_resort_*` maps to explicit zero-valued legacy compatibility fields unless source support is reintroduced.
 - Radau/JFNK `final_resort` historical fields map to explicit zero-valued legacy compatibility fields unless source support is reintroduced.
-- `far_investment_final_*` maps to solver-assist effort counters with explicit denominator.
+- `far_investment_final_*` remains a legacy compatibility group unless a retained current semantic is reintroduced under a v1 diagnostic name.
 - `quasi_global_filter_*` remains a legacy compatibility group until a retained semantics review decides whether it is still meaningful.
 - Stage3 `Ohat*`, `err_Ohat*`, `Zp*` map to `observables/per_slot_observables.csv` plus `fit_window_summary.json`.
 
@@ -389,6 +394,17 @@ Regression gate:
 
 - Any change to sweep order, sample timing, history convention, or label trace timing is behavior-changing and requires user approval plus fixed-seed route/counter and observable comparison.
 
+## Implemented Product-Surface Slice
+
+As of 2026-05-17 JST, the first v1 package sidecar slice is implemented without changing the Stage2 physics path:
+
+- Stage2 writes `manifest.json`, `protocol.json`, and `config.resolved.json` in the v1 sidecar directory.
+- The manifest uses the cleaned route/component policy ids from `PRODUCT_SURFACE_SCHEMA_ROUTE_DECISION_20260517.md`.
+- The resolved config carries model dimensions and strict-double precision metadata outside route identity.
+- Stage3 per-seed summaries and run manifests propagate `stage2_v1_resolved_config_file`.
+- The protocol audit cross-checks Stage3 sidecar paths against the audited manifest/protocol/config package.
+- M4/F14 readback gates require the resolved config for sidecar-on rows.
+
 ## Open Decisions
 
 These require user confirmation before code changes:
@@ -397,16 +413,15 @@ These require user confirmation before code changes:
 - Which slot(s) are publication-observable targets: max-flow slot, fit window over high-flow slots, or all slots with automatic constant-fit selection.
 - Whether v1 should write histories for fixed slots, mobile labels, or both.
 - Whether current one-parity-swap-per-cycle policy is sufficient, or whether the wrapper should support multiple alternating swap sub-sweeps per measurement.
-- Final public names for legacy `projection_failure_count` and solver-assist fields.
+- Final public names for legacy `projection_failure_count` and retired implementation-history fields.
 
 ## Recommendation
 
 Do not start by editing output writers.
 
-The best next implementation sequence is:
+The remaining implementation sequence is:
 
-- Finish this protocol/schema design.
 - Use `M3_V0_OUTPUT_INVENTORY_AND_PROTOCOL_AUDIT_PLAN.md` as the source-backed v0 column inventory and audit contract.
-- Add a tiny protocol-audit parser or replay tool that checks current Stage2 timing and swap formula without changing production code.
-- Only then add v1 manifest/protocol files beside v0 outputs.
+- Extend v1 package/readback adapters beyond manifest/protocol/resolved-config sidecars.
+- Keep v0 parser readback unchanged until the v1 package has accepted production readback.
 - Defer any sweep-order or history-timing change until after explicit user approval and baseline comparison.

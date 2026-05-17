@@ -126,21 +126,15 @@ ODEX_STAT_NAMES = [
 METHOD_SPECS = {
     "no_fb": {
         "fallback_enabled": False,
-        "env_overrides": {
-            "INTODE_SOLVER_ASSIST_POLICY": "off",
-        },
+        "env_overrides": {},
     },
     "fb": {
         "fallback_enabled": True,
-        "env_overrides": {
-            "INTODE_SOLVER_ASSIST_POLICY": "off",
-        },
+        "env_overrides": {},
     },
     "fb_norefine": {
         "fallback_enabled": True,
-        "env_overrides": {
-            "INTODE_SOLVER_ASSIST_POLICY": "off",
-        },
+        "env_overrides": {},
     },
 }
 
@@ -210,6 +204,7 @@ def stage3_protocol_metadata_columns():
         "stage2_v1_output_dir",
         "stage2_v1_manifest_file",
         "stage2_v1_protocol_file",
+        "stage2_v1_resolved_config_file",
         "stage2_protocol_audit_json",
         "stage2_protocol_audit_text",
         "stage2_protocol_audit_verdict",
@@ -710,8 +705,6 @@ def selected_manifest_env(env):
         "TLTM_ODE_CONTROLLER_POLICY",
     }
     prefixes = (
-        "INTODE_",
-        "TLTM_CVODE_",
         "TLTM_LOCAL_",
         "TLTM_RG_",
         "TLTM_STAGE2_",
@@ -1259,6 +1252,7 @@ def run_one_seed(
     stage2_v1_output_dir = out_root / "stage2_v1alpha"
     stage2_v1_manifest_file = stage2_v1_output_dir / "manifest.json"
     stage2_v1_protocol_file = stage2_v1_output_dir / "protocol.json"
+    stage2_v1_resolved_config_file = stage2_v1_output_dir / "config.resolved.json"
     protocol_audit_json = out_root / "protocol_audit.json"
     protocol_audit_text = out_root / "protocol_audit.txt"
     capture_base_dir = out_root / "output"
@@ -1353,6 +1347,9 @@ def run_one_seed(
             "stage2_v1_output_dir": str(stage2_v1_output_dir) if stage2_v1_sidecars_enabled else "",
             "stage2_v1_manifest_file": str(stage2_v1_manifest_file) if stage2_v1_sidecars_enabled else "",
             "stage2_v1_protocol_file": str(stage2_v1_protocol_file) if stage2_v1_sidecars_enabled else "",
+            "stage2_v1_resolved_config_file": (
+                str(stage2_v1_resolved_config_file) if stage2_v1_sidecars_enabled else ""
+            ),
             "protocol_audit_json": (
                 str(protocol_audit_json)
                 if should_run_protocol_audit(protocol_audit_mode, stage2_v1_sidecars_enabled)
@@ -1505,6 +1502,9 @@ def run_one_seed(
         "stage2_v1_protocol_file": relpath_text(
             repo_root, stage2_v1_protocol_file if stage2_v1_sidecars_enabled else ""
         ),
+        "stage2_v1_resolved_config_file": relpath_text(
+            repo_root, stage2_v1_resolved_config_file if stage2_v1_sidecars_enabled else ""
+        ),
         "stage2_protocol_audit_json": relpath_text(repo_root, audit_result["json_file"]),
         "stage2_protocol_audit_text": relpath_text(repo_root, audit_result["text_file"]),
         "stage2_protocol_audit_verdict": audit_result["verdict"],
@@ -1526,7 +1526,6 @@ def method_item(name):
     if spec is None:
         raise ValueError("Unknown method: {0}".format(name))
     env_overrides = dict(spec.get("env_overrides", {}))
-    env_overrides.pop("INTODE_SOLVER_ASSIST_ENABLED", None)
     return (name, bool(spec["fallback_enabled"]), env_overrides)
 
 

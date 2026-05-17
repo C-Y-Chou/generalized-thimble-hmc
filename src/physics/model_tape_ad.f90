@@ -18,15 +18,21 @@ module model_tape_ad
       integer :: id = 0
    end type rev_t
 
-   integer, allocatable, save :: op_code(:), arg_l(:), arg_r(:), pow_int(:), in_pos(:), in_node(:)
-   complex(dp), allocatable, save :: node_val(:), node_dot(:), node_adj(:), node_hadj(:)
-   integer, save :: tape_size = 0
-   integer, save :: tape_cap = 0
-   integer, save :: n_inputs = 0
-   logical, save :: adj_valid = .false.
-   integer, save :: adj_out_id = 0
+   type, public :: model_tape_context_t
+      integer, allocatable :: op_code(:), arg_l(:), arg_r(:), pow_int(:), in_pos(:), in_node(:)
+      complex(dp), allocatable :: node_val(:), node_dot(:), node_adj(:), node_hadj(:)
+      integer :: tape_size = 0
+      integer :: tape_cap = 0
+      integer :: n_inputs = 0
+      logical :: adj_valid = .false.
+      integer :: adj_out_id = 0
+   end type model_tape_context_t
+
+   type(model_tape_context_t), target, save :: module_model_tape_context
+   type(model_tape_context_t), pointer, save :: active_tape_context => null()
 
    public :: tape_begin, tape_input, tape_const, tape_set_inputs, tape_forward_values, tape_grad, tape_hvp
+   public :: bind_model_tape_context, bind_module_model_tape_context, release_model_tape_context
    public :: operator(+), operator(-), operator(*), operator(/), operator(**), log, exp
 
    interface operator(+)
@@ -84,25 +90,77 @@ module model_tape_ad
 
 contains
 
+   subroutine ensure_model_tape_context_bound()
+      implicit none
+
+      if (.not. associated(active_tape_context)) call bind_module_model_tape_context()
+   end subroutine ensure_model_tape_context_bound
+
+   subroutine bind_model_tape_context(context)
+      implicit none
+      type(model_tape_context_t), intent(inout), target :: context
+
+      active_tape_context => context
+   end subroutine bind_model_tape_context
+
+   subroutine bind_module_model_tape_context()
+      implicit none
+
+      active_tape_context => module_model_tape_context
+   end subroutine bind_module_model_tape_context
+
+   subroutine release_model_tape_context(context)
+      implicit none
+      type(model_tape_context_t), intent(inout), target :: context
+      logical :: was_active
+
+      was_active = associated(active_tape_context)
+      if (was_active) was_active = associated(active_tape_context, context)
+      call clear_model_tape_context(context)
+      if (was_active) call bind_module_model_tape_context()
+   end subroutine release_model_tape_context
+
+   subroutine clear_model_tape_context(context)
+      implicit none
+      type(model_tape_context_t), intent(inout) :: context
+
+      if (allocated(context%op_code)) deallocate (context%op_code)
+      if (allocated(context%arg_l)) deallocate (context%arg_l)
+      if (allocated(context%arg_r)) deallocate (context%arg_r)
+      if (allocated(context%pow_int)) deallocate (context%pow_int)
+      if (allocated(context%in_pos)) deallocate (context%in_pos)
+      if (allocated(context%in_node)) deallocate (context%in_node)
+      if (allocated(context%node_val)) deallocate (context%node_val)
+      if (allocated(context%node_dot)) deallocate (context%node_dot)
+      if (allocated(context%node_adj)) deallocate (context%node_adj)
+      if (allocated(context%node_hadj)) deallocate (context%node_hadj)
+      context%tape_size = 0
+      context%tape_cap = 0
+      context%n_inputs = 0
+      context%adj_valid = .false.
+      context%adj_out_id = 0
+   end subroutine clear_model_tape_context
+
    subroutine tape_begin(n_in)
       integer, intent(in) :: n_in
 
+      call ensure_model_tape_context_bound()
       if (n_in < 1) then
          write (*, '(A)') "[ERROR] tape_begin: input size must be >= 1."
          error stop 1
       end if
 
-      n_inputs = n_in
-      tape_size = 0
+      active_tape_context%n_inputs = n_in
+      active_tape_context%tape_size = 0
       call ensure_capacity(max(128, 16*n_in))
-      adj_valid = .false.
-      adj_out_id = 0
+      active_tape_context%adj_valid = .false.
+      active_tape_context%adj_out_id = 0
 
-      if (allocated(in_node)) then
-         if (size(in_node) /= n_inputs) deallocate (in_node)
+      if (allocated(active_tape_context%in_node)) then
+         if (size(active_tape_context%in_node) /= active_tape_context%n_inputs) deallocate (active_tape_context%in_node)
       end if
-      if (.not. allocated(in_node)) allocate (in_node(n_inputs))
-      in_node = 0
+      if (.not. allocated(active_tape_context%in_node)) allocate (active_tape_context%in_node(active_tape_context%n_inputs))
+      active_tape_context%in_node = 0
    end subroutine tape_begin
 
    function tape_input(value, idx) result(a)
@@ -110,19 +168,21 @@ contains
       integer, intent(in) :: idx
       type(rev_t) :: a
 
-      if (idx < 1 .or. idx > n_inputs) then
+      call ensure_model_tape_context_bound()
+      if (idx < 1 .or. idx > active_tape_context%n_inputs) then
          write (*, '(A)') "[ERROR] tape_input: invalid input index."
          error stop 1
       end if
 
       a%id = append_node(OP_INPUT, 0, 0, value, 0, idx)
-      in_node(idx) = a%id
+      active_tape_context%in_node(idx) = a%id
    end function tape_input
 
    function tape_const(value) result(a)
       complex(dp), intent(in) :: value
       type(rev_t) :: a
 
+      call ensure_model_tape_context_bound()
       a%id = append_node(OP_CONST, 0, 0, value, 0, 0)
    end function tape_const
 
@@ -130,61 +190,63 @@ contains
       complex(dp), intent(in) :: z(:)
       integer :: j
 
-      if (size(z) /= n_inputs) then
+      call ensure_model_tape_context_bound()
+      if (size(z) /= active_tape_context%n_inputs) then
          write (*, '(A)') "[ERROR] tape_set_inputs: vector size mismatch."
          error stop 1
       end if
 
-      do j = 1, n_inputs
-         node_val(in_node(j)) = z(j)
+      do j = 1, active_tape_context%n_inputs
+         active_tape_context%node_val(active_tape_context%in_node(j)) = z(j)
       end do
-      adj_valid = .false.
-      adj_out_id = 0
+      active_tape_context%adj_valid = .false.
+      active_tape_context%adj_out_id = 0
    end subroutine tape_set_inputs
 
    subroutine tape_forward_values()
       integer :: i, a, b, k
 
-      do i = 1, tape_size
-         select case (op_code(i))
+      call ensure_model_tape_context_bound()
+      do i = 1, active_tape_context%tape_size
+         select case (active_tape_context%op_code(i))
          case (OP_INPUT, OP_CONST)
             cycle
          case (OP_ADD)
-            a = arg_l(i)
-            b = arg_r(i)
-            node_val(i) = node_val(a) + node_val(b)
+            a = active_tape_context%arg_l(i)
+            b = active_tape_context%arg_r(i)
+            active_tape_context%node_val(i) = active_tape_context%node_val(a) + active_tape_context%node_val(b)
          case (OP_SUB)
-            a = arg_l(i)
-            b = arg_r(i)
-            node_val(i) = node_val(a) - node_val(b)
+            a = active_tape_context%arg_l(i)
+            b = active_tape_context%arg_r(i)
+            active_tape_context%node_val(i) = active_tape_context%node_val(a) - active_tape_context%node_val(b)
          case (OP_MUL)
-            a = arg_l(i)
-            b = arg_r(i)
-            node_val(i) = node_val(a)*node_val(b)
+            a = active_tape_context%arg_l(i)
+            b = active_tape_context%arg_r(i)
+            active_tape_context%node_val(i) = active_tape_context%node_val(a)*active_tape_context%node_val(b)
          case (OP_DIV)
-            a = arg_l(i)
-            b = arg_r(i)
-            node_val(i) = node_val(a)/node_val(b)
+            a = active_tape_context%arg_l(i)
+            b = active_tape_context%arg_r(i)
+            active_tape_context%node_val(i) = active_tape_context%node_val(a)/active_tape_context%node_val(b)
          case (OP_NEG)
-            a = arg_l(i)
-            node_val(i) = -node_val(a)
+            a = active_tape_context%arg_l(i)
+            active_tape_context%node_val(i) = -active_tape_context%node_val(a)
          case (OP_POWI)
-            a = arg_l(i)
-            k = pow_int(i)
-            node_val(i) = node_val(a)**k
+            a = active_tape_context%arg_l(i)
+            k = active_tape_context%pow_int(i)
+            active_tape_context%node_val(i) = active_tape_context%node_val(a)**k
          case (OP_LOG)
-            a = arg_l(i)
-            node_val(i) = log(node_val(a))
+            a = active_tape_context%arg_l(i)
+            active_tape_context%node_val(i) = log(active_tape_context%node_val(a))
          case (OP_EXP)
-            a = arg_l(i)
-            node_val(i) = exp(node_val(a))
+            a = active_tape_context%arg_l(i)
+            active_tape_context%node_val(i) = exp(active_tape_context%node_val(a))
          case default
             write (*, '(A)') "[ERROR] tape_forward_values: unsupported opcode."
             error stop 1
          end select
       end do
-      adj_valid = .false.
-      adj_out_id = 0
+      active_tape_context%adj_valid = .false.
+      active_tape_context%adj_out_id = 0
    end subroutine tape_forward_values
 
    subroutine tape_grad(out_id, grad)
@@ -192,15 +254,16 @@ contains
       complex(dp), intent(out) :: grad(:)
       integer :: j
 
+      call ensure_model_tape_context_bound()
       call validate_out_id(out_id)
-      if (size(grad) /= n_inputs) then
+      if (size(grad) /= active_tape_context%n_inputs) then
          write (*, '(A)') "[ERROR] tape_grad: vector size mismatch."
          error stop 1
       end if
 
       call ensure_adjoints(out_id)
-      do j = 1, n_inputs
-         grad(j) = node_adj(in_node(j))
+      do j = 1, active_tape_context%n_inputs
+         grad(j) = active_tape_context%node_adj(active_tape_context%in_node(j))
       end do
    end subroutine tape_grad
 
@@ -211,54 +274,55 @@ contains
       integer :: i, a, b, j, k
       complex(dp) :: x, z, invz, f1, f2, yb, yh, k_c, km1_c
 
+      call ensure_model_tape_context_bound()
       call validate_out_id(out_id)
-      if (size(v) /= n_inputs .or. size(hv) /= n_inputs) then
+      if (size(v) /= active_tape_context%n_inputs .or. size(hv) /= active_tape_context%n_inputs) then
          write (*, '(A)') "[ERROR] tape_hvp: vector size mismatch."
          error stop 1
       end if
 
-      node_dot(1:tape_size) = cmplx(0.0_dp, 0.0_dp, dp)
-      do i = 1, tape_size
-         select case (op_code(i))
+      active_tape_context%node_dot(1:active_tape_context%tape_size) = cmplx(0.0_dp, 0.0_dp, dp)
+      do i = 1, active_tape_context%tape_size
+         select case (active_tape_context%op_code(i))
          case (OP_INPUT)
-            node_dot(i) = v(in_pos(i))
+            active_tape_context%node_dot(i) = v(active_tape_context%in_pos(i))
          case (OP_CONST)
-            node_dot(i) = cmplx(0.0_dp, 0.0_dp, dp)
+            active_tape_context%node_dot(i) = cmplx(0.0_dp, 0.0_dp, dp)
          case (OP_ADD)
-            a = arg_l(i)
-            b = arg_r(i)
-            node_dot(i) = node_dot(a) + node_dot(b)
+            a = active_tape_context%arg_l(i)
+            b = active_tape_context%arg_r(i)
+            active_tape_context%node_dot(i) = active_tape_context%node_dot(a) + active_tape_context%node_dot(b)
          case (OP_SUB)
-            a = arg_l(i)
-            b = arg_r(i)
-            node_dot(i) = node_dot(a) - node_dot(b)
+            a = active_tape_context%arg_l(i)
+            b = active_tape_context%arg_r(i)
+            active_tape_context%node_dot(i) = active_tape_context%node_dot(a) - active_tape_context%node_dot(b)
          case (OP_MUL)
-            a = arg_l(i)
-            b = arg_r(i)
-            node_dot(i) = node_dot(a)*node_val(b) + node_val(a)*node_dot(b)
+            a = active_tape_context%arg_l(i)
+            b = active_tape_context%arg_r(i)
+            active_tape_context%node_dot(i) = active_tape_context%node_dot(a)*active_tape_context%node_val(b) + active_tape_context%node_val(a)*active_tape_context%node_dot(b)
          case (OP_DIV)
-            a = arg_l(i)
-            b = arg_r(i)
-            z = node_val(b)
-            node_dot(i) = (node_dot(a)*z - node_val(a)*node_dot(b))/(z*z)
+            a = active_tape_context%arg_l(i)
+            b = active_tape_context%arg_r(i)
+            z = active_tape_context%node_val(b)
+            active_tape_context%node_dot(i) = (active_tape_context%node_dot(a)*z - active_tape_context%node_val(a)*active_tape_context%node_dot(b))/(z*z)
          case (OP_NEG)
-            a = arg_l(i)
-            node_dot(i) = -node_dot(a)
+            a = active_tape_context%arg_l(i)
+            active_tape_context%node_dot(i) = -active_tape_context%node_dot(a)
          case (OP_POWI)
-            a = arg_l(i)
-            k = pow_int(i)
+            a = active_tape_context%arg_l(i)
+            k = active_tape_context%pow_int(i)
             if (k == 0) then
-               node_dot(i) = cmplx(0.0_dp, 0.0_dp, dp)
+               active_tape_context%node_dot(i) = cmplx(0.0_dp, 0.0_dp, dp)
             else
                k_c = cmplx(real(k, dp), 0.0_dp, dp)
-               node_dot(i) = k_c*(node_val(a)**(k - 1))*node_dot(a)
+               active_tape_context%node_dot(i) = k_c*(active_tape_context%node_val(a)**(k - 1))*active_tape_context%node_dot(a)
             end if
          case (OP_LOG)
-            a = arg_l(i)
-            node_dot(i) = node_dot(a)/node_val(a)
+            a = active_tape_context%arg_l(i)
+            active_tape_context%node_dot(i) = active_tape_context%node_dot(a)/active_tape_context%node_val(a)
          case (OP_EXP)
-            a = arg_l(i)
-            node_dot(i) = node_val(i)*node_dot(a)
+            a = active_tape_context%arg_l(i)
+            active_tape_context%node_dot(i) = active_tape_context%node_val(i)*active_tape_context%node_dot(a)
          case default
             write (*, '(A)') "[ERROR] tape_hvp: unsupported opcode."
             error stop 1
@@ -267,47 +331,47 @@ contains
 
       call ensure_adjoints(out_id)
 
-      node_hadj(1:tape_size) = cmplx(0.0_dp, 0.0_dp, dp)
-      node_hadj(out_id) = cmplx(0.0_dp, 0.0_dp, dp)
+      active_tape_context%node_hadj(1:active_tape_context%tape_size) = cmplx(0.0_dp, 0.0_dp, dp)
+      active_tape_context%node_hadj(out_id) = cmplx(0.0_dp, 0.0_dp, dp)
 
-      do i = tape_size, 1, -1
-         yb = node_adj(i)
-         yh = node_hadj(i)
+      do i = active_tape_context%tape_size, 1, -1
+         yb = active_tape_context%node_adj(i)
+         yh = active_tape_context%node_hadj(i)
          if (real(yb, dp) == 0.0_dp .and. aimag(yb) == 0.0_dp .and. real(yh, dp) == 0.0_dp .and. aimag(yh) == 0.0_dp) cycle
 
-         select case (op_code(i))
+         select case (active_tape_context%op_code(i))
          case (OP_INPUT, OP_CONST)
             cycle
          case (OP_ADD)
-            a = arg_l(i)
-            b = arg_r(i)
-            node_hadj(a) = node_hadj(a) + yh
-            node_hadj(b) = node_hadj(b) + yh
+            a = active_tape_context%arg_l(i)
+            b = active_tape_context%arg_r(i)
+            active_tape_context%node_hadj(a) = active_tape_context%node_hadj(a) + yh
+            active_tape_context%node_hadj(b) = active_tape_context%node_hadj(b) + yh
          case (OP_SUB)
-            a = arg_l(i)
-            b = arg_r(i)
-            node_hadj(a) = node_hadj(a) + yh
-            node_hadj(b) = node_hadj(b) - yh
+            a = active_tape_context%arg_l(i)
+            b = active_tape_context%arg_r(i)
+            active_tape_context%node_hadj(a) = active_tape_context%node_hadj(a) + yh
+            active_tape_context%node_hadj(b) = active_tape_context%node_hadj(b) - yh
          case (OP_MUL)
-            a = arg_l(i)
-            b = arg_r(i)
-            node_hadj(a) = node_hadj(a) + yh*node_val(b) + yb*node_dot(b)
-            node_hadj(b) = node_hadj(b) + yh*node_val(a) + yb*node_dot(a)
+            a = active_tape_context%arg_l(i)
+            b = active_tape_context%arg_r(i)
+            active_tape_context%node_hadj(a) = active_tape_context%node_hadj(a) + yh*active_tape_context%node_val(b) + yb*active_tape_context%node_dot(b)
+            active_tape_context%node_hadj(b) = active_tape_context%node_hadj(b) + yh*active_tape_context%node_val(a) + yb*active_tape_context%node_dot(a)
          case (OP_DIV)
-            a = arg_l(i)
-            b = arg_r(i)
-            x = node_val(a)
-            z = node_val(b)
+            a = active_tape_context%arg_l(i)
+            b = active_tape_context%arg_r(i)
+            x = active_tape_context%node_val(a)
+            z = active_tape_context%node_val(b)
             invz = cmplx(1.0_dp, 0.0_dp, dp)/z
-            node_hadj(a) = node_hadj(a) + yh*invz + yb*(-invz*invz)*node_dot(b)
-            node_hadj(b) = node_hadj(b) + yh*(-x*invz*invz) + yb*((-invz*invz)*node_dot(a) + (cmplx(2.0_dp, 0.0_dp, dp)*x*invz*invz*invz)*node_dot(b))
+            active_tape_context%node_hadj(a) = active_tape_context%node_hadj(a) + yh*invz + yb*(-invz*invz)*active_tape_context%node_dot(b)
+            active_tape_context%node_hadj(b) = active_tape_context%node_hadj(b) + yh*(-x*invz*invz) + yb*((-invz*invz)*active_tape_context%node_dot(a) + (cmplx(2.0_dp, 0.0_dp, dp)*x*invz*invz*invz)*active_tape_context%node_dot(b))
          case (OP_NEG)
-            a = arg_l(i)
-            node_hadj(a) = node_hadj(a) - yh
+            a = active_tape_context%arg_l(i)
+            active_tape_context%node_hadj(a) = active_tape_context%node_hadj(a) - yh
          case (OP_POWI)
-            a = arg_l(i)
-            k = pow_int(i)
-            x = node_val(a)
+            a = active_tape_context%arg_l(i)
+            k = active_tape_context%pow_int(i)
+            x = active_tape_context%node_val(a)
             if (k == 0) then
                cycle
             else
@@ -319,42 +383,45 @@ contains
                   km1_c = cmplx(real(k - 1, dp), 0.0_dp, dp)
                   f2 = k_c*km1_c*(x**(k - 2))
                end if
-               node_hadj(a) = node_hadj(a) + yh*f1 + yb*f2*node_dot(a)
+               active_tape_context%node_hadj(a) = active_tape_context%node_hadj(a) + yh*f1 + yb*f2*active_tape_context%node_dot(a)
             end if
          case (OP_LOG)
-            a = arg_l(i)
-            x = node_val(a)
+            a = active_tape_context%arg_l(i)
+            x = active_tape_context%node_val(a)
             f1 = cmplx(1.0_dp, 0.0_dp, dp)/x
             f2 = -f1*f1
-            node_hadj(a) = node_hadj(a) + yh*f1 + yb*f2*node_dot(a)
+            active_tape_context%node_hadj(a) = active_tape_context%node_hadj(a) + yh*f1 + yb*f2*active_tape_context%node_dot(a)
          case (OP_EXP)
-            a = arg_l(i)
-            f1 = node_val(i)
-            node_hadj(a) = node_hadj(a) + yh*f1 + yb*f1*node_dot(a)
+            a = active_tape_context%arg_l(i)
+            f1 = active_tape_context%node_val(i)
+            active_tape_context%node_hadj(a) = active_tape_context%node_hadj(a) + yh*f1 + yb*f1*active_tape_context%node_dot(a)
          case default
             write (*, '(A)') "[ERROR] tape_hvp reverse pass: unsupported opcode."
             error stop 1
          end select
       end do
 
-      do j = 1, n_inputs
-         hv(j) = node_hadj(in_node(j))
+      do j = 1, active_tape_context%n_inputs
+         hv(j) = active_tape_context%node_hadj(active_tape_context%in_node(j))
       end do
    end subroutine tape_hvp
 
    subroutine ensure_adjoints(out_id)
       integer, intent(in) :: out_id
 
-      if (.not. adj_valid .or. adj_out_id /= out_id) then
+      call ensure_model_tape_context_bound()
+      if (.not. active_tape_context%adj_valid .or. active_tape_context%adj_out_id /= out_id) then
          call compute_adjoints(out_id)
-         adj_valid = .true.
-         adj_out_id = out_id
+         active_tape_context%adj_valid = .true.
+         active_tape_context%adj_out_id = out_id
       end if
    end subroutine ensure_adjoints
 
    subroutine validate_out_id(out_id)
       integer, intent(in) :: out_id
-      if (out_id < 1 .or. out_id > tape_size) then
+
+      call ensure_model_tape_context_bound()
+      if (out_id < 1 .or. out_id > active_tape_context%tape_size) then
          write (*, '(A)') "[ERROR] AD tape: invalid output node id."
          error stop 1
       end if
@@ -365,55 +432,56 @@ contains
       integer :: i, a, b, k
       complex(dp) :: yb, x, z, invz, k_c
 
-      node_adj(1:tape_size) = cmplx(0.0_dp, 0.0_dp, dp)
-      node_adj(out_id) = cmplx(1.0_dp, 0.0_dp, dp)
+      call ensure_model_tape_context_bound()
+      active_tape_context%node_adj(1:active_tape_context%tape_size) = cmplx(0.0_dp, 0.0_dp, dp)
+      active_tape_context%node_adj(out_id) = cmplx(1.0_dp, 0.0_dp, dp)
 
-      do i = tape_size, 1, -1
-         yb = node_adj(i)
+      do i = active_tape_context%tape_size, 1, -1
+         yb = active_tape_context%node_adj(i)
          if (real(yb, dp) == 0.0_dp .and. aimag(yb) == 0.0_dp) cycle
 
-         select case (op_code(i))
+         select case (active_tape_context%op_code(i))
          case (OP_INPUT, OP_CONST)
             cycle
          case (OP_ADD)
-            a = arg_l(i)
-            b = arg_r(i)
-            node_adj(a) = node_adj(a) + yb
-            node_adj(b) = node_adj(b) + yb
+            a = active_tape_context%arg_l(i)
+            b = active_tape_context%arg_r(i)
+            active_tape_context%node_adj(a) = active_tape_context%node_adj(a) + yb
+            active_tape_context%node_adj(b) = active_tape_context%node_adj(b) + yb
          case (OP_SUB)
-            a = arg_l(i)
-            b = arg_r(i)
-            node_adj(a) = node_adj(a) + yb
-            node_adj(b) = node_adj(b) - yb
+            a = active_tape_context%arg_l(i)
+            b = active_tape_context%arg_r(i)
+            active_tape_context%node_adj(a) = active_tape_context%node_adj(a) + yb
+            active_tape_context%node_adj(b) = active_tape_context%node_adj(b) - yb
          case (OP_MUL)
-            a = arg_l(i)
-            b = arg_r(i)
-            node_adj(a) = node_adj(a) + yb*node_val(b)
-            node_adj(b) = node_adj(b) + yb*node_val(a)
+            a = active_tape_context%arg_l(i)
+            b = active_tape_context%arg_r(i)
+            active_tape_context%node_adj(a) = active_tape_context%node_adj(a) + yb*active_tape_context%node_val(b)
+            active_tape_context%node_adj(b) = active_tape_context%node_adj(b) + yb*active_tape_context%node_val(a)
          case (OP_DIV)
-            a = arg_l(i)
-            b = arg_r(i)
-            x = node_val(a)
-            z = node_val(b)
+            a = active_tape_context%arg_l(i)
+            b = active_tape_context%arg_r(i)
+            x = active_tape_context%node_val(a)
+            z = active_tape_context%node_val(b)
             invz = cmplx(1.0_dp, 0.0_dp, dp)/z
-            node_adj(a) = node_adj(a) + yb*invz
-            node_adj(b) = node_adj(b) - yb*x*invz*invz
+            active_tape_context%node_adj(a) = active_tape_context%node_adj(a) + yb*invz
+            active_tape_context%node_adj(b) = active_tape_context%node_adj(b) - yb*x*invz*invz
          case (OP_NEG)
-            a = arg_l(i)
-            node_adj(a) = node_adj(a) - yb
+            a = active_tape_context%arg_l(i)
+            active_tape_context%node_adj(a) = active_tape_context%node_adj(a) - yb
          case (OP_POWI)
-            a = arg_l(i)
-            k = pow_int(i)
+            a = active_tape_context%arg_l(i)
+            k = active_tape_context%pow_int(i)
             if (k /= 0) then
                k_c = cmplx(real(k, dp), 0.0_dp, dp)
-               node_adj(a) = node_adj(a) + yb*k_c*(node_val(a)**(k - 1))
+               active_tape_context%node_adj(a) = active_tape_context%node_adj(a) + yb*k_c*(active_tape_context%node_val(a)**(k - 1))
             end if
          case (OP_LOG)
-            a = arg_l(i)
-            node_adj(a) = node_adj(a) + yb/node_val(a)
+            a = active_tape_context%arg_l(i)
+            active_tape_context%node_adj(a) = active_tape_context%node_adj(a) + yb/active_tape_context%node_val(a)
          case (OP_EXP)
-            a = arg_l(i)
-            node_adj(a) = node_adj(a) + yb*node_val(i)
+            a = active_tape_context%arg_l(i)
+            active_tape_context%node_adj(a) = active_tape_context%node_adj(a) + yb*active_tape_context%node_val(i)
          case default
             write (*, '(A)') "[ERROR] compute_adjoints: unsupported opcode."
             error stop 1
@@ -425,20 +493,21 @@ contains
       integer, intent(in) :: need
       integer :: new_cap
 
-      if (need <= tape_cap) return
-      new_cap = max(need, max(128, 2*tape_cap))
+      call ensure_model_tape_context_bound()
+      if (need <= active_tape_context%tape_cap) return
+      new_cap = max(need, max(128, 2*active_tape_context%tape_cap))
 
-      call resize_int_array(op_code, new_cap)
-      call resize_int_array(arg_l, new_cap)
-      call resize_int_array(arg_r, new_cap)
-      call resize_int_array(pow_int, new_cap)
-      call resize_int_array(in_pos, new_cap)
-      call resize_cpx_array(node_val, new_cap)
-      call resize_cpx_array(node_dot, new_cap)
-      call resize_cpx_array(node_adj, new_cap)
-      call resize_cpx_array(node_hadj, new_cap)
+      call resize_int_array(active_tape_context%op_code, new_cap)
+      call resize_int_array(active_tape_context%arg_l, new_cap)
+      call resize_int_array(active_tape_context%arg_r, new_cap)
+      call resize_int_array(active_tape_context%pow_int, new_cap)
+      call resize_int_array(active_tape_context%in_pos, new_cap)
+      call resize_cpx_array(active_tape_context%node_val, new_cap)
+      call resize_cpx_array(active_tape_context%node_dot, new_cap)
+      call resize_cpx_array(active_tape_context%node_adj, new_cap)
+      call resize_cpx_array(active_tape_context%node_hadj, new_cap)
 
-      tape_cap = new_cap
+      active_tape_context%tape_cap = new_cap
    end subroutine ensure_capacity
 
    subroutine resize_int_array(arr, new_size)
@@ -473,19 +542,20 @@ contains
       integer, intent(in) :: opc, a, b, p_int, idx_in
       complex(dp), intent(in) :: v
 
-      call ensure_capacity(tape_size + 1)
-      tape_size = tape_size + 1
-      id = tape_size
+      call ensure_model_tape_context_bound()
+      call ensure_capacity(active_tape_context%tape_size + 1)
+      active_tape_context%tape_size = active_tape_context%tape_size + 1
+      id = active_tape_context%tape_size
 
-      op_code(id) = opc
-      arg_l(id) = a
-      arg_r(id) = b
-      pow_int(id) = p_int
-      in_pos(id) = idx_in
-      node_val(id) = v
-      node_dot(id) = cmplx(0.0_dp, 0.0_dp, dp)
-      node_adj(id) = cmplx(0.0_dp, 0.0_dp, dp)
-      node_hadj(id) = cmplx(0.0_dp, 0.0_dp, dp)
+      active_tape_context%op_code(id) = opc
+      active_tape_context%arg_l(id) = a
+      active_tape_context%arg_r(id) = b
+      active_tape_context%pow_int(id) = p_int
+      active_tape_context%in_pos(id) = idx_in
+      active_tape_context%node_val(id) = v
+      active_tape_context%node_dot(id) = cmplx(0.0_dp, 0.0_dp, dp)
+      active_tape_context%node_adj(id) = cmplx(0.0_dp, 0.0_dp, dp)
+      active_tape_context%node_hadj(id) = cmplx(0.0_dp, 0.0_dp, dp)
    end function append_node
 
    function mk_bin(opc, a, b, v) result(r)
@@ -521,7 +591,9 @@ contains
    function rev_add_rev(a, b) result(r)
       type(rev_t), intent(in) :: a, b
       type(rev_t) :: r
-      r = mk_bin(OP_ADD, a, b, node_val(a%id) + node_val(b%id))
+
+      call ensure_model_tape_context_bound()
+      r = mk_bin(OP_ADD, a, b, active_tape_context%node_val(a%id) + active_tape_context%node_val(b%id))
    end function rev_add_rev
 
    function rev_add_c(a, b) result(r)
@@ -569,7 +641,9 @@ contains
    function rev_sub_rev(a, b) result(r)
       type(rev_t), intent(in) :: a, b
       type(rev_t) :: r
-      r = mk_bin(OP_SUB, a, b, node_val(a%id) - node_val(b%id))
+
+      call ensure_model_tape_context_bound()
+      r = mk_bin(OP_SUB, a, b, active_tape_context%node_val(a%id) - active_tape_context%node_val(b%id))
    end function rev_sub_rev
 
    function rev_sub_c(a, b) result(r)
@@ -617,13 +691,17 @@ contains
    function rev_uminus(a) result(r)
       type(rev_t), intent(in) :: a
       type(rev_t) :: r
-      r = mk_un(OP_NEG, a, -node_val(a%id))
+
+      call ensure_model_tape_context_bound()
+      r = mk_un(OP_NEG, a, -active_tape_context%node_val(a%id))
    end function rev_uminus
 
    function rev_mul_rev(a, b) result(r)
       type(rev_t), intent(in) :: a, b
       type(rev_t) :: r
-      r = mk_bin(OP_MUL, a, b, node_val(a%id)*node_val(b%id))
+
+      call ensure_model_tape_context_bound()
+      r = mk_bin(OP_MUL, a, b, active_tape_context%node_val(a%id)*active_tape_context%node_val(b%id))
    end function rev_mul_rev
 
    function rev_mul_c(a, b) result(r)
@@ -671,7 +749,9 @@ contains
    function rev_div_rev(a, b) result(r)
       type(rev_t), intent(in) :: a, b
       type(rev_t) :: r
-      r = mk_bin(OP_DIV, a, b, node_val(a%id)/node_val(b%id))
+
+      call ensure_model_tape_context_bound()
+      r = mk_bin(OP_DIV, a, b, active_tape_context%node_val(a%id)/active_tape_context%node_val(b%id))
    end function rev_div_rev
 
    function rev_div_c(a, b) result(r)
@@ -721,21 +801,24 @@ contains
       integer, intent(in) :: p
       type(rev_t) :: r
 
-      r%id = append_node(OP_POWI, a%id, 0, node_val(a%id)**p, p, 0)
+      call ensure_model_tape_context_bound()
+      r%id = append_node(OP_POWI, a%id, 0, active_tape_context%node_val(a%id)**p, p, 0)
    end function rev_pow_i
 
    function rev_log(a) result(r)
       type(rev_t), intent(in) :: a
       type(rev_t) :: r
 
-      r = mk_un(OP_LOG, a, log(node_val(a%id)))
+      call ensure_model_tape_context_bound()
+      r = mk_un(OP_LOG, a, log(active_tape_context%node_val(a%id)))
    end function rev_log
 
    function rev_exp(a) result(r)
       type(rev_t), intent(in) :: a
       type(rev_t) :: r
 
-      r = mk_un(OP_EXP, a, exp(node_val(a%id)))
+      call ensure_model_tape_context_bound()
+      r = mk_un(OP_EXP, a, exp(active_tape_context%node_val(a%id)))
    end function rev_exp
 
 end module model_tape_ad

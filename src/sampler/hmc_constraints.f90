@@ -188,6 +188,14 @@ contains
          call perf_toc(PERF_NEWTON, t_prof)
          return
       end if
+      if (size(jac, 1) /= n .or. size(jac, 2) /= n) then
+         call perf_toc(PERF_NEWTON, t_prof)
+         return
+      end if
+      if ((.not. ieee_is_finite(tol)) .or. tol <= 0.0_dp) then
+         call perf_toc(PERF_NEWTON, t_prof)
+         return
+      end if
 
       call ensure_real_vec(workspace%B, n2)
       call ensure_real_mat(workspace%jacr, n2, n2)

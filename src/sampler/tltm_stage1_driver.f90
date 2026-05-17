@@ -1,10 +1,11 @@
 module tltm_stage1_driver
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use, intrinsic :: iso_fortran_env, only: int64
    use param_mod, only: config, read_parameters
    use runtime_env_mod, only: parse_int_env, parse_real_env, read_string_env, parse_real_list
    use utils, only: dp, wall_time_seconds, x_set_flow_time, x_set_seed_real
    use solve_flow, only: flow, intode_status_unknown, intode_status_is_strict_success
-   use model, only: grand
+   use model, only: grand, model_context_t, bind_model_context, release_model_context
    use mt95, only: getseed, mt95_get_state, mt95_seed_state, mt95_set_state
    use markovchain_metropolis, only: metropolis_step
    use markovchain_phase, only: compute_phase_factor
@@ -12,11 +13,13 @@ module tltm_stage1_driver
                               newton_eval_flow_status_context_t
    use hmc_integrator_core, only: reset_reverse_gate_replay_status_counts, get_reverse_gate_replay_status_counts, &
                                   hmc_policy_context_t, hmc_replay_diagnostics_context_t
+   use constraint_solver_stats_mod, only: constraint_solver_stats_context_t, bind_constraint_solver_stats_context, &
+                                          release_constraint_solver_stats_context, reset_constraint_solver_stats
    use quasi_newton_solver_mod, only: reset_quasi_eval_flow_status_counts, get_quasi_eval_flow_status_counts, &
                                       qn_diagnostics_context_t, release_qn_diagnostics_context, &
                                       qn_policy_context_t, release_qn_policy_context
    use tltm_types_mod, only: tltm_replica_t, allocate_tltm_replica, release_tltm_replica, record_tltm_local_transition
-   use tltm_run_context_mod, only: tltm_run_context_t, release_tltm_run_context
+   use tltm_run_context_mod, only: tltm_run_context_t, release_tltm_run_context, set_tltm_config_context
    implicit none
 
    integer, parameter :: stage1_cycle_cap_default = 200
@@ -33,6 +36,8 @@ contains
       type(hmc_policy_context_t) :: hmc_policy_context
       type(hmc_replay_diagnostics_context_t) :: hmc_replay_diagnostics_context
       type(newton_eval_flow_status_context_t) :: newton_flow_status_context
+      type(constraint_solver_stats_context_t) :: constraint_stats_context
+      type(model_context_t), target :: model_context
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file
       integer :: n_replicas, base_seed, cycle_count, local_updates, x_size
@@ -42,6 +47,9 @@ contains
       real(dp) :: run_t0, elapsed, replica_t0
 
       call read_parameters()
+      call bind_model_context(model_context)
+      call bind_constraint_solver_stats_context(constraint_stats_context)
+      call reset_constraint_solver_stats()
       call reset_newton_eval_flow_status_counts(newton_flow_status_context)
       call reset_quasi_eval_flow_status_counts(qn_diagnostics_context)
       call reset_reverse_gate_replay_status_counts(hmc_replay_diagnostics_context)
@@ -60,6 +68,7 @@ contains
       write (*, '(A)') "[TLTM-S1] rng_stream_contract=per_replica_rng_v1"
 
       allocate (replicas(n_replicas), run_contexts(n_replicas))
+      call seed_run_context_configs(run_contexts)
       do i = 1, n_replicas
          replicas(i)%replica_id = i - 1
          replicas(i)%flow_time = flow_ladder(i)
@@ -73,6 +82,8 @@ contains
             call release_qn_policy_context(qn_policy_context)
             call release_all_run_contexts(run_contexts)
             call release_all_replicas(replicas)
+            call release_constraint_solver_stats_context(constraint_stats_context)
+            call release_model_context(model_context)
             error stop 1
          end if
       end do
@@ -99,6 +110,8 @@ contains
       call release_qn_policy_context(qn_policy_context)
       call release_all_run_contexts(run_contexts)
       call release_all_replicas(replicas)
+      call release_constraint_solver_stats_context(constraint_stats_context)
+      call release_model_context(model_context)
       if (allocated(flow_ladder)) deallocate (flow_ladder)
 
       write (*, '(A,1X,A)') "[DONE][TLTM-S1] Summary written to", trim(summary_file)
@@ -153,19 +166,22 @@ contains
       type(newton_eval_flow_status_context_t), intent(inout), target :: newton_flow_status_context
 
       integer :: update_idx, z_size
+      integer :: integration_steps
+      real(dp) :: trajectory_length
       real(dp), allocatable :: x_new(:)
       complex(dp), allocatable :: z_new(:), j_new(:, :)
       logical :: accepted, proposal_failed
       integer :: transition_status
 
       z_size = size(replica%z)
+      call resolve_run_integrator_controls(run_context, trajectory_length, integration_steps)
       allocate (x_new(size(replica%x)))
       allocate (z_new(z_size), j_new(z_size, z_size))
 
       call mt95_set_state(replica%rng_state)
       do update_idx = 1, local_updates
-         call metropolis_step(replica%x, replica%z, replica%jac, config%integrator%trajectory_length, &
-                              config%integrator%integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
+         call metropolis_step(replica%x, replica%z, replica%jac, trajectory_length, &
+                              integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
                               context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
                               qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
                               hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
@@ -184,6 +200,30 @@ contains
       if (allocated(z_new)) deallocate (z_new)
       if (allocated(j_new)) deallocate (j_new)
    end subroutine run_local_updates
+
+   subroutine seed_run_context_configs(run_contexts)
+      type(tltm_run_context_t), intent(inout) :: run_contexts(:)
+
+      integer :: i
+
+      do i = 1, size(run_contexts)
+         call set_tltm_config_context(run_contexts(i)%config, config)
+      end do
+   end subroutine seed_run_context_configs
+
+   subroutine resolve_run_integrator_controls(run_context, trajectory_length, integration_steps)
+      type(tltm_run_context_t), intent(in) :: run_context
+      real(dp), intent(out) :: trajectory_length
+      integer, intent(out) :: integration_steps
+
+      if (run_context%config%loaded) then
+         trajectory_length = run_context%config%snapshot%integrator%trajectory_length
+         integration_steps = run_context%config%snapshot%integrator%integration_steps
+      else
+         trajectory_length = config%integrator%trajectory_length
+         integration_steps = config%integrator%integration_steps
+      end if
+   end subroutine resolve_run_integrator_controls
 
    subroutine measure_replica(replica)
       type(tltm_replica_t), intent(inout) :: replica
@@ -238,8 +278,8 @@ contains
 
       max_flow_time = max(0.0_dp, default_max_flow)
       call parse_real_env("TLTM_STAGE1_MAX_FLOW_TIME", max_flow_time)
-      if (max_flow_time < 0.0_dp) then
-         write (*, '(A)') "[ERROR][TLTM-S1] TLTM_STAGE1_MAX_FLOW_TIME must be >= 0."
+      if ((.not. ieee_is_finite(max_flow_time)) .or. max_flow_time < 0.0_dp) then
+         write (*, '(A)') "[ERROR][TLTM-S1] TLTM_STAGE1_MAX_FLOW_TIME must be finite and >= 0."
          error stop 1
       end if
 
@@ -254,6 +294,10 @@ contains
          n_replicas = size(parsed)
          allocate (flow_ladder(n_replicas))
          flow_ladder = parsed
+         if (any(.not. ieee_is_finite(flow_ladder)) .or. any(flow_ladder < 0.0_dp)) then
+            write (*, '(A)') "[ERROR][TLTM-S1] TLTM_STAGE1_FLOW_TIME_LADDER values must be finite and >= 0."
+            error stop 1
+         end if
          max_flow_time = maxval(flow_ladder)
          if (allocated(parsed)) deallocate (parsed)
       else
@@ -276,8 +320,8 @@ contains
 
       init_sigma = stage1_init_sigma_default
       call parse_real_env("TLTM_STAGE1_INIT_SIGMA", init_sigma)
-      if (init_sigma <= 0.0_dp) then
-         write (*, '(A)') "[ERROR][TLTM-S1] TLTM_STAGE1_INIT_SIGMA must be > 0."
+      if ((.not. ieee_is_finite(init_sigma)) .or. init_sigma <= 0.0_dp) then
+         write (*, '(A)') "[ERROR][TLTM-S1] TLTM_STAGE1_INIT_SIGMA must be finite and > 0."
          error stop 1
       end if
    end subroutine resolve_stage1_controls

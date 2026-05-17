@@ -1,5 +1,5 @@
 program test_retained_core_qn_route_contract
-   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_quiet_nan, ieee_value
    use, intrinsic :: iso_fortran_env, only: int64
    use hmc_kernels, only: calculate_dV
    use model, only: ds
@@ -49,6 +49,7 @@ program test_retained_core_qn_route_contract
    call check_official_route_contract(x, z, jac, del_z, Jl_solver, x_new, x_best, failures)
    call check_qn_context_trace_isolation(x, z, jac, del_z, Jl_solver, x_new, x_best, failures)
    call check_qn_diagnostics_context_isolation(x, z, jac, del_z, Jl_solver, x_new, x_best, failures)
+   call check_qn_api_guard_outputs(x, z, jac, del_z, failures)
    call check_official_route_census(x, z, jac, dV, Jl_solver, x_new, x_best, failures)
 
    deallocate (seed, x, z, jac)
@@ -291,6 +292,55 @@ contains
                                              failure_max_steps, failure_invalid, failure_h_min, unknown, qn_diagnostics)
       total = success + zero_time + stiff_rescue + solver_assist + failure_max_steps + failure_invalid + failure_h_min + unknown
    end subroutine qn_eval_status_total
+
+   subroutine check_qn_api_guard_outputs(x, z, jac, del_z, failures)
+      real(dp), intent(in) :: x(:), del_z(:)
+      complex(dp), intent(in) :: z(:), jac(:, :)
+      integer, intent(inout) :: failures
+
+      real(dp), allocatable :: Jl(:), x_new(:), x_best(:), x_bad(:), fq(:), xi(:)
+      complex(dp), allocatable :: jac_bad(:, :)
+      logical :: ierr, residual_error, ok_tol, ok_jac, ok_xsize, ok_residual
+      real(dp) :: bad_tol
+
+      allocate (Jl(size(del_z)), x_new(size(x)), x_best(size(del_z)), x_bad(size(x) + 1))
+      allocate (jac_bad(size(z) + 1, size(z) + 1), fq(size(del_z)), xi(size(del_z)))
+      bad_tol = ieee_value(1.0_dp, ieee_quiet_nan)
+      jac_bad = cmplx(0.0_dp, 0.0_dp, dp)
+      xi = 0.0_dp
+
+      Jl = huge(1.0_dp)
+      x_new = -huge(1.0_dp)
+      x_best = huge(1.0_dp)
+      call solve_constraint_quasi_newton(evaluate_constraint_residual, bad_tol, 28, x, z, del_z, ierr, Jl, x_new, jac, &
+                                         x_best_solution=x_best)
+      ok_tol = ierr .and. maxval(abs(x_new - x)) <= 0.0_dp .and. maxval(abs(Jl)) <= 0.0_dp .and. &
+               maxval(abs(x_best)) <= 0.0_dp
+
+      Jl = huge(1.0_dp)
+      x_new = -huge(1.0_dp)
+      x_best = huge(1.0_dp)
+      call solve_constraint_quasi_newton(evaluate_constraint_residual, cttol, 28, x, z, del_z, ierr, Jl, x_new, jac_bad, &
+                                         x_best_solution=x_best)
+      ok_jac = ierr .and. maxval(abs(x_new - x)) <= 0.0_dp .and. maxval(abs(Jl)) <= 0.0_dp .and. &
+               maxval(abs(x_best)) <= 0.0_dp
+
+      Jl = huge(1.0_dp)
+      x_bad = -huge(1.0_dp)
+      call solve_constraint_quasi_newton(evaluate_constraint_residual, cttol, 28, x, z, del_z, ierr, Jl, x_bad, jac)
+      ok_xsize = ierr .and. maxval(abs(Jl)) <= 0.0_dp
+
+      fq = huge(1.0_dp)
+      Jl = huge(1.0_dp)
+      call evaluate_constraint_residual(x, z, xi, fq, del_z, residual_error, Jl, jac_bad)
+      ok_residual = residual_error .and. maxval(abs(fq)) <= 0.0_dp .and. maxval(abs(Jl)) <= 0.0_dp
+
+      write (*, '(A,L1,A,L1,A,L1,A,L1)') "[CHECK] qn_api_guard_outputs ok_tol=", ok_tol, &
+         " ok_jac=", ok_jac, " ok_xsize=", ok_xsize, " ok_residual=", ok_residual
+      if (.not. (ok_tol .and. ok_jac .and. ok_xsize .and. ok_residual)) failures = failures + 1
+
+      deallocate (Jl, x_new, x_best, x_bad, fq, xi, jac_bad)
+   end subroutine check_qn_api_guard_outputs
 
    subroutine check_official_route_census(x, z, jac, dV, Jl, x_new, x_best, failures)
       real(dp), intent(in) :: x(:), dV(:)

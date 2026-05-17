@@ -11,8 +11,10 @@
       "required_runtime_fields": [
         "ENABLE_OFFICIAL_DFOLS",
         "TLTM_OFFICIAL_DFOLS_PYTHONPATH",
-        "QN_SOLVER_BACKEND",
         "QN_OFFICIAL_DFOLS_PRESET"
+      ],
+      "required_manifest_fields": [
+        "qn_solver_policy_id"
       ],
       "allowed_claim": "Evidence generated through the embedded official DFO-LS package bridge under the recorded package/runtime provenance."
     },
