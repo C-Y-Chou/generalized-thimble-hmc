@@ -9,7 +9,7 @@ cd "${repo_root}"
 : "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization}"
 : "${TLTM_EXPECTED_GIT_BRANCH:=codex/fortran-modernization}"
 : "${TLTM_EXPECTED_GIT_COMMIT:=$(git rev-parse HEAD)}"
-: "${TLTM_F20_PROFILE:=loose1e10_rg1e6}"
+: "${TLTM_F20_PROFILE:=single_feasible1e6_rg1e4}"
 : "${TLTM_CONFIG_JSON:=docs/modernization_reference_t035_r3_32seed_50k.json}"
 : "${TLTM_REFERENCE_COMPARISON_ROOT:=output/reference/fortran_modernization/m6/r3_32seed_50k}"
 : "${TLTM_RUN_GUARDRAILS:=1}"
@@ -17,15 +17,16 @@ cd "${repo_root}"
 : "${TLTM_ALLOW_OVERWRITE:=0}"
 : "${TLTM_DRY_RUN:=0}"
 
-# First all-loose profile: still double precision, but solver/certification
-# thresholds are relaxed enough to expose whether physics observables drift.
-: "${TLTM_STAGE2_ABS_TOL_OVERRIDE:=1e-10}"
-: "${TLTM_STAGE2_REL_TOL_OVERRIDE:=1e-10}"
-: "${TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE:=1e-10}"
-: "${QN_QUASI_TOL_OVERRIDE:=1e-10}"
-: "${QN_REVERSE_GATE_TOL:=1e-6}"
-: "${QN_OFFICIAL_DFOLS_RHOEND:=1e-12}"
-: "${QN_OFFICIAL_DFOLS_MODEL_ABS_TOL:=1e-20}"
+# First single-feasible profile: still executed in double precision for this
+# sensitivity gate, but the tolerances are deliberately no tighter than a
+# plausible future FP32/mixed-precision certification target.
+: "${TLTM_STAGE2_ABS_TOL_OVERRIDE:=1e-6}"
+: "${TLTM_STAGE2_REL_TOL_OVERRIDE:=1e-6}"
+: "${TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE:=1e-6}"
+: "${QN_QUASI_TOL_OVERRIDE:=1e-6}"
+: "${QN_REVERSE_GATE_TOL:=1e-4}"
+: "${QN_OFFICIAL_DFOLS_RHOEND:=1e-6}"
+: "${QN_OFFICIAL_DFOLS_MODEL_ABS_TOL:=1e-12}"
 : "${QN_OFFICIAL_DFOLS_MODEL_REL_TOL:=0}"
 
 stamp="$(date +%Y%m%dT%H%M%S)"

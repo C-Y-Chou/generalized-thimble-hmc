@@ -7,8 +7,8 @@ baseline.
 
 ## Question
 
-Can a lower-accuracy double-precision profile preserve the physical output
-against the accepted 32seed/50k strict-double reference?
+Can a single-feasible tolerance profile preserve the physical output against
+the accepted 32seed/50k strict-double reference?
 
 The accepted reference target is:
 
@@ -26,25 +26,31 @@ strict profile: abs_tol=rel_tol=3e-14, constraint/QN=1e-13
 Profile id:
 
 ```text
-loose1e10_rg1e6
+single_feasible1e6_rg1e4
 ```
 
 Runtime controls:
 
 ```text
-TLTM_STAGE2_ABS_TOL_OVERRIDE=1e-10
-TLTM_STAGE2_REL_TOL_OVERRIDE=1e-10
-TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-10
-QN_QUASI_TOL_OVERRIDE=1e-10
-QN_REVERSE_GATE_TOL=1e-6
-QN_OFFICIAL_DFOLS_RHOEND=1e-12
-QN_OFFICIAL_DFOLS_MODEL_ABS_TOL=1e-20
+TLTM_STAGE2_ABS_TOL_OVERRIDE=1e-6
+TLTM_STAGE2_REL_TOL_OVERRIDE=1e-6
+TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-6
+QN_QUASI_TOL_OVERRIDE=1e-6
+QN_REVERSE_GATE_TOL=1e-4
+QN_OFFICIAL_DFOLS_RHOEND=1e-6
+QN_OFFICIAL_DFOLS_MODEL_ABS_TOL=1e-12
 QN_OFFICIAL_DFOLS_MODEL_REL_TOL=0
 ```
 
-This is intentionally an all-loose double-precision sensitivity screen.  It
-does not alter `dp = real64`, LAPACK precision, DFO-LS callback precision, RNG
-precision, or binary output precision.
+This is intentionally a single-feasible tolerance screen executed in double
+precision.  It does not yet alter `dp = real64`, LAPACK precision, DFO-LS
+callback precision, RNG precision, or binary output precision.  Its purpose is
+to answer the first question before a real single/mixed precision build exists:
+if every certification tolerance is relaxed to a plausible FP32 target, do the
+physics observables and kernel diagnostics stay compatible with strict double?
+
+The earlier `loose1e10_rg1e6` idea is not the right first profile for this
+question: `1e-10` is still below a practical single-precision residual target.
 
 ## Source Support
 
@@ -75,7 +81,7 @@ The launcher submits one preflight/build job, eight chunk jobs
 Expected candidate root:
 
 ```text
-output/tests/f20_loose_double/f20_loose1e10_rg1e6_r3_32seed_50k_<commit>
+output/tests/f20_loose_double/f20_single_feasible1e6_rg1e4_r3_32seed_50k_<commit>
 ```
 
 Expected readback:
