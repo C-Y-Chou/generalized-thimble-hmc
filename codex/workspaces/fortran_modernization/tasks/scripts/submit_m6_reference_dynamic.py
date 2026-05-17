@@ -9,8 +9,6 @@ This launcher is intentionally conservative:
 - It never repairs jobs with qmove; replacement jobs must be resubmitted.
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import os
@@ -18,6 +16,9 @@ import re
 import shlex
 import subprocess
 import sys
+if sys.version_info < (3, 8):
+    raise SystemExit("submit_m6_reference_dynamic.py requires Python >= 3.8; use python3.11 or submit_m6_reference_datasets.sh")
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -360,7 +361,7 @@ def choose_queue(
     penalty_overrides: Dict[str, int],
 ) -> str:
     candidates: List[Tuple[int, str]] = []
-    rejection_notes: dict[str, str] = {}
+    rejection_notes: Dict[str, str] = {}
     for queue_name in MANUAL_QUEUE_SPECS:
         ok, reason = is_queue_eligible(
             queue_name,
@@ -537,6 +538,12 @@ def main() -> int:
         description="Submit M6 reference datasets with dynamic manual-aware PBS queue selection.",
     )
     parser.add_argument("--dry-run", action="store_true", help="print qsub commands without submitting")
+    parser.add_argument(
+        "--levels",
+        nargs="+",
+        choices=[level.level for level in LEVELS],
+        help="reference levels to submit; defaults to all levels",
+    )
     parser.add_argument("--queue-snapshot", help="path to saved qstat -Qf output for deterministic dry-runs")
     parser.add_argument(
         "--knowledge",
@@ -642,7 +649,11 @@ def main() -> int:
         "levels": {},
     }
 
+    selected_levels = set(args.levels) if args.levels else {level.level for level in LEVELS}
+
     for level in LEVELS:
+        if level.level not in selected_levels:
+            continue
         level_plan: List[Dict[str, object]] = []
         chunk_jobs: List[str] = []
         max_seeds = level.seeds_per_chunk

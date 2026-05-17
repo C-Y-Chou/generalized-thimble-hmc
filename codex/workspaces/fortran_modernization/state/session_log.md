@@ -2120,3 +2120,23 @@
 - `MODERNIZATION_CANONICAL_HANDOFF_CLOSURE_20260517.md` now records the frozen
   code contract, product wrapper boundary, raw Stage compatibility boundary,
   and production-comparison handoff readiness.
+
+## 2026-05-17 JST - M6 R2 submitter preflight repair
+
+- After the F20 loose-double submission failed before Stage2 execution, checked
+  the canonical remote worktree and confirmed the failure was not a wrong-tree
+  mixup: the failed build ran from
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization` on branch
+  `codex/fortran-modernization`.
+- Found two submission-layer bugs before the 10seed x 10k modernization screen:
+  the dynamic M6 submitter could be invoked with the cluster default
+  `python3` 3.6 even though the script requires modern Python, and the PBS
+  preflight build did not automatically attach the restored
+  `.deps/python-devel-3.11` headers/libs, causing `Python.h` to be missing.
+- Repaired the submit path without changing physics source: the wrapper now
+  prefers `python3.11`, the dynamic submitter supports `--levels R2` for a
+  single 10seed x 10k launch, and the build/chunk PBS scripts export the
+  Python 3.11 embed include/lib flags plus `LD_LIBRARY_PATH` when the local
+  `.deps/python-devel-3.11` cache is present.
+- Local checks passed: Python compile for the dynamic submitter, R2-only dry
+  run, and `git diff --check`.

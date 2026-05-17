@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "cluster": "iTHEMS cluster02",
-  "updated_at_jst": "2026-05-10T20:00:00+09:00",
+  "updated_at_jst": "2026-05-17T23:11:05+09:00",
   "resource_model": {
     "type": "shared_dynamic_cluster",
     "principle": "Persistent observations are priors; current qstat/probes decide present scheduling.",
@@ -99,6 +99,16 @@
         "cnode41"
       ],
       "decision": "blacklist for M6 production-shape chunks"
+    },
+    {
+      "queue": "submission_layer",
+      "resource_shape": "M6 reference submit/preflight",
+      "exit_status": 2,
+      "nodes": [
+        "login",
+        "PBS compute node"
+      ],
+      "decision": "use submit_m6_reference_datasets.sh or python3.11 for the dynamic launcher; preflight/chunk PBS scripts must attach .deps/python-devel-3.11 when present so official_dfols_c_bridge.c can include Python.h and load libpython3.11"
     }
   ],
   "observed_success_classes": [
