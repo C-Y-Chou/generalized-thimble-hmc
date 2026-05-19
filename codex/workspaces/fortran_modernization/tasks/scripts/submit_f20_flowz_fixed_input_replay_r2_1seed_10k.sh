@@ -218,7 +218,7 @@ queue_plan="${TLTM_LOG_ROOT}/submit/submit_queue_plan_${stamp}.json"
   for profile in "${profiles[@]}"; do
     for method in "${methods[@]}"; do
       echo "${profile}_${method}_capture_job=$(get_job_var "capture_job_${profile}_${method}")"
-      echo "${profile}_${method}_capture_file=${TLTM_OUTPUT_ROOT}/capture_${profile}/${method}/chunk_00/flowz_inputs.dat"
+      echo "${profile}_${method}_capture_file=$(remote_abs_path "${TLTM_OUTPUT_ROOT}/capture_${profile}/${method}/chunk_00/flowz_inputs.dat")"
     done
   done
   echo "replay_job=${replay_job}"

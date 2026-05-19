@@ -59,7 +59,10 @@ program replay_flowz_cases
       if (allocated(z)) deallocate (z)
       allocate (x(x_size), z(x_size - 1))
       read (line, *, iostat=ios) observed, stage, newton_iter, quasi_iter, role, x_size, x
-      if (ios /= 0) cycle
+      if (ios /= 0) then
+         call read_x_values(in_unit, line_no, x, ios)
+         if (ios /= 0) cycle
+      end if
 
       case_idx = case_idx + 1
       z = cmplx(0.0_dp, 0.0_dp, dp)
@@ -111,6 +114,25 @@ contains
       read (text, *, iostat=read_status) value
       if (read_status /= 0) call usage_and_stop()
    end subroutine read_real_arg
+
+   subroutine read_x_values(unit_id, local_line_no, values, read_status)
+      implicit none
+      integer, intent(in) :: unit_id
+      integer, intent(inout) :: local_line_no
+      real(dp), intent(out) :: values(:)
+      integer, intent(out) :: read_status
+      character(len=131072) :: values_line
+
+      do
+         read (unit_id, '(A)', iostat=read_status) values_line
+         if (read_status /= 0) return
+         local_line_no = local_line_no + 1
+         if (len_trim(values_line) == 0) cycle
+         if (values_line(1:1) == "#") cycle
+         read (values_line, *, iostat=read_status) values
+         return
+      end do
+   end subroutine read_x_values
 
    subroutine write_header(unit_id)
       implicit none
