@@ -35,6 +35,10 @@ def main():
     sys.path.insert(0, str(repo_root / "scripts"))
     from run_stage3_3_multiseed import (
         aggregate_rows,
+        cvode_aggregate_columns,
+        cvode_stat_columns,
+        odex_aggregate_columns,
+        odex_stat_columns,
         local_transition_aggregate_columns,
         local_transition_count_columns,
         newton_eval_flow_status_aggregate_columns,
@@ -132,6 +136,8 @@ def main():
         *newton_eval_flow_status_count_columns(),
         *qn_eval_flow_status_count_columns(),
         *reverse_gate_replay_status_count_columns(),
+        *cvode_stat_columns(),
+        *odex_stat_columns(),
         *local_transition_count_columns(),
         "accepted_local_total",
         "accepted_local_newton_only_count",
@@ -214,6 +220,8 @@ def main():
         *newton_eval_flow_status_aggregate_columns(),
         *qn_eval_flow_status_aggregate_columns(),
         *reverse_gate_replay_status_aggregate_columns(),
+        *cvode_aggregate_columns(),
+        *odex_aggregate_columns(),
         *local_transition_aggregate_columns(),
     ]
 
