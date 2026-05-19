@@ -159,6 +159,8 @@ def main():
         "accepted_local_far_anchor_count",
         "pair0_accept_rate",
         "total_round_trip",
+        "fixed_flow_mode",
+        "replica_exchange_active",
         "avg_round_trip_cycles_if_observed",
         "hot_end_hit_count",
         "runtime_total",
