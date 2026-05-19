@@ -91,11 +91,6 @@ if [ "${TLTM_DRY_RUN}" != "1" ]; then
 fi
 
 mkdir -p "${TLTM_LOG_ROOT}/submit" "${TLTM_LOG_ROOT}/preflight" "${TLTM_LOG_ROOT}/replay"
-for profile in "${profiles[@]}"; do
-  for method in "${methods[@]}"; do
-    mkdir -p "${TLTM_LOG_ROOT}/capture_${profile}/${method}/chunk_00"
-  done
-done
 
 common_vars="TLTM_WORKTREE=${TLTM_WORKTREE},TLTM_EXPECTED_GIT_BRANCH=${TLTM_EXPECTED_GIT_BRANCH},TLTM_EXPECTED_GIT_COMMIT=${TLTM_EXPECTED_GIT_COMMIT}"
 
@@ -161,7 +156,7 @@ for profile in "${profiles[@]}"; do
       -q "${TLTM_F20_FLOWZ_CAPTURE_QUEUE}" \
       -l select=1:ncpus=1:mpiprocs=1:mem=8gb \
       -l walltime=04:00:00 \
-      -o "${capture_log_root}/${method}/chunk_00/capture.pbs.out" \
+      -o "${TLTM_LOG_ROOT}/submit/capture_${profile}_${method}.pbs.out" \
       -W "depend=afterok:${build_job}" \
       -v "${chunk_vars}" \
       codex/workspaces/fortran_modernization/tasks/pbs/m6_reference_chunk.pbs)"
