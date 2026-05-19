@@ -52,6 +52,30 @@ The ODE `1e-10` profile is faster but carries reverse-gate/projection stress and
 is not the clean default candidate. The ODE `1e-8` profile fails Stage2
 initialization at `flow_time=0.3500` and is rejected.
 
+The completed Stage B NT/QN/DFO-LS scan is recorded in
+`F20C_NTQN_DFOLS_TOLERANCE_SCAN_READBACK_20260519.md`. The selected next
+scale-up candidate is:
+
+- `TLTM_STAGE2_ABS_TOL_OVERRIDE=1e-12`
+- `TLTM_STAGE2_REL_TOL_OVERRIDE=1e-12`
+- `TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-10`
+- `QN_QUASI_TOL_OVERRIDE=1e-10`
+- `QN_REVERSE_GATE_TOL=1e-8`
+- `QN_OFFICIAL_DFOLS_RHOEND=1e-13`
+- `QN_OFFICIAL_DFOLS_MODEL_ABS_TOL=1e-20`
+- `QN_OFFICIAL_DFOLS_MODEL_REL_TOL=0`
+
+This is not yet the certified production default. It is the best current
+double-precision performance candidate: at 10 seeds x 10000 cycles it reduced
+mean runtime by about 18% for `no_fb` and 31% for `fb_norefine`, while paired
+observable drift stayed below 1 sigma in both methods and both real/imaginary
+parts. It also increased reverse-gate rejects and `fb_norefine` projection
+failures, so it requires larger-scale confirmation before promotion.
+
+The conservative fallback is the same ODE/reverse-gate setting with
+constraint/QN `1e-12`, DFO-LS `rhoend=1e-15`, and DFO-LS `model_abs=1e-24`.
+The shared NT/QN/DFO-LS `1e-8` profile is rejected.
+
 ## Evidence Closing Single Precision
 
 1. Current-head strict vs loose double, 10 seeds x 10000 cycles:
@@ -112,22 +136,24 @@ Tested first candidates:
 Do not start with 1e-6 again. It is already a failed or non-speedup boundary for
 the current 10seed x 10k evidence.
 
-Stage B: Newton/QN tolerance scan at the best accepted ODE tolerance
+Stage B: Newton/QN/DFO-LS tolerance scan at the accepted ODE tolerance
 (`abs/rel=1e-12`).
 
-Recommended first candidates:
-- newton_tol_1e12: constraint/QN quasi = 1e-12
-- newton_tol_1e10: constraint/QN quasi = 1e-10
-- newton_tol_1e8: constraint/QN quasi = 1e-8
+Completed candidates:
+- `tau_1e12`: clean conservative candidate with modest speedup.
+- `tau_1e10`: selected performance candidate for next scale-up.
+- `tau_1e8`: rejected after `no_fb` readback showed projection and reverse-gate
+  blow-up.
 
-Keep reverse-gate tolerance strict during Stage A and B. Treat reverse-gate
-tolerance as a later physics-facing acceptance knob, not the first runtime knob.
+Keep reverse-gate tolerance strict. Treat reverse-gate tolerance as a later
+physics-facing acceptance knob, not the first runtime knob.
 
-Stage C: Combined double candidate.
+Stage C: Larger-scale combined double candidate.
 
-Run the selected ODE and Newton/QN tolerances together at 10seed x 10k. Accept
-only if per-seed rows, aggregate tables, protocol audit, strict comparison, and
-physics metrics pass.
+Run ODE `1e-12` plus constraint/QN `1e-10` plus DFO-LS `rhoend=1e-13` and
+`model_abs=1e-20` at larger scale against strict double/current accepted
+reference. Promote only if per-seed rows, aggregate tables, protocol audit,
+strict comparison, and physics metrics pass.
 
 ## Required Readback
 
