@@ -48,6 +48,7 @@ fi
 test -x bin/replay_flowz_cases
 
 unset TLTM_FLOWZ_CAPTURE_FILE
+unset TLTM_FLOWZ_COST_CAPTURE_FILE
 mkdir -p "${TLTM_OUTPUT_ROOT}/replay" "${TLTM_LOG_ROOT}/replay"
 BOOT_LOG="${TLTM_LOG_ROOT}/replay/f20_flowz_fixed_input_replay.$(date +%Y%m%dT%H%M%S).log"
 exec > "${BOOT_LOG}" 2>&1
@@ -90,6 +91,7 @@ import sys
 
 root = sys.argv[1]
 summary = {}
+rows_by_key = {}
 fields_to_sum = [
     "runtime_sec",
     "odex_calls",
@@ -121,6 +123,7 @@ for name in sorted(os.listdir(root)):
     with open(path, newline="") as handle:
         reader = csv.DictReader(handle)
         rows = list(reader)
+    rows_by_key[name[:-4]] = rows
     if not rows:
         continue
     key = name[:-4]
@@ -133,6 +136,8 @@ for name in sorted(os.listdir(root)):
     summary[key] = entry
 
 comparisons = {}
+top_cases = {}
+top_case_rows = []
 for key, strict_entry in summary.items():
     if not key.endswith("__strict"):
         continue
@@ -149,7 +154,84 @@ for key, strict_entry in summary.items():
         comp[metric + "_loose_minus_strict_mean"] = l - s
     comparisons[prefix] = comp
 
-payload = {"summary": summary, "comparisons": comparisons}
+for key, strict_rows in rows_by_key.items():
+    if not key.endswith("__strict"):
+        continue
+    prefix = key[:-len("__strict")]
+    loose_rows = rows_by_key.get(prefix + "__loose", [])
+    strict_by_case = dict((row.get("case_idx", ""), row) for row in strict_rows)
+    loose_by_case = dict((row.get("case_idx", ""), row) for row in loose_rows)
+    paired = []
+    for case_idx in sorted(set(strict_by_case).intersection(set(loose_by_case)), key=lambda value: int(value or 0)):
+        strict_row = strict_by_case[case_idx]
+        loose_row = loose_by_case[case_idx]
+        s_rhs = as_float(strict_row, "odex_rhs_evals")
+        l_rhs = as_float(loose_row, "odex_rhs_evals")
+        s_rej = as_float(strict_row, "odex_rejected_steps")
+        l_rej = as_float(loose_row, "odex_rejected_steps")
+        s_mid = as_float(strict_row, "odex_midpoint_rows")
+        l_mid = as_float(loose_row, "odex_midpoint_rows")
+        s_runtime = as_float(strict_row, "runtime_sec")
+        l_runtime = as_float(loose_row, "runtime_sec")
+        entry = {
+            "prefix": prefix,
+            "case_idx": int(case_idx or 0),
+            "capture_observed": int(strict_row.get("capture_observed", "0") or 0),
+            "stage": int(strict_row.get("stage", "0") or 0),
+            "newton_iter": int(strict_row.get("newton_iter", "0") or 0),
+            "quasi_iter": int(strict_row.get("quasi_iter", "0") or 0),
+            "role": int(strict_row.get("role", "0") or 0),
+            "strict_rhs": s_rhs,
+            "loose_rhs": l_rhs,
+            "rhs_ratio": (l_rhs / s_rhs) if s_rhs else None,
+            "rhs_delta": l_rhs - s_rhs,
+            "strict_rejected": s_rej,
+            "loose_rejected": l_rej,
+            "rejected_ratio": (l_rej / s_rej) if s_rej else None,
+            "rejected_delta": l_rej - s_rej,
+            "strict_midpoint_rows": s_mid,
+            "loose_midpoint_rows": l_mid,
+            "midpoint_rows_ratio": (l_mid / s_mid) if s_mid else None,
+            "strict_runtime_sec": s_runtime,
+            "loose_runtime_sec": l_runtime,
+            "runtime_ratio": (l_runtime / s_runtime) if s_runtime else None,
+        }
+        paired.append(entry)
+    paired.sort(key=lambda row: (row["rhs_ratio"] if row["rhs_ratio"] is not None else -1.0, row["rhs_delta"]), reverse=True)
+    top_cases[prefix] = paired[:25]
+    top_case_rows.extend(paired[:25])
+
+top_case_csv = os.path.join(root, "flowz_replay_top_cases.csv")
+top_case_fields = [
+    "prefix",
+    "case_idx",
+    "capture_observed",
+    "stage",
+    "newton_iter",
+    "quasi_iter",
+    "role",
+    "strict_rhs",
+    "loose_rhs",
+    "rhs_ratio",
+    "rhs_delta",
+    "strict_rejected",
+    "loose_rejected",
+    "rejected_ratio",
+    "rejected_delta",
+    "strict_midpoint_rows",
+    "loose_midpoint_rows",
+    "midpoint_rows_ratio",
+    "strict_runtime_sec",
+    "loose_runtime_sec",
+    "runtime_ratio",
+]
+with open(top_case_csv, "w", newline="") as handle:
+    writer = csv.DictWriter(handle, fieldnames=top_case_fields)
+    writer.writeheader()
+    for row in top_case_rows:
+        writer.writerow(row)
+
+payload = {"summary": summary, "comparisons": comparisons, "top_cases": top_cases}
 with open(os.path.join(root, "flowz_replay_summary.json"), "w") as handle:
     json.dump(payload, handle, indent=2, sort_keys=True)
 with open(os.path.join(root, "flowz_replay_summary.txt"), "w") as handle:
@@ -160,6 +242,7 @@ with open(os.path.join(root, "flowz_replay_summary.txt"), "w") as handle:
         handle.write("\n")
 print("summary_json={}".format(os.path.join(root, "flowz_replay_summary.json")))
 print("summary_txt={}".format(os.path.join(root, "flowz_replay_summary.txt")))
+print("top_cases_csv={}".format(top_case_csv))
 PY
 
 date -Is

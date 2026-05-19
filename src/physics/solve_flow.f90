@@ -152,6 +152,8 @@ module solve_flow
       integer(int64) :: odex_rhs_evals_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
       integer(int64) :: odex_midpoint_rows_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
       integer(int64) :: odex_kplus1_attempts_ctx(intode_ctx_unknown:intode_ctx_flow) = 0_int64
+      logical :: last_odex_result_available = .false.
+      type(odex_result) :: last_odex_result
       logical :: capture_failures = .true.
       logical :: last_failure_available = .false.
       integer :: last_failure_reason = intode_reason_none
@@ -178,6 +180,16 @@ module solve_flow
    integer, save :: flowz_capture_observed = 0
    integer, save :: flowz_capture_written = 0
    character(len=512), save :: flowz_capture_file = ""
+   logical, save :: flowz_cost_capture_ready = .false.
+   logical, save :: flowz_cost_capture_enabled = .false.
+   logical, save :: flowz_cost_capture_write_error = .false.
+   integer, save :: flowz_cost_capture_unit = -1
+   integer, save :: flowz_cost_capture_limit = 1000
+   integer, save :: flowz_cost_capture_min_rhs = 512
+   integer, save :: flowz_cost_capture_min_rejected = 16
+   integer, save :: flowz_cost_capture_observed = 0
+   integer, save :: flowz_cost_capture_written = 0
+   character(len=512), save :: flowz_cost_capture_file = ""
 
 contains
 
@@ -235,6 +247,106 @@ contains
       flowz_capture_written = flowz_capture_written + 1
    end subroutine maybe_capture_flowz_input
 
+   subroutine initialize_flowz_cost_capture()
+      implicit none
+      logical :: has_capture_file
+      integer :: ios
+
+      if (flowz_cost_capture_ready) return
+      flowz_cost_capture_ready = .true.
+      flowz_cost_capture_enabled = .false.
+      flowz_cost_capture_write_error = .false.
+      flowz_cost_capture_file = ""
+      flowz_cost_capture_limit = 1000
+      flowz_cost_capture_min_rhs = 512
+      flowz_cost_capture_min_rejected = 16
+
+      call read_string_env("TLTM_FLOWZ_COST_CAPTURE_FILE", flowz_cost_capture_file, has_capture_file)
+      if (.not. has_capture_file) return
+
+      call parse_int_env("TLTM_FLOWZ_COST_CAPTURE_LIMIT", flowz_cost_capture_limit)
+      call parse_int_env("TLTM_FLOWZ_COST_CAPTURE_MIN_RHS", flowz_cost_capture_min_rhs)
+      call parse_int_env("TLTM_FLOWZ_COST_CAPTURE_MIN_REJECTED", flowz_cost_capture_min_rejected)
+      flowz_cost_capture_limit = max(0, flowz_cost_capture_limit)
+      flowz_cost_capture_min_rhs = max(0, flowz_cost_capture_min_rhs)
+      flowz_cost_capture_min_rejected = max(0, flowz_cost_capture_min_rejected)
+
+      open (newunit=flowz_cost_capture_unit, file=trim(flowz_cost_capture_file), status='replace', action='write', iostat=ios)
+      if (ios /= 0) then
+         flowz_cost_capture_write_error = .true.
+         return
+      end if
+      write (flowz_cost_capture_unit, '(A)', iostat=ios) "# flowz cost capture"
+      if (ios == 0) write (flowz_cost_capture_unit, '(A)', iostat=ios) "# data: observed stage newton_iter quasi_iter role x_size"
+      if (ios == 0) write (flowz_cost_capture_unit, '(A)', iostat=ios) "# data continuation: x_values"
+      if (ios == 0) write (flowz_cost_capture_unit, '(A)', iostat=ios) &
+         "# cost: observed written stage newton_iter quasi_iter role x_size flow_status flow_error"
+      if (ios == 0) write (flowz_cost_capture_unit, '(A)', iostat=ios) &
+         "# cost continuation: odex_status failure_reason accepted_steps rejected_steps stability_rejects"
+      if (ios == 0) write (flowz_cost_capture_unit, '(A)', iostat=ios) &
+         "# cost continuation: rhs_evals midpoint_rows kplus1_attempts large_error_rejects kplus1_rejects"
+      if (ios == 0) write (flowz_cost_capture_unit, '(A)', iostat=ios) &
+         "# cost continuation: convergence_rejects kplus1_hope_rejects reject_updates final_order final_step_size t_remaining"
+      flowz_cost_capture_write_error = (ios /= 0)
+      flowz_cost_capture_enabled = .not. flowz_cost_capture_write_error
+   end subroutine initialize_flowz_cost_capture
+
+   subroutine maybe_capture_flowz_cost_input(x, intode_trace, result_state, flow_status, flow_error)
+      implicit none
+      real(dp), intent(in) :: x(:)
+      type(intode_runtime_trace_context_t), intent(in) :: intode_trace
+      type(odex_result), intent(in) :: result_state
+      integer, intent(in) :: flow_status
+      logical, intent(in) :: flow_error
+      integer :: ios
+
+      call initialize_flowz_cost_capture()
+      if (.not. flowz_cost_capture_enabled) return
+      if (flowz_cost_capture_write_error) return
+
+      flowz_cost_capture_observed = flowz_cost_capture_observed + 1
+      if (.not. flowz_cost_capture_should_write(result_state, flow_error)) return
+      if (flowz_cost_capture_limit > 0 .and. flowz_cost_capture_written >= flowz_cost_capture_limit) return
+
+      write (flowz_cost_capture_unit, *, iostat=ios) "# cost", flowz_cost_capture_observed, &
+         flowz_cost_capture_written + 1, intode_trace%stage, &
+         intode_trace%newton_iter, intode_trace%quasi_iter, intode_trace%role, size(x), flow_status, &
+         merge(1, 0, flow_error), result_state%status, result_state%failure_reason, &
+         result_state%accepted_steps, result_state%rejected_steps, result_state%stability_rejects, &
+         result_state%odex_rhs_evals, result_state%odex_midpoint_rows, result_state%odex_kplus1_attempts, &
+         result_state%odex_large_error_rejects, result_state%odex_kplus1_rejects, &
+         result_state%odex_convergence_rejects, result_state%odex_kplus1_hope_rejects, &
+         result_state%odex_reject_updates, result_state%final_order, result_state%final_step_size, &
+         result_state%t_remaining
+      if (ios == 0) write (flowz_cost_capture_unit, *, iostat=ios) flowz_cost_capture_observed, &
+         intode_trace%stage, intode_trace%newton_iter, intode_trace%quasi_iter, intode_trace%role, size(x)
+      if (ios == 0) write (flowz_cost_capture_unit, *, iostat=ios) x
+      if (ios /= 0) then
+         flowz_cost_capture_write_error = .true.
+         flowz_cost_capture_enabled = .false.
+         return
+      end if
+      flowz_cost_capture_written = flowz_cost_capture_written + 1
+   end subroutine maybe_capture_flowz_cost_input
+
+   logical function flowz_cost_capture_should_write(result_state, flow_error) result(should_write)
+      implicit none
+      type(odex_result), intent(in) :: result_state
+      logical, intent(in) :: flow_error
+
+      should_write = flow_error
+      should_write = should_write .or. result_state%status /= odex_status_success
+      if (flowz_cost_capture_min_rhs > 0) then
+         should_write = should_write .or. result_state%odex_rhs_evals >= flowz_cost_capture_min_rhs
+      end if
+      if (flowz_cost_capture_min_rejected > 0) then
+         should_write = should_write .or. result_state%rejected_steps >= flowz_cost_capture_min_rejected
+      end if
+      should_write = should_write .or. result_state%odex_kplus1_rejects > 0
+      should_write = should_write .or. result_state%odex_convergence_rejects > 0
+      should_write = should_write .or. result_state%odex_kplus1_hope_rejects > 0
+   end function flowz_cost_capture_should_write
+
    subroutine odex_default_options(options)
       implicit none
       type(odex_options), intent(out) :: options
@@ -279,6 +391,8 @@ contains
       call odex_result_reset(integration_result)
       call set_intode_status(status, intode_status_unknown)
       call resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
+      active_diagnostics%last_odex_result_available = .false.
+      call odex_result_reset(active_diagnostics%last_odex_result)
       active_diagnostics%calls_total = active_diagnostics%calls_total + 1
       if (t == 0.0_dp) then
          res = y
@@ -368,6 +482,8 @@ contains
       call odex_result_reset(integration_result)
       call set_intode_status(status, intode_status_unknown)
       call resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
+      active_diagnostics%last_odex_result_available = .false.
+      call odex_result_reset(active_diagnostics%last_odex_result)
       active_diagnostics%calls_total = active_diagnostics%calls_total + 1
       if (t == 0.0_dp) then
          res = y
@@ -548,9 +664,15 @@ contains
       integer, intent(in) :: context_code
       integer :: idx
 
-      if (result_state%cvode_backend_used) return
+      if (result_state%cvode_backend_used) then
+         intode_diagnostics%last_odex_result_available = .false.
+         call odex_result_reset(intode_diagnostics%last_odex_result)
+         return
+      end if
 
       idx = normalize_context_code(context_code)
+      intode_diagnostics%last_odex_result = result_state
+      intode_diagnostics%last_odex_result_available = .true.
       intode_diagnostics%odex_calls = intode_diagnostics%odex_calls + 1_int64
       intode_diagnostics%odex_calls_ctx(idx) = intode_diagnostics%odex_calls_ctx(idx) + 1_int64
       if (result_state%status == odex_status_success) then
@@ -1011,6 +1133,8 @@ contains
       intode_diagnostics%odex_rhs_evals_ctx = 0_int64
       intode_diagnostics%odex_midpoint_rows_ctx = 0_int64
       intode_diagnostics%odex_kplus1_attempts_ctx = 0_int64
+      intode_diagnostics%last_odex_result_available = .false.
+      call odex_result_reset(intode_diagnostics%last_odex_result)
       intode_diagnostics%capture_failures = .true.
       intode_diagnostics%last_failure_available = .false.
       intode_diagnostics%last_failure_reason = intode_reason_none
@@ -1405,6 +1529,7 @@ contains
       integer, intent(out), optional :: status
       type(flow_workspace_t), intent(inout) :: workspace
       type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      type(intode_diagnostics_context_t), pointer :: active_diagnostics
       integer::n, n_complex
       integer :: flow_status_local
       real(dp)::t1
@@ -1442,6 +1567,11 @@ contains
       workspace%flow_vec_rhs_scale = 1.0_dp
       call intode_with_context(rhs_flow_vec_context, workspace%flow_vec_y(1:n), t1, workspace%flow_vec_yf(1:n), error, &
                                flow_status_local, workspace, intode_diagnostics)
+      call resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
+      if (active_diagnostics%last_odex_result_available) then
+         call maybe_capture_flowz_cost_input(x, workspace%intode_trace, active_diagnostics%last_odex_result, &
+                                             flow_status_local, error)
+      end if
       workspace%intode_trace%current_context = intode_ctx_unknown
       call set_intode_status(status, flow_status_local)
       if (error) then

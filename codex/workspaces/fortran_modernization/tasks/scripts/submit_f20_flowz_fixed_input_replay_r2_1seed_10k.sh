@@ -45,6 +45,10 @@ cd "${repo_root}"
 : "${TLTM_FLOWZ_CAPTURE_LIMIT:=5000}"
 : "${TLTM_FLOWZ_CAPTURE_START:=1}"
 : "${TLTM_FLOWZ_CAPTURE_STRIDE:=1000}"
+: "${TLTM_FLOWZ_CAPTURE_MODE:=stride}"
+: "${TLTM_FLOWZ_COST_CAPTURE_LIMIT:=5000}"
+: "${TLTM_FLOWZ_COST_CAPTURE_MIN_RHS:=512}"
+: "${TLTM_FLOWZ_COST_CAPTURE_MIN_REJECTED:=16}"
 : "${TLTM_FLOWZ_REPLAY_MAX_CASES:=0}"
 
 stamp="$(date +%Y%m%dT%H%M%S)"
@@ -56,6 +60,14 @@ short_commit="$(git rev-parse --short=12 "${TLTM_EXPECTED_GIT_COMMIT}")"
 
 profiles=(strict all_loose)
 methods=(no_fb fb_norefine)
+
+case "${TLTM_FLOWZ_CAPTURE_MODE}" in
+  stride|cost) ;;
+  *)
+    echo "[ERROR] unknown TLTM_FLOWZ_CAPTURE_MODE=${TLTM_FLOWZ_CAPTURE_MODE}; expected stride or cost." >&2
+    exit 2
+    ;;
+esac
 
 profile_tol_vars() {
   case "$1" in
@@ -157,7 +169,12 @@ for profile in "${profiles[@]}"; do
     capture_root="${TLTM_OUTPUT_ROOT}/capture_${profile}"
     capture_log_root="${TLTM_LOG_ROOT}/capture_${profile}"
     capture_file="$(remote_abs_path "${capture_root}/${method}/chunk_00/flowz_inputs.dat")"
-    chunk_vars="${common_vars},${tol_vars},TLTM_REF_LEVEL=${TLTM_REF_LEVEL},TLTM_REF_LABEL=${TLTM_REF_LABEL}_${profile}_${method},TLTM_CONFIG_JSON=${TLTM_CONFIG_JSON},TLTM_ROOT_SUBDIR=${capture_root},TLTM_ROOT_LOG_SUBDIR=${capture_log_root},TLTM_METHOD=${method},TLTM_CHUNK_ID=00,TLTM_SEED_OFFSET=0,TLTM_MAX_SEEDS=1,TLTM_JOBS=1,TLTM_ALLOW_OVERWRITE=${TLTM_ALLOW_OVERWRITE},TLTM_FLOWZ_CAPTURE_FILE=${capture_file},TLTM_FLOWZ_CAPTURE_LIMIT=${TLTM_FLOWZ_CAPTURE_LIMIT},TLTM_FLOWZ_CAPTURE_START=${TLTM_FLOWZ_CAPTURE_START},TLTM_FLOWZ_CAPTURE_STRIDE=${TLTM_FLOWZ_CAPTURE_STRIDE}"
+    if [ "${TLTM_FLOWZ_CAPTURE_MODE}" = "cost" ]; then
+      capture_vars="TLTM_FLOWZ_COST_CAPTURE_FILE=${capture_file},TLTM_FLOWZ_COST_CAPTURE_LIMIT=${TLTM_FLOWZ_COST_CAPTURE_LIMIT},TLTM_FLOWZ_COST_CAPTURE_MIN_RHS=${TLTM_FLOWZ_COST_CAPTURE_MIN_RHS},TLTM_FLOWZ_COST_CAPTURE_MIN_REJECTED=${TLTM_FLOWZ_COST_CAPTURE_MIN_REJECTED}"
+    else
+      capture_vars="TLTM_FLOWZ_CAPTURE_FILE=${capture_file},TLTM_FLOWZ_CAPTURE_LIMIT=${TLTM_FLOWZ_CAPTURE_LIMIT},TLTM_FLOWZ_CAPTURE_START=${TLTM_FLOWZ_CAPTURE_START},TLTM_FLOWZ_CAPTURE_STRIDE=${TLTM_FLOWZ_CAPTURE_STRIDE}"
+    fi
+    chunk_vars="${common_vars},${tol_vars},TLTM_REF_LEVEL=${TLTM_REF_LEVEL},TLTM_REF_LABEL=${TLTM_REF_LABEL}_${profile}_${method},TLTM_CONFIG_JSON=${TLTM_CONFIG_JSON},TLTM_ROOT_SUBDIR=${capture_root},TLTM_ROOT_LOG_SUBDIR=${capture_log_root},TLTM_METHOD=${method},TLTM_CHUNK_ID=00,TLTM_SEED_OFFSET=0,TLTM_MAX_SEEDS=1,TLTM_JOBS=1,TLTM_ALLOW_OVERWRITE=${TLTM_ALLOW_OVERWRITE},${capture_vars}"
     job="$(run_qsub \
       -N "f20fz${profile:0:2}${method_short}" \
       -q "${TLTM_F20_FLOWZ_CAPTURE_QUEUE}" \
@@ -209,9 +226,13 @@ queue_plan="${TLTM_LOG_ROOT}/submit/submit_queue_plan_${stamp}.json"
   echo "config=${TLTM_CONFIG_JSON}"
   echo "output_root=${TLTM_OUTPUT_ROOT}"
   echo "log_root=${TLTM_LOG_ROOT}"
+  echo "capture_mode=${TLTM_FLOWZ_CAPTURE_MODE}"
   echo "capture_limit=${TLTM_FLOWZ_CAPTURE_LIMIT}"
   echo "capture_start=${TLTM_FLOWZ_CAPTURE_START}"
   echo "capture_stride=${TLTM_FLOWZ_CAPTURE_STRIDE}"
+  echo "cost_capture_limit=${TLTM_FLOWZ_COST_CAPTURE_LIMIT}"
+  echo "cost_capture_min_rhs=${TLTM_FLOWZ_COST_CAPTURE_MIN_RHS}"
+  echo "cost_capture_min_rejected=${TLTM_FLOWZ_COST_CAPTURE_MIN_REJECTED}"
   echo "replay_max_cases=${TLTM_FLOWZ_REPLAY_MAX_CASES}"
   echo "extra_depend=${TLTM_FLOWZ_REPLAY_EXTRA_DEPEND}"
   echo "build_job=${build_job}"
@@ -237,9 +258,13 @@ cat > "${queue_plan}" <<EOF_PLAN
   "output_root": "${TLTM_OUTPUT_ROOT}",
   "log_root": "${TLTM_LOG_ROOT}",
   "capture_policy": {
+    "mode": "${TLTM_FLOWZ_CAPTURE_MODE}",
     "limit": ${TLTM_FLOWZ_CAPTURE_LIMIT},
     "start": ${TLTM_FLOWZ_CAPTURE_START},
     "stride": ${TLTM_FLOWZ_CAPTURE_STRIDE},
+    "cost_limit": ${TLTM_FLOWZ_COST_CAPTURE_LIMIT},
+    "cost_min_rhs": ${TLTM_FLOWZ_COST_CAPTURE_MIN_RHS},
+    "cost_min_rejected": ${TLTM_FLOWZ_COST_CAPTURE_MIN_REJECTED},
     "replay_max_cases": ${TLTM_FLOWZ_REPLAY_MAX_CASES}
   },
   "extra_depend": "${TLTM_FLOWZ_REPLAY_EXTRA_DEPEND}",
@@ -252,9 +277,9 @@ cat > "${queue_plan}" <<EOF_PLAN
     {"role": "replay", "name": "f20fzreplay", "queue": "${TLTM_F20_FLOWZ_REPLAY_QUEUE}", "ncpus": 1, "walltime": "02:00:00", "job": "${replay_job}"}
   ],
   "readback_required": [
-    "four capture files exist and are non-empty",
+    "four ${TLTM_FLOWZ_CAPTURE_MODE} capture files exist and are non-empty",
     "eight replay CSV files exist",
-    "flowz_replay_summary.json and flowz_replay_summary.txt exist",
+    "flowz_replay_summary.json, flowz_replay_summary.txt, and flowz_replay_top_cases.csv exist",
     "for each captured input set, compare loose vs strict ODEX rhs_evals accepted/rejected midpoint_rows runtime per case",
     "if loose_over_strict explodes on the same input rows, flag ODEX controller/tolerance pathology; if only all_loose captures are hard for both replay tolerances, flag upstream state pathology"
   ]
