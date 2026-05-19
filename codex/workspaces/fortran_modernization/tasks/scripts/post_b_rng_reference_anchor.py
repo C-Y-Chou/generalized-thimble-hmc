@@ -151,6 +151,15 @@ def normalize_text(path, normalize_summary):
             normalized.append("# elapsed_sec=<elapsed_sec>")
             normalized_indices = {}
             continue
+        if normalize_summary and (
+            stripped.startswith("# odex_stats ")
+            or stripped.startswith("# odex_context_")
+        ):
+            tokens = stripped.split()
+            telemetry_key = tokens[1] if len(tokens) > 1 and tokens[0] == "#" else tokens[0].lstrip("#")
+            normalized.append("#{0}=<compiler_dependent_odex_telemetry>".format(telemetry_key))
+            normalized_indices = {}
+            continue
         if stripped.startswith("#"):
             tokens = stripped[1:].strip().split()
             if tokens and tokens[0].startswith("[") and tokens[0].endswith("]"):
@@ -256,6 +265,7 @@ def build_reference(actual_hashes):
             "summary elapsed_sec lines are replaced with <elapsed_sec>",
             "summary runtime_sec columns are replaced with <runtime_sec>",
             "summary last_accept_prob columns are replaced with <last_accept_prob>",
+            "summary ODEX aggregate/context telemetry lines are replaced with compiler-dependent placeholders",
         ],
     }
 

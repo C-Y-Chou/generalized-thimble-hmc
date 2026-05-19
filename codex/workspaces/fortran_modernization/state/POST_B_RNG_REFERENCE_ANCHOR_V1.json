@@ -3,7 +3,8 @@
   "normalization": [
     "summary elapsed_sec lines are replaced with <elapsed_sec>",
     "summary runtime_sec columns are replaced with <runtime_sec>",
-    "summary last_accept_prob columns are replaced with <last_accept_prob>"
+    "summary last_accept_prob columns are replaced with <last_accept_prob>",
+    "summary ODEX aggregate/context telemetry lines are replaced with compiler-dependent placeholders"
   ],
   "schema": "POST_B_RNG_REFERENCE_ANCHOR_V1",
   "seed": "12345",
@@ -12,6 +13,6 @@
   },
   "stage2": {
     "label_trace_normalized_sha256": "7a6a9b82a0e7c78fed27357ff95649ad0c467c220f29a46db91d6042303bf299",
-    "summary_normalized_sha256": "c722737c011fe6e8c5ba50fdc017dd9fbc0ba76d00393364b2f96511bab21dc7"
+    "summary_normalized_sha256": "7e450cfb1969330de8b8fe3a4e5ed5edd5e0f4f290e60452c804c60721118efe"
   }
 }
