@@ -134,7 +134,7 @@ contains
       character(len=32) :: init_mode, rng_stream_contract
       integer :: n_slots, base_seed, swap_rng_seed, cycle_count, local_updates, x_size
       real(dp) :: max_flow_time, init_sigma
-      logical :: swap_enabled, ok
+      logical :: swap_enabled, fixed_flow_mode, ok
       integer :: i, cycle_idx, hot_slot, history_slot_index
       real(dp) :: run_t0, elapsed, slot_t0
       integer, parameter :: unit_trace = 78
@@ -187,12 +187,16 @@ contains
       call resolve_stage2_v1_sidecar_paths(v1_output_dir, v1_manifest_file, v1_protocol_file, &
                                            write_v1_manifest, write_v1_protocol, write_v1_package)
       call resolve_stage2_rng_stream_contract(rng_stream_contract)
+      fixed_flow_mode = (n_slots == 1)
+      if (fixed_flow_mode) swap_enabled = .false.
       swap_rng_seed = derive_swap_seed(base_seed)
-      if (trim(rng_stream_contract) == stage2_rng_per_replica_v1) call mt95_seed_state(swap_rng_state, swap_rng_seed)
+      if ((.not. fixed_flow_mode) .and. trim(rng_stream_contract) == stage2_rng_per_replica_v1) then
+         call mt95_seed_state(swap_rng_state, swap_rng_seed)
+      end if
 
-      write (*, '(A,I0,A,F8.4,A,I0,A,I0,A,F8.4,A,L1)') "[TLTM-S2] slots=", n_slots, &
+      write (*, '(A,I0,A,F8.4,A,I0,A,I0,A,F8.4,A,L1,A,L1)') "[TLTM-S2] slots=", n_slots, &
          " max_flow=", max_flow_time, " cycles=", cycle_count, " local_updates=", local_updates, &
-         " init_sigma=", init_sigma, " swap_enabled=", swap_enabled
+         " init_sigma=", init_sigma, " swap_enabled=", swap_enabled, " fixed_flow_mode=", fixed_flow_mode
       write (*, '(A,A)') "[TLTM-S2] init_mode=", trim(init_mode)
       write (*, '(A,F8.4,A,I0,A,F8.4)') "[TLTM-S2] local params: L=", config%integrator%trajectory_length, &
          " nstep=", config%integrator%integration_steps, " max_flow(test)=", max_flow_time
@@ -200,7 +204,12 @@ contains
 
       hot_slot = n_slots - 1
 
-      allocate (slots(n_slots), label_tracks(n_slots), local_accept_census(n_slots), run_contexts(n_slots))
+      allocate (slots(n_slots), local_accept_census(n_slots), run_contexts(n_slots))
+      if (fixed_flow_mode) then
+         allocate (label_tracks(0))
+      else
+         allocate (label_tracks(n_slots))
+      end if
       call seed_run_context_configs(run_contexts)
       if (n_slots > 1) then
          allocate (pair_stats(n_slots - 1))
@@ -233,7 +242,7 @@ contains
       if (trim(rng_stream_contract) == stage2_rng_legacy_global_v0) call sgrnd(base_seed)
 
       call initialize_pair_stats(pair_stats)
-      call initialize_label_tracks(label_tracks, n_slots)
+      if (.not. fixed_flow_mode) call initialize_label_tracks(label_tracks, n_slots)
 
       if (write_cold_history) then
          history_slot_index = find_max_flow_slot_index(slots)
@@ -334,9 +343,11 @@ contains
          error stop 1
       end if
       write (unit_trace, '(A)') "# cycle label_id slot_id round_trip_count"
-      call refresh_label_positions(slots, label_tracks)
-      call update_round_trip_bookkeeping(label_tracks, 0, hot_slot)
-      call write_label_trace(unit_trace, 0, label_tracks)
+      if (.not. fixed_flow_mode) then
+         call refresh_label_positions(slots, label_tracks)
+         call update_round_trip_bookkeeping(label_tracks, 0, hot_slot)
+         call write_label_trace(unit_trace, 0, label_tracks)
+      end if
 
       run_t0 = wall_time_seconds()
       do cycle_idx = 1, cycle_count
@@ -352,8 +363,10 @@ contains
             call perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state, run_contexts, rng_stream_contract, base_seed)
          end if
 
-         call refresh_label_positions(slots, label_tracks)
-         call update_round_trip_bookkeeping(label_tracks, cycle_idx, hot_slot)
+         if (.not. fixed_flow_mode) then
+            call refresh_label_positions(slots, label_tracks)
+            call update_round_trip_bookkeeping(label_tracks, cycle_idx, hot_slot)
+         end if
 
          do i = 1, n_slots
             call measure_slot(slots(i))
@@ -396,7 +409,7 @@ contains
                error stop 1
             end if
          end if
-         call write_label_trace(unit_trace, cycle_idx, label_tracks)
+         if (.not. fixed_flow_mode) call write_label_trace(unit_trace, cycle_idx, label_tracks)
 
          if (cycle_idx == 1 .or. mod(cycle_idx, 10) == 0 .or. cycle_idx == cycle_count) then
             write (*, '(A,I0,A,I0)') "[TLTM-S2] cycle ", cycle_idx, "/", cycle_count
@@ -435,7 +448,7 @@ contains
       call get_constraint_solver_reverse_gate_stats(reverse_gate_candidate_counts, reverse_gate_pass_counts, &
                                                     reverse_gate_reject_counts)
       call write_stage2_summary(summary_file, slots, pair_stats, label_tracks, local_accept_census, cycle_count, local_updates, elapsed, &
-                                swap_enabled, base_seed, swap_rng_seed, rng_stream_contract, &
+                                swap_enabled, fixed_flow_mode, base_seed, swap_rng_seed, rng_stream_contract, &
                                 calls_total, calls_integrating, fallback_attempts, fallback_success, fallback_failure, &
                                 fallback_max_steps, fallback_invalid, fallback_h_min, &
                                 solver_total_count, solver_newton_count, solver_quasi_count, solver_failed_count, &
@@ -458,7 +471,8 @@ contains
                                     v1_output_dir, write_v1_package, &
                                     summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
                                     write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
-                                    local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, elapsed, slots, pair_stats, label_tracks)
+                                    local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode, &
+                                    elapsed, slots, pair_stats, label_tracks)
       call release_qn_diagnostics_context(qn_diagnostics_context)
       call release_qn_policy_context(qn_policy_context)
       call release_all_run_contexts(run_contexts)
@@ -1447,7 +1461,7 @@ contains
    end function reverse_gate_count_at
 
    subroutine write_stage2_summary(summary_file, slots, pair_stats, label_tracks, local_accept_census, cycle_count, local_updates, elapsed, &
-                                   swap_enabled, base_seed, swap_rng_seed, rng_stream_contract, &
+                                   swap_enabled, fixed_flow_mode, base_seed, swap_rng_seed, rng_stream_contract, &
                                    calls_total, calls_integrating, fallback_attempts, fallback_success, fallback_failure, &
                                    fallback_max_steps, fallback_invalid, fallback_h_min, &
                                    solver_total_count, solver_newton_count, solver_quasi_count, solver_failed_count, &
@@ -1474,7 +1488,7 @@ contains
       integer, intent(in) :: cycle_count, local_updates, base_seed, swap_rng_seed
       character(len=*), intent(in) :: rng_stream_contract
       real(dp), intent(in) :: elapsed
-      logical, intent(in) :: swap_enabled
+      logical, intent(in) :: swap_enabled, fixed_flow_mode
       integer, intent(in) :: calls_total, calls_integrating
       integer, intent(in) :: fallback_attempts, fallback_success, fallback_failure
       integer, intent(in) :: fallback_max_steps, fallback_invalid, fallback_h_min
@@ -1552,6 +1566,10 @@ contains
       write (unit_summary, '(A,I0)') "# cycles=", cycle_count
       write (unit_summary, '(A,I0)') "# local_updates=", local_updates
       write (unit_summary, '(A,L1)') "# swap_enabled=", swap_enabled
+      if (fixed_flow_mode) then
+         write (unit_summary, '(A,L1)') "# fixed_flow_mode=", fixed_flow_mode
+         write (unit_summary, '(A,L1)') "# replica_exchange_active=", .false.
+      end if
       write (unit_summary, '(A,A)') "# rng_stream_contract=", trim(rng_stream_contract)
       write (unit_summary, '(A,A)') "# seed_policy=", trim(stage2_seed_policy_text(rng_stream_contract))
       write (unit_summary, '(A,I0)') "# base_seed=", base_seed
@@ -2023,7 +2041,8 @@ contains
    subroutine write_stage2_v1_sidecars(manifest_file, protocol_file, write_manifest, write_protocol, output_dir, write_package, &
                                        summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
                                        write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
-                                       local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, elapsed, slots, pair_stats, label_tracks)
+                                       local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode, &
+                                       elapsed, slots, pair_stats, label_tracks)
       character(len=*), intent(in) :: manifest_file, protocol_file
       logical, intent(in) :: write_manifest, write_protocol
       character(len=*), intent(in) :: output_dir
@@ -2034,28 +2053,29 @@ contains
       integer, intent(in) :: base_seed, swap_rng_seed, cycle_count, local_updates
       real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma, elapsed
       character(len=*), intent(in) :: init_mode, rng_stream_contract
-      logical, intent(in) :: swap_enabled
+      logical, intent(in) :: swap_enabled, fixed_flow_mode
       type(tltm_slot_t), intent(in) :: slots(:)
       type(tltm_pair_stats_t), intent(in) :: pair_stats(:)
       type(tltm_label_track_t), intent(in) :: label_tracks(:)
 
-      if (write_protocol) call write_stage2_v1_protocol(protocol_file)
+      if (write_protocol) call write_stage2_v1_protocol(protocol_file, fixed_flow_mode)
       if (write_package) then
          call write_stage2_v1_resolved_config(output_dir, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
-                                              local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled)
+                                              local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode)
          call write_stage2_v1_diagnostics_package(output_dir, slots, pair_stats, label_tracks)
       end if
       if (write_manifest) call write_stage2_v1_manifest(manifest_file, protocol_file, write_protocol, &
                                                         summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, &
                                                         all_history_dir, write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, &
                                                         max_flow_time, cycle_count, local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, &
-                                                        elapsed, output_dir, write_package)
+                                                        fixed_flow_mode, elapsed, output_dir, write_package)
    end subroutine write_stage2_v1_sidecars
 
    subroutine write_stage2_v1_manifest(manifest_file, protocol_file, write_protocol, &
                                        summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
                                        write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
-                                       local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, elapsed, output_dir, write_package)
+                                       local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode, &
+                                       elapsed, output_dir, write_package)
       character(len=*), intent(in) :: manifest_file, protocol_file
       logical, intent(in) :: write_protocol
       character(len=*), intent(in) :: summary_file, label_trace_file
@@ -2064,7 +2084,7 @@ contains
       integer, intent(in) :: base_seed, swap_rng_seed, cycle_count, local_updates
       real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma, elapsed
       character(len=*), intent(in) :: init_mode, rng_stream_contract
-      logical, intent(in) :: swap_enabled
+      logical, intent(in) :: swap_enabled, fixed_flow_mode
       character(len=*), intent(in) :: output_dir
       logical, intent(in) :: write_package
 
@@ -2108,6 +2128,8 @@ contains
       call write_json_real_array_field(unit_manifest, "flow_ladder", flow_ladder, .true.)
       call write_json_string_field(unit_manifest, "rng_stream_contract", trim(rng_stream_contract), .true.)
       call write_json_string_field(unit_manifest, "seed_policy", trim(stage2_seed_policy_text(rng_stream_contract)), .true.)
+      call write_json_logical_field(unit_manifest, "fixed_flow_mode", fixed_flow_mode, .true.)
+      call write_json_logical_field(unit_manifest, "replica_exchange_active", swap_enabled .and. size(flow_ladder) > 1 .and. (.not. fixed_flow_mode), .true.)
 
       write (unit_manifest, '(A)') '  "precision": {'
       call write_json_string_field(unit_manifest, "precision_mode", "double", .true., 4)
@@ -2128,7 +2150,10 @@ contains
       call write_json_int_field(unit_manifest, "local_updates", local_updates, .true., 4)
       call write_json_real_field(unit_manifest, "init_sigma", init_sigma, .true., 4)
       call write_json_string_field(unit_manifest, "init_mode", trim(init_mode), .true., 4)
-      call write_json_logical_field(unit_manifest, "swap_enabled", swap_enabled, .false., 4)
+      call write_json_logical_field(unit_manifest, "swap_enabled", swap_enabled, .true., 4)
+      call write_json_logical_field(unit_manifest, "fixed_flow_mode", fixed_flow_mode, .true., 4)
+      call write_json_logical_field(unit_manifest, "replica_exchange_active", swap_enabled .and. size(flow_ladder) > 1 .and. (.not. fixed_flow_mode), &
+                                    .false., 4)
       write (unit_manifest, '(A)') '  },'
 
       write (unit_manifest, '(A)') '  "resolved_config": {'
@@ -2224,12 +2249,12 @@ contains
    end subroutine write_stage2_v1_manifest
 
    subroutine write_stage2_v1_resolved_config(output_dir, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
-                                              local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled)
+                                              local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode)
       character(len=*), intent(in) :: output_dir
       integer, intent(in) :: base_seed, swap_rng_seed, cycle_count, local_updates
       real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma
       character(len=*), intent(in) :: init_mode, rng_stream_contract
-      logical, intent(in) :: swap_enabled
+      logical, intent(in) :: swap_enabled, fixed_flow_mode
 
       character(len=512) :: config_file
       integer :: unit_config, ios
@@ -2288,7 +2313,10 @@ contains
       call write_json_real_field(unit_config, "init_sigma", init_sigma, .true., 4)
       call write_json_string_field(unit_config, "init_mode", trim(init_mode), .true., 4)
       call write_json_string_field(unit_config, "rng_stream_contract", trim(rng_stream_contract), .true., 4)
-      call write_json_logical_field(unit_config, "swap_enabled", swap_enabled, .false., 4)
+      call write_json_logical_field(unit_config, "swap_enabled", swap_enabled, .true., 4)
+      call write_json_logical_field(unit_config, "fixed_flow_mode", fixed_flow_mode, .true., 4)
+      call write_json_logical_field(unit_config, "replica_exchange_active", swap_enabled .and. size(flow_ladder) > 1 .and. (.not. fixed_flow_mode), &
+                                    .false., 4)
       write (unit_config, '(A)') '  },'
 
       write (unit_config, '(A)') '  "precision": {'
@@ -2459,8 +2487,9 @@ contains
       open (newunit=unit_csv, file=trim(csv_file), status='replace', action='write', iostat=ios)
    end subroutine open_v1_csv
 
-   subroutine write_stage2_v1_protocol(protocol_file)
+   subroutine write_stage2_v1_protocol(protocol_file, fixed_flow_mode)
       character(len=*), intent(in) :: protocol_file
+      logical, intent(in) :: fixed_flow_mode
       integer :: unit_protocol, ios
       logical :: path_ok
 
@@ -2479,6 +2508,8 @@ contains
       write (unit_protocol, '(A)') "{"
       call write_json_string_field(unit_protocol, "schema_version", "tltm.stage2.protocol.v1alpha2", .true.)
       call write_json_string_field(unit_protocol, "protocol_id", "stage2_replica_exchange_local_swap_measure", .true.)
+      call write_json_logical_field(unit_protocol, "fixed_flow_mode_supported", .true., .true.)
+      call write_json_logical_field(unit_protocol, "fixed_flow_mode_active", fixed_flow_mode, .true.)
       call write_json_string_field(unit_protocol, "tempering_parameter", "flow_time", .true.)
       call write_json_string_field(unit_protocol, "fixed_zone_identifier", "slot_id", .true.)
       call write_json_string_field(unit_protocol, "mobile_walker_identifier", "label_id", .true.)
@@ -2501,7 +2532,8 @@ contains
       call write_json_string_field(unit_protocol, "acceptance_probability", "min(1, exp(-[(E_a(y)+E_b(x))-(E_a(x)+E_b(y))]))", .true., 4)
       call write_json_string_field(unit_protocol, "invalid_reflow_semantics", "reject swap; live slot states and labels unchanged", .true., 4)
       call write_json_string_field(unit_protocol, "rng_stream", "contract-selected; stage2_kernel_rng_v2 uses counter-based swap_accept keys", .true., 4)
-      call write_json_string_field(unit_protocol, "rng_draw_boundary", "draw from swap stream only after finite current and proposed swap energies are available", .false., 4)
+      call write_json_string_field(unit_protocol, "rng_draw_boundary", "draw from swap stream only after finite current and proposed swap energies are available", .true., 4)
+      call write_json_string_field(unit_protocol, "single_replica_policy", "inactive when only one fixed flow-time slot is present", .false., 4)
       write (unit_protocol, '(A)') '  },'
 
       write (unit_protocol, '(A)') '  "sweep_schedule": {'

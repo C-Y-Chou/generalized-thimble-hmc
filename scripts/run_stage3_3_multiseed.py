@@ -816,11 +816,22 @@ def parse_key_value_ints(line):
     return out
 
 
+def parse_summary_bool_token(token, default=False):
+    lowered = str(token).strip().lower()
+    if lowered in ("t", "true", "1", "yes", "y", "on"):
+        return True
+    if lowered in ("f", "false", "0", "no", "n", "off"):
+        return False
+    return default
+
+
 def parse_stage2_summary(summary_path):
     lines = summary_path.read_text().splitlines()
 
     elapsed_sec = 0.0
     total_round_trip = 0
+    fixed_flow_mode = False
+    replica_exchange_active = True
     constraint_stats = {"total": 0, "newton": 0, "quasi": 0, "failed": 0}
     quasi_stage_stats = {"probe_attempt": 0, "probe_success": 0, "full_attempt": 0, "full_success": 0}
     quasi_class_stats = {"local": 0, "mid": 0, "global": 0}
@@ -893,6 +904,12 @@ def parse_stage2_summary(summary_path):
             continue
         if line.startswith("# total_round_trip="):
             total_round_trip = int(line.split("=", 1)[1].strip())
+            continue
+        if line.startswith("# fixed_flow_mode="):
+            fixed_flow_mode = parse_summary_bool_token(line.split("=", 1)[1], default=False)
+            continue
+        if line.startswith("# replica_exchange_active="):
+            replica_exchange_active = parse_summary_bool_token(line.split("=", 1)[1], default=True)
             continue
         if line.startswith("# cvode_stats "):
             kv = parse_key_value_ints(line[len("# cvode_stats ") :])
@@ -1136,6 +1153,8 @@ def parse_stage2_summary(summary_path):
         "accepted_local_far_anchor_count": accepted_local_routes["far_anchor"],
         "pair0_accept_rate": pair_accept_rate.get(0, 0.0),
         "total_round_trip": total_round_trip,
+        "fixed_flow_mode": int(fixed_flow_mode),
+        "replica_exchange_active": int(replica_exchange_active),
         "avg_round_trip_cycles_if_observed": avg_round_trip_cycles_if_observed,
         "slot_accept_rate": slot_accept_rate,
         "pair_accept_rate": pair_accept_rate,
@@ -1527,6 +1546,8 @@ def run_one_seed(
         "accepted_local_far_anchor_count": stage2_metrics["accepted_local_far_anchor_count"],
         "pair0_accept_rate": stage2_metrics["pair0_accept_rate"],
         "total_round_trip": stage2_metrics["total_round_trip"],
+        "fixed_flow_mode": stage2_metrics["fixed_flow_mode"],
+        "replica_exchange_active": stage2_metrics["replica_exchange_active"],
         "avg_round_trip_cycles_if_observed": stage2_metrics["avg_round_trip_cycles_if_observed"],
         "hot_end_hit_count": hot_end_hit_count,
         "runtime_total": stage2_metrics["elapsed_sec"],
@@ -2192,6 +2213,8 @@ def main():
         "accepted_local_far_anchor_count",
         "pair0_accept_rate",
         "total_round_trip",
+        "fixed_flow_mode",
+        "replica_exchange_active",
         "avg_round_trip_cycles_if_observed",
         "hot_end_hit_count",
         "runtime_total",

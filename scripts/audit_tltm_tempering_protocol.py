@@ -365,6 +365,12 @@ def check_stage2_summary(summary, rate_tol):
     except ValueError:
         swap_enabled = True
         add_check(checks, "swap_enabled parseable logical", False)
+    try:
+        fixed_flow_mode = as_bool(scalars.get("fixed_flow_mode", False))
+    except ValueError:
+        fixed_flow_mode = False
+        add_check(checks, "fixed_flow_mode parseable logical", False)
+    expected_label_rows = 0 if fixed_flow_mode else n_slots
 
     add_check(
         checks,
@@ -375,8 +381,8 @@ def check_stage2_summary(summary, rate_tol):
     add_check(
         checks,
         "label section row count",
-        len(labels) == n_slots,
-        details={"expected": n_slots, "observed": len(labels)},
+        len(labels) == expected_label_rows,
+        details={"expected": expected_label_rows, "observed": len(labels), "fixed_flow_mode": fixed_flow_mode},
     )
     add_check(
         checks,
@@ -390,7 +396,7 @@ def check_stage2_summary(summary, rate_tol):
     add_check(checks, "slot ids are unique", len(slot_ids) == len(set(slot_ids)))
     add_check(checks, "label ids are unique", len(label_ids) == len(set(label_ids)))
     add_check(checks, "slot ids are in range", sorted(slot_ids) == list(range(n_slots)))
-    add_check(checks, "label ids are in range", sorted(label_ids) == list(range(n_slots)))
+    add_check(checks, "label ids are in range", sorted(label_ids) == list(range(expected_label_rows)))
 
     expected_local_attempts = cycles * local_updates
     slot_reject_field_sums = defaultdict(int)
@@ -513,6 +519,7 @@ def check_stage2_summary(summary, rate_tol):
             "cycles": cycles,
             "local_updates": local_updates,
             "swap_enabled": swap_enabled,
+            "fixed_flow_mode": fixed_flow_mode,
             "slot_count": len(slots),
             "pair_count": len(pairs),
             "label_count": len(labels),
@@ -529,10 +536,30 @@ def check_label_trace(summary, label_trace):
         return {"checks": checks, "summary": None}
 
     scalars = summary["scalars"]
+    try:
+        fixed_flow_mode = as_bool(scalars.get("fixed_flow_mode", False))
+    except ValueError:
+        fixed_flow_mode = False
     labels = section_rows(summary, "labels")
     records = label_trace["records"]
     n_slots = as_int(scalars.get("slots", len(labels)))
     cycles = as_int(scalars.get("cycles", 0))
+    if fixed_flow_mode:
+        add_check(
+            checks,
+            "fixed-flow label trace has no exchange records",
+            len(records) == 0,
+            details={"observed": len(records)},
+        )
+        return {
+            "checks": checks,
+            "summary": {
+                "record_count": len(records),
+                "cycle_count": 0,
+                "label_count": 0,
+                "fixed_flow_mode": True,
+            },
+        }
     by_cycle = defaultdict(list)
     by_label = defaultdict(list)
     for record in records:

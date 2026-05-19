@@ -26,9 +26,9 @@ module load mkl/2025.3
 : "${TLTM_EXPECTED_ROWS_PER_METHOD:?TLTM_EXPECTED_ROWS_PER_METHOD is required}"
 : "${TLTM_REQUESTED_CPUS:=0}"
 : "${TLTM_CHUNKS_LABEL:=chunks}"
-: "${TLTM_TOLERANCE_PROFILE_LABEL:=strict_double}"
-: "${TLTM_STAGE2_ABS_TOL_OVERRIDE:=3e-14}"
-: "${TLTM_STAGE2_REL_TOL_OVERRIDE:=3e-14}"
+: "${TLTM_TOLERANCE_PROFILE_LABEL:=f20f_most_conservative_double}"
+: "${TLTM_STAGE2_ABS_TOL_OVERRIDE:=1e-14}"
+: "${TLTM_STAGE2_REL_TOL_OVERRIDE:=1e-14}"
 : "${TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE:=1e-13}"
 : "${QN_QUASI_TOL_OVERRIDE:=1e-13}"
 : "${QN_REVERSE_GATE_TOL:=1e-8}"
@@ -88,6 +88,36 @@ commit = os.environ["TLTM_EXPECTED_GIT_COMMIT"]
 branch = os.environ["TLTM_EXPECTED_GIT_BRANCH"]
 expected = int(os.environ["TLTM_EXPECTED_ROWS_PER_METHOD"])
 methods = ("no_fb", "fb_norefine")
+with Path(config).open() as f:
+    raw_config = json.load(f)
+if "stage_3_3_todo" in raw_config:
+    protocol_config = raw_config["stage_3_3_todo"]
+elif "stage_3_4_todo" in raw_config:
+    protocol_config = raw_config["stage_3_4_todo"]
+elif len(raw_config) == 1:
+    protocol_config = next(iter(raw_config.values()))
+else:
+    raise SystemExit("Config must contain stage_3_3_todo or stage_3_4_todo.")
+frozen_setup = protocol_config.get("frozen_setup", protocol_config.get("candidate_setup", {}))
+flow_ladder = [float(x) for x in frozen_setup.get("flow_time_ladder", [])]
+if not flow_ladder:
+    raise SystemExit("Config frozen_setup.flow_time_ladder must not be empty.")
+max_flow_time = float(frozen_setup.get("max_flow_time", max(flow_ladder)))
+trajectory_length = frozen_setup.get("trajectory_length_L", "unknown")
+nstep = frozen_setup.get("nstep", "unknown")
+single_replica = len(flow_ladder) == 1
+flow_tag = f"{max_flow_time:g}".replace(".", "p")
+design_context = (
+    f"stage3_4_fixed_flow_t{flow_tag}_L{trajectory_length}_nstep{nstep}"
+    if single_replica
+    else f"stage3_4_nofb_vs_withfb_t{flow_tag}_L{trajectory_length}_nstep{nstep}"
+)
+physical_point_text = f"t={max_flow_time:g},L={trajectory_length},nstep={nstep}"
+protocol_label = (
+    "fixed_flow_local_update_measure_history"
+    if single_replica
+    else "local_update_swap_measure_history_label_trace"
+)
 qn_first_token = os.environ.get("TLTM_QN_FIRST_CONSTRAINT_SOLVER", "0").strip().lower()
 qn_first_enabled = qn_first_token in ("1", "true", "t", "yes", "y", "on")
 constraint_solver_route = (
@@ -132,11 +162,11 @@ for method in methods:
         "package_id": f"{label}_{method}",
         "status": "generated_pending_readback",
         "package_class": "stage3_4_context_aligned_reference",
-        "design_context": "stage3_4_nofb_vs_withfb_t035_L2_nstep20",
+        "design_context": design_context,
         "generating_workspace": "codex/workspaces/fortran_modernization",
         "package_root": str(method_root),
         "source_commit": commit,
-        "physical_point": "t=0.35,L=2,nstep=20",
+        "physical_point": physical_point_text,
         "methods": method,
         "seed_policy": f"matched_seed_count={expected}",
         "protocol_status": audit_status,
@@ -180,7 +210,7 @@ manifest = {
     "package_id": label,
     "status": "generated_pending_readback",
     "package_class": "stage3_4_context_aligned_reference",
-    "design_context": "stage3_4_nofb_vs_withfb_t035_L2_nstep20",
+    "design_context": design_context,
     "reference_level": level,
     "source_branch": branch,
     "source_commit": commit,
@@ -196,8 +226,10 @@ manifest = {
         "qn_quasi_tol": os.environ.get("QN_QUASI_TOL_OVERRIDE", "1e-13"),
         "reverse_gate_tol": os.environ.get("QN_REVERSE_GATE_TOL", "1e-8"),
     },
-    "protocol": "local_update_swap_measure_history_label_trace",
-    "physical_point": {"t": 0.35, "L": 2, "nstep": 20},
+    "protocol": protocol_label,
+    "fixed_flow_mode": single_replica,
+    "flow_ladder": flow_ladder,
+    "physical_point": {"t": max_flow_time, "L": trajectory_length, "nstep": nstep},
     "canonical_route": constraint_solver_route,
     "qn_first_constraint_solver": qn_first_enabled,
     "flow_policy": "ODEX primary plus solver-internal residual assist; strict final flow for live proposals",
