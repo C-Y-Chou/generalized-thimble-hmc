@@ -38,6 +38,8 @@ def main():
         cvode_aggregate_columns,
         cvode_stat_columns,
         odex_aggregate_columns,
+        odex_context_aggregate_columns,
+        odex_context_stat_columns,
         odex_stat_columns,
         local_transition_aggregate_columns,
         local_transition_count_columns,
@@ -138,6 +140,7 @@ def main():
         *reverse_gate_replay_status_count_columns(),
         *cvode_stat_columns(),
         *odex_stat_columns(),
+        *odex_context_stat_columns(),
         *local_transition_count_columns(),
         "accepted_local_total",
         "accepted_local_newton_only_count",
@@ -222,6 +225,7 @@ def main():
         *reverse_gate_replay_status_aggregate_columns(),
         *cvode_aggregate_columns(),
         *odex_aggregate_columns(),
+        *odex_context_aggregate_columns(),
         *local_transition_aggregate_columns(),
     ]
 

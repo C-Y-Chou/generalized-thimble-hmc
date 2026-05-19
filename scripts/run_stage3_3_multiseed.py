@@ -123,6 +123,17 @@ ODEX_STAT_NAMES = [
     "max_final_order",
 ]
 
+ODE_CONTEXT_NAMES = ["unknown", "flowz", "flowzr", "flow"]
+
+ODEX_CONTEXT_STAT_NAMES = [
+    "calls",
+    "accepted_steps",
+    "rejected_steps",
+    "rhs_evals",
+    "midpoint_rows",
+    "kplus1_attempts",
+]
+
 METHOD_SPECS = {
     "no_fb": {
         "fallback_enabled": False,
@@ -264,6 +275,28 @@ def odex_aggregate_columns():
         "mean_odex_kplus1_attempts_per_call",
         "mean_odex_kplus1_rejects_per_call",
     ]
+
+
+def odex_context_stat_columns():
+    columns = []
+    for context_name in ODE_CONTEXT_NAMES:
+        for stat_name in ODEX_CONTEXT_STAT_NAMES:
+            columns.append("odex_context_{0}_{1}".format(context_name, stat_name))
+    return columns
+
+
+def odex_context_aggregate_columns():
+    columns = ["total_{0}".format(column) for column in odex_context_stat_columns()]
+    for context_name in ODE_CONTEXT_NAMES:
+        columns.extend(
+            [
+                "mean_odex_context_{0}_rhs_per_call".format(context_name),
+                "mean_odex_context_{0}_accepted_steps_per_call".format(context_name),
+                "mean_odex_context_{0}_rejected_steps_per_call".format(context_name),
+                "mean_odex_context_{0}_midpoint_rows_per_call".format(context_name),
+            ]
+        )
+    return columns
 
 
 def parse_args():
@@ -815,6 +848,9 @@ def parse_stage2_summary(summary_path):
     reverse_gate_replay_status_stats = {name: 0 for name in REVERSE_GATE_REPLAY_STATUS_NAMES}
     cvode_stats = {name: 0 for name in CVODE_STAT_NAMES}
     odex_stats = {name: 0 for name in ODEX_STAT_NAMES}
+    odex_context_stats = {
+        context_name: {name: 0 for name in ODEX_CONTEXT_STAT_NAMES} for context_name in ODE_CONTEXT_NAMES
+    }
     reverse_gate_route_stats = {
         "candidate": {route_name: 0 for route_name in REVERSE_GATE_ROUTE_NAMES},
         "pass": {route_name: 0 for route_name in REVERSE_GATE_ROUTE_NAMES},
@@ -868,6 +904,15 @@ def parse_stage2_summary(summary_path):
             for key in odex_stats:
                 if key in kv:
                     odex_stats[key] = int(kv[key])
+            continue
+        if line.startswith("# odex_context_"):
+            prefix, values = line[2:].split(" ", 1)
+            context_name = prefix[len("odex_context_") :]
+            if context_name in odex_context_stats:
+                kv = parse_key_value_ints(values)
+                for key in odex_context_stats[context_name]:
+                    if key in kv:
+                        odex_context_stats[context_name][key] = int(kv[key])
             continue
         if line.startswith("# constraint_stats "):
             kv = parse_key_value_ints(line[len("# constraint_stats ") :])
@@ -1067,6 +1112,11 @@ def parse_stage2_summary(summary_path):
         },
         **{"cvode_{0}".format(name): cvode_stats[name] for name in CVODE_STAT_NAMES},
         **{"odex_{0}".format(name): odex_stats[name] for name in ODEX_STAT_NAMES},
+        **{
+            "odex_context_{0}_{1}".format(context_name, stat_name): odex_context_stats[context_name][stat_name]
+            for context_name in ODE_CONTEXT_NAMES
+            for stat_name in ODEX_CONTEXT_STAT_NAMES
+        },
         **{"local_{0}_count".format(name): local_transition_stats[name] for name in LOCAL_TRANSITION_NAMES},
         "accepted_local_total": accepted_local_census["accepted_total"],
         "accepted_local_newton_only_count": accepted_local_census["newton_only"],
@@ -1698,6 +1748,28 @@ def aggregate_rows(rows, observable_exact_re=0.0, observable_exact_im=0.0):
             agg["mean_odex_midpoint_rows_per_call"] = float("nan")
             agg["mean_odex_kplus1_attempts_per_call"] = float("nan")
             agg["mean_odex_kplus1_rejects_per_call"] = float("nan")
+        for column in odex_context_stat_columns():
+            agg["total_{0}".format(column)] = int(sum(as_finite_number(r.get(column)) or 0.0 for r in group))
+        for context_name in ODE_CONTEXT_NAMES:
+            context_calls = agg.get("total_odex_context_{0}_calls".format(context_name), 0)
+            if context_calls > 0:
+                agg["mean_odex_context_{0}_rhs_per_call".format(context_name)] = (
+                    agg.get("total_odex_context_{0}_rhs_evals".format(context_name), 0) / float(context_calls)
+                )
+                agg["mean_odex_context_{0}_accepted_steps_per_call".format(context_name)] = (
+                    agg.get("total_odex_context_{0}_accepted_steps".format(context_name), 0) / float(context_calls)
+                )
+                agg["mean_odex_context_{0}_rejected_steps_per_call".format(context_name)] = (
+                    agg.get("total_odex_context_{0}_rejected_steps".format(context_name), 0) / float(context_calls)
+                )
+                agg["mean_odex_context_{0}_midpoint_rows_per_call".format(context_name)] = (
+                    agg.get("total_odex_context_{0}_midpoint_rows".format(context_name), 0) / float(context_calls)
+                )
+            else:
+                agg["mean_odex_context_{0}_rhs_per_call".format(context_name)] = float("nan")
+                agg["mean_odex_context_{0}_accepted_steps_per_call".format(context_name)] = float("nan")
+                agg["mean_odex_context_{0}_rejected_steps_per_call".format(context_name)] = float("nan")
+                agg["mean_odex_context_{0}_midpoint_rows_per_call".format(context_name)] = float("nan")
         out.append(agg)
     return out
 
@@ -2100,6 +2172,7 @@ def main():
         *reverse_gate_replay_status_count_columns(),
         *cvode_stat_columns(),
         *odex_stat_columns(),
+        *odex_context_stat_columns(),
         *local_transition_count_columns(),
         "accepted_local_total",
         "accepted_local_newton_only_count",
@@ -2184,6 +2257,7 @@ def main():
         *reverse_gate_replay_status_aggregate_columns(),
         *cvode_aggregate_columns(),
         *odex_aggregate_columns(),
+        *odex_context_aggregate_columns(),
         *local_transition_aggregate_columns(),
     ]
 
