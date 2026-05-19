@@ -72,6 +72,19 @@ observable drift stayed below 1 sigma in both methods and both real/imaginary
 parts. It also increased reverse-gate rejects and `fb_norefine` projection
 failures, so it requires larger-scale confirmation before promotion.
 
+The completed R3 validation is recorded in
+`F20D_R3_DOUBLE_CANDIDATE_VALIDATION_READBACK_20260519.md`. That validation
+rejects production promotion of the `1e-10` shared NT/QN candidate:
+
+- `no_fb` is fast and physically acceptable at R3;
+- `fb_norefine` is also fast, but aggregate `Zmean Re` rises to
+  `2.7972709349`;
+- paired `fb_norefine` Re drift is `1.8256 sigma`, below 2 sigma but close;
+- reverse-gate rejects and projection diagnostics increase.
+
+Therefore the `1e-10` candidate remains a speed candidate only, not a production
+preset.
+
 The conservative fallback is the same ODE/reverse-gate setting with
 constraint/QN `1e-12`, DFO-LS `rhoend=1e-15`, and DFO-LS `model_abs=1e-24`.
 The shared NT/QN/DFO-LS `1e-8` profile is rejected.
@@ -150,10 +163,18 @@ physics-facing acceptance knob, not the first runtime knob.
 
 Stage C: Larger-scale combined double candidate.
 
-Run ODE `1e-12` plus constraint/QN `1e-10` plus DFO-LS `rhoend=1e-13` and
-`model_abs=1e-20` at larger scale against strict double/current accepted
-reference. Promote only if per-seed rows, aggregate tables, protocol audit,
-strict comparison, and physics metrics pass.
+Completed for ODE `1e-12` plus constraint/QN `1e-10` plus DFO-LS
+`rhoend=1e-13` and `model_abs=1e-20` at R3. Do not promote: `fb_norefine`
+shows a physics warning at R3.
+
+Next Stage C validation should use the conservative fallback:
+
+- ODE abs/rel `1e-12`
+- constraint/QN `1e-12`
+- reverse gate `1e-8`
+- DFO-LS `rhoend=1e-15`
+- DFO-LS `model_abs=1e-24`
+- DFO-LS `model_rel=0`
 
 ## Required Readback
 
