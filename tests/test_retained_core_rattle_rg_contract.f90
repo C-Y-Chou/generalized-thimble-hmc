@@ -4,11 +4,12 @@ program test_retained_core_rattle_rg_contract
                                   record_reverse_gate_replay_status, reset_reverse_gate_replay_status_counts, rattle_step_core
    use hmc_kernels, only: decompose_tangent_projection
    use hmc_state_buffers, only: release_rattle_step_workspace, rattle_step_workspace_t
+   use runtime_env_mod, only: parse_logical_env
    use constraint_solver_stats_mod, only: constraint_solver_stats_context_t, bind_constraint_solver_stats_context, &
                                           bind_module_constraint_solver_stats_context, release_constraint_solver_stats_context, &
                                           reset_constraint_solver_stats, record_constraint_solver_newton_success, &
                                           record_constraint_solver_quasi_success, get_constraint_solver_stats
-   use param_mod, only: cttol, read_parameters, state_seed_size_cfg
+   use param_mod, only: cttol, quasi_fallback_enabled, read_parameters, state_seed_size_cfg
    use solve_flow, only: flow, intode_status_is_strict_success, intode_status_unknown
    use utils, only: dp, x_set_flow_time, x_set_seed_real
    use, intrinsic :: iso_fortran_env, only: int64
@@ -21,9 +22,13 @@ program test_retained_core_rattle_rg_contract
    complex(dp), allocatable :: z(:), final_z(:), jac(:,:), jacf(:,:), z_check(:), jac_check(:,:)
    logical :: flow_failed, converged
    type(rattle_step_workspace_t) :: ws
+   logical :: qn_first_env_enabled
 
    failures = 0
    call read_parameters()
+   qn_first_env_enabled = .false.
+   call parse_logical_env("TLTM_QN_FIRST_CONSTRAINT_SOLVER", qn_first_env_enabled)
+   if (qn_first_env_enabled) quasi_fallback_enabled = .true.
    n_seed = state_seed_size_cfg()
    x_size = 1 + n_seed
 
@@ -50,6 +55,7 @@ program test_retained_core_rattle_rg_contract
    call check_final_momentum_tangent(momentum, jacf, tangent, tangent_component, normal_component, failures)
    call check_reverse_gate_replay(failures)
    call check_replay_diagnostics_context_isolation(failures)
+   call check_live_constraint_route_counts(failures)
    call check_constraint_stats_context_isolation(failures)
    call check_step_status(converged, step_status, failures)
 
@@ -181,6 +187,25 @@ contains
          " success_b=", success_b, " final_flow_failed_b=", final_flow_failed_b
       if (.not. ok) failures = failures + 1
    end subroutine check_replay_diagnostics_context_isolation
+
+   subroutine check_live_constraint_route_counts(failures)
+      integer, intent(inout) :: failures
+      integer(int64) :: total, newton, quasi, failed
+      real(dp) :: newton_ratio, quasi_ratio, fail_ratio
+      logical :: qn_first_expected, ok
+
+      qn_first_expected = .false.
+      call parse_logical_env("TLTM_QN_FIRST_CONSTRAINT_SOLVER", qn_first_expected)
+      call get_constraint_solver_stats(total, newton, quasi, failed, newton_ratio, quasi_ratio, fail_ratio)
+      if (qn_first_expected) then
+         ok = total == 1_int64 .and. newton == 0_int64 .and. quasi == 1_int64 .and. failed == 0_int64
+      else
+         ok = total == 1_int64 .and. newton == 1_int64 .and. quasi == 0_int64 .and. failed == 0_int64
+      end if
+      write (*, '(A,L1,A,L1,A,I0,A,I0,A,I0,A,I0)') "[CHECK] live_constraint_route_counts ok=", ok, &
+         " qn_first=", qn_first_expected, " total=", total, " newton=", newton, " quasi=", quasi, " failed=", failed
+      if (.not. ok) failures = failures + 1
+   end subroutine check_live_constraint_route_counts
 
    subroutine check_constraint_stats_context_isolation(failures)
       integer, intent(inout) :: failures

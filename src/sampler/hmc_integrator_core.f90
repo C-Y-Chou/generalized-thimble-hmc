@@ -1,7 +1,7 @@
 module hmc_integrator_core
    use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-   use runtime_env_mod, only: read_string_env
+   use runtime_env_mod, only: read_string_env, parse_logical_env
    use solve_flow, only: flow, flowz, flowzr, flow_workspace_t, intode_diagnostics_context_t, set_intode_stage_trace, set_intode_newton_iter_trace, &
                          set_intode_quasi_iter_trace, set_intode_residual_role_trace, &
                          intode_stage_newton, intode_stage_quasi, intode_stage_rattle_flow, intode_stage_external, &
@@ -65,6 +65,7 @@ module hmc_integrator_core
    type :: hmc_policy_context_t
       logical :: hmc_policy_loaded = .false.
       logical :: qn_reverse_gate_enabled = .false.
+      logical :: qn_first_constraint_solver_enabled = .false.
       real(dp) :: qn_reverse_gate_tol = qn_reverse_gate_tol_default
    end type hmc_policy_context_t
 
@@ -231,6 +232,7 @@ contains
       real(dp) :: quasi_tol
       integer :: quasi_case
       logical :: quasi_solved_ok
+      logical :: qn_first_constraint_solver_enabled
       logical :: trace_stats_available, trace_all_eval_ok, is_near_case
       logical :: near_rescue_done
       logical :: near_rescue_started
@@ -321,6 +323,7 @@ contains
 
       call ensure_rattle_step_workspace(ws, size(state_x), n_state, size(jaci, 1), size(jaci, 2))
       call load_hmc_bridge_policy(active_hmc_policy)
+      qn_first_constraint_solver_enabled = active_hmc_policy%qn_first_constraint_solver_enabled .and. quasi_fallback_enabled
       if (active_hmc_policy%qn_reverse_gate_enabled .and. (.not. active_hmc_replay_runtime%qn_reverse_gate_active)) then
          allocate (initial_momentum_for_gate(size(momentum)))
          initial_momentum_for_gate = momentum
@@ -341,17 +344,21 @@ contains
 
       ws%del_z = step_size*momentum - step_size**2*ws%dV
 
-      call set_intode_stage_trace(intode_stage_newton, flow_workspace)
-      if (active_hmc_replay_runtime%qn_reverse_gate_active) then
-         call set_intode_residual_role_trace(intode_role_reverse_replay, flow_workspace)
-      else
-         call set_intode_residual_role_trace(intode_role_nt_strict, flow_workspace)
-      end if
       call set_intode_newton_iter_trace(0, flow_workspace)
       call set_intode_quasi_iter_trace(0, flow_workspace)
-      call solve_constraint_newton(cttol, 100, ws%temp_x, ws%temp_z, ws%del_z, step_size, has_error, ws%Jl, final_x, &
-                                   ws%temp_jac, workspace=ws%newton_ws, flow_workspace=flow_workspace, &
-                                   newton_flow_status=newton_flow_status, intode_diagnostics=intode_diagnostics)
+      if (qn_first_constraint_solver_enabled) then
+         has_error = .true.
+      else
+         call set_intode_stage_trace(intode_stage_newton, flow_workspace)
+         if (active_hmc_replay_runtime%qn_reverse_gate_active) then
+            call set_intode_residual_role_trace(intode_role_reverse_replay, flow_workspace)
+         else
+            call set_intode_residual_role_trace(intode_role_nt_strict, flow_workspace)
+         end if
+         call solve_constraint_newton(cttol, 100, ws%temp_x, ws%temp_z, ws%del_z, step_size, has_error, ws%Jl, final_x, &
+                                      ws%temp_jac, workspace=ws%newton_ws, flow_workspace=flow_workspace, &
+                                      newton_flow_status=newton_flow_status, intode_diagnostics=intode_diagnostics)
+      end if
       if (.not. has_error) then
          call record_constraint_solver_newton_success()
       else
@@ -948,7 +955,10 @@ contains
       if (hmc_policy%hmc_policy_loaded) return
       hmc_policy%hmc_policy_loaded = .true.
       hmc_policy%qn_reverse_gate_enabled = .false.
+      hmc_policy%qn_first_constraint_solver_enabled = .false.
       hmc_policy%qn_reverse_gate_tol = qn_reverse_gate_tol_default
+
+      call parse_logical_env("TLTM_QN_FIRST_CONSTRAINT_SOLVER", hmc_policy%qn_first_constraint_solver_enabled)
 
       call read_string_env("QN_REVERSE_GATE_ENABLED", env_value, env_present)
       if (env_present) then
@@ -970,7 +980,8 @@ contains
       end if
 
       write (*, *) "[INFO] official DFO-LS bridge controls: reverse_gate_enabled=", hmc_policy%qn_reverse_gate_enabled, &
-         " reverse_gate_tol=", hmc_policy%qn_reverse_gate_tol
+         " reverse_gate_tol=", hmc_policy%qn_reverse_gate_tol, &
+         " qn_first_constraint_solver=", hmc_policy%qn_first_constraint_solver_enabled
    end subroutine load_hmc_bridge_policy
 
    real(dp) function max_abs_real_local(vals) result(out)

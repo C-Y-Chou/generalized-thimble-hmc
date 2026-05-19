@@ -32,6 +32,7 @@ module load mkl/2025.3
 : "${TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE:=1e-13}"
 : "${QN_QUASI_TOL_OVERRIDE:=1e-13}"
 : "${QN_REVERSE_GATE_TOL:=1e-8}"
+: "${TLTM_QN_FIRST_CONSTRAINT_SOLVER:=0}"
 : "${TLTM_REFERENCE_COMPARISON_ROOT:=}"
 
 cd "${TLTM_WORKTREE}"
@@ -87,6 +88,13 @@ commit = os.environ["TLTM_EXPECTED_GIT_COMMIT"]
 branch = os.environ["TLTM_EXPECTED_GIT_BRANCH"]
 expected = int(os.environ["TLTM_EXPECTED_ROWS_PER_METHOD"])
 methods = ("no_fb", "fb_norefine")
+qn_first_token = os.environ.get("TLTM_QN_FIRST_CONSTRAINT_SOLVER", "0").strip().lower()
+qn_first_enabled = qn_first_token in ("1", "true", "t", "yes", "y", "on")
+constraint_solver_route = (
+    "QN-first diagnostic route: p28 QN BTN/backflow residual -> reverse gate -> Metropolis"
+    if qn_first_enabled
+    else "Newton -> p28 QN BTN/backflow rescue residual -> reverse gate -> Metropolis"
+)
 
 combined_rows = []
 registry_rows = []
@@ -190,7 +198,8 @@ manifest = {
     },
     "protocol": "local_update_swap_measure_history_label_trace",
     "physical_point": {"t": 0.35, "L": 2, "nstep": 20},
-    "canonical_route": "Newton -> p28 QN BTN/backflow rescue residual -> reverse gate -> Metropolis",
+    "canonical_route": constraint_solver_route,
+    "qn_first_constraint_solver": qn_first_enabled,
     "flow_policy": "ODEX primary plus solver-internal residual assist; strict final flow for live proposals",
 }
 with (root / "reference_manifest.json").open("w") as f:
@@ -212,6 +221,7 @@ PY
   echo "constraint_tol_override=${TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE}"
   echo "qn_quasi_tol_override=${QN_QUASI_TOL_OVERRIDE}"
   echo "reverse_gate_tol=${QN_REVERSE_GATE_TOL}"
+  echo "qn_first_constraint_solver=${TLTM_QN_FIRST_CONSTRAINT_SOLVER}"
 } > "${MERGE_LOG_DIR}/run_manifest.txt"
 
 if [ -n "${TLTM_REFERENCE_COMPARISON_ROOT}" ]; then

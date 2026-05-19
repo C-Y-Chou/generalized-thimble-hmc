@@ -67,10 +67,12 @@ export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
 : "${QN_OFFICIAL_DFOLS_RHOEND:=1e-16}"
 : "${QN_OFFICIAL_DFOLS_MODEL_ABS_TOL:=1e-30}"
 : "${QN_OFFICIAL_DFOLS_MODEL_REL_TOL:=0}"
+: "${TLTM_QN_FIRST_CONSTRAINT_SOLVER:=0}"
 export TLTM_TOLERANCE_PROFILE_LABEL
 export TLTM_STAGE2_ABS_TOL_OVERRIDE
 export TLTM_STAGE2_REL_TOL_OVERRIDE
 export TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE
+export TLTM_QN_FIRST_CONSTRAINT_SOLVER
 export QN_REVERSE_GATE_ENABLED=1
 export QN_REVERSE_GATE_TOL
 export QN_S1_PROBE_MAX_ITER=28
@@ -134,6 +136,7 @@ fi
   echo "qn_official_dfols_rhoend=${QN_OFFICIAL_DFOLS_RHOEND}"
   echo "qn_official_dfols_model_abs_tol=${QN_OFFICIAL_DFOLS_MODEL_ABS_TOL}"
   echo "qn_official_dfols_model_rel_tol=${QN_OFFICIAL_DFOLS_MODEL_REL_TOL}"
+  echo "qn_first_constraint_solver=${TLTM_QN_FIRST_CONSTRAINT_SOLVER}"
   echo "qn_s1_probe_max_iter=${QN_S1_PROBE_MAX_ITER}"
   echo "stage2_v1_sidecars=on"
   echo "stage2_protocol_audit=auto"
