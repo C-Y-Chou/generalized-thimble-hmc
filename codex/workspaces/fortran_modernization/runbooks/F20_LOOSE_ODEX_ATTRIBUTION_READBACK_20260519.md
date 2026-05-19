@@ -91,16 +91,16 @@ summary parsing.
 ## Next Step
 
 Do not promote `single_feasible1e6_rg1e4` or `odex_only1e6` as a speedup path.
+Single precision is closed as an active direction by
+`F20B_SINGLE_PRECISION_CLOSURE_AND_DOUBLE_TOLERANCE_PLAN_20260519.md`.
 
-The next meaningful experiment should search for an ODEX tolerance that is still
-single-precision-feasible but does not trigger Stage2 initialization failure or
-`flowz` RHS inflation, for example a ladder such as:
+The next meaningful experiment is double precision only: test ODEX tolerance
+with Newton/QN/constraint/reverse-gate tolerances kept strict. The selected
+first non-strict candidate is:
 
-- `1e-8`
-- `3e-8`
-- `1e-7`
-- `3e-7`
-- `1e-6`
+- ODE abs/rel `1e-10`
+- constraint/QN `1e-13`
+- reverse gate `1e-8`
 
-Run this first on a small `flowz`/Stage2-init diagnostic, then only promote
-passing candidates to 10seed/10k physics comparison.
+Use `1e-8` only as an aggressive upper screen if `1e-10` is clean but too
+conservative. Do not jump directly to `1e-8` or `1e-6` as the selected profile.

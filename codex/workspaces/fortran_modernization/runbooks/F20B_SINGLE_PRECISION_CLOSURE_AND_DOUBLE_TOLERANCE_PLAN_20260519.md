@@ -12,6 +12,45 @@ The active path is double precision only: find suitable ODE and Newton/QN
 tolerances separately, then verify a combined double-precision candidate against
 strict physics output.
 
+## Tolerance Choice Conclusion
+
+Current certified production/reference choice remains strict double:
+
+- `TLTM_STAGE2_ABS_TOL_OVERRIDE=3e-14`
+- `TLTM_STAGE2_REL_TOL_OVERRIDE=3e-14`
+- `TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-13`
+- `QN_QUASI_TOL_OVERRIDE=1e-13`
+- `QN_REVERSE_GATE_TOL=1e-8`
+- `QN_OFFICIAL_DFOLS_RHOEND=1e-16`
+- `QN_OFFICIAL_DFOLS_MODEL_ABS_TOL=1e-30`
+- `QN_OFFICIAL_DFOLS_MODEL_REL_TOL=0`
+
+Rejected choices:
+
+- Do not use single precision.
+- Do not use `single_feasible1e6_rg1e4` as a performance profile.
+- Do not use ODE `abs/rel=1e-6`; it is beyond the observed safe boundary and
+  can create large `flowz` rejected-step/RHS inflation or initialization
+  failure.
+- Do not loosen reverse gate to `1e-4` while searching runtime improvement.
+- Do not use QN-first as a runtime route; preliminary evidence shows it avoids
+  the captured ODEX high-cost cases but is too slow because every constraint
+  solve goes through the official DFO-LS/Python bridge.
+
+Next non-strict candidate to test is double precision with ODE loosened only:
+
+- `TLTM_STAGE2_ABS_TOL_OVERRIDE=1e-10`
+- `TLTM_STAGE2_REL_TOL_OVERRIDE=1e-10`
+- keep `TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-13`
+- keep `QN_QUASI_TOL_OVERRIDE=1e-13`
+- keep `QN_REVERSE_GATE_TOL=1e-8`
+- keep official DFO-LS at strict settings.
+
+If `1e-10` is clean and faster, promote it to the combined-candidate gate. If it
+is clean but not meaningfully faster, stop there and keep strict. Only then
+consider the more aggressive double-only upper screen `1e-8`; do not jump
+directly to `1e-8` as the selected profile.
+
 ## Evidence Closing Single Precision
 
 1. Current-head strict vs loose double, 10 seeds x 10000 cycles:
@@ -98,4 +137,3 @@ For each candidate and method, report:
 - total ODEX calls, accepted/rejected steps, RHS evaluations, midpoint rows
 - runtime
 - comparison against strict-current-head or accepted handoff reference
-
