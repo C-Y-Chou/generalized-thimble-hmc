@@ -37,19 +37,20 @@ Rejected choices:
   the captured ODEX high-cost cases but is too slow because every constraint
   solve goes through the official DFO-LS/Python bridge.
 
-Next non-strict candidate to test is double precision with ODE loosened only:
+The first completed ODE-only scan is recorded in
+`F20B_ODE_TOLERANCE_SCAN_READBACK_20260519.md`. The selected Stage B input is
+double precision with ODE loosened only to `1e-12`:
 
-- `TLTM_STAGE2_ABS_TOL_OVERRIDE=1e-10`
-- `TLTM_STAGE2_REL_TOL_OVERRIDE=1e-10`
+- `TLTM_STAGE2_ABS_TOL_OVERRIDE=1e-12`
+- `TLTM_STAGE2_REL_TOL_OVERRIDE=1e-12`
 - keep `TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE=1e-13`
 - keep `QN_QUASI_TOL_OVERRIDE=1e-13`
 - keep `QN_REVERSE_GATE_TOL=1e-8`
 - keep official DFO-LS at strict settings.
 
-If `1e-10` is clean and faster, promote it to the combined-candidate gate. If it
-is clean but not meaningfully faster, stop there and keep strict. Only then
-consider the more aggressive double-only upper screen `1e-8`; do not jump
-directly to `1e-8` as the selected profile.
+The ODE `1e-10` profile is faster but carries reverse-gate/projection stress and
+is not the clean default candidate. The ODE `1e-8` profile fails Stage2
+initialization at `flow_time=0.3500` and is rejected.
 
 ## Evidence Closing Single Precision
 
@@ -102,16 +103,17 @@ correctness risk.
 Stage A: ODE tolerance scan with Newton/QN/constraint/reverse-gate settings kept
 strict.
 
-Recommended first candidates:
+Tested first candidates:
 - strict baseline: abs/rel = 3e-14
-- ode_tol_1e12: abs/rel = 1e-12
-- ode_tol_1e10: abs/rel = 1e-10
-- ode_tol_1e8: abs/rel = 1e-8
+- ode_tol_1e12: abs/rel = 1e-12, accepted as Stage B input
+- ode_tol_1e10: abs/rel = 1e-10, fast but stressed
+- ode_tol_1e8: abs/rel = 1e-8, rejected by Stage2 initialization failure
 
 Do not start with 1e-6 again. It is already a failed or non-speedup boundary for
 the current 10seed x 10k evidence.
 
-Stage B: Newton/QN tolerance scan at the best accepted ODE tolerance.
+Stage B: Newton/QN tolerance scan at the best accepted ODE tolerance
+(`abs/rel=1e-12`).
 
 Recommended first candidates:
 - newton_tol_1e12: constraint/QN quasi = 1e-12
