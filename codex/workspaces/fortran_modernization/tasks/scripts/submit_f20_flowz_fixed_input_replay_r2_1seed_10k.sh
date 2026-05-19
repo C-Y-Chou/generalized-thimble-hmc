@@ -118,6 +118,13 @@ get_job_var() {
   eval "printf '%s' \"\${${name}}\""
 }
 
+remote_abs_path() {
+  case "$1" in
+    /*) printf '%s\n' "$1" ;;
+    *) printf '%s/%s\n' "${TLTM_WORKTREE}" "$1" ;;
+  esac
+}
+
 build_vars="${common_vars},TLTM_RUN_GUARDRAILS=${TLTM_RUN_GUARDRAILS},TLTM_BUILD_JOBS=${TLTM_BUILD_JOBS},TLTM_LOG_ROOT=${TLTM_LOG_ROOT}/preflight"
 if [ -n "${TLTM_FLOWZ_REPLAY_EXTRA_DEPEND}" ]; then
   build_job="$(run_qsub \
@@ -149,7 +156,7 @@ for profile in "${profiles[@]}"; do
     fi
     capture_root="${TLTM_OUTPUT_ROOT}/capture_${profile}"
     capture_log_root="${TLTM_LOG_ROOT}/capture_${profile}"
-    capture_file="${capture_root}/${method}/chunk_00/flowz_inputs.dat"
+    capture_file="$(remote_abs_path "${capture_root}/${method}/chunk_00/flowz_inputs.dat")"
     chunk_vars="${common_vars},${tol_vars},TLTM_REF_LEVEL=${TLTM_REF_LEVEL},TLTM_REF_LABEL=${TLTM_REF_LABEL}_${profile}_${method},TLTM_CONFIG_JSON=${TLTM_CONFIG_JSON},TLTM_ROOT_SUBDIR=${capture_root},TLTM_ROOT_LOG_SUBDIR=${capture_log_root},TLTM_METHOD=${method},TLTM_CHUNK_ID=00,TLTM_SEED_OFFSET=0,TLTM_MAX_SEEDS=1,TLTM_JOBS=1,TLTM_ALLOW_OVERWRITE=${TLTM_ALLOW_OVERWRITE},TLTM_FLOWZ_CAPTURE_FILE=${capture_file},TLTM_FLOWZ_CAPTURE_LIMIT=${TLTM_FLOWZ_CAPTURE_LIMIT},TLTM_FLOWZ_CAPTURE_START=${TLTM_FLOWZ_CAPTURE_START},TLTM_FLOWZ_CAPTURE_STRIDE=${TLTM_FLOWZ_CAPTURE_STRIDE}"
     job="$(run_qsub \
       -N "f20fz${profile:0:2}${method_short}" \
