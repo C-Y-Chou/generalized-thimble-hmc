@@ -168,8 +168,72 @@ module solve_flow
 
    type(intode_diagnostics_context_t), save, target :: module_intode_diagnostics
    type(intode_runtime_trace_context_t), save :: module_intode_trace
+   logical, save :: flowz_capture_ready = .false.
+   logical, save :: flowz_capture_enabled = .false.
+   logical, save :: flowz_capture_write_error = .false.
+   integer, save :: flowz_capture_unit = -1
+   integer, save :: flowz_capture_limit = 1000
+   integer, save :: flowz_capture_start = 1
+   integer, save :: flowz_capture_stride = 1
+   integer, save :: flowz_capture_observed = 0
+   integer, save :: flowz_capture_written = 0
+   character(len=512), save :: flowz_capture_file = ""
 
 contains
+
+   subroutine initialize_flowz_capture()
+      implicit none
+      logical :: has_capture_file
+      integer :: ios
+
+      if (flowz_capture_ready) return
+      flowz_capture_ready = .true.
+      flowz_capture_enabled = .false.
+      flowz_capture_write_error = .false.
+      flowz_capture_file = ""
+      call read_string_env("TLTM_FLOWZ_CAPTURE_FILE", flowz_capture_file, has_capture_file)
+      if (.not. has_capture_file) return
+
+      call parse_int_env("TLTM_FLOWZ_CAPTURE_LIMIT", flowz_capture_limit)
+      call parse_int_env("TLTM_FLOWZ_CAPTURE_START", flowz_capture_start)
+      call parse_int_env("TLTM_FLOWZ_CAPTURE_STRIDE", flowz_capture_stride)
+      flowz_capture_start = max(1, flowz_capture_start)
+      flowz_capture_stride = max(1, flowz_capture_stride)
+
+      open (newunit=flowz_capture_unit, file=trim(flowz_capture_file), status='replace', action='write', iostat=ios)
+      if (ios /= 0) then
+         flowz_capture_write_error = .true.
+         return
+      end if
+      write (flowz_capture_unit, '(A)', iostat=ios) "# observed stage newton_iter quasi_iter role x_size x_values..."
+      flowz_capture_write_error = (ios /= 0)
+      flowz_capture_enabled = .not. flowz_capture_write_error
+   end subroutine initialize_flowz_capture
+
+   subroutine maybe_capture_flowz_input(x, intode_trace)
+      implicit none
+      real(dp), intent(in) :: x(:)
+      type(intode_runtime_trace_context_t), intent(in) :: intode_trace
+      integer :: ios
+
+      call initialize_flowz_capture()
+      if (.not. flowz_capture_enabled) return
+      if (flowz_capture_write_error) return
+
+      flowz_capture_observed = flowz_capture_observed + 1
+      if (flowz_capture_observed < flowz_capture_start) return
+      if (mod(flowz_capture_observed - flowz_capture_start, flowz_capture_stride) /= 0) return
+      if (flowz_capture_limit > 0 .and. flowz_capture_written >= flowz_capture_limit) return
+
+      write (flowz_capture_unit, *, iostat=ios) flowz_capture_observed, intode_trace%stage, &
+         intode_trace%newton_iter, intode_trace%quasi_iter, intode_trace%role, size(x), x
+      if (ios /= 0) then
+         flowz_capture_write_error = .true.
+         flowz_capture_enabled = .false.
+         return
+      end if
+      flowz_capture_written = flowz_capture_written + 1
+   end subroutine maybe_capture_flowz_input
 
    subroutine odex_default_options(options)
       implicit none
@@ -1365,6 +1429,7 @@ contains
          call perf_toc(PERF_FLOWZ, t_prof)
          return
       end if
+      call maybe_capture_flowz_input(x, workspace%intode_trace)
 
       call ensure_real_workspace(workspace%flow_vec_y, n)
       call ensure_real_workspace(workspace%flow_vec_yf, n)

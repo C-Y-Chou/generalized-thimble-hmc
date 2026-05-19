@@ -1,0 +1,165 @@
+#!/bin/bash
+#PBS -N f20flowzreplay
+#PBS -j oe
+
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization}"
+: "${TLTM_EXPECTED_GIT_BRANCH:?TLTM_EXPECTED_GIT_BRANCH is required}"
+: "${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
+: "${TLTM_OUTPUT_ROOT:?TLTM_OUTPUT_ROOT is required}"
+: "${TLTM_LOG_ROOT:?TLTM_LOG_ROOT is required}"
+: "${TLTM_FLOWZ_REPLAY_MAX_CASES:=0}"
+: "${TLTM_STRICT_STAGE2_ABS_TOL:=3e-14}"
+: "${TLTM_STRICT_STAGE2_REL_TOL:=3e-14}"
+: "${TLTM_LOOSE_STAGE2_ABS_TOL:=1e-6}"
+: "${TLTM_LOOSE_STAGE2_REL_TOL:=1e-6}"
+
+cd "${TLTM_WORKTREE}"
+
+. codex/workspaces/fortran_modernization/tasks/scripts/python_embed_env.sh
+
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+CURRENT_COMMIT="$(git rev-parse HEAD)"
+if [ "${CURRENT_BRANCH}" != "${TLTM_EXPECTED_GIT_BRANCH}" ]; then
+  echo "[ERROR] expected branch ${TLTM_EXPECTED_GIT_BRANCH}, got ${CURRENT_BRANCH}" >&2
+  exit 2
+fi
+if [ "${CURRENT_COMMIT}" != "${TLTM_EXPECTED_GIT_COMMIT}" ]; then
+  echo "[ERROR] expected commit ${TLTM_EXPECTED_GIT_COMMIT}, got ${CURRENT_COMMIT}" >&2
+  exit 2
+fi
+if [ -n "$(git status --porcelain)" ]; then
+  echo "[ERROR] working tree is dirty; refusing F20 flowz fixed-input replay" >&2
+  git status --short >&2
+  exit 2
+fi
+test -x bin/replay_flowz_cases
+
+unset TLTM_FLOWZ_CAPTURE_FILE
+mkdir -p "${TLTM_OUTPUT_ROOT}/replay" "${TLTM_LOG_ROOT}/replay"
+BOOT_LOG="${TLTM_LOG_ROOT}/replay/f20_flowz_fixed_input_replay.$(date +%Y%m%dT%H%M%S).log"
+exec > "${BOOT_LOG}" 2>&1
+
+date -Is
+hostname
+pwd
+echo "branch=${CURRENT_BRANCH}"
+echo "commit=${CURRENT_COMMIT}"
+echo "output_root=${TLTM_OUTPUT_ROOT}"
+echo "log_root=${TLTM_LOG_ROOT}"
+echo "max_cases=${TLTM_FLOWZ_REPLAY_MAX_CASES}"
+
+for method in no_fb fb_norefine; do
+  for source_profile in strict all_loose; do
+    capture_file="${TLTM_OUTPUT_ROOT}/capture_${source_profile}/${method}/chunk_00/flowz_inputs.dat"
+    test -s "${capture_file}"
+    for replay_profile in strict loose; do
+      if [ "${replay_profile}" = "strict" ]; then
+        abs_tol="${TLTM_STRICT_STAGE2_ABS_TOL}"
+        rel_tol="${TLTM_STRICT_STAGE2_REL_TOL}"
+      else
+        abs_tol="${TLTM_LOOSE_STAGE2_ABS_TOL}"
+        rel_tol="${TLTM_LOOSE_STAGE2_REL_TOL}"
+      fi
+      output_csv="${TLTM_OUTPUT_ROOT}/replay/${source_profile}_${method}__${replay_profile}.csv"
+      echo "[RUN] capture=${source_profile}/${method} replay=${replay_profile} abs_tol=${abs_tol} rel_tol=${rel_tol}"
+      bin/replay_flowz_cases "${capture_file}" "${output_csv}" "${source_profile}_${method}" "${replay_profile}" \
+        "${abs_tol}" "${rel_tol}" "${TLTM_FLOWZ_REPLAY_MAX_CASES}"
+    done
+  done
+done
+
+python3 - "${TLTM_OUTPUT_ROOT}/replay" <<'PY'
+from __future__ import print_function
+import csv
+import json
+import os
+import sys
+
+root = sys.argv[1]
+summary = {}
+fields_to_sum = [
+    "runtime_sec",
+    "odex_calls",
+    "odex_success",
+    "odex_failure",
+    "odex_accepted_steps",
+    "odex_rejected_steps",
+    "odex_stability_rejects",
+    "odex_rhs_evals",
+    "odex_midpoint_rows",
+    "odex_kplus1_attempts",
+    "odex_large_error_rejects",
+    "odex_kplus1_rejects",
+    "odex_convergence_rejects",
+    "odex_kplus1_hope_rejects",
+    "odex_reject_updates",
+]
+
+def as_float(row, key):
+    try:
+        return float(row.get(key, "0") or 0.0)
+    except ValueError:
+        return 0.0
+
+for name in sorted(os.listdir(root)):
+    if not name.endswith(".csv"):
+        continue
+    path = os.path.join(root, name)
+    with open(path, newline="") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+    if not rows:
+        continue
+    key = name[:-4]
+    entry = {"rows": len(rows)}
+    for field in fields_to_sum:
+        total = sum(as_float(row, field) for row in rows)
+        entry["total_" + field] = total
+        entry["mean_" + field] = total / float(len(rows))
+    entry["flow_error_count"] = sum(1 for row in rows if str(row.get("flow_error", "0")) not in ("0", "False", "false"))
+    summary[key] = entry
+
+comparisons = {}
+for key, strict_entry in summary.items():
+    if not key.endswith("__strict"):
+        continue
+    prefix = key[:-len("__strict")]
+    loose_key = prefix + "__loose"
+    loose_entry = summary.get(loose_key)
+    if not loose_entry:
+        continue
+    comp = {}
+    for metric in ("odex_rhs_evals", "odex_accepted_steps", "odex_rejected_steps", "odex_midpoint_rows", "runtime_sec"):
+        s = strict_entry.get("mean_" + metric, 0.0)
+        l = loose_entry.get("mean_" + metric, 0.0)
+        comp[metric + "_loose_over_strict_mean_ratio"] = (l / s) if s else None
+        comp[metric + "_loose_minus_strict_mean"] = l - s
+    comparisons[prefix] = comp
+
+payload = {"summary": summary, "comparisons": comparisons}
+with open(os.path.join(root, "flowz_replay_summary.json"), "w") as handle:
+    json.dump(payload, handle, indent=2, sort_keys=True)
+with open(os.path.join(root, "flowz_replay_summary.txt"), "w") as handle:
+    for key in sorted(comparisons):
+        handle.write("[{}]\n".format(key))
+        for metric, value in sorted(comparisons[key].items()):
+            handle.write("{}={}\n".format(metric, value))
+        handle.write("\n")
+print("summary_json={}".format(os.path.join(root, "flowz_replay_summary.json")))
+print("summary_txt={}".format(os.path.join(root, "flowz_replay_summary.txt")))
+PY
+
+date -Is
