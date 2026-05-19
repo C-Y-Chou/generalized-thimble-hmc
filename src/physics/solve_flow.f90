@@ -308,16 +308,18 @@ contains
       if (.not. flowz_cost_capture_should_write(result_state, flow_error)) return
       if (flowz_cost_capture_limit > 0 .and. flowz_cost_capture_written >= flowz_cost_capture_limit) return
 
-      write (flowz_cost_capture_unit, *, iostat=ios) "# cost", flowz_cost_capture_observed, &
-         flowz_cost_capture_written + 1, intode_trace%stage, &
-         intode_trace%newton_iter, intode_trace%quasi_iter, intode_trace%role, size(x), flow_status, &
-         merge(1, 0, flow_error), result_state%status, result_state%failure_reason, &
-         result_state%accepted_steps, result_state%rejected_steps, result_state%stability_rejects, &
+      write (flowz_cost_capture_unit, '(A,7(1X,I0))', iostat=ios) "# cost_a", flowz_cost_capture_observed, &
+         flowz_cost_capture_written + 1, intode_trace%stage, intode_trace%newton_iter, intode_trace%quasi_iter, &
+         intode_trace%role, size(x)
+      if (ios == 0) write (flowz_cost_capture_unit, '(A,7(1X,I0))', iostat=ios) "# cost_b", flow_status, &
+         merge(1, 0, flow_error), result_state%status, result_state%failure_reason, result_state%accepted_steps, &
+         result_state%rejected_steps, result_state%stability_rejects
+      if (ios == 0) write (flowz_cost_capture_unit, '(A,7(1X,I0))', iostat=ios) "# cost_c", &
          result_state%odex_rhs_evals, result_state%odex_midpoint_rows, result_state%odex_kplus1_attempts, &
          result_state%odex_large_error_rejects, result_state%odex_kplus1_rejects, &
-         result_state%odex_convergence_rejects, result_state%odex_kplus1_hope_rejects, &
-         result_state%odex_reject_updates, result_state%final_order, result_state%final_step_size, &
-         result_state%t_remaining
+         result_state%odex_convergence_rejects, result_state%odex_kplus1_hope_rejects
+      if (ios == 0) write (flowz_cost_capture_unit, '(A,1X,I0,1X,I0,2(1X,ES24.16E3))', iostat=ios) "# cost_d", &
+         result_state%odex_reject_updates, result_state%final_order, result_state%final_step_size, result_state%t_remaining
       if (ios == 0) write (flowz_cost_capture_unit, *, iostat=ios) flowz_cost_capture_observed, &
          intode_trace%stage, intode_trace%newton_iter, intode_trace%quasi_iter, intode_trace%role, size(x)
       if (ios == 0) write (flowz_cost_capture_unit, *, iostat=ios) x

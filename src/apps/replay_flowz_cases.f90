@@ -7,7 +7,7 @@ program replay_flowz_cases
    character(len=512) :: capture_file, output_csv
    character(len=128) :: capture_label, replay_label
    character(len=131072) :: line
-   integer :: argc, in_unit, out_unit, ios, line_no, case_idx, max_cases
+   integer :: argc, in_unit, out_unit, ios, line_no, case_idx, max_cases, cost_skip_lines
    integer :: observed, stage, newton_iter, quasi_iter, role, x_size
    integer :: flow_status
    real(dp) :: abs_tol, rel_tol, t0, t1, runtime_sec, z_abs_sum, z_abs_max
@@ -46,12 +46,23 @@ program replay_flowz_cases
    call write_header(out_unit)
    line_no = 0
    case_idx = 0
+   cost_skip_lines = 0
    do
       read (in_unit, '(A)', iostat=ios) line
       if (ios /= 0) exit
       line_no = line_no + 1
       if (len_trim(line) == 0) cycle
-      if (line(1:1) == "#") cycle
+      if (cost_skip_lines > 0) then
+         cost_skip_lines = cost_skip_lines - 1
+         cycle
+      end if
+      if (line_starts_with(adjustl(line), "# cost ")) then
+         ! Legacy cost-capture metadata from 5ac17f used list-directed output,
+         ! which split one comment record into four non-comment continuation lines.
+         cost_skip_lines = 4
+         cycle
+      end if
+      if (line_starts_with(adjustl(line), "#")) cycle
 
       read (line, *, iostat=ios) observed, stage, newton_iter, quasi_iter, role, x_size
       if (ios /= 0 .or. x_size < 2) cycle
@@ -114,6 +125,19 @@ contains
       read (text, *, iostat=read_status) value
       if (read_status /= 0) call usage_and_stop()
    end subroutine read_real_arg
+
+   logical function line_starts_with(text, prefix) result(matches)
+      implicit none
+      character(len=*), intent(in) :: text, prefix
+      integer :: prefix_len
+
+      prefix_len = len_trim(prefix)
+      if (len_trim(text) < prefix_len) then
+         matches = .false.
+      else
+         matches = text(1:prefix_len) == prefix(1:prefix_len)
+      end if
+   end function line_starts_with
 
    subroutine read_x_values(unit_id, local_line_no, values, read_status)
       implicit none
