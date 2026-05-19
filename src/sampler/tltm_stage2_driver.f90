@@ -2111,7 +2111,7 @@ contains
 
       write (unit_manifest, '(A)') '  "precision": {'
       call write_json_string_field(unit_manifest, "precision_mode", "double", .true., 4)
-      call write_json_string_field(unit_manifest, "tolerance_profile", "strict_double", .true., 4)
+      call write_json_string_field(unit_manifest, "tolerance_profile", "f20f_most_conservative_double", .true., 4)
       call write_json_string_field(unit_manifest, "fortran_real_kind", "real64", .true., 4)
       call write_json_string_field(unit_manifest, "ode_backend_precision", "double_real64", .true., 4)
       call write_json_string_field(unit_manifest, "residual_certification_precision", "double_real64", .true., 4)
@@ -2293,7 +2293,7 @@ contains
 
       write (unit_config, '(A)') '  "precision": {'
       call write_json_string_field(unit_config, "precision_mode", "double", .true., 4)
-      call write_json_string_field(unit_config, "tolerance_profile", "strict_double", .true., 4)
+      call write_json_string_field(unit_config, "tolerance_profile", "f20f_most_conservative_double", .true., 4)
       call write_json_string_field(unit_config, "precision_policy_id", "double_strict_v1", .false., 4)
       write (unit_config, '(A)') '  }'
       write (unit_config, '(A)') "}"

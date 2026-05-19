@@ -75,7 +75,7 @@ module quasi_newton_solver_mod
       logical :: qn_official_dfols_objfun_has_noise = .true.
       real(dp) :: qn_official_dfols_rhobeg = 1.8e-2_dp
       real(dp) :: qn_official_dfols_rhoend = 1.0e-16_dp
-      real(dp) :: qn_official_dfols_model_abs_tol = 1.0e-30_dp
+      real(dp) :: qn_official_dfols_model_abs_tol = 1.0e-26_dp
       real(dp) :: qn_official_dfols_model_rel_tol = 0.0_dp
    end type qn_policy_context_t
 
@@ -235,7 +235,7 @@ contains
       context%qn_official_dfols_objfun_has_noise = .true.
       context%qn_official_dfols_rhobeg = 1.8e-2_dp
       context%qn_official_dfols_rhoend = 1.0e-16_dp
-      context%qn_official_dfols_model_abs_tol = 1.0e-30_dp
+      context%qn_official_dfols_model_abs_tol = 1.0e-26_dp
       context%qn_official_dfols_model_rel_tol = 0.0_dp
    end subroutine release_qn_policy_context
 
@@ -1327,7 +1327,7 @@ contains
       end if
       if (.not. ieee_is_finite(qn_policy%qn_official_dfols_model_abs_tol) .or. &
           qn_policy%qn_official_dfols_model_abs_tol < 0.0_dp) then
-         qn_policy%qn_official_dfols_model_abs_tol = 1.0e-30_dp
+         qn_policy%qn_official_dfols_model_abs_tol = 1.0e-26_dp
       end if
       if (.not. ieee_is_finite(qn_policy%qn_official_dfols_model_rel_tol) .or. &
           qn_policy%qn_official_dfols_model_rel_tol < 0.0_dp) then
@@ -1347,13 +1347,14 @@ contains
       call resolve_qn_policy(qn_policy, active_policy)
       token = trim(to_lower_ascii(adjustl(preset_name)))
       select case (token)
-      case ("", "stable", "stable_gate77", "gate77", "production", "official_alone")
+      case ("", "stable", "stable_gate77", "gate77", "production", "official_alone", &
+            "f20f", "f20f_most_conservative_double")
          active_policy%qn_official_dfols_npt = 4
          active_policy%qn_official_dfols_maxfun = 250
          active_policy%qn_official_dfols_objfun_has_noise = .true.
          active_policy%qn_official_dfols_rhobeg = 1.8e-2_dp
          active_policy%qn_official_dfols_rhoend = 1.0e-16_dp
-         active_policy%qn_official_dfols_model_abs_tol = 1.0e-30_dp
+         active_policy%qn_official_dfols_model_abs_tol = 1.0e-26_dp
          active_policy%qn_official_dfols_model_rel_tol = 0.0_dp
       case ("legacy", "legacy69", "r005", "gate69")
          active_policy%qn_official_dfols_npt = 0
@@ -1370,7 +1371,7 @@ contains
          active_policy%qn_official_dfols_objfun_has_noise = .true.
          active_policy%qn_official_dfols_rhobeg = 1.8e-2_dp
          active_policy%qn_official_dfols_rhoend = 1.0e-16_dp
-         active_policy%qn_official_dfols_model_abs_tol = 1.0e-30_dp
+         active_policy%qn_official_dfols_model_abs_tol = 1.0e-26_dp
          active_policy%qn_official_dfols_model_rel_tol = 0.0_dp
       end select
    end subroutine apply_qn_official_dfols_preset

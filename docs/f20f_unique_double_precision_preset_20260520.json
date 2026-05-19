@@ -1,0 +1,64 @@
+{
+  "schema": "tltm.f20f.unique_double_precision_preset.v1",
+  "status": "selected_unique_production_preset",
+  "selected_at_jst": "2026-05-20",
+  "precision_mode": "double",
+  "precision_policy_id": "double_strict_v1",
+  "tolerance_profile": "f20f_most_conservative_double",
+  "tolerances": {
+    "TLTM_STAGE2_ABS_TOL_OVERRIDE": "1e-14",
+    "TLTM_STAGE2_REL_TOL_OVERRIDE": "1e-14",
+    "TLTM_STAGE2_CONSTRAINT_TOL_OVERRIDE": "1e-13",
+    "QN_QUASI_TOL_OVERRIDE": "1e-13",
+    "QN_REVERSE_GATE_TOL": "1e-8",
+    "QN_OFFICIAL_DFOLS_RHOEND": "1e-16",
+    "QN_OFFICIAL_DFOLS_MODEL_ABS_TOL": "1e-26",
+    "QN_OFFICIAL_DFOLS_MODEL_REL_TOL": "0"
+  },
+  "source_defaults": {
+    "data/parameters.dat": {
+      "abs_tol": "1.0d-14",
+      "rel_tol": "1.0d-14",
+      "constraint_tol": "1.0d-13"
+    },
+    "src/sampler/quasi_newton_solver.f90:stable_gate77": {
+      "rhoend": "1.0e-16",
+      "model_abs_tol": "1.0e-26",
+      "model_rel_tol": "0.0"
+    }
+  },
+  "validation_evidence": {
+    "request_id": "FMOD-F20F-R3-MOST-CONSERVATIVE-DOUBLE-VALIDATION-20260519",
+    "source_commit": "59e9d10acd3592c44293f435d65a50ad05351ef2",
+    "readback_runbook": "codex/workspaces/fortran_modernization/runbooks/F20F_R3_MOST_CONSERVATIVE_DOUBLE_VALIDATION_READBACK_20260520.md",
+    "scale": "32 seeds x 50000 cycles",
+    "methods": [
+      "no_fb",
+      "fb_norefine"
+    ],
+    "paired_drift_z": {
+      "no_fb_re": "-0.5070953817",
+      "fb_norefine_re": "0.6979498359"
+    },
+    "runtime_savings_vs_strict_r3": {
+      "no_fb": "29.84%",
+      "fb_norefine": "11.58%",
+      "combined": "19.94%"
+    },
+    "post_b_rng_anchor": {
+      "stage1_summary_normalized_sha256": "bafe7ce2089cfc2af646f4d216f3b7ec915e0f329b44e96a4becaf723236ab79",
+      "stage2_label_trace_normalized_sha256": "7a6a9b82a0e7c78fed27357ff95649ad0c467c220f29a46db91d6042303bf299",
+      "stage2_summary_normalized_sha256": "c722737c011fe6e8c5ba50fdc017dd9fbc0ba76d00393364b2f96511bab21dc7"
+    }
+  },
+  "rejected_routes": [
+    "single_precision",
+    "single_feasible1e6_rg1e4",
+    "ode_1e-6",
+    "shared_nt_qn_1e-8",
+    "f20d_tau1e10"
+  ],
+  "non_promoted_evidence": [
+    "f20e_conservative_relaxed"
+  ]
+}

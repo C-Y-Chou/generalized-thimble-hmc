@@ -2,7 +2,7 @@
 """Validate the F20 precision/GPU readiness contract.
 
 This is a governance/readiness gate, not a single-precision enablement test.
-It keeps the current strict-double baseline explicit while checking that the
+It keeps the user-selected F20F double preset explicit while checking that the
 known precision boundaries and future-mode contract are discoverable.
 """
 
@@ -66,16 +66,21 @@ REQUIRED_CHECKS = (
         "boundary": "Fortran ODE bridge casts endpoint data to C double",
     },
     {
-        "id": "strict_double_parameters",
+        "id": "f20f_double_parameters",
         "path": "data/parameters.dat",
-        "patterns": (r"abs_tol\s*=\s*3\.0d-14", r"rel_tol\s*=\s*3\.0d-14", r"constraint_tol\s*=\s*1\.0d-13"),
-        "boundary": "default parameter file preserves the strict double tolerance baseline",
+        "patterns": (r"abs_tol\s*=\s*1\.0d-14", r"rel_tol\s*=\s*1\.0d-14", r"constraint_tol\s*=\s*1\.0d-13"),
+        "boundary": "default parameter file preserves the F20F double tolerance preset",
     },
     {
         "id": "build_profile_gate",
         "path": "build/makefile",
-        "patterns": (r"TLTM_PRECISION\s*\?=\s*double", r"TLTM_TOLERANCE_PROFILE\s*\?=\s*strict_double", r"SUPPORTED_TLTM_PRECISIONS\s*:=\s*double"),
-        "boundary": "build-time profile interface exists and currently accepts only certified strict double",
+        "patterns": (
+            r"TLTM_PRECISION\s*\?=\s*double",
+            r"TLTM_TOLERANCE_PROFILE\s*\?=\s*f20f_most_conservative_double",
+            r"SUPPORTED_TLTM_PRECISIONS\s*:=\s*double",
+            r"SUPPORTED_TLTM_TOLERANCE_PROFILES\s*:=\s*f20f_most_conservative_double",
+        ),
+        "boundary": "build-time profile interface accepts only the certified F20F double preset",
     },
     {
         "id": "stage2_manifest_precision_fields",
@@ -83,7 +88,7 @@ REQUIRED_CHECKS = (
         "patterns": (
             r'"precision"\s*:',
             r'"precision_mode",\s*"double"',
-            r'"tolerance_profile",\s*"strict_double"',
+            r'"tolerance_profile",\s*"f20f_most_conservative_double"',
             r'"output_binary_precision",\s*"double_real64"',
         ),
         "boundary": "Stage2 v1alpha manifest records precision and tolerance profile metadata",
@@ -93,7 +98,7 @@ REQUIRED_CHECKS = (
         "path": "codex/workspaces/fortran_modernization/runbooks/F20_PRECISION_GPU_READINESS_CLOSURE_20260517.md",
         "patterns": (
             r"TLTM_PRECISION=double\|single\|mixed",
-            r"TLTM_TOLERANCE_PROFILE=strict_double\|loose_double\|experimental_single",
+            r"TLTM_TOLERANCE_PROFILE=f20f_most_conservative_double",
             r"single/mixed precision remains experimental",
             r"paired-seed certification",
         ),
@@ -163,7 +168,7 @@ def main():
         "status": "fail" if failures else "pass",
         "generated_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "precision_mode": "double",
-        "tolerance_profile": "strict_double",
+        "tolerance_profile": "f20f_most_conservative_double",
         "single_mixed_status": "experimental_until_certified",
         "checks": checks,
         "failures": failures,

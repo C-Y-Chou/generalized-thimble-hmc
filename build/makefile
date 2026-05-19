@@ -57,9 +57,9 @@ $(error $(PYTHON) is not usable for code generation. Use Python >=3.8, e.g. PYTH
 endif
 
 TLTM_PRECISION ?= double
-TLTM_TOLERANCE_PROFILE ?= strict_double
+TLTM_TOLERANCE_PROFILE ?= f20f_most_conservative_double
 SUPPORTED_TLTM_PRECISIONS := double
-SUPPORTED_TLTM_TOLERANCE_PROFILES := strict_double
+SUPPORTED_TLTM_TOLERANCE_PROFILES := f20f_most_conservative_double
 ifeq ($(filter $(TLTM_PRECISION),$(SUPPORTED_TLTM_PRECISIONS)),)
 $(error TLTM_PRECISION=$(TLTM_PRECISION) is not certified in this tree. Supported now: $(SUPPORTED_TLTM_PRECISIONS). Single/mixed precision remains experimental until F20 certification gates pass.)
 endif
@@ -519,7 +519,7 @@ help:
 	@echo "  make ENABLE_OFFICIAL_DFOLS=1 - build the embedded official DFO-LS backend (default)"
 	@echo "  make ENABLE_OFFICIAL_DFOLS=0 - build a stub bridge for package-off route tests"
 	@echo "  make ENABLE_SUNDIALS_CVODE=1 SUNDIALS_PREFIX=<prefix> - build the disabled-by-default SUNDIALS CVODE ODE backend"
-	@echo "  make TLTM_PRECISION=double TLTM_TOLERANCE_PROFILE=strict_double - selected certified precision/tolerance profile (only supported mode for now)"
+	@echo "  make TLTM_PRECISION=double TLTM_TOLERANCE_PROFILE=f20f_most_conservative_double - selected certified precision/tolerance profile (only supported mode)"
 	@echo "  make GNU_LINALG_LIBS='-lopenblas'   - optionally link external BLAS/LAPACK on GNU"
 	@echo "  make regen_model_derivatives - regenerate src/physics/model_generated.f90 (GEN_BACKEND=auto|symbolic|tape|st_auto|st_tapenade|st_enzyme; default=auto)"
 	@echo "    uses ST_TAPENADE_CMD if set; otherwise auto-detects ~/tools/tapenade-3.16-v2/bin/tapenade"

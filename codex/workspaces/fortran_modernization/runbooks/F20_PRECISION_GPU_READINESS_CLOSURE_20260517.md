@@ -1,10 +1,12 @@
 # F20 Precision/GPU Readiness Closure
 
 Date: 2026-05-17 JST
+Amended: 2026-05-20 JST
 
-Status: implemented for modernization closeout governance. This does not enable
-single or mixed precision. It preserves strict double as the only certified
-source/product mode and makes weaker modes explicit future work.
+Status: implemented for modernization closeout governance and amended after
+F20F R3 validation. This does not enable single or mixed precision. It preserves
+the F20F double preset as the only certified source/product mode and makes
+weaker modes explicit future work.
 
 ## Decision
 
@@ -12,29 +14,30 @@ The active modernization tree supports only:
 
 ```text
 TLTM_PRECISION=double
-TLTM_TOLERANCE_PROFILE=strict_double
+TLTM_TOLERANCE_PROFILE=f20f_most_conservative_double
 ```
 
-The reserved future product interface is:
+The reserved future precision interface remains:
 
 ```text
 TLTM_PRECISION=double|single|mixed
-TLTM_TOLERANCE_PROFILE=strict_double|loose_double|experimental_single
+TLTM_TOLERANCE_PROFILE=f20f_most_conservative_double
 ```
 
-Only the first combination is certified today. `single` and `mixed` are
-rejected at build time until a separate certification packet passes.
+Only the F20F double combination is certified today. `single`, `mixed`, and
+alternative tolerance profiles are rejected at build time until a separate
+certification packet passes.
 
 ## Implemented Source/Build Contract
 
 - `build/makefile` defines `TLTM_PRECISION ?= double` and
-  `TLTM_TOLERANCE_PROFILE ?= strict_double`.
+  `TLTM_TOLERANCE_PROFILE ?= f20f_most_conservative_double`.
 - The build fails if a user requests unsupported `single`, `mixed`, or weaker
   tolerance profiles.
 - `src/sampler/tltm_stage2_driver.f90` now records a `precision` object in the
   Stage2 v1alpha manifest:
   - `precision_mode = double`
-  - `tolerance_profile = strict_double`
+  - `tolerance_profile = f20f_most_conservative_double`
   - `fortran_real_kind = real64`
   - `ode_backend_precision = double_real64`
   - `residual_certification_precision = double_real64`
@@ -56,7 +59,8 @@ The F20 audit checks these hard double boundaries:
 | Official DFO-LS bridge | C/Python `double` / `PyFloat_AsDouble` boundary |
 | SUNDIALS CVODE bridge | `double` / `sunrealtype` comparison-only boundary |
 | ODEX/C bridge | Fortran `real(c_double)` casts |
-| Default tolerances | `abs_tol=3.0d-14`, `rel_tol=3.0d-14`, `constraint_tol=1.0d-13` |
+| Default tolerances | `abs_tol=1.0d-14`, `rel_tol=1.0d-14`, `constraint_tol=1.0d-13` |
+| Official DFO-LS stable preset | `rhoend=1.0e-16`, `model_abs_tol=1.0e-26`, `model_rel_tol=0` |
 | Stage2 sidecar metadata | Manifest precision/tolerance/output precision fields |
 
 ## Certification Gate For Future Single/Mixed Modes
@@ -98,10 +102,10 @@ output/tests/precision_readiness/F20_precision_readiness_manifest.json
 
 ## Closure
 
-F20 is closed for modernization readiness: the strict-double product baseline is
-explicit, the future precision/tolerance interface is reserved, unsupported
-weaker modes fail closed, Stage2 sidecars record precision metadata, and M4
-guards the boundary.
+F20 is closed for modernization readiness: the F20F double product preset is
+explicit, the future precision interface is reserved, unsupported weaker modes
+fail closed, Stage2 sidecars record precision metadata, and M4 guards the
+boundary.
 
 Reopen F20 if any of these change:
 

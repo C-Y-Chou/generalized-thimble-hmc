@@ -22,9 +22,9 @@ alpha = (1.0,0.0)
 beta = (1.0,0.0)
 derivative_mode = generated
 
-# Recommended "publication" baseline
-abs_tol = 3.0d-14
-rel_tol = 3.0d-14
+# Unique F20F double production preset
+abs_tol = 1.0d-14
+rel_tol = 1.0d-14
 constraint_tol = 1.0d-13
 enable_quasi_fallback = false
 

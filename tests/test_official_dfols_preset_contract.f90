@@ -46,7 +46,8 @@ contains
 
    subroutine check_stable_aliases(failures)
       integer, intent(inout) :: failures
-      character(len=32), parameter :: aliases(5) = [character(len=32) :: "", "stable", "gate77", "production", "official_alone"]
+      character(len=32), parameter :: aliases(7) = [character(len=32) :: "", "stable", "gate77", "production", &
+                                                    "official_alone", "f20f", "f20f_most_conservative_double"]
       integer :: idx
       logical :: ok
 
@@ -147,7 +148,7 @@ contains
 
       ok = npt == 4 .and. maxfun == 250 .and. objfun_has_noise .and. &
            close_to(rhobeg, 1.8e-2_dp) .and. close_to(rhoend, 1.0e-16_dp) .and. &
-           close_to(model_abs_tol, 1.0e-30_dp) .and. close_to(model_rel_tol, 0.0_dp)
+           close_to(model_abs_tol, 1.0e-26_dp) .and. close_to(model_rel_tol, 0.0_dp)
    end function stable_gate77_matches
 
    logical function close_to(observed, expected) result(ok)
