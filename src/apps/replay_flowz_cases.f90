@@ -56,7 +56,7 @@ program replay_flowz_cases
          cost_skip_lines = cost_skip_lines - 1
          cycle
       end if
-      if (line_starts_with(adjustl(line), "# cost ")) then
+      if (is_legacy_cost_metadata_line(adjustl(line))) then
          ! Legacy cost-capture metadata from 5ac17f used list-directed output,
          ! which split one comment record into four non-comment continuation lines.
          cost_skip_lines = 4
@@ -138,6 +138,18 @@ contains
          matches = text(1:prefix_len) == prefix(1:prefix_len)
       end if
    end function line_starts_with
+
+   logical function is_legacy_cost_metadata_line(text) result(is_legacy)
+      implicit none
+      character(len=*), intent(in) :: text
+      integer :: first_value, read_status
+      character(len=16) :: hash_token, cost_token
+
+      is_legacy = .false.
+      if (.not. line_starts_with(text, "# cost ")) return
+      read (text, *, iostat=read_status) hash_token, cost_token, first_value
+      is_legacy = read_status == 0 .and. trim(hash_token) == "#" .and. trim(cost_token) == "cost"
+   end function is_legacy_cost_metadata_line
 
    subroutine read_x_values(unit_id, local_line_no, values, read_status)
       implicit none
