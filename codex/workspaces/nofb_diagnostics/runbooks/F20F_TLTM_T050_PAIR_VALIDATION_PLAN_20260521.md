@@ -50,6 +50,19 @@ Launcher:
 bash codex/workspaces/fortran_modernization/tasks/scripts/submit_f20f_tltm_t050_low005_pair_validation_32seed_50k.sh
 ```
 
+Scheduler request:
+
+- request id: `FMOD-F20F-TLTM-T050-LOW005-PAIR-32X50K-20260521`
+- runnable source commit: `d2a365e0a195bf6bf61b9b103d3e63cb53ab22c4`
+- dry-run manifest:
+  `output/logs/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_32seed_x_50000cycles_d2a365e0a195/submit/submit_manifest_20260521T030319.env`
+- dry-run queue plan:
+  `output/logs/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_32seed_x_50000cycles_d2a365e0a195/submit/submit_queue_plan_20260521T030319.json`
+- expected output root:
+  `output/tests/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_32seed_x_50000cycles_d2a365e0a195`
+- expected log root:
+  `output/logs/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_32seed_x_50000cycles_d2a365e0a195`
+
 Expected job shape:
 
 - one build job

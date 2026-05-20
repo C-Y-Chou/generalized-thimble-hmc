@@ -43,13 +43,16 @@ dataset:
 
 ## Next Gate
 
-The next scientific gate is a nofb-only two-replica TLTM short scan to choose a
-usable `t=0.5` ladder before any paired nofb-vs-withfb TLTM comparison.  The
-current candidate ladders are `[0.05, 0.5]`, `[0.1, 0.5]`, `[0.2, 0.5]`, and
-`[0.3, 0.5]`, at `4 seeds x 5000 cycles` per candidate.
+The nofb-only two-replica TLTM short scan selected `low005 = [0.05, 0.5]` as
+the first paired-validation ladder.  It is the smallest tested ladder that
+restored high-flow `Re z` sign changes and moved `Ohat_re` away from the
+fixed-flow `t=0.5` no_fb pathology.
 
-After selecting a ladder, run the same `t=0.5` scenario with TLTM/fallback
-repair enabled, then check:
+The next scientific gate is the paired TLTM validation at `32 seeds x 50000
+cycles` per method, using the selected `low005` ladder and comparing `no_fb`
+against `fb_norefine`.
+
+For that paired run, check:
 
 - high-flow `Re z` sign changes are restored;
 - positive/negative occupancy is near balanced;
