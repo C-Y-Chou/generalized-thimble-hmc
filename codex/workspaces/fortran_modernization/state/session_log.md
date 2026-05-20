@@ -2164,3 +2164,33 @@
   low-dependency final submit boundary.  Higher-level Python/shell launchers can
   prepare plans and dry-runs, but real PBS submission now funnels through the
   same scheduler-authority environment/request-id check.
+
+## 2026-05-20 JST - F20F larger-flow-time rationale
+
+- Current fixed-flow F20F evidence should not be framed as "failure alone
+  implies bias."  At `t=0.3`, no_fb has many solver/proposal failures and
+  reverse-gate rejections, but the completed paired `512 seeds x 200k cycles`
+  comparison did not show a visible no_fb vs fb_norefine distribution support
+  hole or observable shift.
+- The readback basis was a raw-history region check on `512000` sampled
+  `z_history.dat` points per method plus paired seed summaries.  The coarse
+  5x5 pooled-quantile occupancy check had no zero-cell mismatch, maximum cell
+  fraction difference about `8.4e-4`, radius-tail bin differences below about
+  `5.5e-4`, and KS distances around `1e-3`; paired `Ohat_re` shift was
+  consistent with zero and paired `Ohat_im` was only about `1 sigma`.
+- Therefore, for this model and scale, `t=0.3` failures are currently an
+  efficiency/mobility signal, not yet a correctness or support-restriction
+  signal.
+- The purpose of the active `t=0.5` fixed-flow no_fb run is to test whether a
+  larger flow time crosses the threshold where no_fb failure/rejection becomes
+  an effective sampling obstruction, visible as observable bias, distribution
+  distortion, or region/tail undercoverage.
+- If larger flow time does show a no_fb correctness/sampling problem, that is
+  the right motivation for moving to larger-dimensional tests: sign-problem
+  mitigation generally pushes toward larger effective flow time as dimension
+  grows, so a fallback that is irrelevant at small flow time can become
+  necessary in the physically useful large-flow regime.
+- The intended evidence chain is: `t=0.3` no_fb failure without visible bias;
+  `t=0.5` test for failure turning into bias/support obstruction; then test
+  whether TLTM flow-time tempering and/or withfb repairs that obstruction
+  before promoting the claim to higher-dimensional sign-problem settings.
