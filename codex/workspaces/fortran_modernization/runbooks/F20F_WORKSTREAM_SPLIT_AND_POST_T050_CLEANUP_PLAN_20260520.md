@@ -2,8 +2,8 @@
 
 Date: 2026-05-20 JST
 
-Status: executed through diagnostic packet creation; local path rename/prune
-pending after the metadata commit.
+Status: executed through diagnostic packet creation and local worktree
+path cleanup.
 
 ## Decision
 
@@ -74,25 +74,25 @@ Policy:
 
 ## Current Paths
 
-Current local canonical source path:
+Previous local canonical source path:
 
 ```text
 /Users/ccy/Documents/TLTM_qn_error_handling
 ```
 
-Preferred future local source path:
+Current local modernization source path:
 
 ```text
 /Users/ccy/Documents/TLTM_fortran_modernization
 ```
 
-Preferred future diagnostic line path:
+Current local diagnostic line path:
 
 ```text
 /Users/ccy/Documents/TLTM_nofb_diagnostics
 ```
 
-Preferred production-comparison line path:
+Current local production-comparison line path:
 
 ```text
 /Users/ccy/Documents/TLTM_production_comparison
@@ -174,3 +174,17 @@ finished and read back.
 - Do not commit raw large history payloads to git.
 - Real PBS submission, cancellation, and merge repair remain owned by the
   cluster02 scheduler agent and must pass through the scheduler qsub gate.
+
+## Local Cleanup Readback
+
+Completed on 2026-05-21 JST:
+
+- moved `codex/fortran-modernization` local worktree from
+  `/Users/ccy/Documents/TLTM_qn_error_handling` to
+  `/Users/ccy/Documents/TLTM_fortran_modernization`;
+- moved production-comparison local worktree from
+  `/private/tmp/tltm_prodcomp_handoff_worktree` to
+  `/Users/ccy/Documents/TLTM_production_comparison`;
+- pruned stale detached tmp worktree metadata;
+- created the `nofb_diagnostics` line as a first-class workspace in this repo;
+- left `/private/tmp/tltm_stage2_scheduler` untouched.
