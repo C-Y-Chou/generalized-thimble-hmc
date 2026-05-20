@@ -56,9 +56,23 @@ case "${TLTM_F20F_FIXED_FLOW_SCALE}" in
     chunk_walltime="24:00:00"
     chunks=(00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15)
     ;;
+  extension_384x200k)
+    config_json="docs/f20f_fixed_flow_t030_extension_384seed_200k.json"
+    ref_level="F20F_FIXED_FLOW_T030_EXTENSION_384SEED_200K"
+    scale_text="extension384seed_x_200000cycles"
+    expected_rows=384
+    requested_cpus=768
+    chunk_ncpus=8
+    max_seeds=8
+    chunk_walltime="12:00:00"
+    chunks=()
+    for chunk_num in $(seq 0 47); do
+      chunks+=("$(printf '%02d' "${chunk_num}")")
+    done
+    ;;
   *)
     echo "[ERROR] unsupported TLTM_F20F_FIXED_FLOW_SCALE=${TLTM_F20F_FIXED_FLOW_SCALE}" >&2
-    echo "[ERROR] expected route_smoke or production_128x200k" >&2
+    echo "[ERROR] expected route_smoke, production_128x200k, or extension_384x200k" >&2
     exit 2
     ;;
 esac
