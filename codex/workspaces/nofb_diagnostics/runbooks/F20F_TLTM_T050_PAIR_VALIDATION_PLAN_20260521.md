@@ -207,3 +207,19 @@ Readback decision:
   shrink, promote to larger seed scale at 200k.
 - If the shift collapses, treat the 50k observable difference as finite-cycle
   noise and do not seed-scale the 50k run.
+
+Actual scheduler submit:
+
+- submit time: `2026-05-21T05:16:12+0900`
+- control commit on remote: `0068a0ad6099a21e6b61df80a1753c118048f6e4`
+- real manifest:
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_32seed_x_200000cycles_d60e7467d7d8/submit/submit_manifest_20260521T051612.env`
+- real queue plan:
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_32seed_x_200000cycles_d60e7467d7d8/submit/submit_queue_plan_20260521T051612.json`
+- queues: build `C16`, chunks `C12`, merge `C12`
+- jobs: build `16511.anode01`; `no_fb` chunks `16512`..`16515`;
+  `fb_norefine` chunks `16516`..`16519`; merge `16520.anode01`
+- immediate qstat: build running on `C16` with `exec_host=cnode01/0*16`;
+  all chunks and merge are held normally on `afterok` dependencies
+- scheduler returned after actual qsub and immediate readback; parent controls
+  science completion/readback
