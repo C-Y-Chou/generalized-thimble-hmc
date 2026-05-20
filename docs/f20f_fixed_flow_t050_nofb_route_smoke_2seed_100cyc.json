@@ -1,0 +1,91 @@
+{
+  "stage_3_4_todo": {
+    "version": "f20f-fixed-flow-t050-nofb-route-smoke-2seed-100cyc",
+    "name": "f20f_fixed_flow_t050_nofb_route_smoke_2seed_100cyc",
+    "goal": "Route smoke for the single-replica fixed-flow t=0.5 no_fb path before any larger no_fb-only distribution-bias test.",
+    "execution_line": {
+      "source_branch": "codex/fortran-modernization",
+      "remote_worktree": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization",
+      "qn_backend": "official_dfols",
+      "qn_official_dfols_preset": "f20f",
+      "qn_official_dfols_rhoend": "1e-16",
+      "qn_official_dfols_model_abs_tol": "1e-26",
+      "qn_official_dfols_model_rel_tol": "0"
+    },
+    "frozen_setup": {
+      "model": "1d_toy_model",
+      "flow_time_ladder": [0.5],
+      "max_flow_time": 0.5,
+      "trajectory_length_L": 2,
+      "nstep": 20,
+      "local_updates_per_cycle": 1,
+      "swap_scheme": "single_replica_fixed_flow",
+      "swap_schedule": "none",
+      "exchange_frequency": "none",
+      "stage2_init_mode": "adaptive",
+      "stage2_rng_stream_contract": "stage2_kernel_rng_v2",
+      "write_all_replica_history": true,
+      "all_replicas_share_same_local_parameters": true
+    },
+    "comparison_policy": {
+      "matched_controls": false,
+      "same_seed_set_for_all_methods": false,
+      "same_initialization_policy": true,
+      "same_cycle_count": true,
+      "same_measurement_protocol": true,
+      "judgment_sets": ["no_fb"],
+      "primary_judgment": [
+        "route_viability",
+        "projection_failure_count",
+        "unresolved_failure_count",
+        "reverse_gate_total_reject_count",
+        "fixed_flow_mode",
+        "replica_exchange_active"
+      ],
+      "diagnostic_not_blocking": ["Ohat_re", "Ohat_im", "P68", "P95"]
+    },
+    "observable_definition": {
+      "observable_name": "virial",
+      "exact_re": 0.0,
+      "exact_im": 0.0,
+      "error_source": "error_robust_virial_re_im",
+      "Z_mean_definition": "(mean_Ohat - O_exact) / standard_error_across_seeds"
+    },
+    "solver_and_gate_policy": {
+      "tolerance_profile": "f20f_most_conservative_double",
+      "cttol": "1e-13",
+      "abs_tol": "1e-14",
+      "rel_tol": "1e-14",
+      "reverse_gate_enabled": true,
+      "reverse_gate_tol": "1e-8",
+      "p": 28,
+      "quasi_tol": "1e-13",
+      "near_rescue_enabled": false,
+      "nonnear_rescue_enabled": false,
+      "global_fallback_enabled": false,
+      "post_newton_refine_for_withfb": false
+    },
+    "sampling_plan": {
+      "independent_runs_unit": "seed",
+      "n_seeds": 2,
+      "seed_start": 20260421,
+      "seed_stride": 97,
+      "cycles_per_seed": 100,
+      "warmup_cycles_optional": 0,
+      "measurement_stride": 1,
+      "diagnostic_stride": 1
+    },
+    "run_policy": {
+      "reference_level": "F20F_FIXED_FLOW_T050_NOFB_ROUTE_SMOKE",
+      "schedule": "task",
+      "chunks_per_method": 1,
+      "chunk_seed_counts": [2],
+      "chunk_seed_offsets": [0],
+      "chunk_worker_counts": [2],
+      "stage2_threads": 1,
+      "eval_threads": 1,
+      "output_subdir": "output/tests/f20f_fixed_flow_t050/route_smoke_nofb_2seed_100cyc",
+      "logs_subdir": "output/logs/f20f_fixed_flow_t050/route_smoke_nofb_2seed_100cyc"
+    }
+  }
+}

@@ -26,6 +26,7 @@ module load mkl/2025.3
 : "${TLTM_EXPECTED_ROWS_PER_METHOD:?TLTM_EXPECTED_ROWS_PER_METHOD is required}"
 : "${TLTM_REQUESTED_CPUS:=0}"
 : "${TLTM_CHUNKS_LABEL:=chunks}"
+: "${TLTM_METHODS:=no_fb,fb_norefine}"
 : "${TLTM_TOLERANCE_PROFILE_LABEL:=f20f_most_conservative_double}"
 : "${TLTM_STAGE2_ABS_TOL_OVERRIDE:=1e-14}"
 : "${TLTM_STAGE2_REL_TOL_OVERRIDE:=1e-14}"
@@ -61,7 +62,12 @@ date -Is
 hostname
 pwd
 
-for METHOD in no_fb fb_norefine; do
+TLTM_METHODS_NORMALIZED="${TLTM_METHODS// /}"
+IFS=',' read -r -a TLTM_METHOD_ARRAY <<< "${TLTM_METHODS_NORMALIZED}"
+for METHOD in "${TLTM_METHOD_ARRAY[@]}"; do
+  if [ -z "${METHOD}" ]; then
+    continue
+  fi
   python3 scripts/merge_stage3_multiseed_chunks.py \
     --repo-root . \
     --config "${TLTM_CONFIG_JSON}" \
@@ -87,7 +93,13 @@ config = os.environ["TLTM_CONFIG_JSON"]
 commit = os.environ["TLTM_EXPECTED_GIT_COMMIT"]
 branch = os.environ["TLTM_EXPECTED_GIT_BRANCH"]
 expected = int(os.environ["TLTM_EXPECTED_ROWS_PER_METHOD"])
-methods = ("no_fb", "fb_norefine")
+methods = tuple(
+    method.strip()
+    for method in os.environ.get("TLTM_METHODS", "no_fb,fb_norefine").replace(" ", "").split(",")
+    if method.strip()
+)
+if not methods:
+    raise SystemExit("TLTM_METHODS must include at least one method")
 with Path(config).open() as f:
     raw_config = json.load(f)
 if "stage_3_3_todo" in raw_config:
