@@ -1,9 +1,15 @@
 # TLTM Production Comparison State Brief
 
-Updated: 2026-05-14 JST
+Updated: 2026-05-21 JST
 
 ## Boundary Status
 
+- 2026-05-21 update: F20F is the unique active double-precision preset.  The
+  current no-fallback physics diagnostic line has moved to
+  `codex/workspaces/nofb_diagnostics`; old production-comparison outputs are
+  historical/pre-F20F unless regenerated under the F20F preset and current
+  source contract.  See
+  `runbooks/F20F_ARCHIVE_BOUNDARY_20260521.md`.
 - `PCB-001` is resolved as of 2026-05-12 JST.
 - `src/apps/probe_hmc_volume.f90` was moved out of the canonical modernization source root to `codex/workspaces/tltm_production_comparison/diagnostics/probe_hmc_volume.f90`.
 - Production-comparison diagnostics may continue from their own boundary, but must not be promoted into modernization source/build roots without a separate reviewed task.

@@ -2,7 +2,8 @@
 
 Date: 2026-05-20 JST
 
-Status: decided, pending active `t=0.5` fixed-flow readback.
+Status: executed through diagnostic packet creation; local path rename/prune
+pending after the metadata commit.
 
 ## Decision
 
@@ -129,6 +130,13 @@ output/reference/nofb_diagnostics/f20f/fixed_flow_t050_nofb_128seed_200k
 ```
 
 only after readback passes.
+
+Readback passed on 2026-05-21 JST and the canonical compact packet now lives at:
+
+```text
+codex/workspaces/nofb_diagnostics/runbooks/F20F_FIXED_FLOW_READBACK_20260521.md
+codex/workspaces/nofb_diagnostics/state/F20F_DATASET_REGISTRY.tsv
+```
 
 ## Post-T050 Cleanup Checklist
 
