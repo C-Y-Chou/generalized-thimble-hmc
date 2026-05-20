@@ -170,3 +170,40 @@ paired run does not yet show a >2 sigma observable shift. It supports
 transport/failure repair, while the strong observable-bias claim still needs a
 larger paired scale, a harder flow time, more replicas, or a higher-dimensional
 stress test.
+
+## Cycle-Length Validation Request
+
+The 32seed x 50k readback shows that per-seed cycle/jackknife errors are still
+comparable to the cross-seed error scale, so the next gate is not a wider 50k
+seed-scale run.  It is a same-seed, same-ladder cycle-length validation:
+
+- request id: `FMOD-F20F-TLTM-T050-LOW005-PAIR-32X200K-20260521`
+- scale: `32 seeds x 200000 cycles` per method
+- methods: `no_fb`, `fb_norefine`
+- ladder: `[0.05, 0.5]`
+- config: `docs/f20f_tltm_t050_low005_pair_32seed_200k.json`
+- launcher:
+  `bash codex/workspaces/fortran_modernization/tasks/scripts/submit_f20f_tltm_t050_low005_pair_validation_32seed_200k.sh`
+- source commit: `d60e7467d7d8a2827f9d8a5c6ebbfab62fff42fa`
+- dry-run manifest:
+  `output/logs/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_32seed_x_200000cycles_d60e7467d7d8/submit/submit_manifest_20260521T051240.env`
+- dry-run queue plan:
+  `output/logs/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_32seed_x_200000cycles_d60e7467d7d8/submit/submit_queue_plan_20260521T051240.json`
+- output root:
+  `output/tests/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_32seed_x_200000cycles_d60e7467d7d8`
+- log root:
+  `output/logs/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_32seed_x_200000cycles_d60e7467d7d8`
+
+Expected job shape:
+
+- one build job
+- four `no_fb` chunk jobs, `TLTM_JOBS=8`, walltime `12:00:00`
+- four `fb_norefine` chunk jobs, `TLTM_JOBS=8`, walltime `12:00:00`
+- one paired merge job with `TLTM_EXPECTED_ROWS_PER_METHOD=32`
+
+Readback decision:
+
+- If the paired `Ohat_re` shift remains near the 50k value and cycle errors
+  shrink, promote to larger seed scale at 200k.
+- If the shift collapses, treat the 50k observable difference as finite-cycle
+  noise and do not seed-scale the 50k run.
