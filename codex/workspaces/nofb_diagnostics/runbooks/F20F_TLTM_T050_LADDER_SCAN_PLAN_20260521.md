@@ -25,6 +25,20 @@ two-replica scan to choose a minimal ladder that repairs transport at the
 - preset: `f20f_most_conservative_double`
 - fallback policy: all fallback/rescue toggles off
 
+## Scheduler Handoff
+
+- request id: `FMOD-F20F-TLTM-T050-NOFB-LADDER-SCAN-4X5K-20260521`
+- runnable source commit: `f2a51e712fc13536a9c2d134ca4a818026e2cb47`
+- launcher:
+  `bash codex/workspaces/fortran_modernization/tasks/scripts/submit_f20f_tltm_t050_nofb_ladder_scan.sh`
+- dry-run manifest:
+  `output/logs/f20f_tltm_t050_ladder_scan/f20f_tltm_t050_nofb_ladder_scan_4seed_x_5000cycles_f2a51e712fc1/submit/submit_manifest_20260521T002323.env`
+- dry-run queue plan:
+  `output/logs/f20f_tltm_t050_ladder_scan/f20f_tltm_t050_nofb_ladder_scan_4seed_x_5000cycles_f2a51e712fc1/submit/submit_queue_plan_20260521T002323.json`
+- job shape: one build job, four no_fb candidate chunk jobs with
+  `TLTM_JOBS=4`, and four candidate merge jobs with
+  `TLTM_EXPECTED_ROWS_PER_METHOD=4`
+
 ## Selection Gate
 
 Pick the smallest two-replica ladder that simultaneously shows:
