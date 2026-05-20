@@ -63,6 +63,22 @@ Scheduler request:
 - expected log root:
   `output/logs/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_32seed_x_50000cycles_d2a365e0a195`
 
+Actual scheduler submit:
+
+- submit time: `2026-05-21T03:08:45+0900`
+- control commit on remote: `b69d61757c6ee3c5bdf9949dbe896af3aabc8442`
+- real manifest:
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_32seed_x_50000cycles_d2a365e0a195/submit/submit_manifest_20260521T030845.env`
+- real queue plan:
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_32seed_x_50000cycles_d2a365e0a195/submit/submit_queue_plan_20260521T030845.json`
+- queues: build `C16`, chunks `C12`, merge `C12`
+- jobs: build `16501.anode01`; `no_fb` chunks `16502`..`16505`;
+  `fb_norefine` chunks `16506`..`16509`; merge `16510.anode01`
+- immediate qstat: build running on `C16` with `exec_host=cnode01/0*16`;
+  all chunks and merge are held normally on `afterok` dependencies
+- scheduler returned after actual qsub and immediate readback; parent controls
+  science completion/readback
+
 Expected job shape:
 
 - one build job
