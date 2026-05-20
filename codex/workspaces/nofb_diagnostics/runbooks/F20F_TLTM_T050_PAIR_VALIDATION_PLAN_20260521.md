@@ -107,3 +107,66 @@ promote to a larger paired scale. If both methods remain statistically
 compatible, the current one-dimensional model may not support the strong BTN
 fallback claim at this endpoint without either larger flow time, more replicas,
 or a higher-dimensional stress test.
+
+## Readback
+
+Readback time: `2026-05-21T05:03:55+0900`
+
+All jobs finished with `Exit_status=0`.
+
+- build `16501`: walltime `00:02:00`, host `cnode01`
+- `no_fb` chunks `16502`..`16505`: walltime `00:44:39` to `00:46:13`,
+  host `cnode25`
+- `fb_norefine` chunks `16506`..`16509`: walltime `01:29:24` to `01:34:19`,
+  hosts `cnode25`, `cnode26`
+- merge `16510`: walltime `00:00:02`, host `cnode25`
+
+Root-level readback passed:
+
+- `no_fb/per_seed_summary_table.csv`: 32 rows
+- `fb_norefine/per_seed_summary_table.csv`: 32 rows
+- both aggregate tables present
+- protocol audit: `32/32` pass for both methods
+- preflight grep found no real `Python.h`, `libpython`, `pyconfig`,
+  `Traceback`, or `[ERROR]` failure; only the queue-plan expectation text
+  matched the grep pattern
+
+Preliminary aggregate table:
+
+| metric | no_fb | fb_norefine |
+| --- | ---: | ---: |
+| `mean_Ohat_re` | `-0.0160712166` | `0.0016347789` |
+| `mean_Ohat_im` | `-0.0007337249` | `-0.0070309860` |
+| seed std Re / Im | `0.0871994 / 0.0635735` | `0.0558787 / 0.0498222` |
+| seed SE Re / Im | `0.0154148 / 0.0112383` | `0.00987805 / 0.00880740` |
+| mean per-seed err Re / Im | `0.0770893 / 0.0541553` | `0.0584162 / 0.0386868` |
+| `Zmean_re`, `Zmean_im` | `-1.04258`, `-0.06529` | `0.16550`, `-0.79830` |
+| `P68`, `P95` | `0.3125`, `0.84375` | `0.4375`, `0.84375` |
+| unresolved failures | `255406` | `11727` |
+| mean projection failures | `8492.0` | `1028.59375` |
+| reverse-gate rejects | `16338` | `21188` |
+| pair0 accept rate | `0.2406175` | `0.240895` |
+| mean round trips | `6014.4375` | `6021.375` |
+| mean high-end hits | `24945.75` | `24971.25` |
+| mean runtime total | `2611.09 s` | `5362.39 s` |
+| ODEX calls | `965531523` | `1108562297` |
+| ODEX RHS evals | `244406558285` | `331968704305` |
+
+High-flow `Re z` sign motion, using `replica_001/z_history.dat`:
+
+- `no_fb`: `32/32` seeds visit both signs; total sign changes `96457`;
+  mean positive fraction `0.501946`
+- `fb_norefine`: `32/32` seeds visit both signs; total sign changes `103432`;
+  mean positive fraction `0.500994`
+
+Paired seed difference `no_fb - fb_norefine`:
+
+- Re: mean `-0.0177060`, SE `0.0136608`, paired Z `-1.296`
+- Im: mean `0.0062973`, SE `0.0088851`, paired Z `0.709`
+
+Initial interpretation: `fb_norefine` strongly reduces unresolved/projection
+failures and has slightly more high-flow sign motion, but this 32seed x 50k
+paired run does not yet show a >2 sigma observable shift. It supports
+transport/failure repair, while the strong observable-bias claim still needs a
+larger paired scale, a harder flow time, more replicas, or a higher-dimensional
+stress test.
