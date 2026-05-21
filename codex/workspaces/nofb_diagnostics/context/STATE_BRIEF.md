@@ -60,3 +60,16 @@ the old dirty archive packet under
 kept all canonical raw evidence roots.  The dirty legacy-linked worktree
 `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization_dirty_saved_20260517T035700Z`
 was intentionally held out for a separate source-diff decision.
+
+That source-diff review is now complete:
+
+```text
+codex/workspaces/nofb_diagnostics/runbooks/F20F_DIRTY_SAVED_SOURCE_DIFF_REVIEW_20260521.md
+```
+
+Conclusion: do not port anything from the dirty saved tree.  It is an older
+F18b/Hairer-controller intermediate, while current `codex/fortran-modernization`
+already contains the later route and readbacks.  Future deletion should use a
+plain path deletion after approval, not `git worktree remove`, because the
+saved tree points at stale legacy git metadata whose recorded path collides
+with the canonical standalone execution worktree.

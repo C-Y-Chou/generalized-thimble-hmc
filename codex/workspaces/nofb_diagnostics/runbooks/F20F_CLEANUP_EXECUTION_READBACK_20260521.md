@@ -39,6 +39,17 @@ The following path was not deleted:
 Reason: it is a dirty legacy-linked worktree at `243c09ceb99f` with 53 dirty
 entries.  It needs a separate source-diff decision before archive/delete.
 
+The source-diff review was completed after this cleanup pass:
+
+```text
+codex/workspaces/nofb_diagnostics/runbooks/F20F_DIRTY_SAVED_SOURCE_DIFF_REVIEW_20260521.md
+```
+
+Review conclusion: no source/test/script/state/doc change should be ported.
+The dirty tree is an older F18b/Hairer-controller intermediate, and the full
+patch/untracked payload is already preserved in the archive packet moved by
+this cleanup pass.
+
 ## Verification
 
 `qstat -u cychou` was empty before cleanup and empty after cleanup.
