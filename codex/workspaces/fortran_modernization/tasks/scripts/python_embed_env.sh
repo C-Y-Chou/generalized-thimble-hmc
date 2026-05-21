@@ -51,11 +51,31 @@ tltm_configure_python_embed() {
     fi
   fi
 
+  local dfols_venv="${TLTM_DFOLS_VENV_ROOT:-${TLTM_WORKTREE}/.venv-dfols}"
+  if [ -x "${dfols_venv}/bin/python" ]; then
+    : "${PYTHON:=${dfols_venv}/bin/python}"
+    if [ -z "${TLTM_OFFICIAL_DFOLS_PYTHONPATH:-}" ]; then
+      local dfols_pythonpath
+      if dfols_pythonpath="$("${dfols_venv}/bin/python" - <<'PY'
+import dfols
+import site
+
+paths = site.getsitepackages()
+if paths:
+    print(paths[0])
+PY
+)"; then
+        TLTM_OFFICIAL_DFOLS_PYTHONPATH="$(printf '%s\n' "${dfols_pythonpath}" | tail -n 1)"
+      fi
+    fi
+  fi
+
   : "${PYTHON:=python${TLTM_PYTHON_VERSION}}"
   : "${PYTHON_EMBED_CFLAGS:=${py_cflags}}"
   : "${PYTHON_EMBED_LDFLAGS:=${py_lib} -lpthread -ldl -lutil -lm}"
 
   export PYTHON PYTHON_EMBED_CFLAGS PYTHON_EMBED_LDFLAGS
+  export TLTM_OFFICIAL_DFOLS_PYTHONPATH
   export TLTM_PYTHON_DEVEL_ROOT
   export LD_LIBRARY_PATH="${py_libdir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 }
