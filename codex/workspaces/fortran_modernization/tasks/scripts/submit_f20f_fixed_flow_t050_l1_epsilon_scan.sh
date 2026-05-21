@@ -55,9 +55,28 @@ case "${TLTM_F20F_FIXED_FLOW_T050_L1_EPS_SCAN_SCALE}" in
       docs/f20f_fixed_flow_t050_nofb_l1_eps025_4seed_5k.json
     )
     ;;
+  aggressive3x4x5k)
+    scan_level="F20F_FIXED_FLOW_T050_NOFB_L1_EPSILON_SCAN_AGGRESSIVE3X4X5K"
+    scale_text="3cand_4seed_x_5000cycles"
+    expected_rows=4
+    requested_cpus=12
+    chunk_ncpus=4
+    max_seeds=4
+    chunk_walltime="02:00:00"
+    chunks=(00)
+    candidates=(eps0333 eps050 eps100)
+    l_values=("1.0" "1.0" "1.0")
+    nsteps=(3 2 1)
+    eps_values=("0.3333" "0.50" "1.0")
+    configs=(
+      docs/f20f_fixed_flow_t050_nofb_l1_eps0333_4seed_5k.json
+      docs/f20f_fixed_flow_t050_nofb_l1_eps050_4seed_5k.json
+      docs/f20f_fixed_flow_t050_nofb_l1_eps100_4seed_5k.json
+    )
+    ;;
   *)
     echo "[ERROR] unsupported TLTM_F20F_FIXED_FLOW_T050_L1_EPS_SCAN_SCALE=${TLTM_F20F_FIXED_FLOW_T050_L1_EPS_SCAN_SCALE}" >&2
-    echo "[ERROR] expected short5x4x5k" >&2
+    echo "[ERROR] expected short5x4x5k or aggressive3x4x5k" >&2
     exit 2
     ;;
 esac
@@ -233,7 +252,7 @@ queue_plan="${TLTM_ROOT_LOG_BASE}/submit/submit_queue_plan_${stamp}.json"
   echo "  \"output_root_base\": \"${TLTM_ROOT_BASE}\","
   echo "  \"log_root_base\": \"${TLTM_ROOT_LOG_BASE}\","
   echo "  \"expected_rows_per_candidate\": ${expected_rows},"
-  echo "  \"candidate_selection_rule\": \"Fixed tau t=0.5 no_fb small-L screen: choose epsilon with local acceptance not near 1, not frozen, visible failure pressure, and acceptable runtime before any paired TLTM validation.\","
+  echo "  \"candidate_selection_rule\": \"Fixed tau t=0.5 no_fb small-L screen: choose epsilon by target acceptance first; failure pressure is expected and not blocking unless the chain is frozen or outputs become invalid.\","
   echo "  \"tolerances\": {"
   echo "    \"TLTM_STAGE2_ABS_TOL_OVERRIDE\": \"${TLTM_STAGE2_ABS_TOL_OVERRIDE}\","
   echo "    \"TLTM_STAGE2_REL_TOL_OVERRIDE\": \"${TLTM_STAGE2_REL_TOL_OVERRIDE}\","
