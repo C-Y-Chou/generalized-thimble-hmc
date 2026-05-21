@@ -20,13 +20,26 @@ program test_action_derivatives
    complex(dp) :: action_p2, action_p1, action_m1, action_m2
    character(len=64) :: obs_name
 
-   call configure_stephanov_test_model()
+   call run_stephanov_derivative_case("smoke_n2_mu03", 2, 0.2_dp, 0.3_dp, 0.1_dp, 24681357)
+   call run_stephanov_derivative_case("benchmark_n4_mu06", 4, 0.004_dp, 0.6_dp, 0.0_dp, 13579246)
+   write (*, '(A)') "[DONE] Stephanov random-complex derivative test suite complete."
+
+contains
+
+   subroutine run_stephanov_derivative_case(case_label, n_model, mass, mu, tau, seed_base)
+      character(len=*), intent(in) :: case_label
+      integer, intent(in) :: n_model, seed_base
+      real(dp), intent(in) :: mass, mu, tau
+
+      call configure_stephanov_test_model(n_model, mass, mu, tau)
    call random_seed(size=seed_size)
+      if (allocated(rng_seed)) deallocate (rng_seed)
    allocate (rng_seed(seed_size))
-   rng_seed = [(24681357 + 97*i, i=1, seed_size)]
+      rng_seed = [(seed_base + 97*i, i=1, seed_size)]
    call random_seed(put=rng_seed)
 
    n_state = 2*stephanov_n*stephanov_n
+      call reset_case_allocations()
    allocate (z_state(n_state), z_work(n_state), v_dir(n_state))
    allocate (grad_manual(n_state), grad_numeric(n_state), hv_manual(n_state), hv_numeric(n_state))
    allocate (grad_p2(n_state), grad_p1(n_state), grad_m1(n_state), grad_m2(n_state))
@@ -46,7 +59,8 @@ program test_action_derivatives
    end do
 
    h = 2.0e-5_dp
-   write (*, '(A,I0,A,I0)') "[INIT] Stephanov derivative test starts. n=", stephanov_n, " n_state=", n_state
+      write (*, '(A,A,A,I0,A,I0,A,ES10.3,A,ES10.3,A,ES10.3)') "[INIT] Stephanov derivative case=", trim(case_label), &
+         " n=", stephanov_n, " n_state=", n_state, " m=", stephanov_mass, " mu=", stephanov_mu, " tau=", stephanov_tau
    write (*, '(A,ES12.4)') "[INIT] Five-point finite-difference step=", h
 
    call ds(z_state, grad_manual)
@@ -98,20 +112,40 @@ program test_action_derivatives
 
    call check_observables(z_state)
    write (*, '(A,A)') "[CHECK] derivative_mode=", trim(derivative_mode)
-   write (*, '(A)') "[DONE] Stephanov random-complex derivative test complete."
+      write (*, '(A,A)') "[DONE] Stephanov random-complex derivative case complete: ", trim(case_label)
+   end subroutine run_stephanov_derivative_case
 
-contains
+   subroutine configure_stephanov_test_model(n_model, mass, mu, tau)
+      integer, intent(in) :: n_model
+      real(dp), intent(in) :: mass, mu, tau
 
-   subroutine configure_stephanov_test_model()
-      stephanov_n = 2
+      stephanov_n = n_model
       stephanov_nf = 1
-      stephanov_mass = 0.2_dp
-      stephanov_mu = 0.3_dp
-      stephanov_tau = 0.1_dp
+      stephanov_mass = mass
+      stephanov_mu = mu
+      stephanov_tau = tau
       stephanov_include_mu_prefactor = .false.
       stephanov_emit_diagnostics = .true.
       call set_derivative_mode("manual")
    end subroutine configure_stephanov_test_model
+
+   subroutine reset_case_allocations()
+      if (allocated(z_state)) deallocate (z_state)
+      if (allocated(z_work)) deallocate (z_work)
+      if (allocated(v_dir)) deallocate (v_dir)
+      if (allocated(grad_manual)) deallocate (grad_manual)
+      if (allocated(grad_numeric)) deallocate (grad_numeric)
+      if (allocated(hv_manual)) deallocate (hv_manual)
+      if (allocated(hv_numeric)) deallocate (hv_numeric)
+      if (allocated(grad_p2)) deallocate (grad_p2)
+      if (allocated(grad_p1)) deallocate (grad_p1)
+      if (allocated(grad_m1)) deallocate (grad_m1)
+      if (allocated(grad_m2)) deallocate (grad_m2)
+      if (allocated(hess_manual)) deallocate (hess_manual)
+      if (allocated(random_real)) deallocate (random_real)
+      if (allocated(random_imag)) deallocate (random_imag)
+      if (allocated(observables)) deallocate (observables)
+   end subroutine reset_case_allocations
 
    subroutine check_observables(z_state_in)
       complex(dp), intent(in) :: z_state_in(:)

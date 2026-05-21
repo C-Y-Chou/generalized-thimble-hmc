@@ -95,6 +95,27 @@ There were no proposal-construction failures in either Stage2 run, and
 `t=0` has no flowed Jacobian.  Therefore the observed collapse of phase
 coherence at `n=4` is a model sign problem, not a nofb solver failure.
 
+## Derivative/Hessian Gate At n=4
+
+After the n-scan, `tests/test_action_derivatives.f90` was extended to include
+the benchmark severe-onset point:
+
+```text
+n=4, m=0.004, mu=0.6, tau=0
+```
+
+The test uses random genuinely complexified `Zx,Zy` and validates manual
+derivatives with five-point finite differences.  Local readback:
+
+| case | ds vs FD | HVP vs FD gradient | hessian*v vs HVP |
+|---|---:|---:|---:|
+| `n=2, m=0.2, mu=0.3, tau=0.1` | `1.0104e-10` | `7.3519e-11` | `6.4172e-15` |
+| `n=4, m=0.004, mu=0.6, tau=0` | `1.6182e-10` | `3.1479e-10` | `1.2535e-14` |
+
+This validates the action gradient and Hessian-vector product at the severe
+n-scan baseline.  The explicit dense `hessian` wrapper is checked by comparing
+`matmul(hessian, v)` against the hand-written HVP.
+
 ## Conclusion
 
 For the benchmark Stephanov parameters:
