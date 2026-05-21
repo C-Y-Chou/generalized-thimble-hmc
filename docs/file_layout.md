@@ -27,6 +27,8 @@ This document defines the intended responsibilities of top-level directories and
   - default Stephanov `n=2` runtime parameter file (`key=value` only)
 - `data/parameters_stephanov_n2_smoke.dat`
   - tiny local Stephanov smoke config for build/flow/observable-stream checks
+- `data/parameters_stephanov_n6_mu06_t0.dat`
+  - selected Stephanov working-point preset (`n=6, m=0.004, mu=0.6, tau=0, t=0`)
 - `model_specs/`
   - inert staging area for future model definitions and validation plans; not compiled
 

@@ -40,7 +40,7 @@ Updated: 2026-05-22 JST
   `runbooks/ODEX_CONTROLLER_DETAIL_AUDIT_20260514.md`, and
   `runbooks/HANDWRITTEN_ALGORITHM_CURRENT_ANALYSIS_REPORT_20260514.md`.  This is `CV-012`: the 2026-05-15 all-handwritten paper-correctness/numerical-soundness audit is now resolved for the current source-contract scope by the ODEX/F18b.5j, Metropolis, RATTLE/HMC, NT, QN, flow/model/action, Stage2/RNG, and remaining-surfaces HWA packets. Universal publication/product paper-correctness still must not be claimed for final schema/API cleanup, precision-profile changes, thread-safe productization, or production-comparison regeneration until those gates are separately closed.
 - Required read before continuing CV-011 RNG work: `runbooks/CV011_STAGE2_KERNEL_RNG_V2_IMPLEMENTATION_20260514.md`.  `TLTM_STAGE2_RNG_STREAM_CONTRACT=stage2_kernel_rng_v2` is implemented as the Stage2 default; `legacy_global_v0` is compatibility only, and `per_replica_rng_v1` is retained for the post-B anchor/audit path.
-- Operational rule from 2026-05-16 JST: do not run TLTM production or screen jobs locally.  Use the remote PBS route for Stage2/Stage3 screens.  Temporary 2026-05-22 exception while the cluster is under maintenance: local n=2 Stephanov smoke/contract runs are allowed for implementation verification only, not as production evidence.
+- Operational rule from 2026-05-16 JST: do not run TLTM production or screen jobs locally.  Use the remote PBS route for Stage2/Stage3 screens.  Temporary 2026-05-22 exception while the cluster is under maintenance: local Stephanov implementation/contract runs, including short `n=6` working-point checks, are allowed for implementation verification only, not as production evidence.
 
 ## Current Position
 
@@ -142,9 +142,9 @@ Updated: 2026-05-22 JST
 - Do not delete reference outputs/logs until registry/readback is complete.
 - Do not run TLTM Stage2/Stage3 production or screen jobs locally; use remote
   PBS jobs for screen, baseline, and production-like execution.  Temporary
-  2026-05-22 exception while the cluster is under maintenance: local n=2
-  Stephanov smoke/contract runs are allowed for implementation verification
-  only, not as production evidence.
+  2026-05-22 exception while the cluster is under maintenance: local Stephanov
+  implementation/contract runs, including short `n=6` working-point checks, are
+  allowed for implementation verification only, not as production evidence.
 
 ## Key Files
 
@@ -209,8 +209,9 @@ Updated: 2026-05-22 JST
 - `runbooks/STEPHANOV_MANUAL_PROVIDER_DECISION_20260522.md`: Stephanov production path is hand-written analytic dense provider only for action, `ds`, `hessian_vec`, and observables; finite differences are the current validation oracle, with the derivative/HVP gate based on random genuinely complexified `Zx,Zy` seeds.
 - `runbooks/STEPHANOV_PROVIDER_IMPLEMENTATION_20260522.md`: current source-provider implementation record, n=2 random-complex derivative/HVP readback, Stage2 observable-stream smoke, evaluator stream readback, and swap-kernel contract result.
 - `runbooks/STEPHANOV_N2_PHYSICS_GATE_20260522.md`: n=2 nofb physics gate. Flow time 0 passes against an independent Gauss-Hermite reference for `chiral_condensate` and `number_density`; `t=1e-5` is a low-flow sanity check only, because nofb proposal failures are small but nonzero.
-- `runbooks/STEPHANOV_T0_N_SCAN_SIGN_PROBLEM_20260522.md`: t=0 n-scan sign-problem gate for benchmark `m=0.004, mu=0.6, tau=0`; direct Gaussian reweighting and canonical Stage2 nofb both show the first severe point at `n=4` with phase coherence about `0.1185`.
-- `runbooks/STEPHANOV_WORKING_N_DECISION_20260522.md`: working-dimension decision. Use `n=4, m=0.004, mu=0.6, tau=0` as the primary development target; reserve `n=6` for the first stress target after n=4 workflows are stable; defer `n>=8`.
+- `runbooks/STEPHANOV_T0_N_SCAN_SIGN_PROBLEM_20260522.md`: t=0 n-scan sign-problem gate for benchmark `m=0.004, mu=0.6, tau=0`; direct Gaussian reweighting and canonical Stage2 nofb show phase degradation by `n=4`, while `n=6` is the first selected observable-error stressed working point.
+- `runbooks/STEPHANOV_WORKING_N_DECISION_20260522.md`: working-dimension decision. User selected `n=6, m=0.004, mu=0.6, tau=0` as the primary development target despite higher cost; keep `n=4` only as a cheaper calibration/control point; defer `n>=8`. The `n=6` random-complex derivative/Hessian gate is included in `tests/test_action_derivatives.f90`.
+- `data/parameters_stephanov_n6_mu06_t0.dat`: selected Stephanov working-point preset (`n=6, m=0.004, mu=0.6, tau=0, t=0`) with `physical_state_size=72`; use this as the baseline local development config, not as production evidence.
 - `runbooks/F18B3_ODEX_FLOW_STATE_AND_BEHAVIOR_CORRECTION_DECISION_20260516.md`: F18b.3 decision packet; split runtime trace from run diagnostics, preserve public counter/status/output values, and require a separate behavior-correction packet for semantic diagnostic or numerical behavior changes.
 - `runbooks/HANDWRITTEN_MISMATCH_RESOLUTION_TABLE_20260516.md`: active decision table for all-handwritten non-paper-exact surfaces; HWM-ODEX-001, HWM-RATTLE-001, and HWM-MET-001 are confirmed, while remaining rows still need decision or evidence packets.
 - `runbooks/HWM_METROPOLIS_REJECT_OUTPUT_CONTRACT_20260517.md`: HWM-MET-001 focused M4-passed implementation packet; finite ordinary Metropolis rejection now resets public output buffers to the current stay-put state.
@@ -250,7 +251,7 @@ Updated: 2026-05-22 JST
 
 ## Next Action
 
-For current high-dimensional-model preparation, the active local next step is to scale the promoted Stephanov dense provider beyond the `n=2` smoke: add `n=4` random-complex derivative/HVP checks, then run short `n=4` and `n=6` observable-stream TLTM smokes before attempting the `n=10`, `m=0.004`, `tau=0` exact-reference sweep. Do not add runtime `model_name` branches to canonical sampler/config code; changing models should replace the active source provider behind the same model API. Older production-comparison handoff remains owned by `/Users/ccy/Documents/TLTM_qn_error_handling` / the external `tltm_production_comparison` tree when that stream is reopened.
+For current high-dimensional-model preparation, the active local next step is to stabilize the promoted Stephanov dense provider at the user-selected `n=6, m=0.004, mu=0.6, tau=0` working point: keep the random-complex derivative/Hessian gate green, use `data/parameters_stephanov_n6_mu06_t0.dat` for baseline `t=0` checks, then start the short nofb nonzero-flow ladder from very low flow time. Use `n=4` only as a cheaper calibration/control point when the same workflow will be rerun at `n=6`; defer `n>=8` until the `n=6` workflow is settled. Do not add runtime `model_name` branches to canonical sampler/config code; changing models should replace the active source provider behind the same model API. Older production-comparison handoff remains owned by `/Users/ccy/Documents/TLTM_qn_error_handling` / the external `tltm_production_comparison` tree when that stream is reopened.
 
 F18b.0/F18b.1/F18b.2 from
 `F18B_HANDWRITTEN_ODEX_ENDPOINT_HARDENING_20260516.md` are implemented:

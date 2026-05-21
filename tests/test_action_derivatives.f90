@@ -22,6 +22,7 @@ program test_action_derivatives
 
    call run_stephanov_derivative_case("smoke_n2_mu03", 2, 0.2_dp, 0.3_dp, 0.1_dp, 24681357)
    call run_stephanov_derivative_case("benchmark_n4_mu06", 4, 0.004_dp, 0.6_dp, 0.0_dp, 13579246)
+   call run_stephanov_derivative_case("working_n6_mu06", 6, 0.004_dp, 0.6_dp, 0.0_dp, 97531864)
    write (*, '(A)') "[DONE] Stephanov random-complex derivative test suite complete."
 
 contains
@@ -32,86 +33,86 @@ contains
       real(dp), intent(in) :: mass, mu, tau
 
       call configure_stephanov_test_model(n_model, mass, mu, tau)
-   call random_seed(size=seed_size)
+      call random_seed(size=seed_size)
       if (allocated(rng_seed)) deallocate (rng_seed)
-   allocate (rng_seed(seed_size))
+      allocate (rng_seed(seed_size))
       rng_seed = [(seed_base + 97*i, i=1, seed_size)]
-   call random_seed(put=rng_seed)
+      call random_seed(put=rng_seed)
 
-   n_state = 2*stephanov_n*stephanov_n
+      n_state = 2*stephanov_n*stephanov_n
       call reset_case_allocations()
-   allocate (z_state(n_state), z_work(n_state), v_dir(n_state))
-   allocate (grad_manual(n_state), grad_numeric(n_state), hv_manual(n_state), hv_numeric(n_state))
-   allocate (grad_p2(n_state), grad_p1(n_state), grad_m1(n_state), grad_m2(n_state))
-   allocate (hess_manual(n_state, n_state), random_real(n_state), random_imag(n_state))
+      allocate (z_state(n_state), z_work(n_state), v_dir(n_state))
+      allocate (grad_manual(n_state), grad_numeric(n_state), hv_manual(n_state), hv_numeric(n_state))
+      allocate (grad_p2(n_state), grad_p1(n_state), grad_m1(n_state), grad_m2(n_state))
+      allocate (hess_manual(n_state, n_state), random_real(n_state), random_imag(n_state))
 
-   call random_number(random_real)
-   call random_number(random_imag)
-   do i = 1, n_state
-      z_state(i) = cmplx(0.25_dp*(2.0_dp*random_real(i) - 1.0_dp), &
-                         0.20_dp*(2.0_dp*random_imag(i) - 1.0_dp), dp)
-   end do
-   call random_number(random_real)
-   call random_number(random_imag)
-   do i = 1, n_state
-      v_dir(i) = cmplx(0.30_dp*(2.0_dp*random_real(i) - 1.0_dp), &
-                       0.30_dp*(2.0_dp*random_imag(i) - 1.0_dp), dp)
-   end do
+      call random_number(random_real)
+      call random_number(random_imag)
+      do i = 1, n_state
+         z_state(i) = cmplx(0.25_dp*(2.0_dp*random_real(i) - 1.0_dp), &
+                            0.20_dp*(2.0_dp*random_imag(i) - 1.0_dp), dp)
+      end do
+      call random_number(random_real)
+      call random_number(random_imag)
+      do i = 1, n_state
+         v_dir(i) = cmplx(0.30_dp*(2.0_dp*random_real(i) - 1.0_dp), &
+                          0.30_dp*(2.0_dp*random_imag(i) - 1.0_dp), dp)
+      end do
 
-   h = 2.0e-5_dp
+      h = 2.0e-5_dp
       write (*, '(A,A,A,I0,A,I0,A,ES10.3,A,ES10.3,A,ES10.3)') "[INIT] Stephanov derivative case=", trim(case_label), &
          " n=", stephanov_n, " n_state=", n_state, " m=", stephanov_mass, " mu=", stephanov_mu, " tau=", stephanov_tau
-   write (*, '(A,ES12.4)') "[INIT] Five-point finite-difference step=", h
+      write (*, '(A,ES12.4)') "[INIT] Five-point finite-difference step=", h
 
-   call ds(z_state, grad_manual)
-   do i = 1, n_state
-      z_work = z_state
-      z_work(i) = z_state(i) + 2.0_dp*h
-      call calculate_action(z_work, action_p2)
-      z_work(i) = z_state(i) + h
-      call calculate_action(z_work, action_p1)
-      z_work(i) = z_state(i) - h
-      call calculate_action(z_work, action_m1)
-      z_work(i) = z_state(i) - 2.0_dp*h
-      call calculate_action(z_work, action_m2)
-      grad_numeric(i) = (-action_p2 + 8.0_dp*action_p1 - 8.0_dp*action_m1 + action_m2)/(12.0_dp*h)
-   end do
-   grad_diff_norm = sqrt(sum(abs(grad_manual - grad_numeric)**2))
-   write (*, '(A,ES12.4)') "[CHECK] Norm of ds(manual-fd)=", grad_diff_norm
-   if (grad_diff_norm > 1.0e-7_dp) then
-      write (*, '(A)') "[ERROR] Stephanov manual ds does not match finite-difference oracle."
-      call print_vector_diffs("ds", grad_manual, grad_numeric)
-      error stop 1
-   end if
+      call ds(z_state, grad_manual)
+      do i = 1, n_state
+         z_work = z_state
+         z_work(i) = z_state(i) + 2.0_dp*h
+         call calculate_action(z_work, action_p2)
+         z_work(i) = z_state(i) + h
+         call calculate_action(z_work, action_p1)
+         z_work(i) = z_state(i) - h
+         call calculate_action(z_work, action_m1)
+         z_work(i) = z_state(i) - 2.0_dp*h
+         call calculate_action(z_work, action_m2)
+         grad_numeric(i) = (-action_p2 + 8.0_dp*action_p1 - 8.0_dp*action_m1 + action_m2)/(12.0_dp*h)
+      end do
+      grad_diff_norm = sqrt(sum(abs(grad_manual - grad_numeric)**2))
+      write (*, '(A,ES12.4)') "[CHECK] Norm of ds(manual-fd)=", grad_diff_norm
+      if (grad_diff_norm > 1.0e-7_dp) then
+         write (*, '(A)') "[ERROR] Stephanov manual ds does not match finite-difference oracle."
+         call print_vector_diffs("ds", grad_manual, grad_numeric)
+         error stop 1
+      end if
 
-   call hessian_vec(z_state, v_dir, hv_manual)
-   z_work = z_state + 2.0_dp*h*v_dir
-   call ds(z_work, grad_p2)
-   z_work = z_state + h*v_dir
-   call ds(z_work, grad_p1)
-   z_work = z_state - h*v_dir
-   call ds(z_work, grad_m1)
-   z_work = z_state - 2.0_dp*h*v_dir
-   call ds(z_work, grad_m2)
-   hv_numeric = (-grad_p2 + 8.0_dp*grad_p1 - 8.0_dp*grad_m1 + grad_m2)/(12.0_dp*h)
-   hv_diff_norm = sqrt(sum(abs(hv_manual - hv_numeric)**2))
-   write (*, '(A,ES12.4)') "[CHECK] Norm of Hv(manual-fd)=", hv_diff_norm
-   if (hv_diff_norm > 2.0e-6_dp) then
-      write (*, '(A)') "[ERROR] Stephanov manual hessian_vec does not match finite-difference oracle."
-      call print_vector_diffs("hv", hv_manual, hv_numeric)
-      error stop 1
-   end if
+      call hessian_vec(z_state, v_dir, hv_manual)
+      z_work = z_state + 2.0_dp*h*v_dir
+      call ds(z_work, grad_p2)
+      z_work = z_state + h*v_dir
+      call ds(z_work, grad_p1)
+      z_work = z_state - h*v_dir
+      call ds(z_work, grad_m1)
+      z_work = z_state - 2.0_dp*h*v_dir
+      call ds(z_work, grad_m2)
+      hv_numeric = (-grad_p2 + 8.0_dp*grad_p1 - 8.0_dp*grad_m1 + grad_m2)/(12.0_dp*h)
+      hv_diff_norm = sqrt(sum(abs(hv_manual - hv_numeric)**2))
+      write (*, '(A,ES12.4)') "[CHECK] Norm of Hv(manual-fd)=", hv_diff_norm
+      if (hv_diff_norm > 2.0e-6_dp) then
+         write (*, '(A)') "[ERROR] Stephanov manual hessian_vec does not match finite-difference oracle."
+         call print_vector_diffs("hv", hv_manual, hv_numeric)
+         error stop 1
+      end if
 
-   call hessian(z_state, hess_manual)
-   hess_hv_diff_norm = sqrt(sum(abs(matmul(hess_manual, v_dir) - hv_manual)**2))
-   write (*, '(A,ES12.4)') "[CHECK] Norm of hessian*v-Hv=", hess_hv_diff_norm
-   if (hess_hv_diff_norm > 1.0e-10_dp) then
-      write (*, '(A)') "[ERROR] Stephanov hessian wrapper does not match hessian_vec columns."
-      error stop 1
-   end if
+      call hessian(z_state, hess_manual)
+      hess_hv_diff_norm = sqrt(sum(abs(matmul(hess_manual, v_dir) - hv_manual)**2))
+      write (*, '(A,ES12.4)') "[CHECK] Norm of hessian*v-Hv=", hess_hv_diff_norm
+      if (hess_hv_diff_norm > 1.0e-10_dp) then
+         write (*, '(A)') "[ERROR] Stephanov hessian wrapper does not match hessian_vec columns."
+         error stop 1
+      end if
 
-   call check_observables(z_state)
-   write (*, '(A,A)') "[CHECK] derivative_mode=", trim(derivative_mode)
+      call check_observables(z_state)
+      write (*, '(A,A)') "[CHECK] derivative_mode=", trim(derivative_mode)
       write (*, '(A,A)') "[DONE] Stephanov random-complex derivative case complete: ", trim(case_label)
    end subroutine run_stephanov_derivative_case
 

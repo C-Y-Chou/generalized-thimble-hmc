@@ -2,16 +2,17 @@
 
 ## Decision
 
-Use `n=4` as the primary working dimension for the next TLTM/GTM development
-cycle.
+User decision update: use `n=6` as the primary working dimension for the next
+TLTM/GTM development cycle.
 
-Use `n=6` as the first stress dimension after the `n=4` workflow is stable.
+Use `n=4` only as a cheaper calibration/control point when a workflow needs
+fast iteration before being rerun at `n=6`.
 
 Do not use `n=8` or higher as the immediate working dimension.  At
 `m=0.004, mu=0.6, tau=0, t=0`, direct phase reweighting already estimates a
 phase effective fraction below `1e-4` by `n=8`, which is too expensive for
 the current local/cluster-maintenance phase and would mostly measure resource
-limits before the algorithmic workflow is settled.
+limits before the `n=6` algorithmic workflow is settled.
 
 ## Fixed Scan Conditions
 
@@ -42,8 +43,12 @@ Independent Gaussian reweighting readback:
 Interpretation:
 
 - `n=2` is too mild for the intended sign-problem work.
-- `n=4` is the first nontrivial sign-problem point while still tractable.
-- `n=6` is already a serious stress point.
+- `n=4` is the first nontrivial sign-problem point while still tractable, but
+  it is too mild if the goal is to work where observable errors are already
+  materially stressed.
+- `n=6` is the selected working point: observable error bars are already
+  around the `20%` level in a short nofb run, but the canonical path still has
+  zero proposal-construction failures at `t=0`.
 - `n>=8` is beyond the immediate working range for nofb `t=0` development.
 
 ## Canonical Stage2 nofb Readback
@@ -71,8 +76,9 @@ Observable readback:
 | `chiral_condensate` | `0.017808141 - 0.000079110 i` | not persisted in this packet | n/a |
 | `number_density` | `0.36890828 + 0.00864963 i` | not persisted in this packet | n/a |
 
-This point is useful because phase reweighting is visibly degraded while
-canonical nofb still runs cleanly with no proposal-construction failures.
+This point remains useful as a cheaper calibration/control point because phase
+reweighting is visibly degraded while canonical nofb still runs cleanly with no
+proposal-construction failures.
 
 ### n=6
 
@@ -99,16 +105,52 @@ Observable readback:
 | `number_density` | `0.62398207 - 0.00390076 i` | `0.13038817` | `0.14015350` | `20.9%` |
 
 This is the first dimension where the observable error bars are already large
-in a short canonical nofb run.  It is therefore a good stress target, but too
-costly and noisy as the first working dimension.
+in a short canonical nofb run.  The user selected this as the primary working
+dimension despite the higher local cost, because it is the first point where
+the sign problem is visible at the observable-error level.
+
+## n=6 Derivative/Hessian Gate
+
+The canonical random-complex derivative test now includes the selected working
+point:
+
+```text
+case=working_n6_mu06
+n=6
+n_state=72
+m=0.004
+mu=0.6
+tau=0
+derivative_mode=manual
+```
+
+Readback from `bin/test_program2`:
+
+| check | norm |
+|---|---:|
+| `ds(manual-fd)` | `4.1414e-10` |
+| `Hv(manual-fd)` | `1.6015e-10` |
+| `hessian*v-Hv` | `8.7263e-15` |
+
+This validates the hand-written action gradient, Hessian-vector product, and
+dense Hessian wrapper at the selected complexified working point against the
+finite-difference oracle.
+
+## Runtime Preset
+
+Use `data/parameters_stephanov_n6_mu06_t0.dat` for canonical local `t=0`
+development runs at the selected working point.  The preset keeps
+`physical_state_size = 72` and `x_size = 73`; the latter is legacy packed-state
+compatibility only, while flow time remains replica/slot metadata.
 
 ## Working Plan
 
 1. Stabilize all nonzero-flow, observable-stream, and validation workflows at
-   `n=4, m=0.004, mu=0.6, tau=0`.
-2. Use `n=4` to tune flow-time ladders and distinguish phase improvement from
-   solver/mobility failures.
-3. Promote to `n=6` only after the `n=4` run protocol has a clear pass/fail
-   table and known local/PBS runtime.
+   `n=6, m=0.004, mu=0.6, tau=0`, using
+   `data/parameters_stephanov_n6_mu06_t0.dat` as the baseline `t=0` preset.
+2. Use `n=4` only for quick calibration runs when the same workflow will be
+   rerun at `n=6` before any conclusion.
+3. Keep `n=6` run protocols short and explicit until PBS is available again;
+   local `n=6` runs are useful for development, not production evidence.
 4. Treat `n>=8` as later production/stress scope, not the immediate
    development target.
