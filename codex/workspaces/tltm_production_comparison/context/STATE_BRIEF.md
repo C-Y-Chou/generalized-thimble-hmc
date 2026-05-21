@@ -4,6 +4,11 @@ Updated: 2026-05-21 JST
 
 ## Boundary Status
 
+- 2026-05-21 update: first F20F cleanup pass and dirty-saved source-diff review
+  are complete.  The remote canonical modernization execution tree is synced to
+  `a104816f5b9406fcae49e1c5d02e2ec7b4878149`.  Production-comparison planning
+  for the new post-cleanup output namespace is recorded in
+  `runbooks/F20F_PRODUCTION_OUTPUT_PLAN_20260521.md`.
 - 2026-05-21 update: F20F is the unique active double-precision preset.  The
   current no-fallback physics diagnostic line has moved to
   `codex/workspaces/nofb_diagnostics`; old production-comparison outputs are
@@ -62,11 +67,16 @@ Updated: 2026-05-21 JST
 
 Current production-comparison action:
 
-1. Do not submit new production-comparison jobs from the current formalized-assist or diagnostic branches.
-2. Wait for the modernization fixed commit.
-3. Refresh remote worktree/job state before sync.
-4. Fast-forward/sync the production-comparison branch/worktree to the chosen modernization commit.
-5. Rebuild and rerun production from a clean post-fix namespace.
+1. Do not submit new production-comparison jobs from old formalized-assist,
+   diagnostic, or pre-F20F namespaces.
+2. Use `runbooks/F20F_PRODUCTION_OUTPUT_PLAN_20260521.md` as the current
+   post-cleanup production plan.
+3. Sync the production-comparison execution tree to modernization commit
+   `a104816f5b9406fcae49e1c5d02e2ec7b4878149` before any job.
+4. Prepare only P0/P1 dry-run manifests first: `4seed x 1k` route smoke and
+   `32seed x 50k` gate.
+5. Handoff actual PBS submission to the cluster02 scheduler.  Do not submit P2
+   `128seed x 200k` until P1 readback passes.
 
 Closed diagnostic evidence:
 

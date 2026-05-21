@@ -92,3 +92,17 @@ The verification pass confirmed these representative approved paths are gone:
 
 The full compact-only/failed path list remains preserved in
 `F20F_CLEANUP_COMMANDS_FOR_APPROVAL_20260521.md`.
+
+## Dirty Saved Removal Follow-Up
+
+After the source-diff review concluded that no dirty patch should be ported,
+`fortran_modernization_dirty_saved_20260517T035700Z` was deleted with plain
+path removal, not `git worktree remove`.
+
+Verification:
+
+- archive packet remained present after deletion;
+- remote canonical modernization execution tree was clean before sync;
+- remote canonical modernization execution tree was fast-forwarded from
+  `8c76fdf710ff` to `a104816f5b94`;
+- no production PBS jobs were submitted.
