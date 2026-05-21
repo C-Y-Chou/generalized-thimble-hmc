@@ -11,25 +11,14 @@ replicas repair that bias.
 
 ## Current Canonical Evidence
 
-The current main F20F diagnostic dataset is the fixed-flow `t=0.3` paired
-dataset:
+The F20F 1D toy evidence is now grouped by physical scenario:
 
-- scale: `512 seeds x 200000 cycles`
-- methods: `no_fb`, `fb_norefine`
-- composition: initial 128-seed block plus 384-seed extension
-- interpretation: failures/rejections are large in `no_fb`, but raw `Re z`
-  support/mixing and the measured observables do not show a meaningful
-  no_fb-vs-fb difference at this flow time.
-
-The current threshold/pathology evidence is the fixed-flow `t=0.5` no-fallback
-dataset:
-
-- scale: `128 seeds x 200000 cycles`
-- method: `no_fb`
-- interpretation: every seed is locked in a single `Re z` sign sector, and
-  `Ohat_re` shifts to about `-0.241256`.  Balancing positive/negative sectors
-  would cancel the odd imaginary component but would not repair this real
-  observable shift.
+| bucket | canonical role |
+| --- | --- |
+| `TLTM_t030` | F20F double-preset validation at TLTM `t=0.3`; F20F remains the unique active double preset |
+| `fixed_flow_t030` | paired `512 seeds x 200000 cycles` negative control; failures/rejections are large in `no_fb`, but support and observables remain compatible with `fb_norefine` |
+| `fixed_flow_t050` | nofb `128 seeds x 200000 cycles` threshold pathology; every seed is locked in one high-flow `Re z` sign sector and `Ohat_re ~= -0.241256` |
+| `TLTM_t050` | low005 paired `128 seeds x 200000 cycles` repair dataset; TLTM repairs the fixed-flow pathology, while fallback only has a solver-health advantage in this 1D evidence |
 
 ## Boundary
 
@@ -41,28 +30,29 @@ dataset:
   roots.  This workspace stores only registries, readbacks, compact diagnostics,
   and stable paths to raw evidence.
 
-## Next Gate
+## Current Closure
 
 The nofb-only two-replica TLTM short scan selected `low005 = [0.05, 0.5]`.
-This ladder repaired the fixed-flow `t=0.5` sign-sector lock in short TLTM
-tests.
+The final paired TLTM `t=0.5` evidence combines the base32 and topup96 raw
+components into `128 seeds x 200000 cycles`.
 
-The current interpretation is provisional:
+The current interpretation is frozen for cleanup planning:
 
 - TLTM repairs the fixed-flow `t=0.5` undercoverage pathology.
-- `fb_norefine` strongly reduces failures, but the one-dimensional toy model has
-  not yet demonstrated that fallback is required for unbiased TLTM observables.
-- The paired top-up from 32 to 128 seeds at 200k cycles has completed
-  method-level merge artifacts by direct invocation of the existing merge
-  script: topup96 Im is not significant, and the combined128 Im shift is below
-  the roughly 2-sigma gate.  The stale PBS merge job `16547` was cancelled
-  after the direct merge completed.
+- `fb_norefine` strongly reduces failures, but this one-dimensional toy model
+  does not demonstrate that fallback is required for unbiased TLTM observables.
+- The base32 Im candidate did not survive independent topup96 validation:
+  combined128 paired `no_fb - fb_norefine` is `Re Z = -0.772`,
+  `Im Z = 1.933`.
 
 Current closure and cleanup planning live in:
 
 ```text
 codex/workspaces/nofb_diagnostics/runbooks/F20F_1D_TOY_TLTM_CLOSURE_AND_CLEANUP_PLAN_20260521.md
+codex/workspaces/nofb_diagnostics/runbooks/F20F_1D_TOY_FINAL_SUMMARY_20260521.md
+codex/workspaces/nofb_diagnostics/runbooks/F20F_COMPACT_PACKETS_20260521.md
 ```
 
-Do not rebuild the file library, move output roots, or delete datasets until a
-cleanup dry-run manifest is reviewed.
+The cleanup dry-run manifest and physics grouping are prepared.  Do not rebuild
+the file library, move output roots, or delete datasets until a concrete
+deletion command list is reviewed and explicitly approved.

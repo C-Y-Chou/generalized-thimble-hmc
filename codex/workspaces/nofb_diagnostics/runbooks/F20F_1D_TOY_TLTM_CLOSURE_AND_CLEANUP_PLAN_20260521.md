@@ -2,9 +2,10 @@
 
 Date: 2026-05-21 JST
 
-Status: provisional closure and planning only. Do not rebuild the file library,
-move remote outputs, or delete datasets until the active top-up finishes and is
-read back.
+Status: final pre-cleanup closure packet.  The top-up has been read back and
+the dataset grouping is frozen for review.  Do not rebuild the file library,
+move remote outputs, or delete datasets until a concrete deletion command list
+is reviewed and explicitly approved.
 
 ## Current Scientific Closure
 
@@ -129,6 +130,13 @@ keep/archive/delete planning.  The physics grouping is the authoritative
 physics-facing list.  This avoids treating implementation history, such as
 "F20F tolerance validation", as a separate physical scenario.
 
+The final summary and compact packet index are:
+
+```text
+codex/workspaces/nofb_diagnostics/runbooks/F20F_1D_TOY_FINAL_SUMMARY_20260521.md
+codex/workspaces/nofb_diagnostics/runbooks/F20F_COMPACT_PACKETS_20260521.md
+```
+
 The cleanup rule is:
 
 1. Keep raw roots only for the maximal dataset that is still needed to reproduce
@@ -175,13 +183,15 @@ Archive or delete candidates after compact packets exist:
 
 ## Worktree Cleanup Plan
 
-Do this only after a cleanup dry-run manifest is prepared.
+The cleanup dry-run manifest and compact packet index are prepared.  The next
+step is review only; no deletion is authorized by this plan.
 
-1. Freeze the dataset registry.
-   - Update `codex/workspaces/nofb_diagnostics/state/F20F_DATASET_REGISTRY.tsv`.
-   - Mark each dataset as `canonical_raw`, `compact_only`, `superseded`, or
-     `delete_candidate`.
-2. Write compact packets for every retained decision:
+1. Review the frozen dataset registry.
+   - `codex/workspaces/nofb_diagnostics/state/F20F_DATASET_REGISTRY.tsv`
+     groups datasets into the four physics buckets.
+   - Each dataset is marked as canonical raw component, compact-only, or
+     compact/delete candidate.
+2. Review compact packets for every retained decision:
    - row counts;
    - aggregate tables;
    - protocol audit status;
@@ -189,7 +199,7 @@ Do this only after a cleanup dry-run manifest is prepared.
    - output/log root;
    - scheduler request id;
    - key metrics and interpretation boundary.
-3. Generate a dry-run cleanup list.
+3. Review the dry-run cleanup list.
    - Include path, size, owner line, replacement dataset, and reason.
    - Separate raw-output deletion candidates from worktree deletion candidates.
 4. Confirm active-job safety.
@@ -208,18 +218,20 @@ Do this only after a cleanup dry-run manifest is prepared.
 
 ## Non-Goals Before Cleanup Approval
 
-Do not do any of the following before the cleanup dry-run manifest is reviewed:
+Do not do any of the following before the cleanup dry-run manifest and concrete
+deletion command list are reviewed:
 
 - rebuild the file library;
 - delete or move remote output roots;
 - prune isolated worktrees used by pending requests;
-- rewrite dataset registry statuses as final.
+- reinterpret compact-only datasets as final physics evidence.
 
-## Immediate Post-Maintenance Action
+## Pre-Deletion Checklist
 
-After cluster maintenance:
+Before any deletion:
 
-1. Prepare the cleanup dry-run manifest.
-2. Freeze the final F20F 1D toy summary packet.
-3. Only after cleanup planning is settled, revisit the prepared
-   `128seed x 200k` nofb-only `L=1,nstep=2` scale-up request.
+1. Confirm `qstat -u cychou` is empty or unrelated.
+2. Inspect all `manual_review` remote worktrees.
+3. Confirm no final summary path is marked `delete_candidate`.
+4. Prepare the exact remote commands for archive/delete.
+5. Get explicit approval before running those commands.
