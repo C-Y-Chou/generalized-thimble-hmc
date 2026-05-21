@@ -115,24 +115,33 @@ Request:
 - jobs: build `16522`; `no_fb` chunks `16523`..`16534`;
   `fb_norefine` chunks `16535`..`16546`; merge `16547`
 
-Chunk-level readback at `2026-05-21 19:20 JST`:
+Top-up readback:
 
 - all top-up `no_fb` chunk tables `chunk_04`..`chunk_15` exist with 8 rows
   each
 - all top-up `fb_norefine` chunk tables `chunk_04`..`chunk_15` exist with
   8 rows each
 - top-up chunk-level protocol audit verdicts: `pass`
-- official top-up method-level merge is not yet available:
+- direct method-level merge completed at `2026-05-21T20:51:20+09:00` by
+  invoking the existing `m6_reference_merge_level.pbs` merge script without a
+  new qsub
+- direct merge marker:
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_topup96_to128_x_200000cycles_8c76fdf710ff/merge/manual_direct_merge_20260521.env`
+- direct merge log:
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_topup96_to128_x_200000cycles_8c76fdf710ff/merge/pbs_merge.log`
+- top-up method-level rows:
+  - `no_fb/per_seed_summary_table.csv`: 96 rows
+  - `fb_norefine/per_seed_summary_table.csv`: 96 rows
+  - both method aggregate tables present
+  - both method protocol audit summaries present and pass
+- stale queued PBS merge was cancelled after direct merge:
   - merge job `16547.anode01`
-  - state `Q`
-  - queue `C12`
-  - scheduler comment: `Not Running: Queue not started.`
-  - `C12 enabled=False started=False`
-  - parent must not perform PBS repair; scheduler agent must handle any
-    qmove/qalter/resubmit
+  - previous state: `Q` in stopped `C12`
+  - `qdel 16547.anode01` completed after user instruction
+  - `qstat -u cychou` was empty immediately after deletion
 
-Read-only combined 128seed calculation from base32 method summaries plus
-top-up chunk summaries:
+Combined 128seed calculation from base32 method summaries plus top-up
+method-level summaries:
 
 | method | rows | mean Re | seed std Re | Zmean Re | mean Im | seed std Im | Zmean Im |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |

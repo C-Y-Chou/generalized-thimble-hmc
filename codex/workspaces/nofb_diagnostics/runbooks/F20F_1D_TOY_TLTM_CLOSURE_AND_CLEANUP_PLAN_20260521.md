@@ -67,26 +67,26 @@ the fixed-flow `t=0.5` pathology in this stress test. The fallback claim should
 be presented as robustness/solver-health evidence unless a later, harder model
 leaves a stable observable shift.
 
-## Active Gate Before Final Closure
+## Final Merge State
 
-The paired top-up chunk-level readback is complete, but the official top-up
-merge artifact is not:
+The paired top-up method-level merge artifact is complete by direct invocation
+of the existing merge script:
 
 ```text
 output/tests/f20f_tltm_t050_pair_validation/
   f20f_tltm_t050_low005_pair_topup96_to128_x_200000cycles_8c76fdf710ff
 ```
 
-Current state after chunk-level readback:
+Current state:
 
 - top-up `no_fb` chunks `04..15` have 8 data rows each;
 - top-up `fb_norefine` chunks `04..15` have 8 data rows each;
-- chunk-level protocol audit verdicts are `pass`;
-- merge `16547` is dependency-released but queued in stopped `C12`;
-- parent must not perform PBS repair; scheduler must handle qmove/qalter or
-  replacement merge if needed.
+- direct method-level merge completed at `2026-05-21T20:51:20+09:00`;
+- top-up method-level rows are `96/96` for both methods;
+- protocol audit verdicts are `pass`;
+- stale PBS merge job `16547` was cancelled after the direct merge completed.
 
-Final readback must combine:
+Final 128seed readback combines:
 
 ```text
 base32:
@@ -96,7 +96,7 @@ topup96:
 /lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/tests/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_topup96_to128_x_200000cycles_8c76fdf710ff
 ```
 
-Chunk-level decision after top-up:
+Decision after top-up:
 
 - paired Re remains insignificant: combined128 `Z ~= -0.772`;
 - paired Im is below the gate: topup96 `Z ~= 0.864`, combined128
@@ -104,8 +104,7 @@ Chunk-level decision after top-up:
 - seed-level distribution checks remain small (`Ohat_re` KS `0.125`,
   `Ohat_im` KS `0.140625`);
 - close the 1D model as "TLTM repairs fixed flow; fallback improves robustness
-  but has no demonstrated observable necessity here", pending only the official
-  merge artifact.
+  but has no demonstrated observable necessity here."
 
 ## Dataset Compatibility Policy
 
@@ -157,8 +156,7 @@ Archive or delete candidates after compact packets exist:
 
 ## Worktree Cleanup Plan
 
-Do this only after the top-up merge state is settled and after
-`qstat -u cychou` has no jobs touching these roots.
+Do this only after a cleanup dry-run manifest is prepared.
 
 1. Freeze the dataset registry.
    - Update `codex/workspaces/nofb_diagnostics/state/F20F_DATASET_REGISTRY.tsv`.
@@ -189,26 +187,20 @@ Do this only after the top-up merge state is settled and after
    - Prefer moving to an archive namespace over immediate deletion when the
      replacement relation is not trivial.
 
-## Non-Goals Before Official Merge Settlement
+## Non-Goals Before Cleanup Approval
 
-Do not do any of the following before merge job `16547` is completed, repaired,
-or explicitly superseded:
+Do not do any of the following before the cleanup dry-run manifest is reviewed:
 
 - rebuild the file library;
 - delete or move remote output roots;
 - prune isolated worktrees used by pending requests;
-- rewrite dataset registry statuses as final;
-- treat the chunk-level readback packet as an official merged output artifact.
+- rewrite dataset registry statuses as final.
 
 ## Immediate Post-Maintenance Action
 
 After cluster maintenance:
 
-1. Check whether merge job `16547` completed or is still queued in stopped
-   `C12`.
-2. If the merge completed, verify method-level top-up rows `96/96` and compare
-   against the chunk-level readback above.
-3. If the merge is still blocked, ask the scheduler to repair only the merge;
-   do not rerun chunks.
-4. Only after the merge artifact is settled, revisit the prepared
+1. Prepare the cleanup dry-run manifest.
+2. Freeze the final F20F 1D toy summary packet.
+3. Only after cleanup planning is settled, revisit the prepared
    `128seed x 200k` nofb-only `L=1,nstep=2` scale-up request.
