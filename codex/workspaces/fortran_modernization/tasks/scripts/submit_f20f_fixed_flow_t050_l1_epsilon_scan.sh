@@ -1,5 +1,5 @@
 #!/bin/bash
-# Prepare or submit the F20F fixed-flow t=0.5 no_fb small-L epsilon scan.
+# Prepare or submit F20F fixed-flow t=0.5 no_fb short HMC tuning scans.
 
 set -euo pipefail
 
@@ -36,6 +36,9 @@ cd "${repo_root}"
 case "${TLTM_F20F_FIXED_FLOW_T050_L1_EPS_SCAN_SCALE}" in
   short5x4x5k)
     scan_level="F20F_FIXED_FLOW_T050_NOFB_L1_EPSILON_SCAN_SHORT5X4X5K"
+    scan_family="f20f_fixed_flow_t050_l1_epsilon_scan"
+    scan_label_prefix="f20f_fixed_flow_t050_nofb_l1_epsilon_scan"
+    selection_rule="Fixed tau t=0.5 no_fb L=1 epsilon screen: choose epsilon by target acceptance first; failure pressure is expected and not blocking unless the chain is frozen or outputs become invalid."
     scale_text="5cand_4seed_x_5000cycles"
     expected_rows=4
     requested_cpus=20
@@ -57,6 +60,9 @@ case "${TLTM_F20F_FIXED_FLOW_T050_L1_EPS_SCAN_SCALE}" in
     ;;
   aggressive3x4x5k)
     scan_level="F20F_FIXED_FLOW_T050_NOFB_L1_EPSILON_SCAN_AGGRESSIVE3X4X5K"
+    scan_family="f20f_fixed_flow_t050_l1_epsilon_scan"
+    scan_label_prefix="f20f_fixed_flow_t050_nofb_l1_epsilon_scan"
+    selection_rule="Fixed tau t=0.5 no_fb L=1 aggressive epsilon screen: prioritize target acceptance over failure minimization; failure pressure is expected and not blocking unless the chain is frozen or outputs become invalid."
     scale_text="3cand_4seed_x_5000cycles"
     expected_rows=4
     requested_cpus=12
@@ -74,18 +80,41 @@ case "${TLTM_F20F_FIXED_FLOW_T050_L1_EPS_SCAN_SCALE}" in
       docs/f20f_fixed_flow_t050_nofb_l1_eps100_4seed_5k.json
     )
     ;;
+  lscan4x4x5k_eps010)
+    scan_level="F20F_FIXED_FLOW_T050_NOFB_L_SCAN_EPS010_4X4X5K"
+    scan_family="f20f_fixed_flow_t050_l_scan"
+    scan_label_prefix="f20f_fixed_flow_t050_nofb_l_scan_eps010"
+    selection_rule="Fixed tau t=0.5 no_fb coarse L scan: hold epsilon near 0.10 so integrator artifacts stay small, choose trajectory length L from mobility, support coverage, failure pressure, and observable sanity; tune nstep only after L is selected."
+    scale_text="4cand_4seed_x_5000cycles"
+    expected_rows=4
+    requested_cpus=16
+    chunk_ncpus=4
+    max_seeds=4
+    chunk_walltime="02:00:00"
+    chunks=(00)
+    candidates=(l0p5 l1p0 l1p5 l2p0)
+    l_values=("0.5" "1.0" "1.5" "2.0")
+    nsteps=(5 10 15 20)
+    eps_values=("0.10" "0.10" "0.10" "0.10")
+    configs=(
+      docs/f20f_fixed_flow_t050_nofb_l0p5_eps010_4seed_5k.json
+      docs/f20f_fixed_flow_t050_nofb_l1p0_eps010_4seed_5k.json
+      docs/f20f_fixed_flow_t050_nofb_l1p5_eps010_4seed_5k.json
+      docs/f20f_fixed_flow_t050_nofb_l2p0_eps010_4seed_5k.json
+    )
+    ;;
   *)
     echo "[ERROR] unsupported TLTM_F20F_FIXED_FLOW_T050_L1_EPS_SCAN_SCALE=${TLTM_F20F_FIXED_FLOW_T050_L1_EPS_SCAN_SCALE}" >&2
-    echo "[ERROR] expected short5x4x5k or aggressive3x4x5k" >&2
+    echo "[ERROR] expected short5x4x5k, aggressive3x4x5k, or lscan4x4x5k_eps010" >&2
     exit 2
     ;;
 esac
 
 stamp="$(date +%Y%m%dT%H%M%S)"
 short_commit="$(git rev-parse --short=12 "${TLTM_EXPECTED_GIT_COMMIT}")"
-: "${TLTM_SCAN_LABEL:=f20f_fixed_flow_t050_nofb_l1_epsilon_scan_${scale_text}_${short_commit}}"
-: "${TLTM_ROOT_BASE:=output/tests/f20f_fixed_flow_t050_l1_epsilon_scan/${TLTM_SCAN_LABEL}}"
-: "${TLTM_ROOT_LOG_BASE:=output/logs/f20f_fixed_flow_t050_l1_epsilon_scan/${TLTM_SCAN_LABEL}}"
+: "${TLTM_SCAN_LABEL:=${scan_label_prefix}_${scale_text}_${short_commit}}"
+: "${TLTM_ROOT_BASE:=output/tests/${scan_family}/${TLTM_SCAN_LABEL}}"
+: "${TLTM_ROOT_LOG_BASE:=output/logs/${scan_family}/${TLTM_SCAN_LABEL}}"
 
 method="no_fb"
 method_list="no_fb"
@@ -252,7 +281,7 @@ queue_plan="${TLTM_ROOT_LOG_BASE}/submit/submit_queue_plan_${stamp}.json"
   echo "  \"output_root_base\": \"${TLTM_ROOT_BASE}\","
   echo "  \"log_root_base\": \"${TLTM_ROOT_LOG_BASE}\","
   echo "  \"expected_rows_per_candidate\": ${expected_rows},"
-  echo "  \"candidate_selection_rule\": \"Fixed tau t=0.5 no_fb small-L screen: choose epsilon by target acceptance first; failure pressure is expected and not blocking unless the chain is frozen or outputs become invalid.\","
+  echo "  \"candidate_selection_rule\": \"${selection_rule}\","
   echo "  \"tolerances\": {"
   echo "    \"TLTM_STAGE2_ABS_TOL_OVERRIDE\": \"${TLTM_STAGE2_ABS_TOL_OVERRIDE}\","
   echo "    \"TLTM_STAGE2_REL_TOL_OVERRIDE\": \"${TLTM_STAGE2_REL_TOL_OVERRIDE}\","
