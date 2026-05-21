@@ -3,11 +3,11 @@ module tltm_stage1_driver
    use, intrinsic :: iso_fortran_env, only: int64
    use param_mod, only: config, read_parameters
    use runtime_env_mod, only: parse_int_env, parse_real_env, read_string_env, parse_real_list
-   use utils, only: dp, wall_time_seconds, x_set_flow_time, x_set_seed_real
-   use solve_flow, only: flow, intode_status_unknown, intode_status_is_strict_success
+   use utils, only: dp, wall_time_seconds
+   use solve_flow, only: flow_at, intode_status_unknown, intode_status_is_strict_success
    use model, only: grand, model_context_t, bind_model_context, release_model_context
    use mt95, only: getseed, mt95_get_state, mt95_seed_state, mt95_set_state
-   use markovchain_metropolis, only: metropolis_step
+   use markovchain_metropolis, only: metropolis_step_at
    use markovchain_phase, only: compute_phase_factor
    use hmc_constraints, only: reset_newton_eval_flow_status_counts, get_newton_eval_flow_status_counts, &
                               newton_eval_flow_status_context_t
@@ -40,7 +40,7 @@ contains
       type(model_context_t), target :: model_context
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file
-      integer :: n_replicas, base_seed, cycle_count, local_updates, x_size
+      integer :: n_replicas, base_seed, cycle_count, local_updates, physical_state_size
       real(dp) :: max_flow_time, init_sigma
       logical :: ok
       integer :: i, cycle_idx
@@ -54,7 +54,7 @@ contains
       call reset_quasi_eval_flow_status_counts(qn_diagnostics_context)
       call reset_reverse_gate_replay_status_counts(hmc_replay_diagnostics_context)
 
-      x_size = config%state%x_size
+      physical_state_size = config%state%z_size
       call resolve_base_seed(base_seed)
       call resolve_stage1_controls(config%integrator%initial_flow_time, config%chain%length, config%chain%hmc_repeat, &
                                    n_replicas, flow_ladder, max_flow_time, cycle_count, local_updates, init_sigma)
@@ -73,7 +73,7 @@ contains
          replicas(i)%replica_id = i - 1
          replicas(i)%flow_time = flow_ladder(i)
          replicas(i)%rng_seed = derive_replica_seed(base_seed, i)
-         call allocate_tltm_replica(replicas(i), x_size)
+         call allocate_tltm_replica(replicas(i), physical_state_size)
          call initialize_replica(replicas(i), init_sigma, stage1_init_attempts_default, ok, run_contexts(i))
          if (.not. ok) then
             write (*, '(A,I0,A,F8.4,A)') "[ERROR][TLTM-S1] Replica ", replicas(i)%replica_id, &
@@ -129,18 +129,17 @@ contains
       integer :: attempt, flow_status
 
       ok = .false.
-      allocate (x_seed(max(1, size(replica%x) - 1)))
+      allocate (x_seed(size(replica%x)))
       call mt95_seed_state(replica%rng_state, replica%rng_seed)
       call mt95_set_state(replica%rng_state)
 
       do attempt = 1, max_attempts
          call grand(x_seed)
          x_seed = init_sigma*x_seed
-         call x_set_flow_time(replica%x, replica%flow_time)
-         call x_set_seed_real(replica%x, x_seed)
+         replica%x = x_seed
          flow_status = intode_status_unknown
-         call flow(replica%x, replica%z, replica%jac, flow_failed, flow_status, run_context%flow%workspace, &
-                   run_context%diagnostics%intode)
+         call flow_at(replica%flow_time, replica%x, replica%z, replica%jac, flow_failed, flow_status, &
+                      run_context%flow%workspace, run_context%diagnostics%intode)
          if ((.not. flow_failed) .and. intode_status_is_strict_success(flow_status)) then
             ok = .true.
             exit
@@ -180,13 +179,13 @@ contains
 
       call mt95_set_state(replica%rng_state)
       do update_idx = 1, local_updates
-         call metropolis_step(replica%x, replica%z, replica%jac, trajectory_length, &
-                              integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
-                              context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
-                              qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
-                              hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
-                              hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
-                              newton_flow_status=newton_flow_status_context, intode_diagnostics=run_context%diagnostics%intode)
+         call metropolis_step_at(replica%flow_time, replica%x, replica%z, replica%jac, trajectory_length, &
+                                 integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
+                                 context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
+                                 qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
+                                 hmc_policy=hmc_policy_context, hmc_replay_diagnostics=hmc_replay_diagnostics_context, &
+                                 hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
+                                 newton_flow_status=newton_flow_status_context, intode_diagnostics=run_context%diagnostics%intode)
          if (accepted) then
             replica%x = x_new
             replica%z = z_new

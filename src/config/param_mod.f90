@@ -25,8 +25,9 @@ module param_mod
    end type integrator_control_t
 
    type :: state_layout_t
-      ! x_size must be explicitly provided in parameters.dat.
+      ! x_size is the legacy packed size [flow_time, physical_state...].
       integer :: x_size = 0
+      integer :: physical_size = 0
       integer :: z_size = 0
    end type state_layout_t
 
@@ -101,8 +102,12 @@ contains
       implicit none
       character(len=32) :: mode
 
-      if (config%state%x_size < 2) then
-         write (*, *) "Invalid config: state size must be >= 2."
+      if (config%state%physical_size < 1) then
+         write (*, *) "Invalid config: physical state size must be >= 1."
+         error stop 1
+      end if
+      if (config%state%x_size /= config%state%physical_size + 1) then
+         write (*, *) "Invalid config: legacy x_size must equal physical_state_size + 1."
          error stop 1
       end if
       if (config%integrator%integration_steps < 1) then
@@ -256,6 +261,12 @@ contains
       n_seed = config%state%z_size
    end function state_seed_size_cfg
 
+   function state_physical_size_cfg() result(n_state)
+      implicit none
+      integer :: n_state
+      n_state = config%state%physical_size
+   end function state_physical_size_cfg
+
    subroutine read_parameters_key_value(unit_id)
       implicit none
       integer, intent(in) :: unit_id
@@ -338,6 +349,9 @@ contains
          config%integrator%method = trim(text)
       case ("x_size", "n_size")
          read (value, *, iostat=ios) config%state%x_size
+         if (ios /= 0) call kv_parse_error(line_no, key, value)
+      case ("physical_state_size", "state_size", "seed_size")
+         read (value, *, iostat=ios) config%state%physical_size
          if (ios /= 0) call kv_parse_error(line_no, key, value)
       case ("alpha")
          read (value, *, iostat=ios) config%model%alpha
@@ -502,12 +516,25 @@ contains
 
       close (10)
 
-      if (config%state%x_size <= 0) then
-         write (*, '(A)') "Error(parameters.dat): x_size must be set to a positive value (>=2)."
+      if (config%state%physical_size <= 0 .and. config%state%x_size <= 0) then
+         write (*, '(A)') "Error(parameters.dat): set physical_state_size (>=1) or legacy x_size (>=2)."
          error stop 1
       end if
 
-      config%state%z_size = max(1, config%state%x_size - 1)
+      if (config%state%physical_size <= 0) then
+         if (config%state%x_size < 2) then
+            write (*, '(A)') "Error(parameters.dat): legacy x_size must be >=2."
+            error stop 1
+         end if
+         config%state%physical_size = config%state%x_size - 1
+      else if (config%state%x_size <= 0) then
+         config%state%x_size = config%state%physical_size + 1
+      else if (config%state%x_size /= config%state%physical_size + 1) then
+         write (*, '(A)') "Error(parameters.dat): x_size must equal physical_state_size + 1 when both are set."
+         error stop 1
+      end if
+
+      config%state%z_size = config%state%physical_size
 
       call validate_config()
       call sync_legacy_from_config()

@@ -215,9 +215,11 @@ cd build
 EVAL_MULTICHAIN_RUN_DIR=../output/multichain_auto/<run_name> ../bin/evaluate_expectations
 ```
 
-- `<virial>` uses a pole-free virial identity:
-  - `virial(z) = -i*(z-i*beta)*(z^2+alpha) - 2` (summed over components).
-- `<z>` is computed as `sum(z)` (same quantity previously labeled `tra2`).
+- Observable formulas come from `src/physics/model_observables.f90` via
+  `src/physics/model_observable_registry.inc` and
+  `src/physics/model_observable_body.inc`.
+- Current compatibility observables are `virial` and `z_sum` (`tra2` / `z`
+  alias).
 - Error bars are leave-one-chain-out jackknife over chain-level ratio estimators.
 - Additional robust error bars are reported for multichain runs:
   - `error_robust_<virial>` and `error_robust_<z>`
@@ -263,8 +265,10 @@ python3 scripts/run_multichain_auto.py \
   --max-wall-seconds 21600
 ```
 
-- Diagnostic observable follows `parameters.dat` and is weight-normalized over the active window:
-  - `O_z(i) = O_i * phi_i / sum_j(phi_j)` where `O_i` is `A2` when `tra2=true`, otherwise virial.
+- Diagnostic observable follows `EVAL_OBSERVABLE_NAME` when set; otherwise it
+  follows the legacy `parameters.dat` `tra2` flag (`z_sum` when true,
+  `virial` otherwise). It is weight-normalized over the active window:
+  - `O_z(i) = O_i * phi_i / sum_j(phi_j)`.
 - Diagnostics are evaluated on chain tails and can be combined with sample or wall-time limits.
 - `--diag-window-mode fixed` uses a constant cap (`--diag-window-samples`).
 - `--diag-window-mode adaptive` grows `n_use` with chain length:
@@ -286,6 +290,16 @@ python3 scripts/run_multichain_auto.py \
   --diag-min-samples-per-chain 1000 \
   --diag-every 5 \
   --max-wall-seconds 21600
+```
+
+Evaluate directly from a Stage2 observable stream without reading full
+`z_history`:
+
+```bash
+cd build
+EVAL_OBSERVABLE_HISTORY_FILE=/path/to/observable_history.dat \
+EVAL_OBSERVABLE_NAME=virial \
+../bin/evaluate_expectations
 ```
 
 Mode-mixing gates (for competing modes):

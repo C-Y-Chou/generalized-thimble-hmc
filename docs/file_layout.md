@@ -9,7 +9,7 @@ This document defines the intended responsibilities of top-level directories and
 - `src/config/`
   - runtime parameter parsing and configuration synchronization (`param_mod`)
 - `src/physics/`
-  - model equations, derivatives, and flow integration logic
+  - model equations, derivatives, observable definitions, and flow integration logic
 - `src/sampler/`
   - HMC kernels, constraints, quasi-Newton solvers, Markov-chain workflow
 - `src/apps/`
@@ -25,6 +25,8 @@ This document defines the intended responsibilities of top-level directories and
 
 - `data/parameters.dat`
   - runtime parameter file (`key=value` only)
+- `model_specs/`
+  - inert staging area for future model definitions and validation plans; not compiled
 
 ## 3. Generated Runtime Outputs
 
@@ -43,6 +45,8 @@ This document defines the intended responsibilities of top-level directories and
   - command reference
 - `docs/state_vector_convention.md`
   - `x` semantics and helper API contract
+- `docs/model_observables.md`
+  - model-owned action/observable surfaces and observable-stream I/O contract
 - `docs/module_architecture.md`
   - layer contract and dependency rules
 - `docs/fallback_policy_s1.md`

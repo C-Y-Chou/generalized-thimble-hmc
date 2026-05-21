@@ -299,20 +299,52 @@ contains
    end function factorial
 
    !-----------------------------------------------------------------------
-   !> Validate that x contains [flow_time, state_seed...].
+   !> Validate the current canonical physical state vector.
+   !-----------------------------------------------------------------------
+   subroutine assert_physical_state_shape(x_state, caller)
+      real(dp), intent(in) :: x_state(:)
+      character(len=*), intent(in) :: caller
+
+      if (size(x_state) < 1) then
+         write (*, *) "Error(", trim(caller), "): physical state must contain at least one real coordinate."
+         error stop 1
+      end if
+   end subroutine assert_physical_state_shape
+
+   function physical_state_size(x_state) result(n_state)
+      real(dp), intent(in) :: x_state(:)
+      integer :: n_state
+
+      call assert_physical_state_shape(x_state, "physical_state_size")
+      n_state = size(x_state)
+   end function physical_state_size
+
+   function legacy_x_size_from_physical(n_physical) result(n_legacy)
+      integer, intent(in) :: n_physical
+      integer :: n_legacy
+
+      if (n_physical < 1) then
+         write (*, *) "Error(legacy_x_size_from_physical): physical size must be >= 1."
+         error stop 1
+      end if
+      n_legacy = n_physical + 1
+   end function legacy_x_size_from_physical
+
+   !-----------------------------------------------------------------------
+   !> Validate the legacy packed layout [flow_time, state_seed...].
    !-----------------------------------------------------------------------
    subroutine assert_x_state_shape(x, caller)
       real(dp), intent(in) :: x(:)
       character(len=*), intent(in) :: caller
 
       if (size(x) < 2) then
-         write (*, *) "Error(", trim(caller), "): x must contain flow_time and at least one state entry."
+         write (*, *) "Error(", trim(caller), "): legacy x must contain flow_time and at least one state entry."
          error stop 1
       end if
    end subroutine assert_x_state_shape
 
    !-----------------------------------------------------------------------
-   !> Number of real state entries (excluding flow time).
+   !> Number of real state entries in a legacy packed x vector.
    !-----------------------------------------------------------------------
    function x_seed_size(x) result(n_seed)
       real(dp), intent(in) :: x(:)
@@ -322,8 +354,36 @@ contains
       n_seed = size(x) - 1
    end function x_seed_size
 
+   subroutine pack_legacy_x(flow_time, x_state, x_legacy)
+      real(dp), intent(in) :: flow_time
+      real(dp), intent(in) :: x_state(:)
+      real(dp), intent(out) :: x_legacy(:)
+
+      call assert_physical_state_shape(x_state, "pack_legacy_x")
+      if (size(x_legacy) /= size(x_state) + 1) then
+         write (*, *) "Error(pack_legacy_x): legacy x size must be physical size + 1."
+         error stop 1
+      end if
+      x_legacy(X_FLOW_TIME_INDEX) = flow_time
+      x_legacy(2:) = x_state
+   end subroutine pack_legacy_x
+
+   subroutine unpack_legacy_x(x_legacy, flow_time, x_state)
+      real(dp), intent(in) :: x_legacy(:)
+      real(dp), intent(out) :: flow_time
+      real(dp), intent(out) :: x_state(:)
+
+      call assert_x_state_shape(x_legacy, "unpack_legacy_x")
+      if (size(x_state) /= size(x_legacy) - 1) then
+         write (*, *) "Error(unpack_legacy_x): physical state size must be legacy x size - 1."
+         error stop 1
+      end if
+      flow_time = x_legacy(X_FLOW_TIME_INDEX)
+      x_state = x_legacy(2:)
+   end subroutine unpack_legacy_x
+
    !-----------------------------------------------------------------------
-   !> Accessors for flow time kept in x(1).
+   !> Legacy accessors for flow time kept in x(1).
    !-----------------------------------------------------------------------
    function x_get_flow_time(x) result(flow_time)
       real(dp), intent(in) :: x(:)

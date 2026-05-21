@@ -24,7 +24,7 @@ module markovchain_mod
                                           get_constraint_solver_quasi_watchdog_stats, &
                                           get_constraint_solver_far_investment_stats, &
                                           set_constraint_solver_runtime_context
-   use utils, only: dp, wall_time_seconds, x_get_flow_time, x_set_flow_time, x_set_seed_real
+   use utils, only: dp, pack_legacy_x, unpack_legacy_x, wall_time_seconds, x_get_flow_time, x_set_flow_time, x_set_seed_real
    implicit none
 
 contains
@@ -394,6 +394,38 @@ contains
       success = .true.
       deallocate (x_candidate, z_candidate, jac_candidate)
    end subroutine adaptive_preflow_to_target
+
+   subroutine adaptive_preflow_to_target_at(x_state, target_flow_time, trajectory_length, integration_steps, relax_level, success, stage_count, &
+                                            newton_flow_status, flow_workspace, intode_diagnostics)
+      implicit none
+      real(dp), intent(inout) :: x_state(:)
+      real(dp), intent(in) :: target_flow_time, trajectory_length
+      integer, intent(in) :: integration_steps, relax_level
+      logical, intent(out) :: success
+      integer, intent(out) :: stage_count
+      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
+      type(flow_workspace_t), intent(inout), optional, target :: flow_workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+
+      real(dp), allocatable :: x_legacy(:)
+      real(dp) :: final_flow_time
+
+      if (size(x_state) < 1) then
+         success = .false.
+         stage_count = 0
+         return
+      end if
+
+      allocate (x_legacy(size(x_state) + 1))
+      call pack_legacy_x(0.0_dp, x_state, x_legacy)
+      call adaptive_preflow_to_target(x_legacy, target_flow_time, trajectory_length, integration_steps, relax_level, success, stage_count, &
+                                      newton_flow_status, flow_workspace, intode_diagnostics)
+      if (success) then
+         call unpack_legacy_x(x_legacy, final_flow_time, x_state)
+         success = abs(final_flow_time - target_flow_time) <= 1.0e-12_dp*max(1.0_dp, abs(target_flow_time))
+      end if
+      deallocate (x_legacy)
+   end subroutine adaptive_preflow_to_target_at
 
    subroutine relax_with_zero_momentum(x_state, z_state, jac_state, step_size, num_steps, action_rel_tol, max_iter, &
                                        success, action_delta, iter_used, newton_flow_status, flow_workspace, intode_diagnostics)

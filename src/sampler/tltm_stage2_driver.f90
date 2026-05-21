@@ -3,19 +3,20 @@ module tltm_stage2_driver
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use param_mod, only: config, read_parameters
    use runtime_env_mod, only: parse_int_env, parse_real_env, parse_logical_env, read_string_env, parse_real_list, to_lower_ascii
-   use utils, only: dp, log_determinant, wall_time_seconds, x_set_flow_time, x_set_seed_real
-   use solve_flow, only: flow, reset_intode_fallback_stats, get_intode_fallback_stats, &
+   use utils, only: dp, log_determinant, wall_time_seconds
+   use solve_flow, only: flow_at, reset_intode_fallback_stats, get_intode_fallback_stats, &
                          intode_diagnostics_context_t, get_intode_cvode_stats, get_intode_cvode_context_stats, &
                          get_intode_odex_stats, get_intode_odex_context_stats, &
                          intode_ctx_unknown, intode_ctx_flowz, intode_ctx_flowzr, intode_ctx_flow, &
                          intode_status_unknown, intode_status_is_strict_success
    use model, only: grand, calculate_action, model_context_t, bind_model_context, release_model_context
+   use model_observables, only: model_observable_count, get_model_observable_name, evaluate_model_observables
    use mt95, only: getseed, grnd, mt95_get_state, mt95_seed_state, mt95_set_state, mt95_state_t, sgrnd
    use tltm_rng, only: tltm_rng_domain_stage2_init, tltm_rng_domain_stage2_local_accept, &
                        tltm_rng_domain_stage2_local_momentum, tltm_rng_domain_stage2_swap_accept, &
                        tltm_rng_fill_normal, tltm_rng_uniform
-   use markovchain_mod, only: adaptive_preflow_to_target
-   use markovchain_metropolis, only: metropolis_step
+   use markovchain_mod, only: adaptive_preflow_to_target_at
+   use markovchain_metropolis, only: metropolis_step_at
    use markovchain_phase, only: compute_phase_factor
    use hmc_constraints, only: reset_newton_eval_flow_status_counts, get_newton_eval_flow_status_counts, &
                               newton_eval_flow_status_context_t
@@ -128,23 +129,31 @@ contains
       type(mt95_state_t) :: swap_rng_state
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file, label_trace_file
-      character(len=512) :: cold_z_history_file, cold_phi_history_file
-      character(len=512) :: all_history_dir
+      character(len=512) :: cold_z_history_file, cold_phi_history_file, cold_observable_file
+      character(len=512) :: all_history_dir, all_observable_dir
       character(len=512) :: v1_output_dir, v1_manifest_file, v1_protocol_file
       character(len=32) :: init_mode, rng_stream_contract
-      integer :: n_slots, base_seed, swap_rng_seed, cycle_count, local_updates, x_size
+      integer :: n_slots, base_seed, swap_rng_seed, cycle_count, local_updates, physical_state_size
       real(dp) :: max_flow_time, init_sigma
       logical :: swap_enabled, fixed_flow_mode, ok
       integer :: i, cycle_idx, hot_slot, history_slot_index
       real(dp) :: run_t0, elapsed, slot_t0
       integer, parameter :: unit_trace = 78
-      integer, parameter :: unit_cold_z = 79, unit_cold_phi = 80
-      integer, allocatable :: all_z_units(:), all_phi_units(:)
+      integer, parameter :: unit_cold_z = 79, unit_cold_phi = 80, unit_cold_obs = 81
+      integer, allocatable :: all_z_units(:), all_phi_units(:), all_obs_units(:)
       integer :: io_status
       logical :: write_cold_history, cold_sample_ok
       logical :: write_all_history, all_sample_ok
+      logical :: write_cold_observable, cold_observable_ok
+      logical :: write_all_observable, all_observable_ok
       logical :: write_v1_manifest, write_v1_protocol, write_v1_package
       logical :: path_ok
+      integer :: cold_history_stride, all_history_stride
+      integer :: cold_history_max_samples, all_history_max_samples
+      integer :: cold_history_written, all_history_written
+      integer :: cold_observable_stride, all_observable_stride
+      integer :: cold_observable_max_samples, all_observable_max_samples
+      integer :: cold_observable_written, all_observable_written
       integer :: calls_total, calls_integrating
       integer :: fallback_attempts, fallback_success, fallback_failure
       integer :: fallback_max_steps, fallback_invalid, fallback_h_min
@@ -176,7 +185,7 @@ contains
       call reset_quasi_eval_flow_status_counts(qn_diagnostics_context)
       call reset_reverse_gate_replay_status_counts(hmc_replay_diagnostics_context)
 
-      x_size = config%state%x_size
+      physical_state_size = config%state%z_size
       call resolve_base_seed(base_seed)
       call resolve_stage2_controls(config%integrator%initial_flow_time, config%chain%length, config%chain%hmc_repeat, &
                                    n_slots, flow_ladder, max_flow_time, cycle_count, local_updates, init_sigma, init_mode, &
@@ -184,6 +193,13 @@ contains
       call resolve_stage2_output_paths(summary_file, label_trace_file)
       call resolve_stage2_cold_history_paths(cold_z_history_file, cold_phi_history_file, write_cold_history)
       call resolve_stage2_all_history_dir(all_history_dir, write_all_history)
+      call resolve_stage2_observable_paths(cold_observable_file, write_cold_observable, all_observable_dir, write_all_observable)
+      call resolve_stage2_io_controls(cold_history_stride, cold_history_max_samples, all_history_stride, all_history_max_samples, &
+                                      cold_observable_stride, cold_observable_max_samples, all_observable_stride, all_observable_max_samples)
+      cold_history_written = 0
+      all_history_written = 0
+      cold_observable_written = 0
+      all_observable_written = 0
       call resolve_stage2_v1_sidecar_paths(v1_output_dir, v1_manifest_file, v1_protocol_file, &
                                            write_v1_manifest, write_v1_protocol, write_v1_package)
       call resolve_stage2_rng_stream_contract(rng_stream_contract)
@@ -222,7 +238,7 @@ contains
          slots(i)%label_id = i - 1
          slots(i)%flow_time = flow_ladder(i)
          slots(i)%rng_seed = derive_seed(base_seed, i)
-         call allocate_tltm_slot(slots(i), x_size)
+         call allocate_tltm_slot(slots(i), physical_state_size)
          call initialize_slot(slots(i), init_sigma, stage2_init_attempts_default, init_mode, rng_stream_contract, base_seed, ok, run_contexts(i), &
                               newton_flow_status_context)
          if (.not. ok) then
@@ -287,10 +303,59 @@ contains
             if (allocated(label_tracks)) deallocate (label_tracks)
             error stop 1
          end if
-         call write_cold_history_sample(slots(history_slot_index), unit_cold_z, unit_cold_phi, cold_sample_ok)
+         call write_cold_history_sample_if_enabled(slots(history_slot_index), unit_cold_z, unit_cold_phi, 0, &
+                                                   cold_history_stride, cold_history_max_samples, cold_history_written, cold_sample_ok)
          if (.not. cold_sample_ok) then
             close (unit=unit_cold_z)
             close (unit=unit_cold_phi)
+            call release_all_slots(slots)
+            if (allocated(flow_ladder)) deallocate (flow_ladder)
+            if (allocated(pair_stats)) deallocate (pair_stats)
+            if (allocated(label_tracks)) deallocate (label_tracks)
+            error stop 1
+         end if
+      end if
+
+      if (write_cold_observable) then
+         if (.not. write_cold_history) history_slot_index = find_max_flow_slot_index(slots)
+         write (*, '(A,I0,A,F10.6)') "[TLTM-S2] observable stream slot index=", history_slot_index - 1, &
+            " flow_time=", slots(history_slot_index)%flow_time
+         call ensure_parent_directory_exists(cold_observable_file, path_ok)
+         if (.not. path_ok) then
+            write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot prepare directory for cold observable stream:", trim(cold_observable_file)
+            if (write_cold_history) then
+               close (unit=unit_cold_z)
+               close (unit=unit_cold_phi)
+            end if
+            call release_all_slots(slots)
+            if (allocated(flow_ladder)) deallocate (flow_ladder)
+            if (allocated(pair_stats)) deallocate (pair_stats)
+            if (allocated(label_tracks)) deallocate (label_tracks)
+            error stop 1
+         end if
+         open (unit=unit_cold_obs, file=trim(cold_observable_file), status='replace', access='stream', &
+               form='unformatted', action='write', iostat=io_status)
+         if (io_status /= 0) then
+            write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot open cold observable stream:", trim(cold_observable_file)
+            if (write_cold_history) then
+               close (unit=unit_cold_z)
+               close (unit=unit_cold_phi)
+            end if
+            call release_all_slots(slots)
+            if (allocated(flow_ladder)) deallocate (flow_ladder)
+            if (allocated(pair_stats)) deallocate (pair_stats)
+            if (allocated(label_tracks)) deallocate (label_tracks)
+            error stop 1
+         end if
+         call write_observable_sample_if_enabled(slots(history_slot_index), unit_cold_obs, 0, &
+                                                 cold_observable_stride, cold_observable_max_samples, &
+                                                 cold_observable_written, "cold-slot", cold_observable_ok)
+         if (.not. cold_observable_ok) then
+            close (unit=unit_cold_obs)
+            if (write_cold_history) then
+               close (unit=unit_cold_z)
+               close (unit=unit_cold_phi)
+            end if
             call release_all_slots(slots)
             if (allocated(flow_ladder)) deallocate (flow_ladder)
             if (allocated(pair_stats)) deallocate (pair_stats)
@@ -313,13 +378,50 @@ contains
             if (allocated(label_tracks)) deallocate (label_tracks)
             error stop 1
          end if
-         call write_all_replica_history_samples(slots, all_z_units, all_phi_units, all_sample_ok)
+         call write_all_replica_history_samples_if_enabled(slots, all_z_units, all_phi_units, 0, &
+                                                           all_history_stride, all_history_max_samples, all_history_written, all_sample_ok)
          if (.not. all_sample_ok) then
             call close_all_replica_history_files(all_z_units, all_phi_units)
             if (write_cold_history) then
                close (unit_cold_z)
                close (unit_cold_phi)
             end if
+            if (write_cold_observable) close (unit_cold_obs)
+            call release_all_slots(slots)
+            if (allocated(flow_ladder)) deallocate (flow_ladder)
+            if (allocated(pair_stats)) deallocate (pair_stats)
+            if (allocated(label_tracks)) deallocate (label_tracks)
+            error stop 1
+         end if
+      end if
+
+      if (write_all_observable) then
+         write (*, '(A,1X,A)') "[TLTM-S2] all-replica observable dir=", trim(all_observable_dir)
+         call open_all_replica_observable_files(slots, all_observable_dir, all_obs_units, ok)
+         if (.not. ok) then
+            if (write_cold_history) then
+               close (unit_cold_z)
+               close (unit_cold_phi)
+            end if
+            if (write_cold_observable) close (unit_cold_obs)
+            if (write_all_history) call close_all_replica_history_files(all_z_units, all_phi_units)
+            call release_all_slots(slots)
+            if (allocated(flow_ladder)) deallocate (flow_ladder)
+            if (allocated(pair_stats)) deallocate (pair_stats)
+            if (allocated(label_tracks)) deallocate (label_tracks)
+            error stop 1
+         end if
+         call write_all_replica_observable_samples_if_enabled(slots, all_obs_units, 0, &
+                                                              all_observable_stride, all_observable_max_samples, &
+                                                              all_observable_written, all_observable_ok)
+         if (.not. all_observable_ok) then
+            call close_all_replica_observable_files(all_obs_units)
+            if (write_cold_history) then
+               close (unit_cold_z)
+               close (unit_cold_phi)
+            end if
+            if (write_cold_observable) close (unit_cold_obs)
+            if (write_all_history) call close_all_replica_history_files(all_z_units, all_phi_units)
             call release_all_slots(slots)
             if (allocated(flow_ladder)) deallocate (flow_ladder)
             if (allocated(pair_stats)) deallocate (pair_stats)
@@ -336,6 +438,8 @@ contains
             close (unit=unit_cold_phi)
          end if
          if (write_all_history) call close_all_replica_history_files(all_z_units, all_phi_units)
+         if (write_cold_observable) close (unit=unit_cold_obs)
+         if (write_all_observable) call close_all_replica_observable_files(all_obs_units)
          call release_all_slots(slots)
          if (allocated(flow_ladder)) deallocate (flow_ladder)
          if (allocated(pair_stats)) deallocate (pair_stats)
@@ -372,12 +476,39 @@ contains
             call measure_slot(slots(i))
          end do
          if (write_cold_history) then
-            call write_cold_history_sample(slots(history_slot_index), unit_cold_z, unit_cold_phi, cold_sample_ok)
+            call write_cold_history_sample_if_enabled(slots(history_slot_index), unit_cold_z, unit_cold_phi, cycle_idx, &
+                                                      cold_history_stride, cold_history_max_samples, cold_history_written, cold_sample_ok)
             if (.not. cold_sample_ok) then
                close (unit_trace)
                close (unit_cold_z)
                close (unit_cold_phi)
                if (write_all_history) call close_all_replica_history_files(all_z_units, all_phi_units)
+               if (write_cold_observable) close (unit_cold_obs)
+               if (write_all_observable) call close_all_replica_observable_files(all_obs_units)
+               call close_stage2_audit_context(audit_context)
+               call release_qn_diagnostics_context(qn_diagnostics_context)
+               call release_qn_policy_context(qn_policy_context)
+               call release_all_run_contexts(run_contexts)
+               call release_all_slots(slots)
+               if (allocated(flow_ladder)) deallocate (flow_ladder)
+               if (allocated(pair_stats)) deallocate (pair_stats)
+               if (allocated(label_tracks)) deallocate (label_tracks)
+               error stop 1
+            end if
+         end if
+         if (write_cold_observable) then
+            call write_observable_sample_if_enabled(slots(history_slot_index), unit_cold_obs, cycle_idx, &
+                                                    cold_observable_stride, cold_observable_max_samples, &
+                                                    cold_observable_written, "cold-slot", cold_observable_ok)
+            if (.not. cold_observable_ok) then
+               close (unit_trace)
+               if (write_cold_history) then
+                  close (unit_cold_z)
+                  close (unit_cold_phi)
+               end if
+               close (unit_cold_obs)
+               if (write_all_history) call close_all_replica_history_files(all_z_units, all_phi_units)
+               if (write_all_observable) call close_all_replica_observable_files(all_obs_units)
                call close_stage2_audit_context(audit_context)
                call release_qn_diagnostics_context(qn_diagnostics_context)
                call release_qn_policy_context(qn_policy_context)
@@ -390,7 +521,8 @@ contains
             end if
          end if
          if (write_all_history) then
-            call write_all_replica_history_samples(slots, all_z_units, all_phi_units, all_sample_ok)
+            call write_all_replica_history_samples_if_enabled(slots, all_z_units, all_phi_units, cycle_idx, &
+                                                              all_history_stride, all_history_max_samples, all_history_written, all_sample_ok)
             if (.not. all_sample_ok) then
                close (unit_trace)
                if (write_cold_history) then
@@ -398,6 +530,32 @@ contains
                   close (unit_cold_phi)
                end if
                call close_all_replica_history_files(all_z_units, all_phi_units)
+               if (write_cold_observable) close (unit_cold_obs)
+               if (write_all_observable) call close_all_replica_observable_files(all_obs_units)
+               call close_stage2_audit_context(audit_context)
+               call release_qn_diagnostics_context(qn_diagnostics_context)
+               call release_qn_policy_context(qn_policy_context)
+               call release_all_run_contexts(run_contexts)
+               call release_all_slots(slots)
+               if (allocated(flow_ladder)) deallocate (flow_ladder)
+               if (allocated(pair_stats)) deallocate (pair_stats)
+               if (allocated(label_tracks)) deallocate (label_tracks)
+               error stop 1
+            end if
+         end if
+         if (write_all_observable) then
+            call write_all_replica_observable_samples_if_enabled(slots, all_obs_units, cycle_idx, &
+                                                                 all_observable_stride, all_observable_max_samples, &
+                                                                 all_observable_written, all_observable_ok)
+            if (.not. all_observable_ok) then
+               close (unit_trace)
+               if (write_cold_history) then
+                  close (unit_cold_z)
+                  close (unit_cold_phi)
+               end if
+               if (write_cold_observable) close (unit_cold_obs)
+               if (write_all_history) call close_all_replica_history_files(all_z_units, all_phi_units)
+               call close_all_replica_observable_files(all_obs_units)
                call close_stage2_audit_context(audit_context)
                call release_qn_diagnostics_context(qn_diagnostics_context)
                call release_qn_policy_context(qn_policy_context)
@@ -423,6 +581,8 @@ contains
          close (unit_cold_phi)
       end if
       if (write_all_history) call close_all_replica_history_files(all_z_units, all_phi_units)
+      if (write_cold_observable) close (unit_cold_obs)
+      if (write_all_observable) call close_all_replica_observable_files(all_obs_units)
       call aggregate_intode_diagnostics_from_run_contexts(run_contexts, intode_diagnostics_summary)
       call get_intode_fallback_stats(calls_total, calls_integrating, fallback_attempts, fallback_success, fallback_failure, &
                                      fallback_max_steps, fallback_invalid, fallback_h_min, intode_diagnostics_summary)
@@ -470,7 +630,13 @@ contains
       call write_stage2_v1_sidecars(v1_manifest_file, v1_protocol_file, write_v1_manifest, write_v1_protocol, &
                                     v1_output_dir, write_v1_package, &
                                     summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
-                                    write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
+                                    cold_observable_file, all_observable_dir, &
+                                    write_cold_history, write_all_history, write_cold_observable, write_all_observable, &
+                                    cold_history_stride, cold_history_max_samples, cold_history_written, &
+                                    all_history_stride, all_history_max_samples, all_history_written, &
+                                    cold_observable_stride, cold_observable_max_samples, cold_observable_written, &
+                                    all_observable_stride, all_observable_max_samples, all_observable_written, &
+                                    base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
                                     local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode, &
                                     elapsed, slots, pair_stats, label_tracks)
       call release_qn_diagnostics_context(qn_diagnostics_context)
@@ -487,11 +653,19 @@ contains
       write (*, '(A,1X,A)') "[DONE][TLTM-S2] Summary written to", trim(summary_file)
       write (*, '(A,1X,A)') "[DONE][TLTM-S2] Label trace written to", trim(label_trace_file)
       if (write_cold_history) then
-         write (*, '(A,1X,A)') "[DONE][TLTM-S2] Max-flow z-history written to", trim(cold_z_history_file)
+         write (*, '(A,I0,A,1X,A)') "[DONE][TLTM-S2] Max-flow z-history samples=", cold_history_written, " file=", trim(cold_z_history_file)
          write (*, '(A,1X,A)') "[DONE][TLTM-S2] Max-flow phi-history written to", trim(cold_phi_history_file)
       end if
       if (write_all_history) then
-         write (*, '(A,1X,A)') "[DONE][TLTM-S2] All-replica histories written under", trim(all_history_dir)
+         write (*, '(A,I0,A,1X,A)') "[DONE][TLTM-S2] All-replica history samples=", all_history_written, " dir=", trim(all_history_dir)
+      end if
+      if (write_cold_observable) then
+         write (*, '(A,I0,A,1X,A)') "[DONE][TLTM-S2] Max-flow observable samples=", cold_observable_written, " file=", &
+            trim(cold_observable_file)
+      end if
+      if (write_all_observable) then
+         write (*, '(A,I0,A,1X,A)') "[DONE][TLTM-S2] All-replica observable samples=", all_observable_written, " dir=", &
+            trim(all_observable_dir)
       end if
       if (write_v1_manifest) then
          write (*, '(A,1X,A)') "[DONE][TLTM-S2] v1alpha manifest written to", trim(v1_manifest_file)
@@ -525,7 +699,7 @@ contains
 
       ok = .false.
       call resolve_run_integrator_controls(run_context, trajectory_length, integration_steps)
-      allocate (x_seed(max(1, size(slot%x) - 1)))
+      allocate (x_seed(size(slot%x)))
       select case (trim(rng_stream_contract))
       case (stage2_rng_per_replica_v1)
          call mt95_seed_state(slot%rng_state, slot%rng_seed)
@@ -541,26 +715,21 @@ contains
             call grand(x_seed)
          end if
          x_seed = init_sigma*x_seed
-         if (trim(init_mode) == "direct" .or. trim(init_mode) == "legacy") then
-            call x_set_flow_time(slot%x, slot%flow_time)
-         else
-            call x_set_flow_time(slot%x, 0.0_dp)
-         end if
-         call x_set_seed_real(slot%x, x_seed)
+         slot%x = x_seed
 
          if (trim(init_mode) /= "direct" .and. trim(init_mode) /= "legacy") then
-            call adaptive_preflow_to_target(slot%x, slot%flow_time, trajectory_length, &
-                                            integration_steps, attempt - 1, preflow_success, stage_count, &
-                                            newton_flow_status=newton_flow_status_context, flow_workspace=run_context%flow%workspace, &
-                                            intode_diagnostics=run_context%diagnostics%intode)
+            call adaptive_preflow_to_target_at(slot%x, slot%flow_time, trajectory_length, &
+                                               integration_steps, attempt - 1, preflow_success, stage_count, &
+                                               newton_flow_status=newton_flow_status_context, flow_workspace=run_context%flow%workspace, &
+                                               intode_diagnostics=run_context%diagnostics%intode)
             if (.not. preflow_success) cycle
             write (*, '(A,I0,A,F10.6,A,I0,A,I0)') "[TLTM-S2][INIT] slot=", slot%slot_id, &
                " adaptive preflow ready at t=", slot%flow_time, " attempt=", attempt, " stages=", stage_count
          end if
 
          flow_status = intode_status_unknown
-         call flow(slot%x, slot%z, slot%jac, flow_failed, flow_status, run_context%flow%workspace, &
-                   run_context%diagnostics%intode)
+         call flow_at(slot%flow_time, slot%x, slot%z, slot%jac, flow_failed, flow_status, &
+                      run_context%flow%workspace, run_context%diagnostics%intode)
          if ((.not. flow_failed) .and. intode_status_is_strict_success(flow_status)) then
             ok = .true.
             if (trim(init_mode) == "direct" .or. trim(init_mode) == "legacy") then
@@ -628,7 +797,7 @@ contains
                                       base_seed, cycle_idx, slot%slot_id, update_idx)
             accept_uniform = tltm_rng_uniform(tltm_rng_domain_stage2_local_accept, base_seed, cycle_idx, slot%slot_id, update_idx, 1)
             if (capture_local_transition_audit) then
-               call metropolis_step(slot%x, slot%z, slot%jac, trajectory_length, &
+               call metropolis_step_at(slot%flow_time, slot%x, slot%z, slot%jac, trajectory_length, &
                                     integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
                                     h_initial_out=h_initial, h_final_out=h_final, delta_h_out=delta_h, &
                                     accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
@@ -640,7 +809,7 @@ contains
 	                                    momentum_in=kernel_momentum, &
 	                                    accept_uniform=accept_uniform)
             else
-               call metropolis_step(slot%x, slot%z, slot%jac, trajectory_length, &
+               call metropolis_step_at(slot%flow_time, slot%x, slot%z, slot%jac, trajectory_length, &
                                     integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
                                     context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
 	                                    qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
@@ -652,7 +821,7 @@ contains
             end if
          else
             if (capture_local_transition_audit) then
-               call metropolis_step(slot%x, slot%z, slot%jac, trajectory_length, &
+               call metropolis_step_at(slot%flow_time, slot%x, slot%z, slot%jac, trajectory_length, &
                                     integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
                                     h_initial_out=h_initial, h_final_out=h_final, delta_h_out=delta_h, &
                                     accept_probability_out=accept_probability, initial_momentum_out=initial_momentum, &
@@ -662,7 +831,7 @@ contains
 	                                    hmc_reversibility=run_context%diagnostics%hmc_reversibility, &
 	                                    newton_flow_status=newton_flow_status_context, intode_diagnostics=run_context%diagnostics%intode)
             else
-               call metropolis_step(slot%x, slot%z, slot%jac, trajectory_length, &
+               call metropolis_step_at(slot%flow_time, slot%x, slot%z, slot%jac, trajectory_length, &
                                     integration_steps, x_new, z_new, j_new, accepted, proposal_failed, transition_status, &
                                     context=run_context%hmc, flow_workspace=run_context%flow%workspace, &
 	                                    qn_context=run_context%qn%workspace, qn_diagnostics=qn_diagnostics_context, qn_policy=qn_policy_context, &
@@ -911,8 +1080,8 @@ contains
    pure real(dp) function seed_coord_stage2(x_val) result(q_val)
       real(dp), intent(in) :: x_val(:)
 
-      if (size(x_val) >= 2) then
-         q_val = x_val(2)
+      if (size(x_val) >= 1) then
+         q_val = x_val(1)
       else
          q_val = huge(1.0_dp)
       end if
@@ -1090,18 +1259,16 @@ contains
       allocate (j_bp(size(slot_b%jac, 1), size(slot_b%jac, 2)))
 
       x_ap = slot_b%x
-      call x_set_flow_time(x_ap, slot_a%flow_time)
       flow_status_ap = intode_status_unknown
-      call flow(x_ap, z_ap, j_ap, ok_ap, flow_status_ap, run_context_a%flow%workspace, &
-                run_context_a%diagnostics%intode)
+      call flow_at(slot_a%flow_time, x_ap, z_ap, j_ap, ok_ap, flow_status_ap, &
+                   run_context_a%flow%workspace, run_context_a%diagnostics%intode)
       ok_ap = (.not. ok_ap) .and. intode_status_is_strict_success(flow_status_ap)
       if (ok_ap) call compute_effective_energy(z_ap, j_ap, e_ap, ok_ap)
 
       x_bp = slot_a%x
-      call x_set_flow_time(x_bp, slot_b%flow_time)
       flow_status_bp = intode_status_unknown
-      call flow(x_bp, z_bp, j_bp, ok_bp, flow_status_bp, run_context_b%flow%workspace, &
-                run_context_b%diagnostics%intode)
+      call flow_at(slot_b%flow_time, x_bp, z_bp, j_bp, ok_bp, flow_status_bp, &
+                   run_context_b%flow%workspace, run_context_b%diagnostics%intode)
       ok_bp = (.not. ok_bp) .and. intode_status_is_strict_success(flow_status_bp)
       if (ok_bp) call compute_effective_energy(z_bp, j_bp, e_bp, ok_bp)
 
@@ -2001,6 +2168,67 @@ contains
       call read_string_env("TLTM_STAGE2_ALL_REPLICA_HISTORY_DIR", all_history_dir, write_all_history)
    end subroutine resolve_stage2_all_history_dir
 
+   subroutine resolve_stage2_observable_paths(cold_observable_file, write_cold_observable, all_observable_dir, write_all_observable)
+      character(len=*), intent(out) :: cold_observable_file, all_observable_dir
+      logical, intent(out) :: write_cold_observable, write_all_observable
+
+      cold_observable_file = ""
+      all_observable_dir = ""
+      call read_string_env("TLTM_STAGE2_COLD_OBSERVABLE_FILE", cold_observable_file, write_cold_observable)
+      call read_string_env("TLTM_STAGE2_ALL_REPLICA_OBSERVABLE_DIR", all_observable_dir, write_all_observable)
+   end subroutine resolve_stage2_observable_paths
+
+   subroutine resolve_stage2_io_controls(cold_history_stride, cold_history_max_samples, all_history_stride, all_history_max_samples, &
+                                         cold_observable_stride, cold_observable_max_samples, &
+                                         all_observable_stride, all_observable_max_samples)
+      integer, intent(out) :: cold_history_stride, cold_history_max_samples
+      integer, intent(out) :: all_history_stride, all_history_max_samples
+      integer, intent(out) :: cold_observable_stride, cold_observable_max_samples
+      integer, intent(out) :: all_observable_stride, all_observable_max_samples
+      integer :: history_stride, history_max_samples
+      integer :: observable_stride, observable_max_samples
+
+      history_stride = 1
+      history_max_samples = -1
+      call parse_int_env("TLTM_STAGE2_HISTORY_STRIDE", history_stride)
+      call parse_int_env("TLTM_STAGE2_HISTORY_MAX_SAMPLES", history_max_samples)
+      history_stride = max(1, history_stride)
+      history_max_samples = max(-1, history_max_samples)
+
+      cold_history_stride = history_stride
+      cold_history_max_samples = history_max_samples
+      all_history_stride = history_stride
+      all_history_max_samples = history_max_samples
+      call parse_int_env("TLTM_STAGE2_COLD_HISTORY_STRIDE", cold_history_stride)
+      call parse_int_env("TLTM_STAGE2_COLD_HISTORY_MAX_SAMPLES", cold_history_max_samples)
+      call parse_int_env("TLTM_STAGE2_ALL_REPLICA_HISTORY_STRIDE", all_history_stride)
+      call parse_int_env("TLTM_STAGE2_ALL_REPLICA_HISTORY_MAX_SAMPLES", all_history_max_samples)
+      cold_history_stride = max(1, cold_history_stride)
+      all_history_stride = max(1, all_history_stride)
+      cold_history_max_samples = max(-1, cold_history_max_samples)
+      all_history_max_samples = max(-1, all_history_max_samples)
+
+      observable_stride = 1
+      observable_max_samples = -1
+      call parse_int_env("TLTM_STAGE2_OBSERVABLE_STRIDE", observable_stride)
+      call parse_int_env("TLTM_STAGE2_OBSERVABLE_MAX_SAMPLES", observable_max_samples)
+      observable_stride = max(1, observable_stride)
+      observable_max_samples = max(-1, observable_max_samples)
+
+      cold_observable_stride = observable_stride
+      cold_observable_max_samples = observable_max_samples
+      all_observable_stride = observable_stride
+      all_observable_max_samples = observable_max_samples
+      call parse_int_env("TLTM_STAGE2_COLD_OBSERVABLE_STRIDE", cold_observable_stride)
+      call parse_int_env("TLTM_STAGE2_COLD_OBSERVABLE_MAX_SAMPLES", cold_observable_max_samples)
+      call parse_int_env("TLTM_STAGE2_ALL_REPLICA_OBSERVABLE_STRIDE", all_observable_stride)
+      call parse_int_env("TLTM_STAGE2_ALL_REPLICA_OBSERVABLE_MAX_SAMPLES", all_observable_max_samples)
+      cold_observable_stride = max(1, cold_observable_stride)
+      all_observable_stride = max(1, all_observable_stride)
+      cold_observable_max_samples = max(-1, cold_observable_max_samples)
+      all_observable_max_samples = max(-1, all_observable_max_samples)
+   end subroutine resolve_stage2_io_controls
+
    subroutine resolve_stage2_v1_sidecar_paths(output_dir, manifest_file, protocol_file, write_manifest, write_protocol, write_package)
       character(len=*), intent(out) :: output_dir, manifest_file, protocol_file
       logical, intent(out) :: write_manifest, write_protocol, write_package
@@ -2040,7 +2268,13 @@ contains
 
    subroutine write_stage2_v1_sidecars(manifest_file, protocol_file, write_manifest, write_protocol, output_dir, write_package, &
                                        summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
-                                       write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
+                                       cold_observable_file, all_observable_dir, &
+                                       write_cold_history, write_all_history, write_cold_observable, write_all_observable, &
+                                       cold_history_stride, cold_history_max_samples, cold_history_written, &
+                                       all_history_stride, all_history_max_samples, all_history_written, &
+                                       cold_observable_stride, cold_observable_max_samples, cold_observable_written, &
+                                       all_observable_stride, all_observable_max_samples, all_observable_written, &
+                                       base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
                                        local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode, &
                                        elapsed, slots, pair_stats, label_tracks)
       character(len=*), intent(in) :: manifest_file, protocol_file
@@ -2049,7 +2283,12 @@ contains
       logical, intent(in) :: write_package
       character(len=*), intent(in) :: summary_file, label_trace_file
       character(len=*), intent(in) :: cold_z_history_file, cold_phi_history_file, all_history_dir
-      logical, intent(in) :: write_cold_history, write_all_history
+      character(len=*), intent(in) :: cold_observable_file, all_observable_dir
+      logical, intent(in) :: write_cold_history, write_all_history, write_cold_observable, write_all_observable
+      integer, intent(in) :: cold_history_stride, cold_history_max_samples, cold_history_written
+      integer, intent(in) :: all_history_stride, all_history_max_samples, all_history_written
+      integer, intent(in) :: cold_observable_stride, cold_observable_max_samples, cold_observable_written
+      integer, intent(in) :: all_observable_stride, all_observable_max_samples, all_observable_written
       integer, intent(in) :: base_seed, swap_rng_seed, cycle_count, local_updates
       real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma, elapsed
       character(len=*), intent(in) :: init_mode, rng_stream_contract
@@ -2066,21 +2305,38 @@ contains
       end if
       if (write_manifest) call write_stage2_v1_manifest(manifest_file, protocol_file, write_protocol, &
                                                         summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, &
-                                                        all_history_dir, write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, &
+                                                        all_history_dir, cold_observable_file, all_observable_dir, &
+                                                        write_cold_history, write_all_history, write_cold_observable, write_all_observable, &
+                                                        cold_history_stride, cold_history_max_samples, cold_history_written, &
+                                                        all_history_stride, all_history_max_samples, all_history_written, &
+                                                        cold_observable_stride, cold_observable_max_samples, cold_observable_written, &
+                                                        all_observable_stride, all_observable_max_samples, all_observable_written, &
+                                                        base_seed, swap_rng_seed, flow_ladder, &
                                                         max_flow_time, cycle_count, local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, &
                                                         fixed_flow_mode, elapsed, output_dir, write_package)
    end subroutine write_stage2_v1_sidecars
 
    subroutine write_stage2_v1_manifest(manifest_file, protocol_file, write_protocol, &
                                        summary_file, label_trace_file, cold_z_history_file, cold_phi_history_file, all_history_dir, &
-                                       write_cold_history, write_all_history, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
+                                       cold_observable_file, all_observable_dir, &
+                                       write_cold_history, write_all_history, write_cold_observable, write_all_observable, &
+                                       cold_history_stride, cold_history_max_samples, cold_history_written, &
+                                       all_history_stride, all_history_max_samples, all_history_written, &
+                                       cold_observable_stride, cold_observable_max_samples, cold_observable_written, &
+                                       all_observable_stride, all_observable_max_samples, all_observable_written, &
+                                       base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
                                        local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode, &
                                        elapsed, output_dir, write_package)
       character(len=*), intent(in) :: manifest_file, protocol_file
       logical, intent(in) :: write_protocol
       character(len=*), intent(in) :: summary_file, label_trace_file
       character(len=*), intent(in) :: cold_z_history_file, cold_phi_history_file, all_history_dir
-      logical, intent(in) :: write_cold_history, write_all_history
+      character(len=*), intent(in) :: cold_observable_file, all_observable_dir
+      logical, intent(in) :: write_cold_history, write_all_history, write_cold_observable, write_all_observable
+      integer, intent(in) :: cold_history_stride, cold_history_max_samples, cold_history_written
+      integer, intent(in) :: all_history_stride, all_history_max_samples, all_history_written
+      integer, intent(in) :: cold_observable_stride, cold_observable_max_samples, cold_observable_written
+      integer, intent(in) :: all_observable_stride, all_observable_max_samples, all_observable_written
       integer, intent(in) :: base_seed, swap_rng_seed, cycle_count, local_updates
       real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma, elapsed
       character(len=*), intent(in) :: init_mode, rng_stream_contract
@@ -2091,7 +2347,7 @@ contains
       integer :: unit_manifest, ios
       logical :: path_ok
       character(len=128) :: git_commit
-      character(len=512) :: config_json, local_csv, swap_csv, label_csv, phase_csv
+      character(len=512) :: config_json, local_csv, swap_csv, label_csv, phase_csv, observable_schema_json
 
       call ensure_parent_directory_exists(manifest_file, path_ok)
       if (.not. path_ok) then
@@ -2158,6 +2414,7 @@ contains
 
       write (unit_manifest, '(A)') '  "resolved_config": {'
       call write_json_int_field(unit_manifest, "x_size", config%state%x_size, .true., 4)
+      call write_json_int_field(unit_manifest, "physical_state_size", config%state%physical_size, .true., 4)
       call write_json_int_field(unit_manifest, "z_size", config%state%z_size, .true., 4)
       call write_json_real_field(unit_manifest, "trajectory_length", config%integrator%trajectory_length, .true., 4)
       call write_json_int_field(unit_manifest, "integration_steps", config%integrator%integration_steps, .true., 4)
@@ -2185,6 +2442,20 @@ contains
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_COLD_Z_HISTORY_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_COLD_PHI_HISTORY_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_ALL_REPLICA_HISTORY_DIR", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_HISTORY_STRIDE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_HISTORY_MAX_SAMPLES", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_COLD_HISTORY_STRIDE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_COLD_HISTORY_MAX_SAMPLES", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_ALL_REPLICA_HISTORY_STRIDE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_ALL_REPLICA_HISTORY_MAX_SAMPLES", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_COLD_OBSERVABLE_FILE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_ALL_REPLICA_OBSERVABLE_DIR", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_OBSERVABLE_STRIDE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_OBSERVABLE_MAX_SAMPLES", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_COLD_OBSERVABLE_STRIDE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_COLD_OBSERVABLE_MAX_SAMPLES", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_ALL_REPLICA_OBSERVABLE_STRIDE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_ALL_REPLICA_OBSERVABLE_MAX_SAMPLES", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_OUTPUT_DIR", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_MANIFEST_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_PROTOCOL_FILE", .true., 4)
@@ -2205,8 +2476,24 @@ contains
       call write_json_logical_field(unit_manifest, "cold_history_written", write_cold_history, .true., 4)
       call write_json_string_or_null_field(unit_manifest, "cold_z_history_file", cold_z_history_file, write_cold_history, .true., 4)
       call write_json_string_or_null_field(unit_manifest, "cold_phi_history_file", cold_phi_history_file, write_cold_history, .true., 4)
+      call write_json_int_field(unit_manifest, "cold_history_stride", cold_history_stride, .true., 4)
+      call write_json_int_field(unit_manifest, "cold_history_max_samples", cold_history_max_samples, .true., 4)
+      call write_json_int_field(unit_manifest, "cold_history_samples", cold_history_written, .true., 4)
       call write_json_logical_field(unit_manifest, "all_replica_history_written", write_all_history, .true., 4)
       call write_json_string_or_null_field(unit_manifest, "all_replica_history_dir", all_history_dir, write_all_history, .true., 4)
+      call write_json_int_field(unit_manifest, "all_replica_history_stride", all_history_stride, .true., 4)
+      call write_json_int_field(unit_manifest, "all_replica_history_max_samples", all_history_max_samples, .true., 4)
+      call write_json_int_field(unit_manifest, "all_replica_history_samples_per_slot", all_history_written, .true., 4)
+      call write_json_logical_field(unit_manifest, "cold_observable_stream_written", write_cold_observable, .true., 4)
+      call write_json_string_or_null_field(unit_manifest, "cold_observable_stream_file", cold_observable_file, write_cold_observable, .true., 4)
+      call write_json_int_field(unit_manifest, "cold_observable_stride", cold_observable_stride, .true., 4)
+      call write_json_int_field(unit_manifest, "cold_observable_max_samples", cold_observable_max_samples, .true., 4)
+      call write_json_int_field(unit_manifest, "cold_observable_samples", cold_observable_written, .true., 4)
+      call write_json_logical_field(unit_manifest, "all_replica_observable_stream_written", write_all_observable, .true., 4)
+      call write_json_string_or_null_field(unit_manifest, "all_replica_observable_stream_dir", all_observable_dir, write_all_observable, .true., 4)
+      call write_json_int_field(unit_manifest, "all_replica_observable_stride", all_observable_stride, .true., 4)
+      call write_json_int_field(unit_manifest, "all_replica_observable_max_samples", all_observable_max_samples, .true., 4)
+      call write_json_int_field(unit_manifest, "all_replica_observable_samples_per_slot", all_observable_written, .true., 4)
       if (write_package) then
          call stage2_v1_package_path(output_dir, "config.resolved.json", config_json)
       else
@@ -2224,16 +2511,27 @@ contains
          call stage2_v1_package_path(output_dir, "diagnostics/swap_summary.csv", swap_csv)
          call stage2_v1_package_path(output_dir, "diagnostics/label_summary.csv", label_csv)
          call stage2_v1_package_path(output_dir, "observables/per_slot_phase_summary.csv", phase_csv)
+         call stage2_v1_package_path(output_dir, "observables/observable_schema.json", observable_schema_json)
       else
          local_csv = ""
          swap_csv = ""
          label_csv = ""
          phase_csv = ""
+         observable_schema_json = ""
       end if
       call write_json_string_or_null_field(unit_manifest, "local_transition_summary_csv", local_csv, write_package, .true., 4)
       call write_json_string_or_null_field(unit_manifest, "swap_summary_csv", swap_csv, write_package, .true., 4)
       call write_json_string_or_null_field(unit_manifest, "label_summary_csv", label_csv, write_package, .true., 4)
-      call write_json_string_or_null_field(unit_manifest, "per_slot_phase_summary_csv", phase_csv, write_package, .false., 4)
+      call write_json_string_or_null_field(unit_manifest, "per_slot_phase_summary_csv", phase_csv, write_package, .true., 4)
+      call write_json_string_or_null_field(unit_manifest, "observable_schema_json", observable_schema_json, write_package, .false., 4)
+      write (unit_manifest, '(A)') '  },'
+
+      write (unit_manifest, '(A)') '  "observable_schema": {'
+      call write_json_string_field(unit_manifest, "provider", "model_observables", .true., 4)
+      call write_json_string_field(unit_manifest, "definition_surface", "src/physics/model_observable_registry.inc + src/physics/model_observable_body.inc", .true., 4)
+      call write_json_int_field(unit_manifest, "observable_count", model_observable_count(), .true., 4)
+      call write_json_model_observable_names_field(unit_manifest, "observable_names", .true., 4)
+      call write_json_string_field(unit_manifest, "stream_record_layout", "complex(dp) phi, then complex(dp) observable_values(observable_count)", .false., 4)
       write (unit_manifest, '(A)') '  },'
 
       write (unit_manifest, '(A)') '  "compatibility": {'
@@ -2280,13 +2578,16 @@ contains
       write (unit_config, '(A)') '  "model": {'
       call write_json_string_field(unit_config, "model_id", "tltm_configured_model_v1", .true., 4)
       call write_json_int_field(unit_config, "x_size", config%state%x_size, .true., 4)
+      call write_json_int_field(unit_config, "physical_state_size", config%state%physical_size, .true., 4)
       call write_json_int_field(unit_config, "z_size", config%state%z_size, .true., 4)
-      call write_json_int_field(unit_config, "constraint_dim", max(0, config%state%x_size - config%state%z_size), .true., 4)
+      call write_json_int_field(unit_config, "legacy_flow_label_dim", max(0, config%state%x_size - config%state%z_size), .true., 4)
       call write_json_real_field(unit_config, "alpha_re", real(config%model%alpha, dp), .true., 4)
       call write_json_real_field(unit_config, "alpha_im", real(aimag(config%model%alpha), dp), .true., 4)
       call write_json_real_field(unit_config, "beta_re", real(config%model%beta, dp), .true., 4)
       call write_json_real_field(unit_config, "beta_im", real(aimag(config%model%beta), dp), .true., 4)
-      call write_json_string_field(unit_config, "derivative_mode", trim(config%model%derivative_mode), .false., 4)
+      call write_json_string_field(unit_config, "derivative_mode", trim(config%model%derivative_mode), .true., 4)
+      call write_json_int_field(unit_config, "observable_count", model_observable_count(), .true., 4)
+      call write_json_model_observable_names_field(unit_config, "observable_names", .false., 4)
       write (unit_config, '(A)') '  },'
 
       write (unit_config, '(A)') '  "integrator": {'
@@ -2339,6 +2640,7 @@ contains
       call write_stage2_v1_swap_summary_csv(output_dir, slots, pair_stats)
       call write_stage2_v1_label_summary_csv(output_dir, label_tracks)
       call write_stage2_v1_phase_summary_csv(output_dir, slots)
+      call write_stage2_v1_observable_schema_json(output_dir)
    end subroutine write_stage2_v1_diagnostics_package
 
    subroutine write_stage2_v1_local_transition_csv(output_dir, slots)
@@ -2466,6 +2768,39 @@ contains
       close (unit_csv)
    end subroutine write_stage2_v1_phase_summary_csv
 
+   subroutine write_stage2_v1_observable_schema_json(output_dir)
+      character(len=*), intent(in) :: output_dir
+      character(len=512) :: schema_file
+      integer :: unit_schema, ios
+      logical :: path_ok
+
+      call stage2_v1_package_path(output_dir, "observables/observable_schema.json", schema_file)
+      call ensure_parent_directory_exists(schema_file, path_ok)
+      if (.not. path_ok) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot prepare observable schema path:", trim(schema_file)
+         error stop 1
+      end if
+
+      open (newunit=unit_schema, file=trim(schema_file), status='replace', action='write', iostat=ios)
+      if (ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot open observable schema file:", trim(schema_file)
+         error stop 1
+      end if
+
+      write (unit_schema, '(A)') "{"
+      call write_json_string_field(unit_schema, "schema_version", "tltm.observable_schema.v1alpha1", .true.)
+      call write_json_string_field(unit_schema, "provider", "model_observables", .true.)
+      call write_json_string_field(unit_schema, "definition_surface", &
+                                   "src/physics/model_observable_registry.inc + src/physics/model_observable_body.inc", .true.)
+      call write_json_int_field(unit_schema, "observable_count", model_observable_count(), .true.)
+      call write_json_model_observable_names_field(unit_schema, "observable_names", .true.)
+      call write_json_string_field(unit_schema, "binary_record_layout", &
+                                   "complex(dp) phi, then complex(dp) observable_values(observable_count)", .false.)
+      write (unit_schema, '(A)') "}"
+
+      close (unit_schema)
+   end subroutine write_stage2_v1_observable_schema_json
+
    subroutine stage2_v1_package_path(output_dir, relative_path, file_path)
       character(len=*), intent(in) :: output_dir, relative_path
       character(len=*), intent(out) :: file_path
@@ -2554,6 +2889,15 @@ contains
       call write_json_string_field(unit_protocol, "all_replica_history", "fixed slots sampled post-swap when enabled", .false., 4)
       write (unit_protocol, '(A)') '  },'
 
+      write (unit_protocol, '(A)') '  "observable_policy": {'
+      call write_json_string_field(unit_protocol, "provider", "model_observables", .true., 4)
+      call write_json_string_field(unit_protocol, "sample_boundary", "post_swap", .true., 4)
+      call write_json_int_field(unit_protocol, "observable_count", model_observable_count(), .true., 4)
+      call write_json_model_observable_names_field(unit_protocol, "observable_names", .true., 4)
+      call write_json_string_field(unit_protocol, "stream_record_layout", "complex(dp) phi, then complex(dp) observable_values(observable_count)", &
+                                   .false., 4)
+      write (unit_protocol, '(A)') '  },'
+
       write (unit_protocol, '(A)') '  "compatibility": {'
       call write_json_string_field(unit_protocol, "v0_summary", "field_names_preserved_timing_changed", .true., 4)
       call write_json_string_field(unit_protocol, "v0_label_trace", "field_names_preserved_timing_changed", .true., 4)
@@ -2596,6 +2940,27 @@ contains
       end if
       call write_json_line_end(unit_json, trailing_comma)
    end subroutine write_json_string_or_null_field
+
+   subroutine write_json_model_observable_names_field(unit_json, key, trailing_comma, indent)
+      integer, intent(in) :: unit_json
+      character(len=*), intent(in) :: key
+      logical, intent(in) :: trailing_comma
+      integer, intent(in), optional :: indent
+
+      character(len=64) :: observable_name
+      integer :: i, observable_count
+
+      observable_count = model_observable_count()
+      call write_json_indent(unit_json, indent)
+      write (unit_json, '(A)', advance='no') '"'//json_escape(trim(key))//'": ['
+      do i = 1, observable_count
+         call get_model_observable_name(i, observable_name)
+         if (i > 1) write (unit_json, '(A)', advance='no') ', '
+         write (unit_json, '(A)', advance='no') '"'//json_escape(trim(observable_name))//'"'
+      end do
+      write (unit_json, '(A)', advance='no') ']'
+      call write_json_line_end(unit_json, trailing_comma)
+   end subroutine write_json_model_observable_names_field
 
    subroutine write_json_env_field(unit_json, env_name, trailing_comma, indent)
       integer, intent(in) :: unit_json
@@ -2816,6 +3181,19 @@ contains
       end do
    end subroutine write_all_replica_history_samples
 
+   subroutine write_all_replica_history_samples_if_enabled(slots, z_units, phi_units, sample_idx, stride, max_samples, written_count, ok)
+      type(tltm_slot_t), intent(in) :: slots(:)
+      integer, intent(in) :: z_units(:), phi_units(:)
+      integer, intent(in) :: sample_idx, stride, max_samples
+      integer, intent(inout) :: written_count
+      logical, intent(out) :: ok
+
+      ok = .true.
+      if (.not. history_sample_enabled(sample_idx, stride, max_samples, written_count)) return
+      call write_all_replica_history_samples(slots, z_units, phi_units, ok)
+      if (ok) written_count = written_count + 1
+   end subroutine write_all_replica_history_samples_if_enabled
+
    subroutine close_all_replica_history_files(z_units, phi_units)
       integer, allocatable, intent(inout) :: z_units(:), phi_units(:)
       integer :: i
@@ -2842,6 +3220,19 @@ contains
       call write_history_sample(slot, unit_z, unit_phi, "cold-slot", ok)
    end subroutine write_cold_history_sample
 
+   subroutine write_cold_history_sample_if_enabled(slot, unit_z, unit_phi, sample_idx, stride, max_samples, written_count, ok)
+      type(tltm_slot_t), intent(in) :: slot
+      integer, intent(in) :: unit_z, unit_phi
+      integer, intent(in) :: sample_idx, stride, max_samples
+      integer, intent(inout) :: written_count
+      logical, intent(out) :: ok
+
+      ok = .true.
+      if (.not. history_sample_enabled(sample_idx, stride, max_samples, written_count)) return
+      call write_cold_history_sample(slot, unit_z, unit_phi, ok)
+      if (ok) written_count = written_count + 1
+   end subroutine write_cold_history_sample_if_enabled
+
    subroutine write_history_sample(slot, unit_z, unit_phi, context, ok)
       type(tltm_slot_t), intent(in) :: slot
       integer, intent(in) :: unit_z, unit_phi
@@ -2861,6 +3252,131 @@ contains
       write (unit_phi) phi
       ok = .true.
    end subroutine write_history_sample
+
+   logical function history_sample_enabled(sample_idx, stride, max_samples, written_count) result(enabled)
+      integer, intent(in) :: sample_idx, stride, max_samples, written_count
+
+      enabled = .false.
+      if (max_samples == 0) return
+      if (max_samples > 0 .and. written_count >= max_samples) return
+      if (mod(sample_idx, max(1, stride)) /= 0) return
+      enabled = .true.
+   end function history_sample_enabled
+
+   subroutine open_all_replica_observable_files(slots, all_observable_dir, obs_units, ok)
+      type(tltm_slot_t), intent(in) :: slots(:)
+      character(len=*), intent(in) :: all_observable_dir
+      integer, allocatable, intent(out) :: obs_units(:)
+      logical, intent(out) :: ok
+
+      character(len=512) :: obs_file
+      logical :: path_ok
+      integer :: i, ios
+
+      ok = .false.
+      allocate (obs_units(size(slots)))
+      obs_units = 0
+      do i = 1, size(slots)
+         call replica_observable_path(all_observable_dir, slots(i)%slot_id, obs_file)
+         call ensure_parent_directory_exists(obs_file, path_ok)
+         if (.not. path_ok) then
+            write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot prepare all-replica observable path:", trim(obs_file)
+            call close_all_replica_observable_files(obs_units)
+            return
+         end if
+         open (newunit=obs_units(i), file=trim(obs_file), status='replace', access='stream', &
+               form='unformatted', action='write', iostat=ios)
+         if (ios /= 0) then
+            write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot open all-replica observable file:", trim(obs_file)
+            call close_all_replica_observable_files(obs_units)
+            return
+         end if
+      end do
+      ok = .true.
+   end subroutine open_all_replica_observable_files
+
+   subroutine replica_observable_path(all_observable_dir, slot_id, obs_file)
+      character(len=*), intent(in) :: all_observable_dir
+      integer, intent(in) :: slot_id
+      character(len=*), intent(out) :: obs_file
+      character(len=32) :: replica_dir
+
+      write (replica_dir, '("replica_",I3.3)') slot_id
+      obs_file = trim(all_observable_dir)//"/"//trim(replica_dir)//"/output/observable_history.dat"
+   end subroutine replica_observable_path
+
+   subroutine write_all_replica_observable_samples_if_enabled(slots, obs_units, sample_idx, stride, max_samples, written_count, ok)
+      type(tltm_slot_t), intent(in) :: slots(:)
+      integer, intent(in) :: obs_units(:)
+      integer, intent(in) :: sample_idx, stride, max_samples
+      integer, intent(inout) :: written_count
+      logical, intent(out) :: ok
+      integer :: i
+
+      ok = .true.
+      if (.not. history_sample_enabled(sample_idx, stride, max_samples, written_count)) return
+      if (size(obs_units) /= size(slots)) then
+         write (*, '(A)') "[ERROR][TLTM-S2] All-replica observable unit count does not match slot count."
+         ok = .false.
+         return
+      end if
+      do i = 1, size(slots)
+         call write_observable_sample(slots(i), obs_units(i), "all-replica", ok)
+         if (.not. ok) return
+      end do
+      written_count = written_count + 1
+   end subroutine write_all_replica_observable_samples_if_enabled
+
+   subroutine write_observable_sample_if_enabled(slot, unit_obs, sample_idx, stride, max_samples, written_count, context, ok)
+      type(tltm_slot_t), intent(in) :: slot
+      integer, intent(in) :: unit_obs
+      integer, intent(in) :: sample_idx, stride, max_samples
+      integer, intent(inout) :: written_count
+      character(len=*), intent(in) :: context
+      logical, intent(out) :: ok
+
+      ok = .true.
+      if (.not. history_sample_enabled(sample_idx, stride, max_samples, written_count)) return
+      call write_observable_sample(slot, unit_obs, context, ok)
+      if (ok) written_count = written_count + 1
+   end subroutine write_observable_sample_if_enabled
+
+   subroutine write_observable_sample(slot, unit_obs, context, ok)
+      type(tltm_slot_t), intent(in) :: slot
+      integer, intent(in) :: unit_obs
+      character(len=*), intent(in) :: context
+      logical, intent(out) :: ok
+      complex(dp) :: phi
+      complex(dp), allocatable :: observable_values(:)
+      logical :: phase_error
+      integer :: observable_count
+
+      call compute_phase_factor(slot%z, slot%jac, phi, phase_error)
+      if (phase_error) then
+         write (*, '(A,1X,A,A)') "[ERROR][TLTM-S2] Failed to compute", trim(context), " phase for observable sample."
+         ok = .false.
+         return
+      end if
+
+      observable_count = model_observable_count()
+      allocate (observable_values(observable_count))
+      call evaluate_model_observables(slot%z, observable_values)
+      write (unit_obs) phi
+      write (unit_obs) observable_values
+      deallocate (observable_values)
+      ok = .true.
+   end subroutine write_observable_sample
+
+   subroutine close_all_replica_observable_files(obs_units)
+      integer, allocatable, intent(inout) :: obs_units(:)
+      integer :: i
+
+      if (.not. allocated(obs_units)) return
+      do i = 1, size(obs_units)
+         if (obs_units(i) /= 0) close (unit=obs_units(i))
+      end do
+      deallocate (obs_units)
+   end subroutine close_all_replica_observable_files
 
    subroutine ensure_parent_directory_exists(file_path, ok)
       character(len=*), intent(in) :: file_path

@@ -2,11 +2,11 @@ program test_tltm_swap_kernel_contract
    use param_mod, only: read_parameters, state_seed_size_cfg
    use mt95, only: mt95_seed_state, mt95_state_t
    use markovchain_phase, only: compute_phase_factor
-   use solve_flow, only: flow, intode_status_is_strict_success, intode_status_unknown
+   use solve_flow, only: flow_at, intode_status_is_strict_success, intode_status_unknown
    use tltm_stage2_driver, only: attempt_adjacent_swap, compute_effective_energy
    use tltm_run_context_mod, only: release_tltm_run_context, tltm_run_context_t
    use tltm_types_mod, only: allocate_tltm_slot, release_tltm_slot, tltm_pair_stats_t, tltm_slot_t
-   use utils, only: dp, x_set_flow_time, x_set_seed_real
+   use utils, only: dp
    use, intrinsic :: ieee_arithmetic, only: ieee_quiet_nan, ieee_value
    implicit none
 
@@ -30,7 +30,7 @@ program test_tltm_swap_kernel_contract
 
    call read_parameters()
    n_seed = state_seed_size_cfg()
-   x_size = 1 + n_seed
+   x_size = n_seed
 
    allocate (seed_a(n_seed), seed_b(n_seed))
    allocate (x_a0(x_size), x_b0(x_size), x_ap(x_size), x_bp(x_size))
@@ -71,14 +71,12 @@ program test_tltm_swap_kernel_contract
    call assert_true((.not. ok_bad) .and. e_bad == 0.0_dp, "effective energy rejects nonfinite action/logdet")
 
    x_ap = slot_b%x
-   call x_set_flow_time(x_ap, slot_a%flow_time)
-   call strict_flow(x_ap, z_ap, j_ap, ok_ap, "proposed a<-b reflow")
+   call strict_flow(slot_a%flow_time, x_ap, z_ap, j_ap, ok_ap, "proposed a<-b reflow")
    call compute_effective_energy(z_ap, j_ap, e_ap, ok_ap)
    call assert_true(ok_ap, "proposed a<-b energy is computable")
 
    x_bp = slot_a%x
-   call x_set_flow_time(x_bp, slot_b%flow_time)
-   call strict_flow(x_bp, z_bp, j_bp, ok_bp, "proposed b<-a reflow")
+   call strict_flow(slot_b%flow_time, x_bp, z_bp, j_bp, ok_bp, "proposed b<-a reflow")
    call compute_effective_energy(z_bp, j_bp, e_bp, ok_bp)
    call assert_true(ok_bp, "proposed b<-a energy is computable")
 
@@ -154,13 +152,13 @@ contains
       slot%slot_id = slot_id
       slot%label_id = label_id
       slot%flow_time = flow_time
-      call x_set_flow_time(slot%x, flow_time)
-      call x_set_seed_real(slot%x, seed)
-      call strict_flow(slot%x, slot%z, slot%jac, ok, "initialize slot")
+      slot%x = seed
+      call strict_flow(slot%flow_time, slot%x, slot%z, slot%jac, ok, "initialize slot")
       call assert_true(ok, "slot initialization strict flow")
    end subroutine initialize_slot
 
-   subroutine strict_flow(x, z, jac, ok, context)
+   subroutine strict_flow(flow_time, x, z, jac, ok, context)
+      real(dp), intent(in) :: flow_time
       real(dp), intent(in) :: x(:)
       complex(dp), intent(out) :: z(:)
       complex(dp), intent(out) :: jac(:, :)
@@ -170,7 +168,7 @@ contains
       logical :: failed
 
       status = intode_status_unknown
-      call flow(x, z, jac, failed, status)
+      call flow_at(flow_time, x, z, jac, failed, status)
       ok = (.not. failed) .and. intode_status_is_strict_success(status)
       if (.not. ok) then
          write (*, '(A,A,A,I0)') "[ERROR] ", trim(context), " failed with status=", status

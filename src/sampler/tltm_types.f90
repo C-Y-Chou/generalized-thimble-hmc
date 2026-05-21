@@ -196,13 +196,13 @@ contains
       end select
    end subroutine record_slot_transition_detail
 
-   subroutine allocate_tltm_replica(replica, x_size)
+   subroutine allocate_tltm_replica(replica, physical_state_size)
       type(tltm_replica_t), intent(inout) :: replica
-      integer, intent(in) :: x_size
+      integer, intent(in) :: physical_state_size
       integer :: z_size
 
-      z_size = max(1, x_size - 1)
-      if (.not. allocated(replica%x)) allocate (replica%x(x_size))
+      z_size = max(1, physical_state_size)
+      if (.not. allocated(replica%x)) allocate (replica%x(z_size))
       if (.not. allocated(replica%z)) allocate (replica%z(z_size))
       if (.not. allocated(replica%jac)) allocate (replica%jac(z_size, z_size))
    end subroutine allocate_tltm_replica
@@ -215,13 +215,13 @@ contains
       if (allocated(replica%jac)) deallocate (replica%jac)
    end subroutine release_tltm_replica
 
-   subroutine allocate_tltm_slot(slot, x_size)
+   subroutine allocate_tltm_slot(slot, physical_state_size)
       type(tltm_slot_t), intent(inout) :: slot
-      integer, intent(in) :: x_size
+      integer, intent(in) :: physical_state_size
       integer :: z_size
 
-      z_size = max(1, x_size - 1)
-      if (.not. allocated(slot%x)) allocate (slot%x(x_size))
+      z_size = max(1, physical_state_size)
+      if (.not. allocated(slot%x)) allocate (slot%x(z_size))
       if (.not. allocated(slot%z)) allocate (slot%z(z_size))
       if (.not. allocated(slot%jac)) allocate (slot%jac(z_size, z_size))
    end subroutine allocate_tltm_slot

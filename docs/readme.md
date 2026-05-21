@@ -143,6 +143,22 @@ Generated derivatives support backends via `GEN_BACKEND`:
 See [source_transform_backend.md](./source_transform_backend.md) for setup,
 environment variables, and Tapenade provenance/license handling.
 
+### Model Observable Surface
+
+Observable formulas are model-owned, not sampler-owned. Define observable names
+and formulas in:
+
+- `src/physics/model_observable_registry.inc`
+- `src/physics/model_observable_body.inc`
+
+Stage2 writes optional generic observable streams with record layout
+`phi + observable_values(:)`, and `evaluate_expectations` can read those
+streams directly via `EVAL_OBSERVABLE_HISTORY_FILE`. See
+[model_observables.md](./model_observables.md).
+
+Draft high-dimensional models under `model_specs/high_dimensional/` before
+promoting them into active `src/physics/` and `src/config/` files.
+
 ## License And Third-Party Notices
 
 TLTM is distributed under GPL-3.0-or-later; see the repository-root `LICENSE`
@@ -160,17 +176,17 @@ particular:
 
 ## State Vector Convention
 
-State vector `x(:)` semantics:
+Canonical state vector `x(:)` semantics:
 
-- `x(1)`: flow time
-- `x(2:)`: real seed values
+- `x(:)`: real physical seed/state coordinates only
+- `flow_time`: fixed slot/replica label metadata, passed explicitly to flow APIs
 
 Runtime default is randomized start generation. There is no `initial_x.dat` runtime input path.
 
-Helper APIs (recommended over direct indexing) are defined in `src/core/utils.f90`:
+New flow APIs pass the label explicitly:
 
-- `x_get_flow_time`, `x_set_flow_time`
-- `x_get_seed_real`, `x_set_seed_real`
+- `flow_at`, `flowz_at`, `flowzr_at`
+- `metropolis_step_at`
 
 See [state_vector_convention.md](./state_vector_convention.md) for full details.
 
@@ -184,7 +200,7 @@ Main directories:
 
 - `src/core`: primitive utilities, RNG, vector/matrix helpers
 - `src/config`: parameter parsing and runtime config sync
-- `src/physics`: action/derivatives and flow ODE integration
+- `src/physics`: action/derivatives, observables, and flow ODE integration
 - `src/sampler`: HMC kernels, constraints, quasi-Newton, chain logic
 - `src/apps`: executable entry points
 
@@ -196,6 +212,7 @@ Detailed architecture and responsibilities are documented in [module_architectur
 - [state_vector_convention.md](./state_vector_convention.md): state vector and input-file contract
 - [module_architecture.md](./module_architecture.md): module layers and dependency rules
 - [file_layout.md](./file_layout.md): repository structure and artifact policy
+- [model_observables.md](./model_observables.md): model-owned action/observable surfaces and observable-stream I/O
 - [coding_style.md](./coding_style.md): coding and output style conventions
 - [fallback_policy_s1.md](./fallback_policy_s1.md): fixed stage-1 fallback policy and controls
 - [`../scripts/README.md`](../scripts/README.md): script status (active vs historical)

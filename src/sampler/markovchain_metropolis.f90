@@ -1,6 +1,6 @@
 module markovchain_metropolis
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_quiet_nan, ieee_value
-   use utils, only: dp
+   use utils, only: dp, pack_legacy_x, unpack_legacy_x
    use mt95, only: grnd, mt95_get_state, mt95_set_state, mt95_state_t
    use markovchain_transition_status, only: metropolis_status_accepted, metropolis_status_delta_h_invalid, &
                                             metropolis_status_hamiltonian_invalid, metropolis_status_output_size_mismatch, &
@@ -155,6 +155,87 @@ contains
          if (present(transition_status)) transition_status = metropolis_status_rejected
       end if
    end subroutine metropolis_step
+
+   subroutine metropolis_step_at(flow_time, x, z, j, total_step_size, num_steps, x_new, z_new, j_new, accept, proposal_failed, &
+                                 transition_status, h_initial_out, h_final_out, delta_h_out, accept_probability_out, &
+                                 initial_momentum_out, final_momentum_out, context, flow_workspace, intode_diagnostics, qn_context, &
+                                 qn_diagnostics, qn_policy, hmc_policy, hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, &
+                                 momentum_rng_state, accept_rng_state, momentum_in, accept_uniform)
+      implicit none
+
+      real(dp), intent(in) :: flow_time
+      real(dp), intent(in) :: x(:)
+      complex(dp), intent(in) :: z(:)
+      complex(dp), intent(in) :: j(:, :)
+      real(dp), intent(in) :: total_step_size
+      integer, intent(in) :: num_steps
+
+      real(dp), intent(out) :: x_new(:)
+      complex(dp), intent(out) :: z_new(:)
+      complex(dp), intent(out) :: j_new(:, :)
+      logical, intent(out) :: accept
+      logical, intent(out), optional :: proposal_failed
+      integer, intent(out), optional :: transition_status
+      real(dp), intent(out), optional :: h_initial_out, h_final_out, delta_h_out, accept_probability_out
+      real(dp), intent(out), optional :: initial_momentum_out(:), final_momentum_out(:)
+      type(tltm_hmc_context_t), intent(inout), optional :: context
+      type(flow_workspace_t), intent(inout), optional :: flow_workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      type(qn_context_t), intent(inout), optional, target :: qn_context
+      type(qn_diagnostics_context_t), intent(inout), optional, target :: qn_diagnostics
+      type(qn_policy_context_t), intent(inout), optional, target :: qn_policy
+      type(hmc_policy_context_t), intent(inout), optional, target :: hmc_policy
+      type(hmc_replay_diagnostics_context_t), intent(inout), optional, target :: hmc_replay_diagnostics
+      type(hmc_reversibility_context_t), intent(inout), optional, target :: hmc_reversibility
+      type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
+      type(mt95_state_t), intent(inout), optional :: momentum_rng_state
+      type(mt95_state_t), intent(inout), optional :: accept_rng_state
+      real(dp), intent(in), optional :: momentum_in(:)
+      real(dp), intent(in), optional :: accept_uniform
+
+      real(dp), allocatable :: x_legacy(:), x_new_legacy(:)
+      real(dp) :: returned_flow_time
+
+      accept = .false.
+      if (present(proposal_failed)) proposal_failed = .false.
+      if (present(transition_status)) transition_status = metropolis_status_rejected
+      call publish_metropolis_diagnostics(huge(1.0_dp), huge(1.0_dp), huge(1.0_dp), 0.0_dp, &
+                                          h_initial_out, h_final_out, delta_h_out, accept_probability_out)
+      call clear_optional_momentum(initial_momentum_out)
+      call clear_optional_momentum(final_momentum_out)
+
+      if (size(x) < 1 .or. size(x_new) /= size(x) .or. size(z) /= size(x) .or. size(z_new) /= size(z) .or. &
+          size(j, 1) /= size(z) .or. size(j, 2) /= size(z) .or. size(j_new, 1) /= size(z) .or. size(j_new, 2) /= size(z) .or. &
+          (.not. ieee_is_finite(flow_time))) then
+         if (size(x_new) == size(x)) x_new = x
+         if (size(z_new) == size(z)) z_new = z
+         if (size(j_new, 1) == size(j, 1) .and. size(j_new, 2) == size(j, 2)) j_new = j
+         if (present(proposal_failed)) proposal_failed = .true.
+         if (present(transition_status)) transition_status = metropolis_status_output_size_mismatch
+         return
+      end if
+
+      allocate (x_legacy(size(x) + 1), x_new_legacy(size(x) + 1))
+      call pack_legacy_x(flow_time, x, x_legacy)
+
+      call metropolis_step(x_legacy, z, j, total_step_size, num_steps, x_new_legacy, z_new, j_new, accept, proposal_failed, transition_status, &
+                           h_initial_out, h_final_out, delta_h_out, accept_probability_out, initial_momentum_out, final_momentum_out, &
+                           context, flow_workspace, intode_diagnostics, qn_context, qn_diagnostics, qn_policy, hmc_policy, &
+                           hmc_replay_diagnostics, hmc_reversibility, newton_flow_status, momentum_rng_state, accept_rng_state, momentum_in, &
+                           accept_uniform)
+      call unpack_legacy_x(x_new_legacy, returned_flow_time, x_new)
+
+      if (returned_flow_time /= flow_time) then
+         accept = .false.
+         x_new = x
+         z_new = z
+         j_new = j
+         if (present(proposal_failed)) proposal_failed = .true.
+         if (present(transition_status)) transition_status = metropolis_status_proposal_failed
+      end if
+
+      deallocate (x_legacy, x_new_legacy)
+   end subroutine metropolis_step_at
 
    subroutine publish_metropolis_diagnostics(h_initial, h_final, delta_h, accept_probability, &
                                              h_initial_out, h_final_out, delta_h_out, accept_probability_out)

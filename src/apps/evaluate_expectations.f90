@@ -1,7 +1,9 @@
 program evaluate_expectations_app
-   use param_mod, only: alpha, beta, n_size, phi_history_file, read_parameters, tra2, z_history_file
+   use param_mod, only: n_size, phi_history_file, read_parameters, tra2, z_history_file
    use runtime_env_mod, only: read_string_env
    use utils, only: dp
+   use model_observables, only: model_observable_count, get_model_observable_name, find_model_observable, &
+                                evaluate_model_observables, evaluate_model_observable_by_index
    implicit none
 
    complex(dp), allocatable :: z_history(:, :), phi_history(:)
@@ -49,14 +51,15 @@ program evaluate_expectations_app
    integer :: stability_level_re, stability_level_im, stability_level_all
    logical :: jk_split_ok_re, jk_split_ok_im
    character(len=16) :: stability_re_label, stability_im_label, stability_all_label
-   character(len=16) :: diag_observable_name
+   character(len=64) :: diag_observable_name, selected_observable_name
    character(len=64) :: env_value
-   character(len=1024) :: multichain_run_dir
+   character(len=1024) :: multichain_run_dir, observable_history_file
    character(len=1024) :: analysis_dir
    character(len=1024) :: virial_file
    character(len=1024) :: jackknife_file, jackknife_plot_script_file, jackknife_plot_image_file, jackknife_plot_cmd
    character(len=1024) :: jackknife_meta_file
-   logical :: multichain_mode, env_present_main
+   logical :: multichain_mode, env_present_main, use_observable_stream
+   integer :: selected_observable_idx
 
    call read_parameters()
    multichain_run_dir = ""
@@ -68,27 +71,44 @@ program evaluate_expectations_app
    end if
    write (*, '(A)') "[INIT] Evaluating jackknife analysis from saved chain history"
 
-   call read_z_history_matrix(z_history_file, z_history, n_samples_z, io_status)
-   if (io_status /= 0) then
-      write (*, '(A,1X,A)') "[ERROR] Failed to read z-history:", trim(z_history_file)
-      error stop 1
-   end if
+   call resolve_selected_observable(selected_observable_name, selected_observable_idx)
+   diag_observable_name = selected_observable_name
+   observable_history_file = ""
+   call read_string_env("EVAL_OBSERVABLE_HISTORY_FILE", observable_history_file, use_observable_stream)
 
-   call read_phi_history_vector(phi_history_file, phi_history, n_samples_phi, io_status)
-   if (io_status /= 0) then
-      write (*, '(A,1X,A)') "[ERROR] Failed to read phi-history:", trim(phi_history_file)
-      error stop 1
-   end if
+   if (use_observable_stream) then
+      call read_observable_history_selected(trim(observable_history_file), selected_observable_idx, &
+                                            phi_history, observable_series, n_samples, io_status)
+      if (io_status /= 0) then
+         write (*, '(A,1X,A)') "[ERROR] Failed to read observable stream:", trim(observable_history_file)
+         error stop 1
+      end if
+      n_samples_z = n_samples
+      n_samples_phi = n_samples
+      write (*, '(A,1X,A)') "[INFO] Loaded observable stream:", trim(observable_history_file)
+   else
+      call read_z_history_matrix(z_history_file, z_history, n_samples_z, io_status)
+      if (io_status /= 0) then
+         write (*, '(A,1X,A)') "[ERROR] Failed to read z-history:", trim(z_history_file)
+         error stop 1
+      end if
 
-   n_samples = min(n_samples_z, n_samples_phi)
-   if (n_samples < 1) then
-      write (*, '(A)') "[ERROR] No shared samples available in z/phi histories."
-      error stop 1
-   end if
+      call read_phi_history_vector(phi_history_file, phi_history, n_samples_phi, io_status)
+      if (io_status /= 0) then
+         write (*, '(A,1X,A)') "[ERROR] Failed to read phi-history:", trim(phi_history_file)
+         error stop 1
+      end if
 
-   if (n_samples_z /= n_samples_phi) then
-      write (*, '(A,I0,A,I0,A,I0,A)') "[WARN] Sample count mismatch: z=", n_samples_z, " phi=", n_samples_phi, &
-         ". Using shortest history with samples=", n_samples, "."
+      n_samples = min(n_samples_z, n_samples_phi)
+      if (n_samples < 1) then
+         write (*, '(A)') "[ERROR] No shared samples available in z/phi histories."
+         error stop 1
+      end if
+
+      if (n_samples_z /= n_samples_phi) then
+         write (*, '(A,I0,A,I0,A,I0,A)') "[WARN] Sample count mismatch: z=", n_samples_z, " phi=", n_samples_phi, &
+            ". Using shortest history with samples=", n_samples, "."
+      end if
    end if
 
    write (*, '(A,I0)') "[INFO] Loaded samples=", n_samples
@@ -127,20 +147,18 @@ program evaluate_expectations_app
       end if
    end if
 
-   allocate (observable_series(n_samples), numerator_samples(n_samples))
+   if (.not. allocated(observable_series)) allocate (observable_series(n_samples))
+   allocate (numerator_samples(n_samples))
 
-   call cpu_time(t_start)
-   !$omp parallel do default(shared) private(sample_idx)
-   do sample_idx = 1, n_samples
-      observable_series(sample_idx) = observable_from_state(z_history(:, sample_idx))
-   end do
-   !$omp end parallel do
-   call cpu_time(t_now)
-   write (*, '(A,F10.3,A)') "[TIMING] Observable series build took ", t_now - t_start, " s"
-   if (tra2) then
-      diag_observable_name = "tra2"
-   else
-      diag_observable_name = "virial"
+   if (.not. use_observable_stream) then
+      call cpu_time(t_start)
+      !$omp parallel do default(shared) private(sample_idx)
+      do sample_idx = 1, n_samples
+         observable_series(sample_idx) = observable_from_state(z_history(:, sample_idx), selected_observable_idx)
+      end do
+      !$omp end parallel do
+      call cpu_time(t_now)
+      write (*, '(A,F10.3,A)') "[TIMING] Observable series build took ", t_now - t_start, " s"
    end if
 
    numerator_samples = observable_series*phi_history(1:n_samples)
@@ -433,8 +451,10 @@ contains
 
       integer, parameter :: path_len = 1024
       character(len=path_len), allocatable :: z_paths(:), phi_paths(:)
-      character(len=path_len) :: meta_file, obs_name
+      character(len=path_len) :: meta_file
+      character(len=64) :: obs_name, secondary_obs_name
       complex(dp), allocatable :: z_chain(:, :), phi_chain(:)
+      complex(dp), allocatable :: obs_values(:)
       complex(dp), allocatable :: num_o_tail(:, :), num_tra2_tail(:, :)
       complex(dp), allocatable :: weighted_o_tail(:, :), weighted_tra2_tail(:, :)
       complex(dp), allocatable :: num_o_all(:), num_tra2_all(:), phi_all(:)
@@ -443,6 +463,7 @@ contains
       integer :: io_status, n_chains, chain_idx
       integer :: n_samples_z, n_samples_phi, n_samples_chain, n_samples_min, n_total_samples
       integer :: n_use, tail_start, tail_idx, sample_idx, sample_offset
+      integer :: primary_observable_idx, secondary_observable_idx
       integer :: diag_window_cap, diag_max_lag
       character(len=64) :: env_value_local
       complex(dp) :: sum_num_o_total, sum_num_tra2_total, sum_phi_total
@@ -479,8 +500,13 @@ contains
          error stop 1
       end if
       write (*, '(A,I0)') "[INFO] multichain detected: chains=", n_chains
+      call resolve_selected_observable(obs_name, primary_observable_idx)
+      secondary_observable_idx = find_model_observable("z_sum")
+      if (secondary_observable_idx <= 0) secondary_observable_idx = primary_observable_idx
+      call get_model_observable_name(secondary_observable_idx, secondary_obs_name)
 
       allocate (chain_sample_counts(n_chains), sum_num_o_chain(n_chains), sum_num_tra2_chain(n_chains), sum_phi_chain(n_chains))
+      allocate (obs_values(model_observable_count()))
       n_samples_min = huge(1)
       n_total_samples = 0
       do chain_idx = 1, n_chains
@@ -563,8 +589,9 @@ contains
          tail_start = n_samples_chain - n_use + 1
          tail_idx = 0
          do sample_idx = 1, n_samples_chain
-            call calculate_virial_observable(z_chain(:, sample_idx), obs_o)
-            call calculate_a2_observable(z_chain(:, sample_idx), obs_tra2)
+            call evaluate_model_observables(z_chain(:, sample_idx), obs_values)
+            obs_o = obs_values(primary_observable_idx)
+            obs_tra2 = obs_values(secondary_observable_idx)
             sum_num_o_chain(chain_idx) = sum_num_o_chain(chain_idx) + obs_o*phi_chain(sample_idx)
             sum_num_tra2_chain(chain_idx) = sum_num_tra2_chain(chain_idx) + obs_tra2*phi_chain(sample_idx)
             sum_phi_chain(chain_idx) = sum_phi_chain(chain_idx) + phi_chain(sample_idx)
@@ -627,10 +654,9 @@ contains
                                                      tra2_rhat_re, tra2_rhat_im, tra2_ess_bulk_re, tra2_ess_bulk_im, &
                                                      tra2_ess_tail_re, tra2_ess_tail_im, tra2_mcse_re, tra2_mcse_im)
 
-      obs_name = "virial"
-
       write (*, '(A)') "[RESULT] ------------------------------"
       write (*, '(A,1X,A)') "[RESULT] observable_virial=", trim(obs_name)
+      write (*, '(A,1X,A)') "[RESULT] observable_secondary=", trim(secondary_obs_name)
       write (*, '(A,I0,A,I0,A,I0)') "[RESULT] chains=", n_chains, " samples_total=", n_total_samples, " n_use_diag=", n_use
       write (*, '(A,2(1X,ES14.6))') "[RESULT] <virial> (Re, Im)=", real(mean_o, dp), aimag(mean_o)
       write (*, '(A,2(1X,ES14.6))') "[RESULT] <z> (Re, Im)=", real(mean_tra2, dp), aimag(mean_tra2)
@@ -811,7 +837,7 @@ contains
                                     phase_coherence, phase_eff_n, abs(sum_phi_total))
       write (*, '(A,1X,A)') "[DONE] Multichain expectation analysis complete. metadata=", trim(meta_file)
 
-      deallocate (z_paths, phi_paths, chain_sample_counts, sum_num_o_chain, sum_num_tra2_chain, sum_phi_chain)
+      deallocate (z_paths, phi_paths, chain_sample_counts, sum_num_o_chain, sum_num_tra2_chain, sum_phi_chain, obs_values)
       deallocate (num_o_tail, num_tra2_tail, weighted_o_tail, weighted_tra2_tail)
       deallocate (num_o_all, num_tra2_all, phi_all)
    end subroutine evaluate_multichain_run
@@ -2103,50 +2129,57 @@ contains
       close (io_unit)
    end subroutine write_jackknife_plot_script
 
-   function observable_from_state(z_state) result(observable)
+   subroutine resolve_selected_observable(observable_name, observable_idx)
+      character(len=*), intent(out) :: observable_name
+      integer, intent(out) :: observable_idx
+      character(len=64) :: env_observable
+      logical :: has_env_observable
+
+      env_observable = ""
+      call read_string_env("EVAL_OBSERVABLE_NAME", env_observable, has_env_observable)
+      if (has_env_observable) then
+         observable_name = trim(env_observable)
+      else if (tra2) then
+         observable_name = "z_sum"
+      else
+         observable_name = "virial"
+      end if
+
+      observable_idx = find_model_observable(trim(observable_name))
+      if (observable_idx <= 0) then
+         write (*, '(A,1X,A)') "[ERROR] Unknown model observable:", trim(observable_name)
+         call print_available_observables()
+         error stop 1
+      end if
+      call get_model_observable_name(observable_idx, observable_name)
+   end subroutine resolve_selected_observable
+
+   subroutine print_available_observables()
+      integer :: i
+      character(len=64) :: name
+
+      do i = 1, model_observable_count()
+         call get_model_observable_name(i, name)
+         write (*, '(A,I0,A,A)') "[INFO] observable[", i, "]=", trim(name)
+      end do
+   end subroutine print_available_observables
+
+   function observable_from_state(z_state, observable_idx) result(observable)
       complex(dp), intent(in) :: z_state(:)
+      integer, intent(in) :: observable_idx
       complex(dp) :: observable
 
-      if (tra2) then
-         call calculate_a2_observable(z_state, observable)
-      else
-         call calculate_virial_observable(z_state, observable)
-      end if
+      call evaluate_model_observable_by_index(z_state, observable_idx, observable)
    end function observable_from_state
-
-   subroutine calculate_a2_observable(z_state, observable)
-      complex(dp), intent(in) :: z_state(:)
-      complex(dp), intent(out) :: observable
-      integer :: state_idx
-
-      observable = cmplx(0.0_dp, 0.0_dp, dp)
-      do state_idx = 1, size(z_state)
-         observable = observable + z_state(state_idx)
-      end do
-   end subroutine calculate_a2_observable
-
-   subroutine calculate_virial_observable(z_state, observable)
-      complex(dp), intent(in) :: z_state(:)
-      complex(dp), intent(out) :: observable
-      integer :: state_idx
-      complex(dp), parameter :: imag_unit = cmplx(0.0_dp, 1.0_dp, dp)
-      complex(dp) :: z_val
-
-      observable = cmplx(0.0_dp, 0.0_dp, dp)
-      do state_idx = 1, size(z_state)
-         z_val = z_state(state_idx)
-         ! Pole-free virial identity: < -i*(z-i*beta)*(z^2+alpha) - 2 > = 0
-         observable = observable - imag_unit*(z_val - imag_unit*beta)*(z_val**2 + alpha) - 2.0_dp
-      end do
-   end subroutine calculate_virial_observable
 
    subroutine read_z_history_matrix(file_path, z_samples, sample_count, io_status)
       character(len=*), intent(in) :: file_path
       complex(dp), allocatable, intent(out) :: z_samples(:, :)
       integer, intent(out) :: sample_count, io_status
 
-      integer :: io_unit, file_size_bytes, z_size
-      integer, parameter :: complex_bytes = 2*8
+      integer :: io_unit, z_size
+      integer(kind=8) :: file_size_bytes, z_stride
+      integer(kind=8), parameter :: complex_bytes = 16_8
 
       z_size = n_size - 1
       io_unit = 20
@@ -2159,14 +2192,15 @@ contains
       end if
 
       inquire (unit=io_unit, size=file_size_bytes)
-      if (mod(file_size_bytes, z_size*complex_bytes) /= 0) then
+      z_stride = int(z_size, kind=8)*complex_bytes
+      if (z_stride <= 0_8 .or. mod(file_size_bytes, z_stride) /= 0_8) then
          write (*, '(A)') "[ERROR] z-history file size is not divisible by z vector size."
          io_status = 1
          close (io_unit)
          return
       end if
 
-      sample_count = file_size_bytes/(z_size*complex_bytes)
+      sample_count = int(file_size_bytes/z_stride)
       allocate (z_samples(z_size, sample_count), stat=io_status)
       if (io_status /= 0) then
          write (*, '(A)') "[ERROR] Allocation failed for z-history matrix."
@@ -2181,13 +2215,74 @@ contains
       end if
    end subroutine read_z_history_matrix
 
+   subroutine read_observable_history_selected(file_path, observable_idx, phi_samples, observable_samples, sample_count, io_status)
+      character(len=*), intent(in) :: file_path
+      integer, intent(in) :: observable_idx
+      complex(dp), allocatable, intent(out) :: phi_samples(:), observable_samples(:)
+      integer, intent(out) :: sample_count, io_status
+
+      integer :: io_unit, obs_count, sample_idx, read_status
+      integer(kind=8) :: file_size_bytes, record_bytes
+      integer(kind=8), parameter :: complex_bytes = 16_8
+      complex(dp), allocatable :: values(:)
+
+      sample_count = 0
+      io_status = 0
+      obs_count = model_observable_count()
+      if (observable_idx < 1 .or. observable_idx > obs_count) then
+         io_status = 1
+         return
+      end if
+
+      io_unit = 87
+      open (unit=io_unit, file=file_path, access='stream', form='unformatted', status='old', iostat=io_status)
+      if (io_status /= 0) return
+      inquire (unit=io_unit, size=file_size_bytes)
+
+      record_bytes = int(obs_count + 1, kind=8)*complex_bytes
+      if (record_bytes <= 0_8 .or. mod(file_size_bytes, record_bytes) /= 0_8) then
+         close (io_unit)
+         io_status = 1
+         return
+      end if
+      sample_count = int(file_size_bytes/record_bytes)
+      if (sample_count < 1) then
+         close (io_unit)
+         io_status = 1
+         return
+      end if
+
+      allocate (phi_samples(sample_count), observable_samples(sample_count), values(obs_count))
+      do sample_idx = 1, sample_count
+         read (io_unit, iostat=read_status) phi_samples(sample_idx)
+         if (read_status /= 0) then
+            io_status = read_status
+            exit
+         end if
+         read (io_unit, iostat=read_status) values
+         if (read_status /= 0) then
+            io_status = read_status
+            exit
+         end if
+         observable_samples(sample_idx) = values(observable_idx)
+      end do
+      close (io_unit)
+      deallocate (values)
+      if (io_status /= 0) then
+         if (allocated(phi_samples)) deallocate (phi_samples)
+         if (allocated(observable_samples)) deallocate (observable_samples)
+         sample_count = 0
+      end if
+   end subroutine read_observable_history_selected
+
    subroutine read_phi_history_vector(file_path, phi_samples, sample_count, io_status)
       character(len=*), intent(in) :: file_path
       complex(dp), allocatable, intent(out) :: phi_samples(:)
       integer, intent(out) :: sample_count, io_status
 
-      integer :: io_unit, file_size_bytes
-      integer, parameter :: complex_bytes = 2*8
+      integer :: io_unit
+      integer(kind=8) :: file_size_bytes
+      integer(kind=8), parameter :: complex_bytes = 16_8
 
       io_unit = 21
       io_status = 0
@@ -2199,14 +2294,14 @@ contains
       end if
 
       inquire (unit=io_unit, size=file_size_bytes)
-      if (mod(file_size_bytes, complex_bytes) /= 0) then
+      if (mod(file_size_bytes, complex_bytes) /= 0_8) then
          write (*, '(A)') "[ERROR] phi-history file size is not divisible by element size."
          io_status = 1
          close (io_unit)
          return
       end if
 
-      sample_count = file_size_bytes/complex_bytes
+      sample_count = int(file_size_bytes/complex_bytes)
       allocate (phi_samples(sample_count), stat=io_status)
       if (io_status /= 0) then
          write (*, '(A)') "[ERROR] Allocation failed for phi-history vector."

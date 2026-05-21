@@ -1,7 +1,7 @@
 module solve_flow
    use param_mod, only: at, rt
    use runtime_env_mod, only: parse_int_env, parse_real_env, read_string_env
-   use utils, only: dp, complex_to_real, map_to_complex, real_to_complex
+   use utils, only: dp, complex_to_real, map_to_complex, pack_legacy_x, real_to_complex
    use model, only: ds, hessian_vec
    use odex_backend, only: build_nsteps, ensure_odex_workspace_object, ode_rhs, ode_rhs_context, &
                            odex_apply_backend_name, odex_apply_controller_policy_name, &
@@ -247,6 +247,23 @@ contains
       flowz_capture_written = flowz_capture_written + 1
    end subroutine maybe_capture_flowz_input
 
+   subroutine maybe_capture_flowz_input_at(flow_time, x_state, intode_trace)
+      implicit none
+      real(dp), intent(in) :: flow_time
+      real(dp), intent(in) :: x_state(:)
+      type(intode_runtime_trace_context_t), intent(in) :: intode_trace
+      real(dp), allocatable :: x_legacy(:)
+
+      call initialize_flowz_capture()
+      if (.not. flowz_capture_enabled) return
+      if (flowz_capture_write_error) return
+
+      allocate (x_legacy(size(x_state) + 1))
+      call pack_legacy_x(flow_time, x_state, x_legacy)
+      call maybe_capture_flowz_input(x_legacy, intode_trace)
+      deallocate (x_legacy)
+   end subroutine maybe_capture_flowz_input_at
+
    subroutine initialize_flowz_cost_capture()
       implicit none
       logical :: has_capture_file
@@ -330,6 +347,26 @@ contains
       end if
       flowz_cost_capture_written = flowz_cost_capture_written + 1
    end subroutine maybe_capture_flowz_cost_input
+
+   subroutine maybe_capture_flowz_cost_input_at(flow_time, x_state, intode_trace, result_state, flow_status, flow_error)
+      implicit none
+      real(dp), intent(in) :: flow_time
+      real(dp), intent(in) :: x_state(:)
+      type(intode_runtime_trace_context_t), intent(in) :: intode_trace
+      type(odex_result), intent(in) :: result_state
+      integer, intent(in) :: flow_status
+      logical, intent(in) :: flow_error
+      real(dp), allocatable :: x_legacy(:)
+
+      call initialize_flowz_cost_capture()
+      if (.not. flowz_cost_capture_enabled) return
+      if (flowz_cost_capture_write_error) return
+
+      allocate (x_legacy(size(x_state) + 1))
+      call pack_legacy_x(flow_time, x_state, x_legacy)
+      call maybe_capture_flowz_cost_input(x_legacy, intode_trace, result_state, flow_status, flow_error)
+      deallocate (x_legacy)
+   end subroutine maybe_capture_flowz_cost_input_at
 
    logical function flowz_cost_capture_should_write(result_state, flow_error) result(should_write)
       implicit none
@@ -1451,6 +1488,14 @@ contains
       ok = (size(z) > 0) .and. (size(x) == size(z) + 1)
    end function flow_x_z_shape_ok
 
+   logical function flow_state_z_shape_ok(x_state, z) result(ok)
+      implicit none
+      real(dp), intent(in) :: x_state(:)
+      complex(dp), intent(in) :: z(:)
+
+      ok = (size(z) > 0) .and. (size(x_state) == size(z))
+   end function flow_state_z_shape_ok
+
    logical function flow_x_z_j_shape_ok(x, z, j) result(ok)
       implicit none
       real(dp), intent(in) :: x(:)
@@ -1459,6 +1504,15 @@ contains
 
       ok = flow_x_z_shape_ok(x, z) .and. size(j, 1) == size(z) .and. size(j, 2) == size(z)
    end function flow_x_z_j_shape_ok
+
+   logical function flow_state_z_j_shape_ok(x_state, z, j) result(ok)
+      implicit none
+      real(dp), intent(in) :: x_state(:)
+      complex(dp), intent(in) :: z(:)
+      complex(dp), intent(in) :: j(:, :)
+
+      ok = flow_state_z_shape_ok(x_state, z) .and. size(j, 1) == size(z) .and. size(j, 2) == size(z)
+   end function flow_state_z_j_shape_ok
 
    subroutine set_complex_identity(mat)
       implicit none
@@ -1489,6 +1543,24 @@ contains
       end if
    end subroutine flowz
 
+   subroutine flowz_at(flow_time, x_state, z, error, status, workspace, intode_diagnostics)
+      real(dp), intent(in) :: flow_time
+      real(dp), intent(in) :: x_state(:)
+      complex(dp), intent(inout) :: z(:)
+      logical, intent(out) :: error
+      integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout), optional :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+
+      type(flow_workspace_t) :: local_workspace
+
+      if (present(workspace)) then
+         call flowz_at_with_workspace(flow_time, x_state, z, error, status, workspace, intode_diagnostics)
+      else
+         call flowz_at_with_workspace(flow_time, x_state, z, error, status, local_workspace, intode_diagnostics)
+      end if
+   end subroutine flowz_at
+
    subroutine flowzr(x, z, error, status, workspace, intode_diagnostics)
       real(dp), intent(in)::x(:)
       complex(dp), intent(inout)::z(:)
@@ -1505,6 +1577,23 @@ contains
          call flowzr_with_workspace(x, z, error, status, local_workspace, intode_diagnostics)
       end if
    end subroutine flowzr
+
+   subroutine flowzr_at(flow_time, z, error, status, workspace, intode_diagnostics)
+      real(dp), intent(in) :: flow_time
+      complex(dp), intent(inout) :: z(:)
+      logical, intent(out) :: error
+      integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout), optional :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+
+      type(flow_workspace_t) :: local_workspace
+
+      if (present(workspace)) then
+         call flowzr_at_with_workspace(flow_time, z, error, status, workspace, intode_diagnostics)
+      else
+         call flowzr_at_with_workspace(flow_time, z, error, status, local_workspace, intode_diagnostics)
+      end if
+   end subroutine flowzr_at
 
    subroutine flow(x, z, j, error, status, workspace, intode_diagnostics)
       real(dp), intent(in)::x(:)
@@ -1524,8 +1613,45 @@ contains
       end if
    end subroutine flow
 
+   subroutine flow_at(flow_time, x_state, z, j, error, status, workspace, intode_diagnostics)
+      real(dp), intent(in) :: flow_time
+      real(dp), intent(in) :: x_state(:)
+      complex(dp), intent(inout) :: z(:)
+      complex(dp), dimension(:, :), intent(inout) :: j
+      logical, intent(out) :: error
+      integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout), optional :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+
+      type(flow_workspace_t) :: local_workspace
+
+      if (present(workspace)) then
+         call flow_at_with_workspace(flow_time, x_state, z, j, error, status, workspace, intode_diagnostics)
+      else
+         call flow_at_with_workspace(flow_time, x_state, z, j, error, status, local_workspace, intode_diagnostics)
+      end if
+   end subroutine flow_at
+
    subroutine flowz_with_workspace(x, z, error, status, workspace, intode_diagnostics)
       real(dp), intent(in)::x(:)
+      complex(dp), intent(inout)::z(:)
+      logical, intent(out)::error
+      integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout) :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+
+      call set_intode_status(status, intode_status_unknown)
+      if (.not. flow_x_z_shape_ok(x, z)) then
+         error = .true.
+         call set_intode_status(status, intode_status_failure_invalid)
+         return
+      end if
+      call flowz_at_with_workspace(x(1), x(2:), z, error, status, workspace, intode_diagnostics)
+   end subroutine flowz_with_workspace
+
+   subroutine flowz_at_with_workspace(flow_time, x_state, z, error, status, workspace, intode_diagnostics)
+      real(dp), intent(in) :: flow_time
+      real(dp), intent(in) :: x_state(:)
       complex(dp), intent(inout)::z(:)
       logical, intent(out)::error
       integer, intent(out), optional :: status
@@ -1539,7 +1665,7 @@ contains
 
       call perf_tic(t_prof)
       call set_intode_status(status, intode_status_unknown)
-      if (.not. flow_x_z_shape_ok(x, z)) then
+      if (.not. flow_state_z_shape_ok(x_state, z)) then
          error = .true.
          call set_intode_status(status, intode_status_failure_invalid)
          call perf_toc(PERF_FLOWZ, t_prof)
@@ -1547,23 +1673,23 @@ contains
       end if
       n = size(z)*2
       n_complex = size(z)
-      t1 = x(1)
+      t1 = flow_time
       error = .false.
-      z = cmplx(x(2:), 0.0_dp, dp)
-      if (vector_has_invalid(x)) then
+      z = cmplx(x_state, 0.0_dp, dp)
+      if ((.not. ieee_is_finite(flow_time)) .or. vector_has_invalid(x_state)) then
          error = .true.
          call set_intode_status(status, intode_status_failure_invalid)
          call perf_toc(PERF_FLOWZ, t_prof)
          return
       end if
-      call maybe_capture_flowz_input(x, workspace%intode_trace)
+      call maybe_capture_flowz_input_at(flow_time, x_state, workspace%intode_trace)
 
       call ensure_real_workspace(workspace%flow_vec_y, n)
       call ensure_real_workspace(workspace%flow_vec_yf, n)
       call ensure_complex_workspace(workspace%flow_vec_z, n_complex)
       call ensure_complex_workspace(workspace%flow_vec_ds, n_complex)
 
-      workspace%flow_vec_y(1:n:2) = x(2:)
+      workspace%flow_vec_y(1:n:2) = x_state
       workspace%flow_vec_y(2:n:2) = 0.0_dp
       workspace%intode_trace%current_context = intode_ctx_flowz
       workspace%flow_vec_rhs_scale = 1.0_dp
@@ -1571,8 +1697,8 @@ contains
                                flow_status_local, workspace, intode_diagnostics)
       call resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
       if (active_diagnostics%last_odex_result_available) then
-         call maybe_capture_flowz_cost_input(x, workspace%intode_trace, active_diagnostics%last_odex_result, &
-                                             flow_status_local, error)
+         call maybe_capture_flowz_cost_input_at(flow_time, x_state, workspace%intode_trace, &
+                                                active_diagnostics%last_odex_result, flow_status_local, error)
       end if
       workspace%intode_trace%current_context = intode_ctx_unknown
       call set_intode_status(status, flow_status_local)
@@ -1582,10 +1708,27 @@ contains
       end if
       call real_to_complex(workspace%flow_vec_yf(1:n), z)
       call perf_toc(PERF_FLOWZ, t_prof)
-   end subroutine flowz_with_workspace
+   end subroutine flowz_at_with_workspace
 
    subroutine flowzr_with_workspace(x, z, error, status, workspace, intode_diagnostics)
       real(dp), intent(in)::x(:)
+      complex(dp), intent(inout)::z(:)
+      logical, intent(out)::error
+      integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout) :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+
+      call set_intode_status(status, intode_status_unknown)
+      if (.not. flow_x_z_shape_ok(x, z)) then
+         error = .true.
+         call set_intode_status(status, intode_status_failure_invalid)
+         return
+      end if
+      call flowzr_at_with_workspace(x(1), z, error, status, workspace, intode_diagnostics)
+   end subroutine flowzr_with_workspace
+
+   subroutine flowzr_at_with_workspace(flow_time, z, error, status, workspace, intode_diagnostics)
+      real(dp), intent(in) :: flow_time
       complex(dp), intent(inout)::z(:)
       logical, intent(out)::error
       integer, intent(out), optional :: status
@@ -1598,7 +1741,7 @@ contains
 
       call perf_tic(t_prof)
       call set_intode_status(status, intode_status_unknown)
-      if (.not. flow_x_z_shape_ok(x, z)) then
+      if (size(z) <= 0) then
          error = .true.
          call set_intode_status(status, intode_status_failure_invalid)
          call perf_toc(PERF_FLOWZR, t_prof)
@@ -1606,9 +1749,9 @@ contains
       end if
       n = size(z)*2
       n_complex = size(z)
-      t1 = x(1)
+      t1 = flow_time
       error = .false.
-      if (vector_has_invalid(x) .or. complex_vector_has_invalid(z)) then
+      if ((.not. ieee_is_finite(flow_time)) .or. complex_vector_has_invalid(z)) then
          error = .true.
          call set_intode_status(status, intode_status_failure_invalid)
          call perf_toc(PERF_FLOWZR, t_prof)
@@ -1634,10 +1777,29 @@ contains
       end if
       call real_to_complex(workspace%flow_vec_yf(1:n), z)
       call perf_toc(PERF_FLOWZR, t_prof)
-   end subroutine flowzr_with_workspace
+   end subroutine flowzr_at_with_workspace
 
    subroutine flow_with_workspace(x, z, j, error, status, workspace, intode_diagnostics)
       real(dp), intent(in)::x(:)
+      complex(dp), intent(inout)::z(:)
+      complex(dp), dimension(:, :), intent(inout)::j
+      logical, intent(out)::error
+      integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout) :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+
+      call set_intode_status(status, intode_status_unknown)
+      if (.not. flow_x_z_j_shape_ok(x, z, j)) then
+         error = .true.
+         call set_intode_status(status, intode_status_failure_invalid)
+         return
+      end if
+      call flow_at_with_workspace(x(1), x(2:), z, j, error, status, workspace, intode_diagnostics)
+   end subroutine flow_with_workspace
+
+   subroutine flow_at_with_workspace(flow_time, x_state, z, j, error, status, workspace, intode_diagnostics)
+      real(dp), intent(in) :: flow_time
+      real(dp), intent(in) :: x_state(:)
       complex(dp), intent(inout)::z(:)
       complex(dp), dimension(:, :), intent(inout)::j
       logical, intent(out)::error
@@ -1652,7 +1814,7 @@ contains
 
       call perf_tic(t_prof)
       call set_intode_status(status, intode_status_unknown)
-      if (.not. flow_x_z_j_shape_ok(x, z, j)) then
+      if (.not. flow_state_z_j_shape_ok(x_state, z, j)) then
          error = .true.
          call set_intode_status(status, intode_status_failure_invalid)
          call perf_toc(PERF_FLOW, t_prof)
@@ -1663,11 +1825,11 @@ contains
       n_jac = size(j, 1)
       m = size(j, 1)*size(j, 2)*2
       total_n = n + m
-      t1 = x(1)
+      t1 = flow_time
       error = .false.
-      z = cmplx(x(2:), 0.0_dp, dp)
+      z = cmplx(x_state, 0.0_dp, dp)
       call set_complex_identity(j)
-      if (vector_has_invalid(x)) then
+      if ((.not. ieee_is_finite(flow_time)) .or. vector_has_invalid(x_state)) then
          error = .true.
          call set_intode_status(status, intode_status_failure_invalid)
          call perf_toc(PERF_FLOW, t_prof)
@@ -1681,7 +1843,7 @@ contains
       call ensure_complex_workspace_mat(workspace%flow_jac_j, n_jac, n_jac)
       call ensure_complex_workspace_mat(workspace%flow_jac_jprod, n_jac, n_jac)
 
-      workspace%flow_jac_y(1:n:2) = x(2:)
+      workspace%flow_jac_y(1:n:2) = x_state
       workspace%flow_jac_y(2:n:2) = 0.0_dp
       call fill_identity_real_map(workspace%flow_jac_y(n + 1:total_n), n_jac)
       workspace%intode_trace%current_context = intode_ctx_flow
@@ -1696,7 +1858,7 @@ contains
       call real_to_complex(workspace%flow_jac_yf(1:n), z)
       call map_to_complex(workspace%flow_jac_yf(n + 1:total_n), j)
       call perf_toc(PERF_FLOW, t_prof)
-   end subroutine flow_with_workspace
+   end subroutine flow_at_with_workspace
 
    function rhs_flow_vec_context(y, context) result(f)
       implicit none
