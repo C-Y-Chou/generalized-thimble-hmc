@@ -112,6 +112,16 @@ Many datasets are downward-compatible: a larger or combined dataset can replace
 smaller raw datasets for physics evidence, while smaller runs remain useful as
 compact provenance for parameter selection.
 
+The full cleanup inventory is tracked in:
+
+```text
+codex/workspaces/nofb_diagnostics/state/F20F_CLEANUP_DRY_RUN_INVENTORY_20260521.tsv
+```
+
+That inventory is the authoritative dry-run list for final keep/archive/delete
+planning.  This runbook explains the policy and scientific boundary, but the TSV
+contains the concrete output roots, log roots, and remote worktrees.
+
 The cleanup rule is:
 
 1. Keep raw roots only for the maximal dataset that is still needed to reproduce
@@ -130,6 +140,7 @@ Keep these raw or near-raw remote roots until publication decisions are made:
 
 | Dataset | Keep level | Reason |
 | --- | --- | --- |
+| F20F R3 most-conservative double tolerance validation | raw root or stable archive | evidence for the unique active F20F double preset |
 | fixed-flow `t=0.3` 512seed x 200k paired | raw roots or stable archive | main negative-control evidence that failures alone did not bias observables |
 | fixed-flow `t=0.5` nofb 128seed x 200k | raw root | positive fixed-flow pathology evidence |
 | TLTM low005 paired 32seed x 200k base | raw root while combined 128 uses it | component of base32 + topup96 combined 128seed dataset |
@@ -141,9 +152,10 @@ Keep these as compact readback/manifest only:
 
 | Dataset | Compact reason |
 | --- | --- |
+| fixed-flow `t=0.3` and `t=0.5` 2seed x 100cycle smokes | route-smoke provenance |
+| fixed-flow `t=0.5` L and epsilon scans | HMC parameter-screen provenance |
 | TLTM ladder scan 4seed x 5k | ladder-selection provenance |
 | TLTM paired 32seed x 50k | early paired validation and finite-cycle motivation |
-| fixed-flow L/epsilon short scans | HMC parameter-screen provenance, if results exist |
 | failed queue attempts and merge repairs | scheduler provenance only; no raw scientific value |
 
 Archive or delete candidates after compact packets exist:
