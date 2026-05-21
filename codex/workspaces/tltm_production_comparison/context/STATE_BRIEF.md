@@ -5,9 +5,11 @@ Updated: 2026-05-21 JST
 ## Boundary Status
 
 - 2026-05-21 update: first F20F cleanup pass and dirty-saved source-diff review
-  are complete.  The remote canonical modernization execution tree is synced to
-  `a104816f5b9406fcae49e1c5d02e2ec7b4878149`.  Production-comparison planning
-  for the new post-cleanup output namespace is recorded in
+  are complete.  The remote canonical modernization execution tree had been
+  synced through cleanup state `a3a2769a7db4585b02445e199c4364df6eafb823`
+  before this documentation-only correction.  User decision: no new
+  production-comparison rerun is needed.  Production-facing work should package
+  the existing canonical F20F datasets, as recorded in
   `runbooks/F20F_PRODUCTION_OUTPUT_PLAN_20260521.md`.
 - 2026-05-21 update: F20F is the unique active double-precision preset.  The
   current no-fallback physics diagnostic line has moved to
@@ -25,7 +27,7 @@ Updated: 2026-05-21 JST
 - `tltm_production_comparison` is the canonical workspace for TLTM `nofb` vs `withfb` production-comparison work.
 - Legacy name: `stage3_4`. Treat old `stage3_4` paths, configs, and output roots as historical/provisional artifacts, not the long-term workspace identity.
 - This workstream is logically separate from `fortran_modernization`. Modernization supplies the official-DFO-LS code commit; production-comparison runs execute from the synchronized production worktree.
-- Current production-comparison status is provisional-discussion, not final publication data. It may be used for collaborator discussion, workflow rehearsal, queue scaling, and physical trend checks; final datasets should be regenerated after modernization converges.
+- Older production-comparison status is provisional-discussion, not final publication data. For the F20F line, the current user decision is no rerun: promote the existing canonical F20F datasets into a production-facing evidence packet rather than regenerating them.
 - Existing long `runbooks/STATUS.md` contains historical production and validation details. Read `runbooks/SOFT_DECOUPLING_AND_PROVISIONAL_CONTRACT.md` for the current boundary.
 - Cleanup of legacy production-comparison outputs/logs is allowed only after dataset/job/worktree registry refresh and summary/archive decisions.
 - Legacy Stage1 to Stage3_4 raw outputs/logs were cleared on 2026-05-10 after preserving key summaries. See `runbooks/LEGACY_STAGE_OUTPUT_CLEANUP_20260510.md`.
@@ -58,7 +60,7 @@ Updated: 2026-05-21 JST
 - Production comparison execution branch: `codex/tltm-production-comparison-official-dfols`.
 - Production comparison execution worktree: `/lustre1/home/cychou/TLTM_worktrees/tltm_production_comparison`.
 - Official DFO-LS source branch to sync from: `codex/fortran-modernization`.
-- Current redo execution must happen from the production-comparison worktree after it is synced to the chosen official-DFO-LS commit.
+- Any future explicit redo execution must happen from the production-comparison worktree after it is synced to the chosen official-DFO-LS commit.
 - Modernization remote target: `fortran_modernization`.
 - Modernization branch: `codex/fortran-modernization`.
 - Modernization remote worktree: `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization`.
@@ -69,14 +71,15 @@ Current production-comparison action:
 
 1. Do not submit new production-comparison jobs from old formalized-assist,
    diagnostic, or pre-F20F namespaces.
-2. Use `runbooks/F20F_PRODUCTION_OUTPUT_PLAN_20260521.md` as the current
-   post-cleanup production plan.
-3. Sync the production-comparison execution tree to modernization commit
-   `a104816f5b9406fcae49e1c5d02e2ec7b4878149` before any job.
-4. Prepare only P0/P1 dry-run manifests first: `4seed x 1k` route smoke and
-   `32seed x 50k` gate.
-5. Handoff actual PBS submission to the cluster02 scheduler.  Do not submit P2
-   `128seed x 200k` until P1 readback passes.
+2. Do not prepare P0/P1/P2 reruns for the current decision.
+3. Use `runbooks/F20F_PRODUCTION_OUTPUT_PLAN_20260521.md` as the current
+   no-rerun production-facing provenance plan.
+4. Build the final evidence packet from existing F20F roots already registered
+   in `codex/state/DATASETS.tsv` and
+   `codex/workspaces/nofb_diagnostics/state/F20F_DATASET_REGISTRY.tsv`.
+5. If `z` or `z_dSdz_minus_1` is missing from a summary, compute readback from
+   existing raw history only.  Do not hand anything to the scheduler unless the
+   user explicitly reopens a new run.
 
 Closed diagnostic evidence:
 
