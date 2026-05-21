@@ -79,6 +79,120 @@ Actual scheduler submit:
 - scheduler returned after actual qsub and immediate readback; parent controls
   science completion/readback
 
+Readback:
+
+- rows: `no_fb = 32`, `fb_norefine = 32`
+- protocol audit: `pass` for both methods
+- `no_fb` mean: `Ohat_re = -0.0036310618`,
+  `Ohat_im = 0.0085910157`
+- `fb_norefine` mean: `Ohat_re = 0.0032014665`,
+  `Ohat_im = -0.0014926516`
+- paired `no_fb - fb_norefine`:
+  - Re: mean `-0.0068325283`, SE `0.0075896760`, Z `-0.900`
+  - Im: mean `0.0100836673`, SE `0.0033664316`, Z `2.995`
+- unresolved failures: `no_fb = 1024549`, `fb_norefine = 47284`
+- projection failures, mean per seed: `no_fb = 34036.65625`,
+  `fb_norefine = 4110.75`
+
+Interpretation: the Re shift from the 50k run did not survive the longer
+cycle-length test.  The Im shift is the only remaining candidate fallback
+effect and must be tested by seed top-up.
+
+## Seed Top-Up To 128 Paired Seeds
+
+Request:
+
+- request id: `FMOD-F20F-TLTM-T050-LOW005-PAIR-TOPUP96-TO128-200K-20260521`
+- purpose: add seed indices `32..127` to the completed base 32seed x 200k
+  paired dataset
+- scale added: `96 paired seeds x 200000 cycles`
+- target combined scale: `128 paired seeds x 200000 cycles`
+- source commit: `8c76fdf710fff7a230da1d53ea26fe1608ff244d`
+- output root:
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/tests/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_topup96_to128_x_200000cycles_8c76fdf710ff`
+- log root:
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_topup96_to128_x_200000cycles_8c76fdf710ff`
+- jobs: build `16522`; `no_fb` chunks `16523`..`16534`;
+  `fb_norefine` chunks `16535`..`16546`; merge `16547`
+
+Chunk-level readback at `2026-05-21 19:20 JST`:
+
+- all top-up `no_fb` chunk tables `chunk_04`..`chunk_15` exist with 8 rows
+  each
+- all top-up `fb_norefine` chunk tables `chunk_04`..`chunk_15` exist with
+  8 rows each
+- top-up chunk-level protocol audit verdicts: `pass`
+- official top-up method-level merge is not yet available:
+  - merge job `16547.anode01`
+  - state `Q`
+  - queue `C12`
+  - scheduler comment: `Not Running: Queue not started.`
+  - `C12 enabled=False started=False`
+  - parent must not perform PBS repair; scheduler agent must handle any
+    qmove/qalter/resubmit
+
+Read-only combined 128seed calculation from base32 method summaries plus
+top-up chunk summaries:
+
+| method | rows | mean Re | seed std Re | Zmean Re | mean Im | seed std Im | Zmean Im |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `no_fb` | 128 | `-0.0012320877` | `0.0425276016` | `-0.3278` | `0.0030541044` | `0.0278940147` | `1.2387` |
+| `fb_norefine` | 128 | `0.0013011465` | `0.0286187657` | `0.5144` | `-0.0012213477` | `0.0214949083` | `-0.6428` |
+
+Per-seed cycle/jackknife error scale:
+
+| method | mean err Re | median err Re | mean err Im | median err Im |
+| --- | ---: | ---: | ---: | ---: |
+| `no_fb` | `0.0409005182` | `0.0409395170` | `0.0274945770` | `0.0274322640` |
+| `fb_norefine` | `0.0296959461` | `0.0297171573` | `0.0194849334` | `0.0195159885` |
+
+Coverage-style per-seed Z fractions:
+
+| method | P68 Re | P95 Re | P68 Im | P95 Im | P68 max | P95 max |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `no_fb` | `0.7500` | `0.921875` | `0.71875` | `0.9609375` | `0.515625` | `0.8828125` |
+| `fb_norefine` | `0.6796875` | `0.984375` | `0.6484375` | `0.9140625` | `0.46875` | `0.8984375` |
+
+Failure and runtime readback:
+
+| method | unresolved total | projection total | RG rejects | proposal failures | mean accept | mean runtime/seed |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `no_fb` | `4094188` | `4349373` | `255186` | `4094188` | `0.2402414` | `11612.75 s` |
+| `fb_norefine` | `189662` | `526145` | `336483` | `189662` | `0.2402005` | `23504.27 s` |
+
+ODEX readback:
+
+| method | calls | accepted steps | rejected steps | RHS evals |
+| --- | ---: | ---: | ---: | ---: |
+| `no_fb` | `15433655533` | `101430956247` | `5107930315` | `3906408868738` |
+| `fb_norefine` | `17723917681` | `123660452760` | `7823211286` | `5310373736663` |
+
+Direct paired difference `no_fb - fb_norefine`:
+
+| set | n | dRe mean | dRe SE | dRe Z | dIm mean | dIm SE | dIm Z |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| base32 | 32 | `-0.0068325283` | `0.0075896760` | `-0.900` | `0.0100836673` | `0.0033664316` | `2.995` |
+| topup96 | 96 | `-0.0011001362` | `0.0035867435` | `-0.307` | `0.0023393803` | `0.0027081307` | `0.864` |
+| combined128 | 128 | `-0.0025332342` | `0.0032834564` | `-0.772` | `0.0042754521` | `0.0022123851` | `1.933` |
+
+Seed-level distribution checks for the 128 paired summaries:
+
+| quantity | KS distance |
+| --- | ---: |
+| `Ohat_re` | `0.125000` |
+| `Ohat_im` | `0.140625` |
+| `Zp_re` | `0.093750` |
+| `Zp_im` | `0.117188` |
+| `pair0_accept_rate` | `0.085938` |
+| `total_round_trip` | `0.085938` |
+
+Interpretation: the 32seed Im candidate does not survive the independent
+top-up.  The top-up96 Im paired Z is only `0.864`, and the combined128 Im Z is
+`1.933`, below the pre-declared roughly 2-sigma gate.  This supports the
+narrower conclusion: in the 1D toy model, TLTM repairs the fixed-flow
+`t=0.5` pathology, while fallback substantially improves solver-health
+diagnostics but has not shown a robust TLTM observable-necessity signal.
+
 Expected job shape:
 
 - one build job

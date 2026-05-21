@@ -52,8 +52,11 @@ The current interpretation is provisional:
 - TLTM repairs the fixed-flow `t=0.5` undercoverage pathology.
 - `fb_norefine` strongly reduces failures, but the one-dimensional toy model has
   not yet demonstrated that fallback is required for unbiased TLTM observables.
-- The active paired top-up from 32 to 128 seeds at 200k cycles is the gate for
-  the remaining Im candidate signal.
+- The paired top-up from 32 to 128 seeds at 200k cycles has chunk-level
+  readback: the independent topup96 Im signal is not significant, and the
+  combined128 Im shift is below the roughly 2-sigma gate.  The official merge
+  artifact is still pending because merge job `16547` is queued in stopped
+  `C12`.
 
 Current closure and cleanup planning live in:
 
@@ -62,4 +65,5 @@ codex/workspaces/nofb_diagnostics/runbooks/F20F_1D_TOY_TLTM_CLOSURE_AND_CLEANUP_
 ```
 
 Do not rebuild the file library, move output roots, or delete datasets until
-the paired top-up finishes and the combined 128seed readback is registered.
+the official merge state is settled and the combined 128seed readback is
+registered.

@@ -40,8 +40,9 @@ that fallback is required for unbiased observables once TLTM is used.
   `Z = -1.296` in Re and `Z = 0.709` in Im.
 - In paired TLTM `32 seeds x 200000 cycles`, Re was still insignificant
   (`Z ~= -0.900`), while Im was a candidate signal (`Z ~= 2.995`).
-- The active top-up from 32 to 128 paired seeds is the gate for deciding whether
-  that Im signal is real or a finite-sample fluctuation.
+- The independent top-up to 128 paired seeds did not support that Im candidate:
+  topup96 had Im `Z ~= 0.864`, and the base32+topup96 combined128 result had
+  Im `Z ~= 1.933`.
 
 ### Claim Boundary
 
@@ -63,23 +64,27 @@ Do not claim from this model alone:
 
 The useful positive result is still strong: TLTM itself is necessary to repair
 the fixed-flow `t=0.5` pathology in this stress test. The fallback claim should
-be presented as robustness/solver-health evidence unless the 128-seed paired
-top-up leaves a stable observable shift.
+be presented as robustness/solver-health evidence unless a later, harder model
+leaves a stable observable shift.
 
 ## Active Gate Before Final Closure
 
-Wait for the paired top-up to finish:
+The paired top-up chunk-level readback is complete, but the official top-up
+merge artifact is not:
 
 ```text
 output/tests/f20f_tltm_t050_pair_validation/
   f20f_tltm_t050_low005_pair_topup96_to128_x_200000cycles_8c76fdf710ff
 ```
 
-Current state at this plan:
+Current state after chunk-level readback:
 
 - top-up `no_fb` chunks `04..15` have 8 data rows each;
-- top-up `fb_norefine` chunks `04..15` are still running;
-- merge `16547` is held on chunk dependencies.
+- top-up `fb_norefine` chunks `04..15` have 8 data rows each;
+- chunk-level protocol audit verdicts are `pass`;
+- merge `16547` is dependency-released but queued in stopped `C12`;
+- parent must not perform PBS repair; scheduler must handle qmove/qalter or
+  replacement merge if needed.
 
 Final readback must combine:
 
@@ -91,15 +96,16 @@ topup96:
 /lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/tests/f20f_tltm_t050_pair_validation/f20f_tltm_t050_low005_pair_topup96_to128_x_200000cycles_8c76fdf710ff
 ```
 
-Decision after top-up:
+Chunk-level decision after top-up:
 
-- If paired Im remains above roughly `2 sigma` with stable diagnostics, keep it
-  as a candidate fallback effect and decide whether a harder model is needed.
-- If paired Im collapses below significance, close the 1D model as
-  "TLTM repairs fixed flow; fallback improves robustness but has no demonstrated
-  observable necessity here."
-- If distribution diagnostics still match while only failure counts differ,
-  do not present distribution damage as the fallback motivation.
+- paired Re remains insignificant: combined128 `Z ~= -0.772`;
+- paired Im is below the gate: topup96 `Z ~= 0.864`, combined128
+  `Z ~= 1.933`;
+- seed-level distribution checks remain small (`Ohat_re` KS `0.125`,
+  `Ohat_im` KS `0.140625`);
+- close the 1D model as "TLTM repairs fixed flow; fallback improves robustness
+  but has no demonstrated observable necessity here", pending only the official
+  merge artifact.
 
 ## Dataset Compatibility Policy
 
@@ -151,8 +157,8 @@ Archive or delete candidates after compact packets exist:
 
 ## Worktree Cleanup Plan
 
-Do this only after top-up readback and after `qstat -u cychou` has no jobs
-touching these roots.
+Do this only after the top-up merge state is settled and after
+`qstat -u cychou` has no jobs touching these roots.
 
 1. Freeze the dataset registry.
    - Update `codex/workspaces/nofb_diagnostics/state/F20F_DATASET_REGISTRY.tsv`.
@@ -183,22 +189,26 @@ touching these roots.
    - Prefer moving to an archive namespace over immediate deletion when the
      replacement relation is not trivial.
 
-## Non-Goals Before Top-Up
+## Non-Goals Before Official Merge Settlement
 
-Do not do any of the following before the top-up finishes:
+Do not do any of the following before merge job `16547` is completed, repaired,
+or explicitly superseded:
 
 - rebuild the file library;
 - delete or move remote output roots;
 - prune isolated worktrees used by pending requests;
 - rewrite dataset registry statuses as final;
-- claim final 1D fallback necessity or non-necessity from the pending Im signal.
+- treat the chunk-level readback packet as an official merged output artifact.
 
 ## Immediate Post-Maintenance Action
 
 After cluster maintenance:
 
-1. Check whether top-up `fb_norefine` chunks and merge completed.
-2. If top-up completed, read back combined 128 paired metrics first.
-3. If top-up did not complete, repair or resubmit only missing chunks/merge.
-4. Only after the 128 paired conclusion is settled, revisit the prepared
+1. Check whether merge job `16547` completed or is still queued in stopped
+   `C12`.
+2. If the merge completed, verify method-level top-up rows `96/96` and compare
+   against the chunk-level readback above.
+3. If the merge is still blocked, ask the scheduler to repair only the merge;
+   do not rerun chunks.
+4. Only after the merge artifact is settled, revisit the prepared
    `128seed x 200k` nofb-only `L=1,nstep=2` scale-up request.
