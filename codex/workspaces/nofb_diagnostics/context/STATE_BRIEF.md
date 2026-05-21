@@ -43,19 +43,23 @@ dataset:
 
 ## Next Gate
 
-The nofb-only two-replica TLTM short scan selected `low005 = [0.05, 0.5]` as
-the first paired-validation ladder.  It is the smallest tested ladder that
-restored high-flow `Re z` sign changes and moved `Ohat_re` away from the
-fixed-flow `t=0.5` no_fb pathology.
+The nofb-only two-replica TLTM short scan selected `low005 = [0.05, 0.5]`.
+This ladder repaired the fixed-flow `t=0.5` sign-sector lock in short TLTM
+tests.
 
-The next scientific gate is the paired TLTM validation at `32 seeds x 50000
-cycles` per method, using the selected `low005` ladder and comparing `no_fb`
-against `fb_norefine`.
+The current interpretation is provisional:
 
-For that paired run, check:
+- TLTM repairs the fixed-flow `t=0.5` undercoverage pathology.
+- `fb_norefine` strongly reduces failures, but the one-dimensional toy model has
+  not yet demonstrated that fallback is required for unbiased TLTM observables.
+- The active paired top-up from 32 to 128 seeds at 200k cycles is the gate for
+  the remaining Im candidate signal.
 
-- high-flow `Re z` sign changes are restored;
-- positive/negative occupancy is near balanced;
-- `Ohat_re` is no longer locked near `-0.241`;
-- `Ohat_im` remains compatible with zero;
-- failure/rejection diagnostics no longer dominate the accepted ensemble.
+Current closure and cleanup planning live in:
+
+```text
+codex/workspaces/nofb_diagnostics/runbooks/F20F_1D_TOY_TLTM_CLOSURE_AND_CLEANUP_PLAN_20260521.md
+```
+
+Do not rebuild the file library, move output roots, or delete datasets until
+the paired top-up finishes and the combined 128seed readback is registered.
