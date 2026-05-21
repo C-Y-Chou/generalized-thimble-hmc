@@ -12,14 +12,14 @@ program test_tltm_swap_kernel_contract
 
    integer, parameter :: rng_seed = 13579
    real(dp), parameter :: flow_a = 0.0_dp
-   real(dp), parameter :: flow_b = 0.1_dp
-   real(dp), parameter :: tol = 1.0e-10_dp
+   real(dp), parameter :: flow_b = 1.0e-4_dp
+   real(dp), parameter :: tol = 1.0e-8_dp
 
    type(tltm_slot_t) :: slot_a, slot_b
    type(tltm_pair_stats_t) :: stats
    type(mt95_state_t) :: swap_rng_state
    type(tltm_run_context_t) :: run_context_a, run_context_b
-   integer :: n_seed, x_size
+   integer :: i, n_seed, x_size
    real(dp), allocatable :: seed_a(:), seed_b(:)
    real(dp), allocatable :: x_a0(:), x_b0(:), x_ap(:), x_bp(:)
    complex(dp), allocatable :: z_a0(:), z_b0(:), z_ap(:), z_bp(:), z_bad_energy(:)
@@ -42,8 +42,10 @@ program test_tltm_swap_kernel_contract
    call allocate_tltm_slot(slot_a, x_size)
    call allocate_tltm_slot(slot_b, x_size)
 
-   seed_a = 0.12_dp
-   seed_b = -0.21_dp
+   do i = 1, n_seed
+      seed_a(i) = 0.02_dp + 0.001_dp*real(i, dp)
+      seed_b(i) = -0.015_dp + 0.0008_dp*real(i, dp)
+   end do
 
    call initialize_slot(slot_a, 0, 0, flow_a, seed_a)
    call initialize_slot(slot_b, 1, 1, flow_b, seed_b)

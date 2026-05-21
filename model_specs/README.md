@@ -13,9 +13,9 @@ Use this area to draft a model before promoting it into active source:
 
 Promotion target after review:
 
-- `src/physics/model_action_body.inc`
-- `src/physics/model_observable_registry.inc`
-- `src/physics/model_observable_body.inc`
+- `src/physics/model_<name>.f90` as the active hand-written provider
+- `src/physics/model.f90` only as the stable API facade to the active provider
+- `src/physics/model_observables.f90` only as the stable observable facade
 - `src/config/param_mod.f90` when new parameters or lattice-shape controls are needed
 
 Current active draft:

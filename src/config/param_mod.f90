@@ -1,5 +1,6 @@
 module param_mod
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+   use runtime_env_mod, only: read_string_env
    use utils, only: dp
    implicit none
 
@@ -45,7 +46,14 @@ module param_mod
    type :: model_control_t
       complex(dp) :: alpha = cmplx(0.0_dp, 0.0_dp, dp)
       complex(dp) :: beta = cmplx(0.0_dp, 0.0_dp, dp)
-      character(len=32) :: derivative_mode = "generated"
+      character(len=32) :: derivative_mode = "manual"
+      integer :: stephanov_n = 10
+      integer :: stephanov_nf = 1
+      real(dp) :: stephanov_mass = 0.004_dp
+      real(dp) :: stephanov_mu = 0.6_dp
+      real(dp) :: stephanov_tau = 0.0_dp
+      logical :: stephanov_include_mu_prefactor = .false.
+      logical :: stephanov_emit_diagnostics = .false.
    end type model_control_t
 
    type :: io_paths_t
@@ -88,8 +96,15 @@ module param_mod
    real(dp) :: delta
 
    complex(dp) :: alpha, beta
-   character(len=32) :: derivative_mode = "generated"
+   character(len=32) :: derivative_mode = "manual"
    character(len=32) :: integrator_method = "rattle"
+   integer :: stephanov_n = 10
+   integer :: stephanov_nf = 1
+   real(dp) :: stephanov_mass = 0.004_dp
+   real(dp) :: stephanov_mu = 0.6_dp
+   real(dp) :: stephanov_tau = 0.0_dp
+   logical :: stephanov_include_mu_prefactor = .false.
+   logical :: stephanov_emit_diagnostics = .false.
 
    ! File names
    character(len=256) :: x_history_file
@@ -152,14 +167,42 @@ contains
          write (*, *) "Invalid config: bootstrap_samples must be >= 0 (0 means auto)."
          error stop 1
       end if
-      mode = trim(to_lower_ascii(config%model%derivative_mode))
-      if (mode /= "generated") then
-         write (*, '(A,A,A)') "Invalid config: derivative_mode must be generated. Got '", &
+      mode = normalize_derivative_mode(config%model%derivative_mode)
+      config%model%derivative_mode = mode
+      if (mode /= "manual") then
+         write (*, '(A,A,A)') "Invalid config: derivative_mode must be manual for the active provider. Got '", &
             trim(config%model%derivative_mode), "'."
          error stop 1
       end if
+      call validate_stephanov_config()
       call set_integrator_method(config%integrator%method)
    end subroutine validate_config
+
+   subroutine validate_stephanov_config()
+      implicit none
+      integer :: expected_size
+
+      if (config%model%stephanov_n < 2 .or. mod(config%model%stephanov_n, 2) /= 0) then
+         write (*, '(A,I0)') "Invalid config: stephanov_n must be even and >= 2. Got ", config%model%stephanov_n
+         error stop 1
+      end if
+      if (config%model%stephanov_nf < 1) then
+         write (*, '(A,I0)') "Invalid config: stephanov_nf must be >= 1. Got ", config%model%stephanov_nf
+         error stop 1
+      end if
+      if ((.not. ieee_is_finite(config%model%stephanov_mass)) .or. &
+          (.not. ieee_is_finite(config%model%stephanov_mu)) .or. &
+          (.not. ieee_is_finite(config%model%stephanov_tau))) then
+         write (*, '(A)') "Invalid config: stephanov_mass/mu/tau must be finite."
+         error stop 1
+      end if
+      expected_size = 2*config%model%stephanov_n*config%model%stephanov_n
+      if (config%state%physical_size /= expected_size) then
+         write (*, '(A,I0,A,I0,A)') "Invalid config: stephanov physical_state_size must be ", &
+            expected_size, " for stephanov_n=", config%model%stephanov_n, "."
+         error stop 1
+      end if
+   end subroutine validate_stephanov_config
 
    subroutine sync_legacy_from_config()
       implicit none
@@ -185,6 +228,13 @@ contains
       alpha = config%model%alpha
       beta = config%model%beta
       call set_derivative_mode(config%model%derivative_mode)
+      stephanov_n = config%model%stephanov_n
+      stephanov_nf = config%model%stephanov_nf
+      stephanov_mass = config%model%stephanov_mass
+      stephanov_mu = config%model%stephanov_mu
+      stephanov_tau = config%model%stephanov_tau
+      stephanov_include_mu_prefactor = config%model%stephanov_include_mu_prefactor
+      stephanov_emit_diagnostics = config%model%stephanov_emit_diagnostics
 
       at = config%solver%abs_tol
       rt = config%solver%rel_tol
@@ -217,18 +267,31 @@ contains
       character(len=*), intent(in) :: mode_in
       character(len=32) :: mode_norm
 
-      mode_norm = trim(to_lower_ascii(mode_in))
+      mode_norm = normalize_derivative_mode(mode_in)
       select case (mode_norm)
-      case ("generated")
-         mode_norm = "generated"
+      case ("manual")
+         mode_norm = "manual"
       case default
-         write (*, '(A,A,A)') "Invalid derivative mode: only 'generated' is supported; got '", trim(mode_in), "'."
+         write (*, '(A,A,A)') "Invalid derivative mode: only 'manual' is supported by the active provider; got '", &
+            trim(mode_in), "'."
          error stop 1
       end select
 
       config%model%derivative_mode = mode_norm
       derivative_mode = mode_norm
    end subroutine set_derivative_mode
+
+   function normalize_derivative_mode(mode_in) result(mode_norm)
+      implicit none
+      character(len=*), intent(in) :: mode_in
+      character(len=32) :: mode_norm
+
+      mode_norm = trim(to_lower_ascii(unquote(mode_in)))
+      select case (trim(mode_norm))
+      case ("", "stephanov_manual", "hand", "handwritten")
+         mode_norm = "manual"
+      end select
+   end function normalize_derivative_mode
 
    subroutine set_integrator_method(method_in)
       implicit none
@@ -362,6 +425,29 @@ contains
       case ("derivative_mode", "model_derivative_mode")
          text = to_lower_ascii(trim(unquote(value)))
          config%model%derivative_mode = trim(text)
+      case ("stephanov_n")
+         read (value, *, iostat=ios) config%model%stephanov_n
+         if (ios /= 0) call kv_parse_error(line_no, key, value)
+      case ("stephanov_nf")
+         read (value, *, iostat=ios) config%model%stephanov_nf
+         if (ios /= 0) call kv_parse_error(line_no, key, value)
+      case ("stephanov_mass", "stephanov_m")
+         read (value, *, iostat=ios) config%model%stephanov_mass
+         if (ios /= 0) call kv_parse_error(line_no, key, value)
+      case ("stephanov_mu")
+         read (value, *, iostat=ios) config%model%stephanov_mu
+         if (ios /= 0) call kv_parse_error(line_no, key, value)
+      case ("stephanov_tau")
+         read (value, *, iostat=ios) config%model%stephanov_tau
+         if (ios /= 0) call kv_parse_error(line_no, key, value)
+      case ("stephanov_include_mu_prefactor")
+         call parse_logical_value(value, ltmp, ok)
+         if (.not. ok) call kv_parse_error(line_no, key, value)
+         config%model%stephanov_include_mu_prefactor = ltmp
+      case ("stephanov_emit_diagnostics")
+         call parse_logical_value(value, ltmp, ok)
+         if (.not. ok) call kv_parse_error(line_no, key, value)
+         config%model%stephanov_emit_diagnostics = ltmp
       case ("abs_tol", "at")
          read (value, *, iostat=ios) config%solver%abs_tol
          if (ios /= 0) call kv_parse_error(line_no, key, value)
@@ -493,20 +579,32 @@ contains
       integer :: ios
       integer :: candidate_idx
       character(len=256) :: filename
-      logical :: opened
+      logical :: opened, has_env_file
       character(len=256), parameter :: candidates(2) = [character(len=256) :: "../data/parameters.dat", "data/parameters.dat"]
 
       opened = .false.
-      do candidate_idx = 1, size(candidates)
-         filename = candidates(candidate_idx)
+      filename = ""
+      call read_string_env("TLTM_PARAMETERS_FILE", filename, has_env_file)
+      if (.not. has_env_file) call read_string_env("TLTM_PARAMETER_FILE", filename, has_env_file)
+      if (has_env_file) then
          open (unit=10, file=trim(filename), status='old', action='read', iostat=ios)
-         if (ios == 0) then
-            opened = .true.
-            exit
-         end if
-      end do
+         opened = (ios == 0)
+      else
+         do candidate_idx = 1, size(candidates)
+            filename = candidates(candidate_idx)
+            open (unit=10, file=trim(filename), status='old', action='read', iostat=ios)
+            if (ios == 0) then
+               opened = .true.
+               exit
+            end if
+         end do
+      end if
       if (.not. opened) then
-         write (*, '(A)') "Error: Unable to open parameters.dat (tried ../data/parameters.dat and data/parameters.dat)."
+         if (has_env_file) then
+            write (*, '(A,1X,A)') "Error: Unable to open TLTM_PARAMETERS_FILE:", trim(filename)
+         else
+            write (*, '(A)') "Error: Unable to open parameters.dat (tried ../data/parameters.dat and data/parameters.dat)."
+         end if
          error stop 1
       end if
 

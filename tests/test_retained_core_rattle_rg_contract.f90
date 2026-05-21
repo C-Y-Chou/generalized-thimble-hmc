@@ -1,7 +1,8 @@
 program test_retained_core_rattle_rg_contract
    use hmc_integrator_core, only: get_reverse_gate_replay_status_counts, hmc_step_status_success, &
                                   hmc_step_status_final_flow_failed, hmc_replay_diagnostics_context_t, &
-                                  record_reverse_gate_replay_status, reset_reverse_gate_replay_status_counts, rattle_step_core
+                                  hmc_policy_context_t, record_reverse_gate_replay_status, reset_reverse_gate_replay_status_counts, &
+                                  rattle_step_core
    use hmc_kernels, only: decompose_tangent_projection
    use hmc_state_buffers, only: release_rattle_step_workspace, rattle_step_workspace_t
    use runtime_env_mod, only: parse_logical_env
@@ -16,12 +17,15 @@ program test_retained_core_rattle_rg_contract
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    implicit none
 
+   real(dp), parameter :: contract_flow_time = 1.0e-4_dp
+
    integer :: failures, n_seed, x_size, flow_status, step_status
    real(dp), allocatable :: seed(:), x(:), final_x(:), momentum(:)
    real(dp), allocatable :: tangent(:), tangent_component(:), normal_component(:)
    complex(dp), allocatable :: z(:), final_z(:), jac(:,:), jacf(:,:), z_check(:), jac_check(:,:)
    logical :: flow_failed, converged
    type(rattle_step_workspace_t) :: ws
+   type(hmc_policy_context_t) :: hmc_policy
    logical :: qn_first_env_enabled
 
    failures = 0
@@ -37,7 +41,7 @@ program test_retained_core_rattle_rg_contract
    allocate (z(n_seed), final_z(n_seed), jac(n_seed, n_seed), jacf(n_seed, n_seed), z_check(n_seed), jac_check(n_seed, n_seed))
 
    call fill_seed(seed)
-   call x_set_flow_time(x, 0.08_dp)
+   call x_set_flow_time(x, contract_flow_time)
    call x_set_seed_real(x, seed)
    flow_status = intode_status_unknown
    call flow(x, z, jac, flow_failed, flow_status)
@@ -48,8 +52,12 @@ program test_retained_core_rattle_rg_contract
 
    momentum = 0.0_dp
    call reset_reverse_gate_replay_status_counts()
+   hmc_policy%hmc_policy_loaded = .true.
+   hmc_policy%qn_reverse_gate_enabled = .true.
+   hmc_policy%qn_reverse_gate_tol = 1.0e-8_dp
    step_status = -999
-   call rattle_step_core(x, z, 0.002_dp, final_x, final_z, jac, jacf, momentum, converged, ws, step_status)
+   call rattle_step_core(x, z, 0.002_dp, final_x, final_z, jac, jacf, momentum, converged, ws, step_status, &
+                         hmc_policy=hmc_policy)
 
    call check_forward_endpoint(final_x, final_z, jacf, failures)
    call check_final_momentum_tangent(momentum, jacf, tangent, tangent_component, normal_component, failures)
@@ -78,7 +86,7 @@ contains
       integer :: i
 
       do i = 1, size(seed)
-         seed(i) = 0.12_dp + 0.04_dp*real(i - 1, dp)
+         seed(i) = 0.02_dp + 0.001_dp*real(i, dp)
       end do
    end subroutine fill_seed
 

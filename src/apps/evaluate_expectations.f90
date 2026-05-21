@@ -2141,8 +2141,9 @@ contains
          observable_name = trim(env_observable)
       else if (tra2) then
          observable_name = "z_sum"
+         if (find_model_observable(trim(observable_name)) <= 0) call get_model_observable_name(1, observable_name)
       else
-         observable_name = "virial"
+         call get_model_observable_name(1, observable_name)
       end if
 
       observable_idx = find_model_observable(trim(observable_name))

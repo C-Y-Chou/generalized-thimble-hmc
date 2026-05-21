@@ -39,7 +39,7 @@ else
 FC_FAMILY    := gnu
 endif
 
-# Python for code generation (generate_model_generated.py needs >=3.8).
+# Python for build helpers and guardrail scripts.
 PYTHON       ?= $(shell if command -v python3.11 >/dev/null 2>&1; then echo python3.11; \
                     elif command -v python3.10 >/dev/null 2>&1; then echo python3.10; \
                     elif command -v python3.9 >/dev/null 2>&1; then echo python3.9; \
@@ -167,22 +167,13 @@ OUT_PROD_DIR ?= $(OUT_DIR)/production
 OUT_TEST_DIR ?= $(OUT_DIR)/tests
 OUT_TEST1_DIR ?= $(OUT_TEST_DIR)/hamiltonian
 OUT_LOG_DIR ?= $(OUT_DIR)/logs
-GEN_SCRIPT  = ../scripts/generate_model_generated.py
-GEN_BODY    = ../src/physics/model_action_body.inc
-GEN_OUT     = ../src/physics/model_generated.f90
 DEP_SCRIPT  = ../scripts/fortran_module_deps.py
 DEP_OUT     = $(OBJ_DIR)/fortran_module_deps.mk
-ST_TAPENADE_DEFAULT = $(HOME)/tools/tapenade-3.16-v2/bin/tapenade
-ifneq ($(wildcard $(ST_TAPENADE_DEFAULT)),)
-ST_TAPENADE_CMD ?= $(ST_TAPENADE_DEFAULT)
-endif
-export ST_TAPENADE_CMD
-GEN_BACKEND ?= auto
 
 # --------- layered source lists ----------------------------------------------
 CORE_SRC     = core/mtdefs core/mt95 core/tltm_rng core/utils core/lapack_fallback core/perf_profile
 CONFIG_SRC   = config/runtime_env_mod config/param_mod
-PHYSICS_SRC  = physics/model_autodiff physics/model_tape_ad physics/model_generated physics/model physics/model_observables physics/odex_backend physics/solve_flow
+PHYSICS_SRC  = physics/model_stephanov physics/model physics/model_observables physics/odex_backend physics/solve_flow
 SAMPLER_SRC  = sampler/hmc_kernels sampler/hmc_constraints sampler/hmc_state_buffers sampler/tltm_run_context sampler/hmc_reversibility_checks \
                sampler/quasi_newton_linear_solver sampler/quasi_newton_solver \
                sampler/constraint_solver_stats sampler/hmc_integrator_core sampler/hmc sampler/markovchain_phase sampler/markovchain_io \
@@ -227,7 +218,7 @@ SOURCES_TEST_TLTM_RNG := $(call mk_src,core/mtdefs core/mt95 core/tltm_rng) $(TE
 SOURCES_TEST_PERF_PROFILE := $(call mk_src,core/lapack_fallback core/utils config/runtime_env_mod core/perf_profile) $(TEST_DIR)/test_perf_profile_context_contract.f90
 SOURCES_TEST_NUMERICAL_HELPERS := $(SOURCES_COMMON) $(TEST_DIR)/test_numerical_helper_contracts.f90
 SOURCES_TEST_HMC_REVERSIBILITY := $(call mk_src,core/lapack_fallback core/utils config/runtime_env_mod sampler/hmc_reversibility_checks) $(TEST_DIR)/test_hmc_reversibility_context_contract.f90
-SOURCES_TEST_NEWTON_FLOW_STATUS := $(call mk_src,core/mtdefs core/mt95 core/tltm_rng core/lapack_fallback core/utils core/perf_profile config/runtime_env_mod config/param_mod physics/model_autodiff physics/model_tape_ad physics/model_generated physics/model physics/odex_backend physics/solve_flow sampler/hmc_constraints) $(TEST_DIR)/test_newton_eval_flow_status_context_contract.f90
+SOURCES_TEST_NEWTON_FLOW_STATUS := $(call mk_src,core/mtdefs core/mt95 core/tltm_rng core/lapack_fallback core/utils core/perf_profile config/runtime_env_mod config/param_mod physics/model_stephanov physics/model physics/odex_backend physics/solve_flow sampler/hmc_constraints) $(TEST_DIR)/test_newton_eval_flow_status_context_contract.f90
 SOURCES_TEST_RETAINED_NEWTON := $(SOURCES_COMMON) $(TEST_DIR)/test_retained_core_newton_contract.f90
 SOURCES_TEST_RETAINED_RATTLE_RG := $(SOURCES_COMMON) $(TEST_DIR)/test_retained_core_rattle_rg_contract.f90
 SOURCES_TEST_RETAINED_QN_ROUTE := $(SOURCES_COMMON) $(TEST_DIR)/test_retained_core_qn_route_contract.f90
@@ -378,11 +369,11 @@ override FFLAGS := $(FFLAGS_OPT) $(FFLAGS_INC)
 .PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_odex_controller_observation_contract test_odex_controller_alignment_spec test_sundials_cvode_backend_contract test_official_dfols_preset_contract evaluate_btn_residual_case replay_flowz_cases test_tltm_swap_kernel_contract test_mt95_state_contract test_tltm_rng_contract test_perf_profile_context_contract test_numerical_helper_contracts test_hmc_reversibility_context_contract test_newton_eval_flow_status_context_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails f14_pre_redo_complete_gate official_line_kernel_correctness_gate post_b_rng_reference_anchor stage2_rng_v2_anchor script_evidence_audit_gate precision_readiness_audit FORCE \
         test1_fb_on test1_fb_off test2_fb_on test2_fb_off test_fb_matrix \
         prepare_outputs clean_outputs clean veryclean
-all: regen_model_derivatives $(EXECUTABLES)
+all: $(EXECUTABLES)
 
 fast: override FFLAGS := $(FFLAGS_FAST) $(FFLAGS_INC)
 fast: override LDFLAGS := $(LDFLAGS_FAST)
-fast: regen_model_derivatives $(EXECUTABLES)
+fast: $(EXECUTABLES)
 
 # compile rules
 $(OBJ_DIR)/src/%.o: $(SRC_DIR)/%.f90 | $(MOD_DIR)
@@ -521,8 +512,6 @@ help:
 	@echo "  make ENABLE_SUNDIALS_CVODE=1 SUNDIALS_PREFIX=<prefix> - build the disabled-by-default SUNDIALS CVODE ODE backend"
 	@echo "  make TLTM_PRECISION=double TLTM_TOLERANCE_PROFILE=f20f_most_conservative_double - selected certified precision/tolerance profile (only supported mode)"
 	@echo "  make GNU_LINALG_LIBS='-lopenblas'   - optionally link external BLAS/LAPACK on GNU"
-	@echo "  make regen_model_derivatives - regenerate src/physics/model_generated.f90 (GEN_BACKEND=auto|symbolic|tape|st_auto|st_tapenade|st_enzyme; default=auto)"
-	@echo "    uses ST_TAPENADE_CMD if set; otherwise auto-detects ~/tools/tapenade-3.16-v2/bin/tapenade"
 	@echo ""
 	@echo "Run targets:"
 	@echo "  make chain    - run generate_markov_chain (outputs -> $(OUT_PROD_DIR), log -> $(OUT_LOG_DIR))"
@@ -831,11 +820,6 @@ test2_fb_off: $(BIN_DIR)/test_program2 prepare_outputs
 
 test_fb_matrix: test1_fb_on test1_fb_off test2_fb_on test2_fb_off
 	@echo "[DONE] test fallback matrix complete"
-
-regen_model_derivatives: $(GEN_OUT)
-
-$(GEN_OUT): $(GEN_SCRIPT) $(GEN_BODY)
-	$(PYTHON) $(GEN_SCRIPT) --body $(GEN_BODY) --output $(GEN_OUT) --backend $(GEN_BACKEND)
 
 ###############################################################################
 #  interactive menu

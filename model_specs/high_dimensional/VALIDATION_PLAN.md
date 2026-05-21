@@ -2,8 +2,8 @@
 
 ## Scope
 
-This plan validates the Stephanov model provider before it is promoted from
-`model_specs/high_dimensional/` into `src/physics/` and `src/config/`.
+This plan validates the Stephanov model provider promoted into
+`src/physics/model_stephanov.f90` and `src/config/param_mod.f90`.
 
 The first physics target is
 
@@ -20,35 +20,34 @@ mu  = 0.4, 0.45, 0.5, 0.55, 0.575, 0.6, 0.625, 0.65, 0.7, 0.75, 0.8
 Production Stephanov derivatives must be hand-written analytic code. Generic
 AD-generated derivatives are not an allowed production path for this model.
 
-The source-consistency gate therefore compares:
+The source-consistency gate compares:
 
 - hand-written `calculate_action`;
 - hand-written `ds`;
 - hand-written `hessian_vec`;
-- AD and finite-difference oracle outputs at small `n`.
+- finite-difference oracle outputs at small `n`.
 
-Existing generated-model derivative checks still protect the current toy model
-until Stephanov is promoted:
+The compiled local gate is:
 
 ```bash
 cd build
-make regen_model_derivatives
 make test2
 ```
 
-For Stephanov, add explicit AD/finite-difference tests at `n=2` and `n=4`:
+For Stephanov, keep explicit finite-difference tests at `n=2` and extend to
+`n=4` before production-scale runs:
 
 - random complexified `z` with independent complex `Zx,Zy` components;
-- compare `dS/dz_i` against AD and centered finite differences of the
-  holomorphic action;
-- compare `hessian_vec(z,v)` against AD HVP or finite-difference directional
+- compare `dS/dz_i` against centered finite differences of the holomorphic
+  action;
+- compare `hessian_vec(z,v)` against a finite-difference directional
   derivative of `ds`;
 - repeat near, but not on, small determinant values.
 
 ## AD/FD Oracle Contract
 
-AD and finite differences are correctness oracles only. They must not be used
-by the production sampler/flow path for Stephanov.
+Finite differences, and any future dense AD oracle, are correctness oracles
+only. They must not be used by the production sampler/flow path for Stephanov.
 
 The oracle must evaluate the same holomorphic action as production:
 
@@ -121,6 +120,7 @@ Smallest local run that should pass before cluster use:
 
 ```bash
 cd build
+TLTM_PARAMETERS_FILE=../data/parameters_stephanov_n2_smoke.dat \
 TLTM_STAGE2_NUM_REPLICAS=1 \
 TLTM_STAGE2_CYCLES=2 \
 TLTM_STAGE2_LOCAL_UPDATES=1 \
@@ -174,7 +174,7 @@ Expected hard point: `m=0.004`, `tau=0`, `mu` near `0.6`, especially at
 
 - Build succeeds.
 - Hand-written derivative/HVP tests match AD/FD oracles within tolerance at
-  both real and complexified points.
+  random genuinely complexified points.
 - `Xsharp` complexification tests pass at complex `z`.
 - Stage2 smoke produces observable stream and v1 sidecars.
 - Observable stream schema names match the intended model observables.

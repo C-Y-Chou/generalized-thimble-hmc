@@ -15,13 +15,18 @@ initial_flow_time = 0.40
 integrator_method = rattle
 
 # State layout. Prefer physical_state_size; x_size is legacy packed size.
-physical_state_size = 1
-x_size = 2
+physical_state_size = 8
+x_size = 9
 
 # Model parameters
-alpha = (1.0,0.0)
-beta = (1.0,0.0)
-derivative_mode = generated
+derivative_mode = manual
+stephanov_n = 2
+stephanov_nf = 1
+stephanov_mass = 0.2
+stephanov_mu = 0.3
+stephanov_tau = 0.1
+stephanov_include_mu_prefactor = false
+stephanov_emit_diagnostics = true
 
 # Recommended "publication" baseline
 abs_tol = 3.0d-14

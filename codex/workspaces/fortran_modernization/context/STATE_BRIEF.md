@@ -1,6 +1,6 @@
 # Fortran Modernization State Brief
 
-Updated: 2026-05-17 JST
+Updated: 2026-05-22 JST
 
 ## Read Before Next Solver-Policy Step
 
@@ -40,7 +40,7 @@ Updated: 2026-05-17 JST
   `runbooks/ODEX_CONTROLLER_DETAIL_AUDIT_20260514.md`, and
   `runbooks/HANDWRITTEN_ALGORITHM_CURRENT_ANALYSIS_REPORT_20260514.md`.  This is `CV-012`: the 2026-05-15 all-handwritten paper-correctness/numerical-soundness audit is now resolved for the current source-contract scope by the ODEX/F18b.5j, Metropolis, RATTLE/HMC, NT, QN, flow/model/action, Stage2/RNG, and remaining-surfaces HWA packets. Universal publication/product paper-correctness still must not be claimed for final schema/API cleanup, precision-profile changes, thread-safe productization, or production-comparison regeneration until those gates are separately closed.
 - Required read before continuing CV-011 RNG work: `runbooks/CV011_STAGE2_KERNEL_RNG_V2_IMPLEMENTATION_20260514.md`.  `TLTM_STAGE2_RNG_STREAM_CONTRACT=stage2_kernel_rng_v2` is implemented as the Stage2 default; `legacy_global_v0` is compatibility only, and `per_replica_rng_v1` is retained for the post-B anchor/audit path.
-- Operational rule from 2026-05-16 JST: do not run TLTM simulation/screen jobs locally.  Use the remote PBS route for Stage2/Stage3 screens; local work is limited to code inspection, edits, provenance/readback, and control-plane documentation.
+- Operational rule from 2026-05-16 JST: do not run TLTM production or screen jobs locally.  Use the remote PBS route for Stage2/Stage3 screens.  Temporary 2026-05-22 exception while the cluster is under maintenance: local n=2 Stephanov smoke/contract runs are allowed for implementation verification only, not as production evidence.
 
 ## Current Position
 
@@ -119,7 +119,7 @@ Updated: 2026-05-17 JST
 - CV-011 Newton eval-flow status context is implemented. Stage1/Stage2 local updates now pass a Stage/run-owned `newton_eval_flow_status_context_t`; Newton eval-flow summary counters no longer use active shared module state on that path.
 - CV-011 config context slice is implemented. Stage1/Stage2 seed each per-replica/per-slot `tltm_run_context_t%config` from the validated `param_mod%config`; adaptive preflow and local Metropolis updates read `trajectory_length`/`integration_steps` from the run-context snapshot, with a legacy fallback for direct callers.
 - CV-011 constraint-stats context slice is implemented. `constraint_solver_stats_context_t` owns aggregate counters, reverse-gate path counters, failure-capture file handles/policy, sample indices, and failure-meta delta state; Stage1/Stage2 bind one run-level context before reset. This preserves current serial aggregate/capture semantics through a transitional alias bridge and does not define the later per-thread merge/capture schema.
-- CV-011 model tape/cache context slice is implemented. `model_tape_context_t` owns tape arrays/counters and generated `model_context_t` owns tape cache metadata plus the paired tape context; Stage1/Stage2 bind one run-level model context, while `calculate_action`/`ds`/`hessian`/`hessian_vec` keep the same wrapper contract and math. This is current serial product-path ownership, not final public wrapper/API schema.
+- The active model context is now an inert compatibility handle because the canonical model path is the hand-written Stephanov provider, not generated tape/cache derivatives. Stage1/Stage2 still bind one run-level model context through the stable API, while `calculate_action`/`ds`/`hessian`/`hessian_vec` are supplied by `src/physics/model_stephanov.f90`.
 - The flow-time/state-layout split is active and recorded in `runbooks/FLOW_TIME_LABEL_STATE_SPLIT_20260521.md`: Stage1/Stage2 slot/replica `x(:)` is now physical-only, `flow_time` is fixed slot/replica metadata, `flow_at`/`flowz_at`/`flowzr_at`/`metropolis_step_at` are the new explicit-label APIs, and legacy packed `[flow_time, physical_state...]` remains only as a compatibility adapter for old callers and retained-core internals.
 - Product/API/schema decision is now recorded in `runbooks/PRODUCT_SURFACE_SCHEMA_ROUTE_DECISION_20260517.md`: v1 active route id is `constrained_hmc_reverse_gate_metropolis_v1`, component policy ids carry RATTLE/Newton/ODEX/official-DFO-LS/reverse-gate/failure/precision details, and problem dimensions live in resolved config/model metadata. Stage2 v1alpha2 sidecars implement this cleaned product surface and write `config.resolved.json`; Stage3 per-seed/run manifests propagate `stage2_v1_resolved_config_file`, M4/F14 gates require that file for sidecar-on rows, and `scripts/run_tltm_product.py` is the first thin product compatibility wrapper enforcing v1 sidecars plus protocol audit. The wrapper writes product-facing summary tables with canonical `product_method` values, preserved `raw_method` names, and retired raw diagnostic/comparison columns filtered out of the product view while raw Stage tables remain compatible. The first F12 wrapper tiny-screen readback passed from scratch tree `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization_f12_wrapper_scratch_20260517T032346Z` as PBS job `15550.anode01`; after direct canonical remote rebuild, the canonical F12 handoff gate also passed as PBS job `15552.anode01` at commit `68f494a918a1a661b6dd26ea6883f1dc1c803b22`, with wrapper manifest validation `pass`, product methods `nofb,withfb`, zero missing sidecar/protocol/resolved-config paths, and product tables generated. After F9, the canonical remote was fast-forwarded to frozen code contract `8ab252e62eb8f5cbb55ebf8f36c0959e55ac4e02`; remote no-simulation py_compile, script-evidence audit, precision-readiness audit, diff-check, and wrapper validate-only on the canonical F12 artifact all passed. F14 now has optional `--existing-product-wrapper-output` validation, and M4 wires wrapper validate-only before F14 so wrapper readback is recorded in the F14 manifest; the F4 local-transition audit fixture remains separate from the F12 wrapper artifact.
 - Remaining CV-011 state is not just scratch storage: final config/product schema and wrapper API cleanup plus later per-thread constraint-stats merge/capture schema if threaded product scope is implemented still need migration or explicit product boundaries. F18b.3a migrated solve-flow INTODE/ODEX counters, comparison-package counters, runtime trace attribution, and last-failure snapshots into explicit contexts for Stage1/Stage2 product paths with legacy module fallback preserved.
@@ -140,8 +140,11 @@ Updated: 2026-05-17 JST
 - Do not submit product-wrapper readback gates from a dirty remote worktree. First reconcile the canonical remote tree to a clean selected commit, or use an explicitly approved scratch remote target.
 - For PBS queue selection or repair, use the cluster02 scheduler agent.
 - Do not delete reference outputs/logs until registry/readback is complete.
-- Do not run TLTM Stage2/Stage3 simulation screens locally; use remote PBS jobs
-  for screen, baseline, and production-like execution.
+- Do not run TLTM Stage2/Stage3 production or screen jobs locally; use remote
+  PBS jobs for screen, baseline, and production-like execution.  Temporary
+  2026-05-22 exception while the cluster is under maintenance: local n=2
+  Stephanov smoke/contract runs are allowed for implementation verification
+  only, not as production evidence.
 
 ## Key Files
 
@@ -201,9 +204,10 @@ Updated: 2026-05-17 JST
 - `runbooks/F18B_HANDWRITTEN_ODEX_ENDPOINT_HARDENING_20260516.md`: active return path after negative package-backend tuning; user selected controller alignment toward Hairer/paper or stronger-reference behavior via F18b.4, without claiming the current backend is already full Hairer ODEX.
 - `runbooks/PRODUCT_SURFACE_SCHEMA_ROUTE_DECISION_20260517.md`: active product route/API/schema decision; Stage2 v1alpha2 sidecars use `constrained_hmc_reverse_gate_metropolis_v1` plus component policy ids and write `config.resolved.json`.
 - `runbooks/FLOW_TIME_LABEL_STATE_SPLIT_20260521.md`: active flow-time label / physical-state split; Stage1/Stage2 product state is physical-only and legacy packed state is compatibility-only.
-- `runbooks/MODEL_OBSERVABLE_STREAM_IO_20260522.md`: active model-observable/I/O slice; observable formulas are model-owned under `src/physics/model_observable_*`, Stage2 writes generic `phi + observable_values(:)` streams plus schema sidecars, and evaluator can read `EVAL_OBSERVABLE_HISTORY_FILE` directly for large datasets.
-- `model_specs/high_dimensional/`: inert staging area for the next high-dimensional model definition, including model plan, parameter/layout plan, action draft, observable registry/body drafts, and validation plan. Draft here first; promote to `src/physics/` and `src/config/` only after review.
-- `runbooks/STEPHANOV_MANUAL_PROVIDER_DECISION_20260522.md`: Stephanov production path is hand-written analytic dense provider only for action, `ds`, `hessian_vec`, and observables; AD/FD is required only as a validation oracle, with the derivative/HVP gate based on random genuinely complexified `Zx,Zy` seeds.
+- `runbooks/MODEL_OBSERVABLE_STREAM_IO_20260522.md`: active model-observable/I/O slice; observable formulas are model-owned under the active provider, Stage2 writes generic `phi + observable_values(:)` streams plus schema sidecars, and evaluator can read `EVAL_OBSERVABLE_HISTORY_FILE` directly for large datasets.
+- `model_specs/high_dimensional/`: reviewed Stephanov model definition, exact-reference table, and validation plan. The active implementation has been promoted into `src/physics/model_stephanov.f90` and `src/config/param_mod.f90`.
+- `runbooks/STEPHANOV_MANUAL_PROVIDER_DECISION_20260522.md`: Stephanov production path is hand-written analytic dense provider only for action, `ds`, `hessian_vec`, and observables; finite differences are the current validation oracle, with the derivative/HVP gate based on random genuinely complexified `Zx,Zy` seeds.
+- `runbooks/STEPHANOV_PROVIDER_IMPLEMENTATION_20260522.md`: current source-provider implementation record, n=2 random-complex derivative/HVP readback, Stage2 observable-stream smoke, evaluator stream readback, and swap-kernel contract result.
 - `runbooks/F18B3_ODEX_FLOW_STATE_AND_BEHAVIOR_CORRECTION_DECISION_20260516.md`: F18b.3 decision packet; split runtime trace from run diagnostics, preserve public counter/status/output values, and require a separate behavior-correction packet for semantic diagnostic or numerical behavior changes.
 - `runbooks/HANDWRITTEN_MISMATCH_RESOLUTION_TABLE_20260516.md`: active decision table for all-handwritten non-paper-exact surfaces; HWM-ODEX-001, HWM-RATTLE-001, and HWM-MET-001 are confirmed, while remaining rows still need decision or evidence packets.
 - `runbooks/HWM_METROPOLIS_REJECT_OUTPUT_CONTRACT_20260517.md`: HWM-MET-001 focused M4-passed implementation packet; finite ordinary Metropolis rejection now resets public output buffers to the current stay-put state.
@@ -243,7 +247,7 @@ Updated: 2026-05-17 JST
 
 ## Next Action
 
-For current high-dimensional-model preparation, the active local next step is to design the hand-written Stephanov dense provider and its complexified AD/FD validation oracle. Do not promote Stephanov by only replacing `model_action_body.inc`; production `action`, `ds`, `hessian_vec`, and observables must come from the manual provider. Older production-comparison handoff remains owned by `/Users/ccy/Documents/TLTM_qn_error_handling` / the external `tltm_production_comparison` tree when that stream is reopened.
+For current high-dimensional-model preparation, the active local next step is to scale the promoted Stephanov dense provider beyond the `n=2` smoke: add `n=4` random-complex derivative/HVP checks, then run short `n=4` and `n=6` observable-stream TLTM smokes before attempting the `n=10`, `m=0.004`, `tau=0` exact-reference sweep. Do not add runtime `model_name` branches to canonical sampler/config code; changing models should replace the active source provider behind the same model API. Older production-comparison handoff remains owned by `/Users/ccy/Documents/TLTM_qn_error_handling` / the external `tltm_production_comparison` tree when that stream is reopened.
 
 F18b.0/F18b.1/F18b.2 from
 `F18B_HANDWRITTEN_ODEX_ENDPOINT_HARDENING_20260516.md` are implemented:

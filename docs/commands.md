@@ -44,7 +44,7 @@ make test2_fb_off
 - `make stage3_1`: run matched-control compare (fallback OFF vs ON) on frozen reference ladder
 - `make stage3_3`: run multiseed matched-control summary (fallback OFF vs ON) with frozen stage-3.3 protocol
 - `make test1`: Hamiltonian conservation test
-- `make test2`: action derivative test
+- `make test2`: Stephanov random-complex action derivative/HVP test
 - `make test1_fb_on`, `make test1_fb_off`: test1 with fallback forced on/off
 - `make test2_fb_on`, `make test2_fb_off`: test2 with fallback forced on/off
 
@@ -144,7 +144,7 @@ Outputs:
 
 ## Fallback Controls (Current Policy)
 
-Quasi fallback remains the active improvement path; no-fallback is a reference mode. The current working fallback baseline is bounded probe-only. Near/non-near rescue paths are disabled by default because the tested versions did not improve the Re-virial bias and can introduce route asymmetry not represented in the current Metropolis ratio. The legacy global continuation/restart fallback route has been removed from active source.
+Quasi fallback remains the active improvement path; no-fallback is a reference mode. The current working fallback baseline is bounded probe-only. Near/non-near rescue paths are disabled by default because the tested versions did not improve the previous observable-bias screen and can introduce route asymmetry not represented in the current Metropolis ratio. The legacy global continuation/restart fallback route has been removed from active source.
 
 Control knobs:
 
@@ -208,21 +208,21 @@ After build, executables are available under `../bin/`:
 ../bin/test_program2
 ```
 
-Evaluate multichain expectations (`<virial>` and `<z>`) from a wrapper run:
+Evaluate multichain expectations from a wrapper run:
 
 ```bash
 cd build
 EVAL_MULTICHAIN_RUN_DIR=../output/multichain_auto/<run_name> ../bin/evaluate_expectations
 ```
 
-- Observable formulas come from `src/physics/model_observables.f90` via
-  `src/physics/model_observable_registry.inc` and
-  `src/physics/model_observable_body.inc`.
-- Current compatibility observables are `virial` and `z_sum` (`tra2` / `z`
-  alias).
+- Observable formulas come from the active provider under `src/physics/`;
+  currently `src/physics/model_stephanov.f90` via `model_observables.f90`.
+- Current observables are `chiral_condensate`, `number_density`,
+  `logdet_dirac`, `phase_factor`, and `min_singular_ba_m2` when diagnostics
+  are enabled.
 - Error bars are leave-one-chain-out jackknife over chain-level ratio estimators.
 - Additional robust error bars are reported for multichain runs:
-  - `error_robust_<virial>` and `error_robust_<z>`
+  - `error_robust_<observable_name>`
   - Rule: per Re/Im component `max(chain_jk, stratified_jk_plateau, mcse_mean)`.
 - Diagnostics (`Rhat`, `ESS_bulk`, `ESS_tail`, `MCSE`) are computed on weighted tails:
   - `O_z(i) = O_i * phi_i / sum_j(phi_j)`.
@@ -266,8 +266,8 @@ python3 scripts/run_multichain_auto.py \
 ```
 
 - Diagnostic observable follows `EVAL_OBSERVABLE_NAME` when set; otherwise it
-  follows the legacy `parameters.dat` `tra2` flag (`z_sum` when true,
-  `virial` otherwise). It is weight-normalized over the active window:
+  uses the first observable reported by the active provider. It is
+  weight-normalized over the active window:
   - `O_z(i) = O_i * phi_i / sum_j(phi_j)`.
 - Diagnostics are evaluated on chain tails and can be combined with sample or wall-time limits.
 - `--diag-window-mode fixed` uses a constant cap (`--diag-window-samples`).
@@ -298,7 +298,7 @@ Evaluate directly from a Stage2 observable stream without reading full
 ```bash
 cd build
 EVAL_OBSERVABLE_HISTORY_FILE=/path/to/observable_history.dat \
-EVAL_OBSERVABLE_NAME=virial \
+EVAL_OBSERVABLE_NAME=chiral_condensate \
 ../bin/evaluate_expectations
 ```
 
@@ -328,7 +328,7 @@ python3 scripts/run_multichain_auto.py \
 - `mode-diag-component` / `mode-diag-threshold` define a binary mode indicator from the observable tail.
 - Additional diagnostics reported: occupancy range/agreement, mode-indicator `Rhat`/`ESS`, crossings, round trips.
 
-## Virial Zero-Coverage Plot
+## Legacy Virial Zero-Coverage Plot
 
 From repository root:
 
@@ -336,6 +336,7 @@ From repository root:
 python3 scripts/plot_multichain_virial_coverage.py --last 30
 ```
 
+- Legacy 1D diagnostic helper; not part of the active Stephanov provider path.
 - Reads `output/multichain_auto/*/multichain_expectations.dat`.
 - Plots virial `mean +- error` against 0 for Re/Im.
 - Default error source is `auto`:

@@ -1,7 +1,8 @@
 ! Stephanov model observable registry draft. Not compiled from model_specs/.
 !
 ! Promotion target after review:
-!   src/physics/model_observable_registry.inc
+!   provider-owned observable metadata exposed through
+!   src/physics/model_observables.f90
 !
 ! Required physics observables:
 !   chiral_condensate = (m/n) tr K

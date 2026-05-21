@@ -96,8 +96,6 @@ def classify(file_path, kind, name):
         return "config_global"
     if "mt95" in text or kind == "rng_call":
         return "rng"
-    if "model_generated" in text or "model_tape_ad" in text or "tape_" in text:
-        return "model_tape_cache"
     if "solve_flow" in text or "odex" in text or "intode" in text or name.startswith("flow_"):
         return "flow_workspace_or_counter"
     if "quasi_newton" in text or name.startswith("quasi_") or name.startswith("qn_"):

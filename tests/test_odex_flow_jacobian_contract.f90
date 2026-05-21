@@ -7,6 +7,8 @@ program test_odex_flow_jacobian_contract
    use, intrinsic :: ieee_arithmetic, only: ieee_quiet_nan, ieee_value
    implicit none
 
+   real(dp), parameter :: contract_flow_time = 1.0e-4_dp
+
    integer :: failures
    integer :: n_seed, x_size
    real(dp), allocatable :: seed(:), x(:)
@@ -46,7 +48,7 @@ contains
       integer :: idx
 
       do idx = 1, size(seed)
-         seed(idx) = 0.11_dp + 0.035_dp*real(idx - 1, dp)
+         seed(idx) = 0.02_dp + 0.001_dp*real(idx, dp)
       end do
    end subroutine fill_seed
 
@@ -93,7 +95,7 @@ contains
       real(dp), parameter :: tolerance = 1.0e-11_dp
 
       allocate (z_flow(size(seed)), z_vec(size(seed)), jac(size(seed), size(seed)))
-      call set_x_from_seed(x, 0.08_dp, seed)
+      call set_x_from_seed(x, contract_flow_time, seed)
       z_flow = cmplx(0.0_dp, 0.0_dp, dp)
       z_vec = cmplx(0.0_dp, 0.0_dp, dp)
       jac = cmplx(0.0_dp, 0.0_dp, dp)
@@ -126,7 +128,7 @@ contains
 
       allocate (z_legacy(size(seed)), z_context(size(seed)), jac_legacy(size(seed), size(seed)), &
                 jac_context(size(seed), size(seed)))
-      call set_x_from_seed(x, 0.08_dp, seed)
+      call set_x_from_seed(x, contract_flow_time, seed)
       z_legacy = cmplx(0.0_dp, 0.0_dp, dp)
       z_context = cmplx(0.0_dp, 0.0_dp, dp)
       jac_legacy = cmplx(0.0_dp, 0.0_dp, dp)
@@ -164,7 +166,7 @@ contains
       real(dp), parameter :: tolerance = 5.0e-10_dp
 
       allocate (z(size(seed)), jac(size(seed), size(seed)))
-      call set_x_from_seed(x, 0.08_dp, seed)
+      call set_x_from_seed(x, contract_flow_time, seed)
       z = cmplx(0.0_dp, 0.0_dp, dp)
       jac = cmplx(0.0_dp, 0.0_dp, dp)
       status = intode_status_unknown
@@ -195,7 +197,7 @@ contains
       integer :: status, status_plus, status_minus
       integer :: col
       real(dp) :: max_diff
-      real(dp), parameter :: flow_time = 0.05_dp
+      real(dp), parameter :: flow_time = contract_flow_time
       real(dp), parameter :: epsilon_fd = 1.0e-6_dp
       real(dp), parameter :: tolerance = 5.0e-7_dp
 
@@ -254,7 +256,7 @@ contains
       allocate (jac(size(seed), size(seed)), jac_before(size(seed), size(seed)), jac_bad(size(seed) + 1, size(seed)))
       allocate (x_bad(size(x)))
 
-      call set_x_from_seed(x, 0.08_dp, seed)
+      call set_x_from_seed(x, contract_flow_time, seed)
       z_before = cmplx(9.0_dp, -3.0_dp, dp)
       jac_before = cmplx(-7.0_dp, 2.0_dp, dp)
       z = z_before

@@ -1,11 +1,10 @@
 module model_observables
-   use param_mod, only: alpha, beta
    use utils, only: dp
+   use model_stephanov, only: get_stephanov_observable_name, stephanov_evaluate_observables, &
+                              stephanov_observable_count
    implicit none
 
    integer, parameter, public :: model_observable_name_len = 64
-
-   include "model_observable_registry.inc"
 
    public :: model_observable_count, get_model_observable_name, find_model_observable
    public :: evaluate_model_observables, evaluate_model_observable_by_index
@@ -13,18 +12,14 @@ module model_observables
 contains
 
    integer function model_observable_count() result(count)
-      count = model_observable_count_value
+      count = stephanov_observable_count()
    end function model_observable_count
 
    subroutine get_model_observable_name(index, name)
       integer, intent(in) :: index
       character(len=*), intent(out) :: name
 
-      if (index < 1 .or. index > model_observable_count_value) then
-         name = ""
-      else
-         name = trim(model_observable_names(index))
-      end if
+      call get_stephanov_observable_name(index, name)
    end subroutine get_model_observable_name
 
    integer function find_model_observable(name) result(index)
@@ -33,11 +28,13 @@ contains
       integer :: i
 
       requested = lower_ascii(trim(name))
-      if (trim(requested) == "tra2" .or. trim(requested) == "z") requested = "z_sum"
+      if (trim(requested) == "chiral" .or. trim(requested) == "chiral_cond") requested = "chiral_condensate"
+      if (trim(requested) == "density" .or. trim(requested) == "number") requested = "number_density"
 
       index = 0
-      do i = 1, model_observable_count_value
-         candidate = lower_ascii(trim(model_observable_names(i)))
+      do i = 1, model_observable_count()
+         call get_model_observable_name(i, candidate)
+         candidate = lower_ascii(trim(candidate))
          if (trim(candidate) == trim(requested)) then
             index = i
             return
@@ -48,30 +45,32 @@ contains
    subroutine evaluate_model_observables(z, observables)
       complex(dp), intent(in) :: z(:)
       complex(dp), intent(out) :: observables(:)
-      complex(dp), parameter :: ci = cmplx(0.0_dp, 1.0_dp, dp)
-      complex(dp) :: z_val
-      integer :: i
+      integer :: expected_count
 
-      if (size(observables) /= model_observable_count_value) then
+      expected_count = model_observable_count()
+      if (size(observables) /= expected_count) then
          write (*, '(A,I0,A,I0,A)') "[ERROR] evaluate_model_observables: expected ", &
-            model_observable_count_value, " values, got ", size(observables), "."
+            expected_count, " values, got ", size(observables), "."
          error stop 1
       end if
 
-      include "model_observable_body.inc"
+      call stephanov_evaluate_observables(z, observables)
    end subroutine evaluate_model_observables
 
    subroutine evaluate_model_observable_by_index(z, index, observable)
       complex(dp), intent(in) :: z(:)
       integer, intent(in) :: index
       complex(dp), intent(out) :: observable
-      complex(dp) :: values(model_observable_count_value)
+      complex(dp), allocatable :: values(:)
+      integer :: count
 
-      if (index < 1 .or. index > model_observable_count_value) then
+      count = model_observable_count()
+      if (index < 1 .or. index > count) then
          write (*, '(A,I0)') "[ERROR] evaluate_model_observable_by_index: invalid observable index=", index
          error stop 1
       end if
 
+      allocate (values(count))
       call evaluate_model_observables(z, values)
       observable = values(index)
    end subroutine evaluate_model_observable_by_index

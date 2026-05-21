@@ -24,7 +24,9 @@ This document defines the intended responsibilities of top-level directories and
 ## 2. Runtime Input Data
 
 - `data/parameters.dat`
-  - runtime parameter file (`key=value` only)
+  - default Stephanov `n=2` runtime parameter file (`key=value` only)
+- `data/parameters_stephanov_n2_smoke.dat`
+  - tiny local Stephanov smoke config for build/flow/observable-stream checks
 - `model_specs/`
   - inert staging area for future model definitions and validation plans; not compiled
 

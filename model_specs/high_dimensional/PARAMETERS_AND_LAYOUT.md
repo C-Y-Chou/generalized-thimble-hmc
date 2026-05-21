@@ -36,11 +36,10 @@ Do not compute `Xsharp` with `conjg(transpose(X))`.
 
 ## Parameter Surface
 
-Parameters that must be added to `src/config/param_mod.f90` before promotion.
+Parameters promoted to `src/config/param_mod.f90`.
 
 | Parameter | Type | Default | Required? | Description |
 | --- | --- | --- | --- | --- |
-| `model_name` | string | `stephanov` | yes | Selects the Stephanov provider when multiple models exist. |
 | `stephanov_n` | integer | `10` | yes | Matrix size. Must be even and `physical_state_size = 2*n*n`. |
 | `stephanov_nf` | integer | `1` | yes | Number of degenerate quark flavors. First benchmark uses `1`. |
 | `stephanov_mass` | real(dp) | `0.004_dp` | yes | Quark mass `m`. |

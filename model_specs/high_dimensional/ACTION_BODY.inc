@@ -2,11 +2,11 @@
 !
 ! Production decision:
 !   This model must be promoted as a hand-written analytic dense provider,
-!   not as a generic AD-generated model_action_body.inc replacement.
+!   not through the retired generated/autodiff model pipeline.
 !
 ! Likely promotion target after review:
 !   src/physics/model_stephanov.f90 or equivalent model-provider module,
-!   wired through src/physics/model.f90 dispatch.
+!   wired through the stable src/physics/model.f90 facade.
 !
 ! Mathematical action, dropping the constant -n*mu^2:
 !

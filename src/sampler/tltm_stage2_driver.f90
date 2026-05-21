@@ -1334,6 +1334,12 @@ contains
          ok = .false.
          return
       end if
+      if (any(.not. ieee_is_finite(real(z, dp))) .or. any(.not. ieee_is_finite(aimag(z))) .or. &
+          any(.not. ieee_is_finite(real(jac, dp))) .or. any(.not. ieee_is_finite(aimag(jac)))) then
+         energy = 0.0_dp
+         ok = .false.
+         return
+      end if
 
       call calculate_action(z, s_val)
       call log_determinant(jac, log_det_j, det_error)
@@ -2416,6 +2422,12 @@ contains
       call write_json_int_field(unit_manifest, "x_size", config%state%x_size, .true., 4)
       call write_json_int_field(unit_manifest, "physical_state_size", config%state%physical_size, .true., 4)
       call write_json_int_field(unit_manifest, "z_size", config%state%z_size, .true., 4)
+      call write_json_string_field(unit_manifest, "model_provider", "stephanov_chiral_rmt_v1", .true., 4)
+      call write_json_int_field(unit_manifest, "stephanov_n", config%model%stephanov_n, .true., 4)
+      call write_json_int_field(unit_manifest, "stephanov_nf", config%model%stephanov_nf, .true., 4)
+      call write_json_real_field(unit_manifest, "stephanov_mass", config%model%stephanov_mass, .true., 4)
+      call write_json_real_field(unit_manifest, "stephanov_mu", config%model%stephanov_mu, .true., 4)
+      call write_json_real_field(unit_manifest, "stephanov_tau", config%model%stephanov_tau, .true., 4)
       call write_json_real_field(unit_manifest, "trajectory_length", config%integrator%trajectory_length, .true., 4)
       call write_json_int_field(unit_manifest, "integration_steps", config%integrator%integration_steps, .true., 4)
       call write_json_string_field(unit_manifest, "integrator_method", trim(config%integrator%method), .true., 4)
@@ -2528,7 +2540,8 @@ contains
 
       write (unit_manifest, '(A)') '  "observable_schema": {'
       call write_json_string_field(unit_manifest, "provider", "model_observables", .true., 4)
-      call write_json_string_field(unit_manifest, "definition_surface", "src/physics/model_observable_registry.inc + src/physics/model_observable_body.inc", .true., 4)
+      call write_json_string_field(unit_manifest, "definition_surface", &
+                                   "src/physics/model_stephanov.f90 + src/physics/model_observables.f90", .true., 4)
       call write_json_int_field(unit_manifest, "observable_count", model_observable_count(), .true., 4)
       call write_json_model_observable_names_field(unit_manifest, "observable_names", .true., 4)
       call write_json_string_field(unit_manifest, "stream_record_layout", "complex(dp) phi, then complex(dp) observable_values(observable_count)", .false., 4)
@@ -2576,15 +2589,20 @@ contains
       call write_json_string_field(unit_config, "writer_version", "stage2_sidecar_2026-05-17_product_surface", .true.)
 
       write (unit_config, '(A)') '  "model": {'
-      call write_json_string_field(unit_config, "model_id", "tltm_configured_model_v1", .true., 4)
+      call write_json_string_field(unit_config, "model_id", "stephanov_chiral_rmt_v1", .true., 4)
+      call write_json_string_field(unit_config, "provider", "src/physics/model_stephanov.f90", .true., 4)
       call write_json_int_field(unit_config, "x_size", config%state%x_size, .true., 4)
       call write_json_int_field(unit_config, "physical_state_size", config%state%physical_size, .true., 4)
       call write_json_int_field(unit_config, "z_size", config%state%z_size, .true., 4)
       call write_json_int_field(unit_config, "legacy_flow_label_dim", max(0, config%state%x_size - config%state%z_size), .true., 4)
-      call write_json_real_field(unit_config, "alpha_re", real(config%model%alpha, dp), .true., 4)
-      call write_json_real_field(unit_config, "alpha_im", real(aimag(config%model%alpha), dp), .true., 4)
-      call write_json_real_field(unit_config, "beta_re", real(config%model%beta, dp), .true., 4)
-      call write_json_real_field(unit_config, "beta_im", real(aimag(config%model%beta), dp), .true., 4)
+      call write_json_int_field(unit_config, "stephanov_n", config%model%stephanov_n, .true., 4)
+      call write_json_int_field(unit_config, "stephanov_nf", config%model%stephanov_nf, .true., 4)
+      call write_json_real_field(unit_config, "stephanov_mass", config%model%stephanov_mass, .true., 4)
+      call write_json_real_field(unit_config, "stephanov_mu", config%model%stephanov_mu, .true., 4)
+      call write_json_real_field(unit_config, "stephanov_tau", config%model%stephanov_tau, .true., 4)
+      call write_json_logical_field(unit_config, "stephanov_include_mu_prefactor", &
+                                    config%model%stephanov_include_mu_prefactor, .true., 4)
+      call write_json_logical_field(unit_config, "stephanov_emit_diagnostics", config%model%stephanov_emit_diagnostics, .true., 4)
       call write_json_string_field(unit_config, "derivative_mode", trim(config%model%derivative_mode), .true., 4)
       call write_json_int_field(unit_config, "observable_count", model_observable_count(), .true., 4)
       call write_json_model_observable_names_field(unit_config, "observable_names", .false., 4)
@@ -2791,7 +2809,7 @@ contains
       call write_json_string_field(unit_schema, "schema_version", "tltm.observable_schema.v1alpha1", .true.)
       call write_json_string_field(unit_schema, "provider", "model_observables", .true.)
       call write_json_string_field(unit_schema, "definition_surface", &
-                                   "src/physics/model_observable_registry.inc + src/physics/model_observable_body.inc", .true.)
+                                   "src/physics/model_stephanov.f90 + src/physics/model_observables.f90", .true.)
       call write_json_int_field(unit_schema, "observable_count", model_observable_count(), .true.)
       call write_json_model_observable_names_field(unit_schema, "observable_names", .true.)
       call write_json_string_field(unit_schema, "binary_record_layout", &

@@ -1,11 +1,13 @@
 module model
-   use param_mod, only: alpha, beta
    use utils, only: dp
    use mt95, only: gaussrnd
-   use model_generated, only: calculate_action_generated, ds_generated, hessian_generated, hessian_vec_generated, &
-                              model_context_t, bind_model_context, bind_module_model_context, release_model_context
+   use model_stephanov, only: stephanov_calculate_action, stephanov_ds, stephanov_hessian, stephanov_hessian_vec
 
    implicit none
+
+   type, public :: model_context_t
+      integer :: unused = 0
+   end type model_context_t
 
 contains
 
@@ -21,11 +23,26 @@ contains
       end do
    end subroutine grand
 
-      subroutine calculate_action(z, s)
+   subroutine bind_model_context(context)
+      type(model_context_t), intent(inout), target :: context
+
+      context%unused = 0
+   end subroutine bind_model_context
+
+   subroutine release_model_context(context)
+      type(model_context_t), intent(inout), target :: context
+
+      context%unused = 0
+   end subroutine release_model_context
+
+   subroutine bind_module_model_context()
+   end subroutine bind_module_model_context
+
+   subroutine calculate_action(z, s)
       ! Input/Output parameters
       complex(dp), dimension(:), intent(in) :: z
       complex(dp), intent(out) :: s
-      call calculate_action_generated(z, alpha, beta, s)
+      call stephanov_calculate_action(z, s)
    end subroutine calculate_action
 
    subroutine ds(z, s)
@@ -33,7 +50,7 @@ contains
       complex(dp), dimension(:), intent(in) :: z
       complex(dp), dimension(:), intent(out) :: s
 
-      call ds_generated(z, alpha, beta, s)
+      call stephanov_ds(z, s)
    end subroutine ds
 
    subroutine hessian(z, h)
@@ -43,7 +60,7 @@ contains
       complex(dp), dimension(:), intent(in)  :: z
       complex(dp), dimension(:, :), intent(out) :: h
 
-      call hessian_generated(z, alpha, beta, h)
+      call stephanov_hessian(z, h)
    end subroutine hessian
 
    subroutine hessian_vec(z, v, hv)
@@ -51,7 +68,7 @@ contains
       complex(dp), intent(in) :: z(:), v(:)
       complex(dp), intent(out) :: hv(:)
 
-      call hessian_vec_generated(z, alpha, beta, v, hv)
+      call stephanov_hessian_vec(z, v, hv)
    end subroutine hessian_vec
 
 end module model

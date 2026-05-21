@@ -1,7 +1,8 @@
 # Stephanov High-Dimensional Model Draft
 
-This folder stages the Stephanov chiral random matrix model as the first
-high-dimensional GTM/TLTM benchmark. Nothing here is compiled.
+This folder records the reviewed Stephanov chiral random matrix model plan and
+reference data. The active implementation has been promoted into
+`src/physics/model_stephanov.f90` and `src/config/param_mod.f90`.
 
 Primary benchmark:
 
@@ -48,5 +49,7 @@ File map:
 7. `exact_reference_values_n10_m0004_tau0.csv`: finite-`n` exact values for
    the baseline literature sweep.
 
-Only after review should these drafts be promoted into `src/physics/` and
-`src/config/`.
+Future high-dimensional models should follow the same pattern: draft here,
+review the complexification and validation gates, then replace the active
+source provider without adding runtime model-selection branches to sampler or
+config code.

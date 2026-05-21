@@ -13,18 +13,15 @@ pre-redo gate, and post-B route-B RNG reference anchor.
 
 ## Active scripts (current baseline support)
 
-- `generate_model_generated.py`
-  - Regenerates `src/physics/model_generated.f90` from `src/physics/model_action_body.inc`.
 - `fortran_module_deps.py`
   - Generates conservative Make dependencies from Fortran `module`/`use` relationships so incremental builds rebuild module consumers after public module API changes.
-- `st_backends/tapenade_codegen.py`
-  - Tapenade source-transformation backend adapter.
-- `st_backends/enzyme_codegen.py`
-  - Enzyme source-transformation backend adapter.
-- `check_autodiff_integrity.sh`
-  - Quick guard check that required autodiff files/routes are still present.
 - `benchmark_hamiltonian.sh`
   - Reproducible Hamiltonian benchmark helper.
+
+The old generated/autodiff model pipeline has been retired from the active
+tree.  Current model changes replace the active provider behind
+`src/physics/model.f90`; the Stephanov provider lives in
+`src/physics/model_stephanov.f90`.
 
 ## Historical scripts (kept for reference)
 

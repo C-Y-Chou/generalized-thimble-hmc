@@ -22,11 +22,14 @@ program test_retained_core_rg_reject_identity
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    implicit none
 
+   real(dp), parameter :: contract_flow_time = 1.0e-4_dp
+
    integer :: failures, n_seed, x_size, flow_status, proposal_status, transition_status
    real(dp), allocatable :: seed(:), x(:), hmc_x(:), metro_x(:)
    complex(dp), allocatable :: z(:), hmc_z(:), metro_z(:), jac(:,:), hmc_jac(:,:), metro_jac(:,:)
    real(dp) :: h_initial, h_final
    logical :: flow_failed, proposal_ok, accepted, proposal_failed, found_reject
+   type(hmc_policy_context_t) :: reject_hmc_policy
 
    failures = 0
    call read_parameters()
@@ -38,7 +41,7 @@ program test_retained_core_rg_reject_identity
    allocate (jac(n_seed, n_seed), hmc_jac(n_seed, n_seed), metro_jac(n_seed, n_seed))
 
    call fill_seed(seed)
-   call x_set_flow_time(x, 0.08_dp)
+   call x_set_flow_time(x, contract_flow_time)
    call x_set_seed_real(x, seed)
    flow_status = intode_status_unknown
    call flow(x, z, jac, flow_failed, flow_status)
@@ -48,16 +51,20 @@ program test_retained_core_rg_reject_identity
    end if
 
    istest = .true.
+   reject_hmc_policy%hmc_policy_loaded = .true.
+   reject_hmc_policy%qn_reverse_gate_enabled = .true.
+   reject_hmc_policy%qn_reverse_gate_tol = 1.0e-20_dp
    found_reject = .false.
    call set_test_momentum(1.0_dp)
 
    call integrate_hmc_proposal(x, z, 0.002_dp, 1, hmc_x, hmc_z, h_initial, h_final, jac, hmc_jac, &
-                               proposal_ok, proposal_status)
+                               proposal_ok, proposal_status, hmc_policy=reject_hmc_policy)
    found_reject = (.not. proposal_ok) .and. proposal_status == hmc_proposal_status_reverse_gate_rejected
    call check_hmc_reject_identity(found_reject, proposal_ok, proposal_status, hmc_x, hmc_z, hmc_jac, jac, failures)
 
    call set_test_momentum(1.0_dp)
-   call metropolis_step(x, z, jac, 0.002_dp, 1, metro_x, metro_z, metro_jac, accepted, proposal_failed, transition_status)
+   call metropolis_step(x, z, jac, 0.002_dp, 1, metro_x, metro_z, metro_jac, accepted, proposal_failed, transition_status, &
+                        hmc_policy=reject_hmc_policy)
    call check_metropolis_reject_identity(accepted, proposal_failed, transition_status, metro_x, metro_z, metro_jac, jac, failures)
    call check_transition_accounting(accepted, proposal_failed, transition_status, failures)
    call check_direct_core_rg_reject_identity(failures)
@@ -86,7 +93,7 @@ contains
       integer :: i
 
       do i = 1, size(seed)
-         seed(i) = 0.12_dp + 0.04_dp*real(i - 1, dp)
+         seed(i) = 0.02_dp + 0.001_dp*real(i, dp)
       end do
    end subroutine fill_seed
 

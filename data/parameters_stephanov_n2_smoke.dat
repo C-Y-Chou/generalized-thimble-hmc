@@ -1,24 +1,24 @@
 # Runtime flags
-istest = false
+istest = true
 tra2 = false
 eo = false
 
 # Markov chain control
-chain_length = 10000000
+chain_length = 4
 hmc_repeat = 1
 warmup = 0
 
 # Integrator control
-trajectory_length = 2
-integration_steps = 20
-initial_flow_time = 0.3
+trajectory_length = 0.02
+integration_steps = 2
+initial_flow_time = 0.01
 integrator_method = rattle
 
-# State layout. Prefer physical_state_size; x_size is legacy packed size.
+# State layout. Flow time is metadata; x_size is only the legacy packed size.
 physical_state_size = 8
 x_size = 9
 
-# Model parameters
+# Active source provider: Stephanov finite-density chiral random matrix model.
 derivative_mode = manual
 stephanov_n = 2
 stephanov_nf = 1
@@ -28,17 +28,16 @@ stephanov_tau = 0.1
 stephanov_include_mu_prefactor = false
 stephanov_emit_diagnostics = true
 
-# Unique F20F double production preset
-abs_tol = 1.0d-14
-rel_tol = 1.0d-14
-constraint_tol = 1.0d-13
+# Conservative local smoke tolerances.
+abs_tol = 1.0d-12
+rel_tol = 1.0d-12
+constraint_tol = 1.0d-10
 enable_quasi_fallback = false
 
 # Expectation analysis
-# 0 => auto-tuned by sample count and block structure
 bootstrap_samples = 0
 
 # Files
-x_history_file = /home1/cychou/ng/output/tests/stage3_3/no_fb/seed_20260421/output/x_history.dat
+x_history_file = ../output/production/x_history.dat
 z_history_file = ../output/production/z_history.dat
 phi_history_file = ../output/production/phi_history.dat

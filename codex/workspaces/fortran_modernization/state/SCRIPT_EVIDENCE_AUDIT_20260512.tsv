@@ -97,7 +97,6 @@ scripts/benchmark_hamiltonian.sh	benchmark	current_build	local	bash	build/perfor
 scripts/build_post_session_bundle.py	analysis_tool	analysis_only	local	py3.8_plus	post-session bundle only	pass_analysis_only	Builds analysis bundle from existing outputs, no independent physics evidence.
 scripts/build_t030_s10_s20_s40_fullbundle.py	historical_bundle	historical_reference	local	py3.8_plus	historical t030 bundle only	pass_historical_quarantined	Historical bundle builder, not current official-line evidence.
 scripts/build_tflow_bundle.py	historical_bundle	historical_reference	local	py3.8_plus	historical t-flow bundle only	pass_historical_quarantined	Historical bundle builder, not current official-line evidence.
-scripts/check_autodiff_integrity.sh	build_check	current_build	local	bash	build integrity check only	pass_current	Checks required autodiff/codegen files are present.
 scripts/check_online_geometry_alignment.py	analysis_tool	analysis_only	local	py3.7_plus	geometry diagnostic only	pass_analysis_only	Compares diagnostic traces to geometry bands; not a canonical workflow driver.
 scripts/classify_constraint_fail_modes.py	analysis_tool	analysis_only	local	py3.7_plus	failure diagnostic only	pass_analysis_only	Classifies captured failure modes, requires explicit dataset provenance before evidence use.
 scripts/classify_failure_types.py	analysis_tool	analysis_only	local	py3.7_plus	failure diagnostic only	pass_analysis_only	Classifies failure types from traces/history, not canonical evidence by itself.
@@ -105,7 +104,6 @@ scripts/compare_rescue_policy_matrix.py	historical_analysis	historical_reference
 scripts/eval_prefix_checkpoints.sh	historical_analysis	historical_reference	local	bash	historical multichain prefix analysis only	pass_historical_quarantined	Historical multichain slicing helper with temporary rm -rf guarded by constructed output roots.
 scripts/eval_time_windows.sh	historical_analysis	historical_reference	local	bash	historical multichain window analysis only	pass_historical_quarantined	Historical multichain window helper with temporary rm -rf guarded by constructed output roots.
 scripts/fortran_module_deps.py	build_helper	current_build	local	py3.8_plus	Make dependency generation only	pass_current	Current build dependency scanner for Fortran module/use relationships.
-scripts/generate_model_generated.py	codegen	current_build	local	py3.8_plus	model_generated codegen only	pass_current	Current model_generated.f90 generator, Python 3.8 syntax checked by audit.
 scripts/inspect_tail_fail_context.py	analysis_tool	analysis_only	local	py3.7_plus	tail failure diagnostic only	pass_analysis_only	Diagnostic context extractor, no standalone evidence claim.
 scripts/inventory_fortran_state.py	analysis_tool	analysis_only	local	py3.6_safe	state inventory only	pass_analysis_only	Fortran state inventory helper, supports planning only.
 scripts/merge_stage3_multiseed_chunks.py	stage3_tool	current_evidence	local	py3.6_safe	current Stage3 merge/readback	pass_current	Current chunk merge preserving Stage3 sidecar metadata and protocol audit summaries.
@@ -130,6 +128,4 @@ scripts/run_t035_s1_multiseed.sh	historical_driver	historical_reference	local	ba
 scripts/run_t035_s1_nscan.sh	historical_driver	historical_reference	local	bash	historical tuning scan only	pass_historical_quarantined	Historical t035 n-scan, not current official-line evidence.
 scripts/run_t040_rescue_matrix.sh	historical_driver	historical_reference	local	bash	historical rescue matrix only	pass_historical_quarantined	Historical rescue matrix runner, not current official-line evidence.
 scripts/sort_geometry_cases.py	analysis_tool	analysis_only	local	py3.7_plus	geometry diagnostic only	pass_analysis_only	Sorts geometry diagnostic cases, no standalone evidence claim.
-scripts/st_backends/enzyme_codegen.py	codegen_adapter	current_build	local	py3.8_plus	experimental source-transform codegen only	pass_current	Current optional Enzyme adapter, requires explicit external driver.
-scripts/st_backends/tapenade_codegen.py	codegen_adapter	current_build	local	py3.8_plus	experimental source-transform codegen only	pass_current	Current optional Tapenade adapter, experimental backend with explicit tool dependency.
 scripts/summarize_rescue_impact.py	historical_analysis	historical_reference	local	py3.7_plus	historical rescue impact summary only	pass_historical_quarantined	Historical rescue impact summarizer, not current official-line evidence.

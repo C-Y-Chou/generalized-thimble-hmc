@@ -1,40 +1,46 @@
 # Model Actions And Observables
 
 This project keeps model-specific physics behind the `src/physics/` model
-surface. Samplers and analysis code must not encode a particular action or a
-particular observable formula.
+surface. Samplers and analysis code must not encode a particular action or
+observable formula, and canonical sampler/config code must not branch on a
+runtime model selector. To change models, replace the active source provider
+behind the same model API.
 
 ## Action Surface
 
-The model action is defined in:
+The active canonical provider is:
 
-- `src/physics/model_action_body.inc`
+- `src/physics/model_stephanov.f90`
 
-Run after editing:
+`src/physics/model.f90` exposes the stable interface used by flow and sampler
+code:
 
-```bash
-cd build
-make regen_model_derivatives
-```
+- `calculate_action`
+- `ds`
+- `hessian`
+- `hessian_vec`
 
-The generated model module provides `calculate_action`, `ds`, `hessian`, and
-`hessian_vec` through `src/physics/model.f90`.
+For Stephanov, all four are hand-written analytic dense routines. Generic AD
+or generated derivatives are validation oracles only and are not part of the
+active sampler/flow path.
 
 ## Observable Surface
 
-Model observables are defined by two files:
+Model observables are defined by the active provider:
 
-- `src/physics/model_observable_registry.inc`
-- `src/physics/model_observable_body.inc`
+- `src/physics/model_stephanov.f90`
+- `src/physics/model_observables.f90`
 
-`model_observable_registry.inc` declares the number and names of available
-observables. `model_observable_body.inc` fills `observables(:)` from the
-current flowed state `z(:)` and model parameters.
+`model_observables.f90` is the public lookup/evaluation facade. It does not
+contain sampler formulas; it delegates to the active provider.
 
-Current compatibility observables are:
+Current Stephanov observables are:
 
-- `virial`
-- `z_sum` (legacy `tra2` / `z` alias)
+- `chiral_condensate`
+- `number_density`
+- `logdet_dirac`
+- `phase_factor`
+- `min_singular_ba_m2`
 
 The public API is `src/physics/model_observables.f90`:
 
@@ -45,20 +51,16 @@ The public API is `src/physics/model_observables.f90`:
 - `evaluate_model_observable_by_index(z, index, observable)`
 
 Stage2 and evaluator code call this API only. To move to a different model,
-update the action body plus the observable registry/body; do not edit sampler
-or evaluator formula code.
+replace the active provider implementation and keep the same public model API;
+do not add a runtime `model_name` branch to sampler/config code.
 
-If the new model needs additional couplings or lattice-shape parameters beyond
-the current compatibility `alpha`/`beta` controls, add those parameters to
-`src/config/param_mod.f90` and consume them from the model layer. The sampler
-and evaluator should still see only the generic model APIs.
-
-Draft new models first under:
+Draft future models first under:
 
 - `model_specs/high_dimensional/`
 
-That staging folder is not compiled. Promote its action/observable drafts into
-`src/physics/` only after the model plan and validation plan are reviewed.
+That staging folder is not compiled. Promote a reviewed model by replacing the
+active provider under `src/physics/` and the associated config fields under
+`src/config/`.
 
 ## Stage2 Observable Stream
 
@@ -108,9 +110,9 @@ For large datasets, read the Stage2 observable stream directly:
 
 ```bash
 EVAL_OBSERVABLE_HISTORY_FILE=/path/to/observable_history.dat \
-EVAL_OBSERVABLE_NAME=virial \
+EVAL_OBSERVABLE_NAME=chiral_condensate \
 ../bin/evaluate_expectations
 ```
 
-If `EVAL_OBSERVABLE_NAME` is omitted, the legacy `tra2` flag selects `z_sum`;
-otherwise the default is `virial`.
+If `EVAL_OBSERVABLE_NAME` is omitted, the evaluator uses the first observable
+reported by the active provider.

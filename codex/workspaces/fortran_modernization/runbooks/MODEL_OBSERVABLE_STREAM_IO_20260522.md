@@ -7,9 +7,9 @@ datasets.
 ## Source Changes
 
 - Added `src/physics/model_observables.f90`.
-- Added model-owned observable definition files:
-  - `src/physics/model_observable_registry.inc`
-  - `src/physics/model_observable_body.inc`
+- The observable facade is now backed by the active source provider:
+  - `src/physics/model_stephanov.f90`
+  - `src/physics/model_observables.f90`
 - Added `physics/model_observables` to `build/makefile`.
 - Updated `src/sampler/tltm_stage2_driver.f90` so observable streams write:
   - `complex(dp) phi`
@@ -23,14 +23,12 @@ datasets.
 ## Contract
 
 Sampler/evaluator code must not encode model-specific observable formulas. For
-a new model, update:
+a new model, replace the active source provider behind the same model API; do
+not add a runtime `model_name` branch to sampler/config code.
 
-- `src/physics/model_action_body.inc`
-- `src/physics/model_observable_registry.inc`
-- `src/physics/model_observable_body.inc`
-
-The current compatibility observable names are `virial` and `z_sum`; `tra2`
-and `z` are aliases for `z_sum` at lookup time.
+Current active observable names are `chiral_condensate`, `number_density`,
+`logdet_dirac`, `phase_factor`, and `min_singular_ba_m2` when Stephanov
+diagnostics are enabled.
 
 ## Verification
 
@@ -66,6 +64,8 @@ Readback:
 - `scripts/audit_tltm_tempering_protocol.py` passed with zero errors; one
   expected warning remained because the smoke command did not pass a label trace.
 - `EVAL_OBSERVABLE_HISTORY_FILE=/tmp/tltm_observable_stream_smoke/observable_history.dat`
-  `EVAL_OBSERVABLE_NAME=virial ../bin/evaluate_expectations` completed. The
+  `EVAL_OBSERVABLE_NAME=virial ../bin/evaluate_expectations` completed before
+  Stephanov promotion. Current Stephanov readbacks should use
+  `EVAL_OBSERVABLE_NAME=chiral_condensate`. The
   tiny 3-sample gnuplot render warned about logscale range, which is expected
   for the smoke size and not an observable-stream failure.

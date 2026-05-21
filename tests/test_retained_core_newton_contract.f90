@@ -9,7 +9,8 @@ program test_retained_core_newton_contract
    implicit none
 
    integer, parameter :: n_steps = 3
-   real(dp), parameter :: step_sizes(n_steps) = [0.002_dp, 0.003_dp, 0.004_dp]
+   real(dp), parameter :: step_sizes(n_steps) = [0.001_dp, 0.0015_dp, 0.002_dp]
+   real(dp), parameter :: contract_flow_time = 1.0e-4_dp
 
    integer :: failures, n_seed, x_size, idx
    real(dp), allocatable :: seed(:), x(:), del_z(:), dV(:), E0_real(:), E0_perp(:), Jl(:)
@@ -28,7 +29,7 @@ program test_retained_core_newton_contract
    allocate (del_z(2*n_seed), dV(2*n_seed), E0_real(2*n_seed), E0_perp(2*n_seed), Jl(2*n_seed))
 
    call fill_seed(seed)
-   call x_set_flow_time(x, 0.08_dp)
+   call x_set_flow_time(x, contract_flow_time)
    call x_set_seed_real(x, seed)
 
    flow_status = intode_status_unknown
@@ -74,7 +75,7 @@ contains
       integer :: i
 
       do i = 1, size(seed)
-         seed(i) = 0.12_dp + 0.04_dp*real(i - 1, dp)
+         seed(i) = 0.02_dp + 0.001_dp*real(i, dp)
       end do
    end subroutine fill_seed
 

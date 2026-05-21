@@ -233,9 +233,23 @@ static PyObject *double_list_from_array(int n, const double *values)
     return list;
 }
 
+static PyObject *sequence_fast_or_tolist(PyObject *seq_obj, const char *message)
+{
+    PyObject *seq = PySequence_Fast(seq_obj, message);
+    PyObject *list_obj = NULL;
+
+    if (seq) return seq;
+    PyErr_Clear();
+    list_obj = PyObject_CallMethod(seq_obj, "tolist", NULL);
+    if (!list_obj) return NULL;
+    seq = PySequence_Fast(list_obj, message);
+    Py_DECREF(list_obj);
+    return seq;
+}
+
 static double sequence_norm2(PyObject *seq_obj, int n)
 {
-    PyObject *seq = PySequence_Fast(seq_obj, "residual is not a sequence");
+    PyObject *seq = sequence_fast_or_tolist(seq_obj, "residual is not a sequence");
     double norm_sq = 0.0;
     int i = 0;
 
@@ -259,7 +273,7 @@ static double sequence_norm2(PyObject *seq_obj, int n)
 
 static int copy_sequence_to_array(PyObject *seq_obj, int n, double *values)
 {
-    PyObject *seq = PySequence_Fast(seq_obj, "solution is not a sequence");
+    PyObject *seq = sequence_fast_or_tolist(seq_obj, "solution is not a sequence");
     int i = 0;
 
     if (!seq) return 1;
@@ -409,6 +423,10 @@ int tltm_official_dfols_solve(
     if (!soln_x || !soln_resid) {
         PyErr_Print();
         status = 41;
+        goto cleanup;
+    }
+    if (soln_x == Py_None) {
+        status = 42;
         goto cleanup;
     }
     if (copy_sequence_to_array(soln_x, n, x_out) != 0) {

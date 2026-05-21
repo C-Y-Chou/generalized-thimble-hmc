@@ -45,11 +45,11 @@ Responsibilities:
 
 Representative modules:
 
-- `model`, `model_observables`, `solve_flow`
+- `model`, `model_stephanov`, `model_observables`, `solve_flow`
 
 Responsibilities:
 
-- action, derivatives, Hessian
+- active model action, derivatives, Hessian-vector products
 - model-owned observable definitions and observable lookup
 - flow ODE right-hand side and integration
 - adaptive ODEX integration with tolerance control (`at`, `rt`)

@@ -54,7 +54,9 @@ cd build
 make modernization_guardrails
 ```
 
-For the current compatibility TLTM workflow, use Stage2/Stage3 entry points and v1alpha sidecars as documented under `codex/workspaces/fortran_modernization/runbooks/`.
+For the current Stephanov TLTM workflow, use Stage2/Stage3 entry points and
+v1alpha sidecars as documented under
+`codex/workspaces/fortran_modernization/runbooks/`.
 
 Important runbooks:
 
@@ -90,7 +92,6 @@ All build entry points are defined in `build/makefile`.
 - `make` or `make all`: full optimized build
 - `make fast`: debug-friendly build
 - `make OMP=1`: OpenMP + parallel MKL build
-- `make regen_model_derivatives`: regenerate `src/physics/model_generated.f90` from `src/physics/model_action_body.inc` (`GEN_BACKEND=auto|symbolic|tape|st_auto|st_tapenade|st_enzyme`, default `auto`)
 - `make chain`, `make expect`, `make test1`, `make test2`: build and run selected targets
 - `make modernization_guardrails`: run local M4 guardrails, including direct-env centralization, Stage2/eval build, ODEX/swap tests, protocol audit, and Stage3 sidecar smoke/merge checks
 - `make test1_fb_on`, `make test1_fb_off`, `make test2_fb_on`, `make test2_fb_off`: run tests with fallback forced on/off
@@ -111,9 +112,11 @@ Legacy positional `parameters.dat` files are no longer accepted.
 
 Recommended behavior:
 
-- Set `x_size` explicitly in `parameters.dat` (`>= 2`).
+- Set `physical_state_size = 2 * stephanov_n * stephanov_n`; `x_size` is
+  only the legacy packed size and must be `physical_state_size + 1`.
 - Set `integrator_method = rattle` (default).
-- `derivative_mode` is `generated` (the code path is generated-only for `ds`/`hessian`/`hessian_vec`).
+- `derivative_mode` must be `manual`; the active provider supplies
+  hand-written `action`, `ds`, `hessian_vec`, and observables.
 - Set `bootstrap_samples = 0` for automatic speed/accuracy tuning in expectation evaluation, or set a fixed positive value.
 - Temporary override is also available via `EVAL_BOOTSTRAP_SAMPLES=<N>` at runtime.
 - Quasi fallback remains the active improvement path; no-fallback is a reference mode.
@@ -123,56 +126,47 @@ Recommended behavior:
   - `QN_S1_NEAR_RESCUE_ENABLED` (default `0`)
   - `QN_S1_NONNEAR_RESCUE_ENABLED` (default `0`)
 
-### Single-Source Model Action
+### Active Model Provider
 
-For the generated workflow, the model action is defined once in:
+The canonical model API is `src/physics/model.f90`. The active provider is:
 
-- `src/physics/model_action_body.inc`
+- `src/physics/model_stephanov.f90`
 
-Run `make regen_model_derivatives` after editing this file.
-`calculate_action` and generated `ds`/`hessian`/`hessian_vec` all derive from this same action body, so you do not manually maintain derivative formulas.
-The action body can include loops/couplings over the full `z(:)` vector (not restricted to diagonal Hessian structure).
-Generated derivatives support backends via `GEN_BACKEND`:
-- `auto`: try symbolic source-generation for separable forms, otherwise fallback to tape backend
-- `symbolic`: force symbolic separable generation (fastest, analytic-like)
-- `tape`: force tape backend (`src/physics/model_tape_ad.f90`) for general coupled bodies
-- `st_auto`: try source-transformation adapters (`st_tapenade` then `st_enzyme`), fallback to `auto` if unavailable
-- `st_tapenade`: force Tapenade adapter (`scripts/st_backends/tapenade_codegen.py`)
-- `st_enzyme`: force Enzyme adapter (`scripts/st_backends/enzyme_codegen.py`, requires external driver)
+Sampler, flow, and evaluator code call the generic model API only. Do not add
+runtime model-selection branches to canonical sampler/config code; changing
+models means replacing the active source provider while preserving the same
+`calculate_action`, `ds`, `hessian_vec`, and observable APIs.
 
-See [source_transform_backend.md](./source_transform_backend.md) for setup,
-environment variables, and Tapenade provenance/license handling.
+Generated/AD derivative tooling is retained only as validation tooling for
+future provider work, not as the active Stephanov production path.
 
 ### Model Observable Surface
 
-Observable formulas are model-owned, not sampler-owned. Define observable names
-and formulas in:
+Observable formulas are model-owned, not sampler-owned. The active observable
+names and formulas live in:
 
-- `src/physics/model_observable_registry.inc`
-- `src/physics/model_observable_body.inc`
+- `src/physics/model_stephanov.f90`
+- `src/physics/model_observables.f90`
 
 Stage2 writes optional generic observable streams with record layout
 `phi + observable_values(:)`, and `evaluate_expectations` can read those
 streams directly via `EVAL_OBSERVABLE_HISTORY_FILE`. See
 [model_observables.md](./model_observables.md).
 
-Draft high-dimensional models under `model_specs/high_dimensional/` before
-promoting them into active `src/physics/` and `src/config/` files.
+The reviewed Stephanov model plan and exact-reference table are under
+`model_specs/high_dimensional/`. Future models should be drafted there before
+replacing the active source provider.
 
 ## License And Third-Party Notices
 
 TLTM is distributed under GPL-3.0-or-later; see the repository-root `LICENSE`
 and `LICENSE_POLICY.md`.
 
-Third-party packages/tools that affect production distribution or generated-code
-provenance are tracked in repository-root `THIRD_PARTY_NOTICES.md`. In
-particular:
+Third-party packages/tools that affect production distribution are tracked in
+repository-root `THIRD_PARTY_NOTICES.md`. In particular:
 
 - Official DFO-LS is GPL-3.0-or-later and is the planned production solver
   backend after behavior gates pass.
-- Tapenade is currently treated as an external MIT-licensed code-generation
-  tool; Tapenade-generated files require version/provenance recording before
-  release.
 
 ## State Vector Convention
 
