@@ -118,9 +118,16 @@ The full cleanup inventory is tracked in:
 codex/workspaces/nofb_diagnostics/state/F20F_CLEANUP_DRY_RUN_INVENTORY_20260521.tsv
 ```
 
-That inventory is the authoritative dry-run list for final keep/archive/delete
-planning.  This runbook explains the policy and scientific boundary, but the TSV
-contains the concrete output roots, log roots, and remote worktrees.
+The physics grouping is tracked in:
+
+```text
+codex/workspaces/nofb_diagnostics/state/F20F_PHYSICS_DATASET_GROUPS_20260521.tsv
+```
+
+The cleanup inventory is the authoritative dry-run list for final
+keep/archive/delete planning.  The physics grouping is the authoritative
+physics-facing list.  This avoids treating implementation history, such as
+"F20F tolerance validation", as a separate physical scenario.
 
 The cleanup rule is:
 
@@ -138,15 +145,13 @@ The cleanup rule is:
 
 Keep these raw or near-raw remote roots until publication decisions are made:
 
-| Dataset | Keep level | Reason |
+| Physics bucket | Dataset | Keep level | Reason |
 | --- | --- | --- |
-| F20F R3 most-conservative double tolerance validation | raw root or stable archive | evidence for the unique active F20F double preset |
-| fixed-flow `t=0.3` 512seed x 200k paired | raw roots or stable archive | main negative-control evidence that failures alone did not bias observables |
-| fixed-flow `t=0.5` nofb 128seed x 200k | raw root | positive fixed-flow pathology evidence |
-| TLTM low005 paired 32seed x 200k base | raw root while combined 128 uses it | component of base32 + topup96 combined 128seed dataset |
-| TLTM low005 paired topup96 x 200k | raw root | component of combined 128seed dataset |
-| TLTM nofb low005 `L=1,nstep=2` 32seed x 50k | compact packet only after 128 nofb scale-up | speed and sanity gate, not final physics scale |
-| TLTM nofb low005 `L=1,nstep=2` 128seed x 200k | pending; raw root if run after maintenance | nofb-only production-scale check for selected HMC parameters |
+| TLTM `t=0.3` | F20F R3 most-conservative double tolerance validation | raw root or stable archive | TLTM `t=0.3` evidence for the unique active F20F double preset |
+| fixed-flow `t=0.3` | 512seed x 200k paired, 128+384 components | raw roots or stable archive | main negative-control evidence that failures alone did not bias observables |
+| fixed-flow `t=0.5` | nofb 128seed x 200k | raw root | positive fixed-flow sign-lock pathology evidence |
+| TLTM `t=0.5` | low005 paired 32seed x 200k base | raw component | component of base32 + topup96 combined 128seed dataset |
+| TLTM `t=0.5` | low005 paired topup96 x 200k | raw component | component of base32 + topup96 combined 128seed dataset |
 
 Keep these as compact readback/manifest only:
 
@@ -154,8 +159,10 @@ Keep these as compact readback/manifest only:
 | --- | --- |
 | fixed-flow `t=0.3` and `t=0.5` 2seed x 100cycle smokes | route-smoke provenance |
 | fixed-flow `t=0.5` L and epsilon scans | HMC parameter-screen provenance |
-| TLTM ladder scan 4seed x 5k | ladder-selection provenance |
-| TLTM paired 32seed x 50k | early paired validation and finite-cycle motivation |
+| TLTM `t=0.5` ladder scan 4seed x 5k | ladder-selection provenance |
+| TLTM `t=0.5` paired 32seed x 50k | early paired validation and finite-cycle motivation |
+| TLTM `t=0.5` nofb low005 `L=1,nstep=2` 32seed x 50k | speed and sanity gate, not final physics scale |
+| TLTM `t=0.5` nofb low005 `L=1,nstep=2` 128seed x 200k failed submit | scheduler/request provenance only; no scientific output |
 | failed queue attempts and merge repairs | scheduler provenance only; no raw scientific value |
 
 Archive or delete candidates after compact packets exist:
