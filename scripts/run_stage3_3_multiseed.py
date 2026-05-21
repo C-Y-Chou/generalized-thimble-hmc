@@ -1572,8 +1572,8 @@ def run_one_seed(
         "local_accept_rate_by_slot": json.dumps(stage2_metrics["slot_accept_rate"], sort_keys=True),
         "pairwise_swap_acceptance_by_pair": json.dumps(stage2_metrics["pair_accept_rate"], sort_keys=True),
         "farthest_slot_reached_by_label": json.dumps(stage2_metrics["farthest_by_label"], sort_keys=True),
-        "summary_file": str(summary_file.relative_to(repo_root)),
-        "label_trace_file": str(label_trace_file.relative_to(repo_root)),
+        "summary_file": relpath_text(repo_root, summary_file),
+        "label_trace_file": relpath_text(repo_root, label_trace_file),
         "stage2_v1_sidecar_enabled": int(bool(stage2_v1_sidecars_enabled)),
         "stage2_v1_output_dir": relpath_text(
             repo_root, stage2_v1_output_dir if stage2_v1_sidecars_enabled else ""
@@ -1593,11 +1593,11 @@ def run_one_seed(
         "stage2_protocol_audit_errors": audit_result["errors"],
         "stage2_protocol_audit_warnings": audit_result["warnings"],
         "stage2_protocol_audit_checks": audit_result["checks"],
-        "stage2_log": str(stage2_log.relative_to(repo_root)),
-        "eval_log": str(eval_log.relative_to(repo_root)),
-        "multichain_meta_file": str(meta_file.relative_to(repo_root)),
+        "stage2_log": relpath_text(repo_root, stage2_log),
+        "eval_log": relpath_text(repo_root, eval_log),
+        "multichain_meta_file": relpath_text(repo_root, meta_file),
         "all_replica_history_dir": (
-            str(all_replica_history_dir.relative_to(repo_root)) if setup.get("write_all_replica_history", False) else ""
+            relpath_text(repo_root, all_replica_history_dir) if setup.get("write_all_replica_history", False) else ""
         ),
     }
     return row
@@ -1945,13 +1945,13 @@ def write_report(
         [
             "",
             "Artifacts:",
-            "- `{0}`".format((out_dir / "per_seed_summary_table.csv").relative_to(repo_root)),
-            "- `{0}`".format((out_dir / "aggregated_summary_table.csv").relative_to(repo_root)),
-            "- `{0}`".format(report_path.relative_to(repo_root)),
+            "- `{0}`".format(relpath_text(repo_root, out_dir / "per_seed_summary_table.csv")),
+            "- `{0}`".format(relpath_text(repo_root, out_dir / "aggregated_summary_table.csv")),
+            "- `{0}`".format(relpath_text(repo_root, report_path)),
         ]
     )
     if protocol_audit_summary_csv:
-        lines.append("- `{0}`".format(protocol_audit_summary_csv.relative_to(repo_root)))
+        lines.append("- `{0}`".format(relpath_text(repo_root, protocol_audit_summary_csv)))
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text("\n".join(lines) + "\n")
