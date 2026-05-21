@@ -11,6 +11,11 @@ Updated: 2026-05-21 JST
   production-comparison rerun is needed.  Production-facing work should package
   the existing canonical F20F datasets, as recorded in
   `runbooks/F20F_PRODUCTION_OUTPUT_PLAN_20260521.md`.
+- 2026-05-21 update: the no-rerun production-facing F20F evidence packet is
+  complete.  Final artifacts are
+  `runbooks/F20F_PRODUCTION_FACING_EVIDENCE_PACKET_20260521.md`,
+  `state/F20F_FINAL_VALIDATION_20260521.tsv`, and
+  `runbooks/F20F_ARCHIVE_DELETE_APPROVAL_LIST_20260521.md`.
 - 2026-05-21 update: F20F is the unique active double-precision preset.  The
   current no-fallback physics diagnostic line has moved to
   `codex/workspaces/nofb_diagnostics`; old production-comparison outputs are
@@ -69,17 +74,16 @@ Updated: 2026-05-21 JST
 
 Current production-comparison action:
 
-1. Do not submit new production-comparison jobs from old formalized-assist,
-   diagnostic, or pre-F20F namespaces.
-2. Do not prepare P0/P1/P2 reruns for the current decision.
-3. Use `runbooks/F20F_PRODUCTION_OUTPUT_PLAN_20260521.md` as the current
-   no-rerun production-facing provenance plan.
-4. Build the final evidence packet from existing F20F roots already registered
-   in `codex/state/DATASETS.tsv` and
-   `codex/workspaces/nofb_diagnostics/state/F20F_DATASET_REGISTRY.tsv`.
-5. If `z` or `z_dSdz_minus_1` is missing from a summary, compute readback from
-   existing raw history only.  Do not hand anything to the scheduler unless the
-   user explicitly reopens a new run.
+1. Keep the current F20F line closed as no-rerun / no-scheduler.
+2. Use `runbooks/F20F_PRODUCTION_FACING_EVIDENCE_PACKET_20260521.md` as the
+   production-facing summary for the existing F20F datasets.
+3. Use `state/F20F_FINAL_VALIDATION_20260521.tsv` for structural validation and
+   the numeric `Ohat`/`z` readback.
+4. Use `runbooks/F20F_ARCHIVE_DELETE_APPROVAL_LIST_20260521.md` before any
+   future cleanup command.  No deletion is authorized without a new explicit
+   user approval.
+5. Do not hand anything to the scheduler unless the user explicitly reopens a
+   new run.
 
 Closed diagnostic evidence:
 

@@ -2,8 +2,9 @@
 
 Date: 2026-05-21 JST
 
-Status: no-rerun consolidation plan.  No PBS submission is authorized or
-needed for this plan.
+Status: no-rerun consolidation plan, completed by
+`runbooks/F20F_PRODUCTION_FACING_EVIDENCE_PACKET_20260521.md`.  No PBS
+submission is authorized or needed for this plan.
 
 ## Current Gate State
 
@@ -118,9 +119,16 @@ configs, dry-run launcher output, request rows, and readback checklists, but
 must not directly set `TLTM_CLUSTER02_SCHEDULER_AUTHORITY=cluster02_scheduler`
 or bypass `codex/agents/cluster02_scheduler/cluster02_qsub_gate.sh`.
 
-## Immediate Next Task
+## Completion State
 
-Build the final production-facing evidence packet from the existing F20F roots.
-If `z` or `z_dSdz_minus_1` is missing from a summary table, compute the readback
-from existing raw history only.  Do not submit new jobs and do not create a new
-production raw-output namespace for this decision.
+Completed artifacts:
+
+```text
+codex/workspaces/tltm_production_comparison/runbooks/F20F_PRODUCTION_FACING_EVIDENCE_PACKET_20260521.md
+codex/workspaces/tltm_production_comparison/state/F20F_FINAL_VALIDATION_20260521.tsv
+codex/workspaces/tltm_production_comparison/runbooks/F20F_ARCHIVE_DELETE_APPROVAL_LIST_20260521.md
+```
+
+`z` was read back from existing `multichain_expectations.dat` metadata, and
+`Ohat` was used as the current `z dS/dz - 1` / virial observable.  No new jobs
+were submitted and no new production raw-output namespace was created.
