@@ -14,8 +14,13 @@ Updated: 2026-05-21 JST
 - 2026-05-21 update: the no-rerun production-facing F20F evidence packet is
   complete.  Final artifacts are
   `runbooks/F20F_PRODUCTION_FACING_EVIDENCE_PACKET_20260521.md`,
+  `runbooks/F20F_1D_MANUSCRIPT_CLAIM_BOUNDARY_20260521.md`,
   `state/F20F_FINAL_VALIDATION_20260521.tsv`, and
   `runbooks/F20F_ARCHIVE_DELETE_APPROVAL_LIST_20260521.md`.
+- 2026-05-21 update: remote cleanup readback is complete.  The compact-only /
+  failed / superseded F20F roots and stale scan worktree candidates were
+  already absent; all 12 canonical keep roots were verified present.  See
+  `runbooks/F20F_REMOTE_CLEANUP_READBACK_20260521.md`.
 - 2026-05-21 update: F20F is the unique active double-precision preset.  The
   current no-fallback physics diagnostic line has moved to
   `codex/workspaces/nofb_diagnostics`; old production-comparison outputs are
@@ -51,7 +56,7 @@ Updated: 2026-05-21 JST
 - On 2026-05-13, Phase E focused full replay job `15095.anode01` completed on `C12`.  Best candidate `rho050_m1000` reached `1726/1994` replay successes, only `+20` over `rho050_m500`; parameter-only assist-off DFO-LS tuning is not plausibly enough to reach assist-on failure parity.
 - On 2026-05-13, after the user synced the production worktree to commit `6f98b5bfce60678293c163764e1cefe8307736ba`, remote production outputs/logs were cleaned for the next rerun.  The remote `output` tree now only has empty containers: `output/production_comparison`, `output/tests`, `output/logs/production_comparison`, and `output/logs/dfols_assist_off_tuning`; disk usage was `24K`.
 - On 2026-05-13, the formalized assist bridge 32seed/50k gate completed from commit `6f98b5bfce60678293c163764e1cefe8307736ba` on `C8`.  Jobs `15097`-`15106` all exited `0`.  Readback is negative for the current formalized policy: `fb_norefine` resolved to `qn_navigation` and has nonzero QN assist counters, but failures are `67159`, still far above assist-on `19579` and assist-off tuned `33872`.  See `runbooks/FORMALIZED_ASSIST_BRIDGE_32SEED_50K_READBACK_20260513.md`.
-- On 2026-05-14, the assist/root-cause diagnostic branch was closed by user decision.  Do not continue the ODEX, NT-assist, parameter-tuning, or `npt5` diagnostic scale-up tree as active production work.  Current production-comparison state is hold-for-modernization-fix: after the fixed modernization commit is selected, sync this tree and regenerate production from a clean namespace.  See `runbooks/TREE_CONVERGENCE_AFTER_ASSIST_RESOLUTION_20260514.md`.
+- On 2026-05-14, the assist/root-cause diagnostic branch was closed by user decision.  Do not continue the ODEX, NT-assist, parameter-tuning, or `npt5` diagnostic scale-up tree as active production work.  The earlier hold-for-modernization-fix / regenerate-production instruction is superseded for the completed F20F 1D line by the 2026-05-21 no-rerun packet.  See `runbooks/TREE_CONVERGENCE_AFTER_ASSIST_RESOLUTION_20260514.md` as historical context only.
 - On 2026-05-14, the RNG-v2 plus method-level `all_navigation_diagnostic` npt5_r0055 32seed/50k diagnostic completed from commit `ae777294814955f7f7935fc386a6172bcd30651f`.  It was negative as a recovery path: `withfb` failures `25881`, mean Re `0.03420261820536729`, still above the old assist-on failure reference `19579`.  This result stays diagnostic only; the modernization line now uses assist-off as the starting baseline and keeps solver assist on the deletion schedule.  See `runbooks/QN_ASSIST_NPT5_R0055_SCALE32_RNGV2_ALLNAV_READBACK_20260514.md`.
 
 ## Important Correction
@@ -77,12 +82,13 @@ Current production-comparison action:
 1. Keep the current F20F line closed as no-rerun / no-scheduler.
 2. Use `runbooks/F20F_PRODUCTION_FACING_EVIDENCE_PACKET_20260521.md` as the
    production-facing summary for the existing F20F datasets.
-3. Use `state/F20F_FINAL_VALIDATION_20260521.tsv` for structural validation and
+3. Use `runbooks/F20F_1D_MANUSCRIPT_CLAIM_BOUNDARY_20260521.md` for the
+   paper-facing interpretation boundary.
+4. Use `state/F20F_FINAL_VALIDATION_20260521.tsv` for structural validation and
    the numeric `Ohat`/`z` readback.
-4. Use `runbooks/F20F_ARCHIVE_DELETE_APPROVAL_LIST_20260521.md` before any
-   future cleanup command.  No deletion is authorized without a new explicit
-   user approval.
-5. Do not hand anything to the scheduler unless the user explicitly reopens a
+5. Use `runbooks/F20F_REMOTE_CLEANUP_READBACK_20260521.md` for the final remote
+   cleanup status.
+6. Do not hand anything to the scheduler unless the user explicitly reopens a
    new run.
 
 Closed diagnostic evidence:
@@ -93,7 +99,7 @@ Closed diagnostic evidence:
 - RNG-v2 all-navigation diagnostic dataset id: `qn_assist_npt5_r0055_rngv2_allnav_32s50k_20260514`; `withfb` failures `25881` at 32seed/50k.
 - QN+assist preset/refinement matrix and `npt5` scale-up remain diagnostic history, not the next production path.
 
-Current assist-off tuning campaign:
+Historical assist-off tuning campaign:
 
 1. Campaign plan: `runbooks/DFOLS_ASSIST_OFF_TUNING_CAMPAIGN_20260512.md`.
 2. Completed Phase A/B dataset id: `dfols_assist_off_tuning_phaseAB_20260512`.

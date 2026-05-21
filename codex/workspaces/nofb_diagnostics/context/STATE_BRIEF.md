@@ -4,10 +4,9 @@ Date: 2026-05-21 JST
 
 ## Purpose
 
-This workspace owns the F20F no-fallback diagnostics line.  Its job is to
-decide whether no-fallback failures are only an efficiency/mobility problem or
-whether they create an actual sampling/observable bias, and whether TLTM/fallback
-replicas repair that bias.
+This workspace used to own the F20F no-fallback diagnostics line.  That 1D
+line is now closed and downgraded to archive.  Keep this workspace as a compact
+registry and provenance pointer only.
 
 ## Current Canonical Evidence
 
@@ -30,7 +29,7 @@ The F20F 1D toy evidence is now grouped by physical scenario:
   roots.  This workspace stores only registries, readbacks, compact diagnostics,
   and stable paths to raw evidence.
 
-## Current Closure
+## Closure
 
 The nofb-only two-replica TLTM short scan selected `low005 = [0.05, 0.5]`.
 The final paired TLTM `t=0.5` evidence combines the base32 and topup96 raw
@@ -45,12 +44,18 @@ The current interpretation is frozen for cleanup planning:
   combined128 paired `no_fb - fb_norefine` is `Re Z = -0.772`,
   `Im Z = 1.933`.
 
-Current closure and cleanup planning live in:
+Current production-facing closure lives in:
 
 ```text
-codex/workspaces/nofb_diagnostics/runbooks/F20F_1D_TOY_TLTM_CLOSURE_AND_CLEANUP_PLAN_20260521.md
-codex/workspaces/nofb_diagnostics/runbooks/F20F_1D_TOY_FINAL_SUMMARY_20260521.md
-codex/workspaces/nofb_diagnostics/runbooks/F20F_COMPACT_PACKETS_20260521.md
+codex/workspaces/tltm_production_comparison/runbooks/F20F_PRODUCTION_FACING_EVIDENCE_PACKET_20260521.md
+codex/workspaces/tltm_production_comparison/runbooks/F20F_1D_MANUSCRIPT_CLAIM_BOUNDARY_20260521.md
+codex/workspaces/tltm_production_comparison/state/F20F_FINAL_VALIDATION_20260521.tsv
+```
+
+The local archived work log lives in:
+
+```text
+codex/workspaces/nofb_diagnostics/archive/f20f_1d_closed_20260521/
 ```
 
 The first cleanup pass was explicitly approved and executed on 2026-05-21 JST.
@@ -64,7 +69,7 @@ was intentionally held out for a separate source-diff decision.
 That source-diff review is now complete:
 
 ```text
-codex/workspaces/nofb_diagnostics/runbooks/F20F_DIRTY_SAVED_SOURCE_DIFF_REVIEW_20260521.md
+codex/workspaces/nofb_diagnostics/archive/f20f_1d_closed_20260521/runbooks/F20F_DIRTY_SAVED_SOURCE_DIFF_REVIEW_20260521.md
 ```
 
 Conclusion: do not port anything from the dirty saved tree.  It is an older
@@ -73,3 +78,9 @@ already contains the later route and readbacks.  Future deletion should use a
 plain path deletion after approval, not `git worktree remove`, because the
 saved tree points at stale legacy git metadata whose recorded path collides
 with the canonical standalone execution worktree.
+
+## Operating Rule
+
+Do not submit new jobs or extend this 1D line.  If the paper needs a stronger
+BTN fallback claim, open a new model/higher-dimensional scenario instead of
+rerunning this completed F20F 1D setup.

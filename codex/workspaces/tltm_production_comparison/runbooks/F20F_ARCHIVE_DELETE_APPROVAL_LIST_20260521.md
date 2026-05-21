@@ -2,7 +2,8 @@
 
 Date: 2026-05-21 JST
 
-Status: approval list only.  No deletion is authorized by this file.
+Status: approval list plus cleanup basis.  Remote cleanup readback is recorded
+in `runbooks/F20F_REMOTE_CLEANUP_READBACK_20260521.md`.
 
 This list follows the no-rerun F20F production-facing packet.  The goal is to
 keep the minimal raw-data set that supports the final 1D conclusions and to
@@ -51,8 +52,8 @@ committed and pushed.  They are not part of the final raw evidence:
 The exact inventory is already recorded in:
 
 ```text
-codex/workspaces/nofb_diagnostics/state/F20F_CLEANUP_DRY_RUN_INVENTORY_20260521.tsv
-codex/workspaces/nofb_diagnostics/state/F20F_PHYSICS_DATASET_GROUPS_20260521.tsv
+codex/workspaces/nofb_diagnostics/archive/f20f_1d_closed_20260521/state/F20F_CLEANUP_DRY_RUN_INVENTORY_20260521.tsv
+codex/workspaces/nofb_diagnostics/archive/f20f_1d_closed_20260521/state/F20F_PHYSICS_DATASET_GROUPS_20260521.tsv
 ```
 
 ## Delete Candidates

@@ -131,11 +131,18 @@ output/reference/nofb_diagnostics/f20f/fixed_flow_t050_nofb_128seed_200k
 
 only after readback passes.
 
-Readback passed on 2026-05-21 JST and the canonical compact packet now lives at:
+Readback passed on 2026-05-21 JST.  The final production-facing packet now
+lives at:
 
 ```text
-codex/workspaces/nofb_diagnostics/runbooks/F20F_FIXED_FLOW_READBACK_20260521.md
-codex/workspaces/nofb_diagnostics/state/F20F_DATASET_REGISTRY.tsv
+codex/workspaces/tltm_production_comparison/runbooks/F20F_PRODUCTION_FACING_EVIDENCE_PACKET_20260521.md
+codex/workspaces/tltm_production_comparison/runbooks/F20F_1D_MANUSCRIPT_CLAIM_BOUNDARY_20260521.md
+```
+
+The historical fixed-flow readback packet was downgraded to:
+
+```text
+codex/workspaces/nofb_diagnostics/archive/f20f_1d_closed_20260521/runbooks/F20F_FIXED_FLOW_READBACK_20260521.md
 ```
 
 ## Post-T050 Cleanup Checklist

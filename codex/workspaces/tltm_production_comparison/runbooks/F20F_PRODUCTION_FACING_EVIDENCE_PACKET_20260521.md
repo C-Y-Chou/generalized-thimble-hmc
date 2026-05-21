@@ -34,6 +34,12 @@ The structural and numeric readback is frozen in:
 codex/workspaces/tltm_production_comparison/state/F20F_FINAL_VALIDATION_20260521.tsv
 ```
 
+The manuscript-facing interpretation layer is:
+
+```text
+codex/workspaces/tltm_production_comparison/runbooks/F20F_1D_MANUSCRIPT_CLAIM_BOUNDARY_20260521.md
+```
+
 ## Structural Validation
 
 | bucket | component | method | rows | source | aggregate | audit |

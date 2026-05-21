@@ -125,8 +125,10 @@ Completed artifacts:
 
 ```text
 codex/workspaces/tltm_production_comparison/runbooks/F20F_PRODUCTION_FACING_EVIDENCE_PACKET_20260521.md
+codex/workspaces/tltm_production_comparison/runbooks/F20F_1D_MANUSCRIPT_CLAIM_BOUNDARY_20260521.md
 codex/workspaces/tltm_production_comparison/state/F20F_FINAL_VALIDATION_20260521.tsv
 codex/workspaces/tltm_production_comparison/runbooks/F20F_ARCHIVE_DELETE_APPROVAL_LIST_20260521.md
+codex/workspaces/tltm_production_comparison/runbooks/F20F_REMOTE_CLEANUP_READBACK_20260521.md
 ```
 
 `z` was read back from existing `multichain_expectations.dat` metadata, and
