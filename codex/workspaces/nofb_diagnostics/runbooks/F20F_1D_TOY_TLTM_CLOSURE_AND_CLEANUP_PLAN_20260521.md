@@ -2,10 +2,10 @@
 
 Date: 2026-05-21 JST
 
-Status: final pre-cleanup closure packet.  The top-up has been read back and
-the dataset grouping is frozen for review.  Do not rebuild the file library,
-move remote outputs, or delete datasets until a concrete deletion command list
-is reviewed and explicitly approved.
+Status: first cleanup pass completed after explicit approval.  The top-up has
+been read back, the dataset grouping is frozen, and compact-only/failed F20F
+roots from the approved first pass were removed.  Do not perform additional
+cleanup without a new concrete command list and explicit approval.
 
 ## Current Scientific Closure
 
@@ -183,8 +183,9 @@ Archive or delete candidates after compact packets exist:
 
 ## Worktree Cleanup Plan
 
-The cleanup dry-run manifest and compact packet index are prepared.  The next
-step is review only; no deletion is authorized by this plan.
+The cleanup dry-run manifest and compact packet index were prepared before the
+first cleanup pass.  The approved first pass has now been executed; any further
+cleanup needs a new review.
 
 1. Review the frozen dataset registry.
    - `codex/workspaces/nofb_diagnostics/state/F20F_DATASET_REGISTRY.tsv`
@@ -226,9 +227,29 @@ deletion command list are reviewed:
 - prune isolated worktrees used by pending requests;
 - reinterpret compact-only datasets as final physics evidence.
 
-## Pre-Deletion Checklist
+## First Cleanup Pass Readback
 
-Before any deletion:
+Execution record:
+
+```text
+codex/workspaces/nofb_diagnostics/runbooks/F20F_CLEANUP_COMMANDS_FOR_APPROVAL_20260521.md
+codex/workspaces/nofb_diagnostics/runbooks/F20F_CLEANUP_EXECUTION_READBACK_20260521.md
+```
+
+The first pass:
+
+- removed approved compact-only, failed, and superseded F20F roots;
+- removed stale F20F execution worktrees;
+- moved the old dirty archive packet under
+  `/lustre1/home/cychou/TLTM_worktrees/archive/f20f_precleanup_20260521`;
+- retained all canonical raw evidence roots;
+- retained
+  `/lustre1/home/cychou/TLTM_worktrees/fortran_modernization_dirty_saved_20260517T035700Z`
+  for separate source-diff review.
+
+## Future Cleanup Checklist
+
+Before any additional deletion:
 
 1. Confirm `qstat -u cychou` is empty or unrelated.
 2. Inspect all `manual_review` remote worktrees.

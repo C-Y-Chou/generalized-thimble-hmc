@@ -2,7 +2,18 @@
 
 Date: 2026-05-21 JST
 
-Status: command list only.  Do not run until explicitly approved.
+Status: executed after explicit approval on 2026-05-21 JST.
+
+Execution readback:
+
+- Phase A-D completed successfully.
+- `qstat -u cychou` was empty before and after cleanup.
+- Canonical raw evidence roots all passed existence checks.
+- Approved F20F linked worktrees and compact-only/failed roots were removed.
+- `fortran_modernization_dirty_saved_20260517T035700Z` was held out and remains
+  untouched.
+- Detailed readback:
+  `codex/workspaces/nofb_diagnostics/runbooks/F20F_CLEANUP_EXECUTION_READBACK_20260521.md`
 
 ## Safety Readback
 

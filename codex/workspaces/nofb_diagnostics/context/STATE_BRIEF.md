@@ -53,6 +53,10 @@ codex/workspaces/nofb_diagnostics/runbooks/F20F_1D_TOY_FINAL_SUMMARY_20260521.md
 codex/workspaces/nofb_diagnostics/runbooks/F20F_COMPACT_PACKETS_20260521.md
 ```
 
-The cleanup dry-run manifest and physics grouping are prepared.  Do not rebuild
-the file library, move output roots, or delete datasets until a concrete
-deletion command list is reviewed and explicitly approved.
+The first cleanup pass was explicitly approved and executed on 2026-05-21 JST.
+It removed F20F compact-only/failed roots and stale execution worktrees, moved
+the old dirty archive packet under
+`/lustre1/home/cychou/TLTM_worktrees/archive/f20f_precleanup_20260521`, and
+kept all canonical raw evidence roots.  The dirty legacy-linked worktree
+`/lustre1/home/cychou/TLTM_worktrees/fortran_modernization_dirty_saved_20260517T035700Z`
+was intentionally held out for a separate source-diff decision.
