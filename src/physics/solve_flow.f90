@@ -1,6 +1,6 @@
 module solve_flow
    use param_mod, only: at, rt
-   use runtime_env_mod, only: parse_int_env, parse_real_env, read_string_env
+   use runtime_env_mod, only: parse_int_env, parse_real_env, parse_logical_env, read_string_env
    use utils, only: dp, complex_to_real, map_to_complex, pack_legacy_x, real_to_complex
    use model, only: batched_ds_hessian_vec_available, ds, ds_hessian_vec_batch, hessian_vec
    use odex_backend, only: build_nsteps, ensure_odex_workspace_object, ode_rhs, ode_rhs_context, &
@@ -8,10 +8,13 @@ module solve_flow
                            odex_backend_default_options => odex_default_options, &
                            odex_integrate_endpoint, odex_integrate_endpoint_context, &
                            odex_k_max, odex_k_min, odex_max_steps_default, &
-                           odex_options, odex_reason_h_min, odex_reason_invalid, odex_reason_max_steps, &
+                           odex_options, odex_reason_h_min, odex_reason_invalid, odex_reason_max_rhs_evals, &
+                           odex_reason_max_rejects, odex_reason_max_steps, odex_reason_stiffness, &
                            odex_reason_none, odex_result, odex_result_mark_failure, odex_result_mark_success, &
                            odex_result_reset, odex_result_to_intode_status, odex_status_failure_h_min, &
-                           odex_status_failure_invalid, odex_status_failure_max_steps, &
+                           odex_status_failure_invalid, odex_status_failure_max_rhs_evals, &
+                           odex_status_failure_max_rejects, odex_status_failure_max_steps, &
+                           odex_status_failure_stiffness, &
                            odex_status_from_failure_reason, odex_status_is_failure, &
                            odex_status_is_mechanism_status, odex_status_success, &
                            odex_status_success_zero_time, odex_status_unknown, odex_step_sequence_iwork3, &
@@ -48,6 +51,9 @@ module solve_flow
    integer, parameter :: intode_reason_max_steps = odex_reason_max_steps
    integer, parameter :: intode_reason_invalid = odex_reason_invalid
    integer, parameter :: intode_reason_h_min = odex_reason_h_min
+   integer, parameter :: intode_reason_max_rhs_evals = odex_reason_max_rhs_evals
+   integer, parameter :: intode_reason_max_rejects = odex_reason_max_rejects
+   integer, parameter :: intode_reason_stiffness = odex_reason_stiffness
    integer, parameter :: intode_status_unknown = odex_status_unknown
    integer, parameter :: intode_status_success = odex_status_success
    integer, parameter :: intode_status_success_zero_time = odex_status_success_zero_time
@@ -56,6 +62,9 @@ module solve_flow
    integer, parameter :: intode_status_failure_max_steps = odex_status_failure_max_steps
    integer, parameter :: intode_status_failure_invalid = odex_status_failure_invalid
    integer, parameter :: intode_status_failure_h_min = odex_status_failure_h_min
+   integer, parameter :: intode_status_failure_max_rhs_evals = odex_status_failure_max_rhs_evals
+   integer, parameter :: intode_status_failure_max_rejects = odex_status_failure_max_rejects
+   integer, parameter :: intode_status_failure_stiffness = odex_status_failure_stiffness
    integer, parameter :: intode_ctx_unknown = 0
    integer, parameter :: intode_ctx_flowz = 1
    integer, parameter :: intode_ctx_flowzr = 2
@@ -406,6 +415,22 @@ contains
       call parse_int_env("TLTM_CVODE_MAX_ERR_TEST_FAILS", options%cvode_max_err_test_fails)
       call parse_int_env("TLTM_CVODE_MAX_CONV_FAILS", options%cvode_max_conv_fails)
       call parse_int_env("TLTM_CVODE_MAX_NONLIN_ITERS", options%cvode_max_nonlin_iters)
+      call parse_int_env("TLTM_DOP853_MAX_REJECT", options%dop853_max_reject)
+      call parse_int_env("TLTM_DOP853_MAX_RHS_EVALS", options%dop853_max_rhs_evals)
+      call parse_real_env("TLTM_DOP853_MIN_STEP", options%dop853_min_step)
+      call parse_real_env("TLTM_DOP853_MAX_STEP", options%dop853_max_step)
+      call parse_real_env("TLTM_DOP853_SAFETY", options%dop853_safety)
+      call parse_real_env("TLTM_DOP853_FAC1", options%dop853_fac1)
+      call parse_real_env("TLTM_DOP853_FAC2", options%dop853_fac2)
+      call parse_real_env("TLTM_DOP853_BETA", options%dop853_beta)
+      call parse_logical_env("TLTM_DOP853_HINIT_ENABLED", options%dop853_hinit_enabled)
+      call parse_real_env("TLTM_DOP853_HINIT_FACTOR", options%dop853_hinit_factor)
+      call parse_real_env("TLTM_DOP853_HINIT_MIN", options%dop853_hinit_min)
+      call parse_logical_env("TLTM_DOP853_STIFFNESS_CHECK_ENABLED", options%dop853_stiffness_check_enabled)
+      call parse_int_env("TLTM_DOP853_STIFFNESS_CHECK_INTERVAL", options%dop853_stiffness_check_interval)
+      call parse_int_env("TLTM_DOP853_STIFFNESS_MAX_HITS", options%dop853_stiffness_max_hits)
+      call parse_real_env("TLTM_DOP853_STIFFNESS_THRESHOLD", options%dop853_stiffness_threshold)
+      call parse_real_env("TLTM_ODE_INITIAL_STEP_FRACTION", options%initial_step_fraction)
    end subroutine odex_default_options
 
    subroutine intode(f, y, t, res, error_flag, status, intode_diagnostics)
@@ -461,7 +486,8 @@ contains
 
       failure_reason = integration_result%failure_reason
       if (failure_reason /= intode_reason_max_steps .and. failure_reason /= intode_reason_invalid .and. &
-          failure_reason /= intode_reason_h_min) then
+          failure_reason /= intode_reason_h_min .and. failure_reason /= intode_reason_max_rhs_evals .and. &
+          failure_reason /= intode_reason_max_rejects .and. failure_reason /= intode_reason_stiffness) then
          failure_reason = intode_reason_invalid
          call odex_result_mark_failure(integration_result, failure_reason, integration_result%accepted_steps, &
                                        max(1, integration_result%rejected_steps), integration_result%final_order, &
@@ -472,11 +498,11 @@ contains
 
       active_diagnostics%fallback_attempts = active_diagnostics%fallback_attempts + 1
       select case (failure_reason)
-      case (intode_reason_max_steps)
+      case (intode_reason_max_steps, intode_reason_max_rhs_evals, intode_reason_max_rejects)
          active_diagnostics%fallback_max_steps = active_diagnostics%fallback_max_steps + 1
       case (intode_reason_invalid)
          active_diagnostics%fallback_invalid = active_diagnostics%fallback_invalid + 1
-      case (intode_reason_h_min)
+      case (intode_reason_h_min, intode_reason_stiffness)
          active_diagnostics%fallback_h_min = active_diagnostics%fallback_h_min + 1
       end select
       call record_intode_fallback_attempt_context(active_diagnostics, module_intode_trace%current_context)
@@ -552,7 +578,8 @@ contains
 
       failure_reason = integration_result%failure_reason
       if (failure_reason /= intode_reason_max_steps .and. failure_reason /= intode_reason_invalid .and. &
-          failure_reason /= intode_reason_h_min) then
+          failure_reason /= intode_reason_h_min .and. failure_reason /= intode_reason_max_rhs_evals .and. &
+          failure_reason /= intode_reason_max_rejects .and. failure_reason /= intode_reason_stiffness) then
          failure_reason = intode_reason_invalid
          call odex_result_mark_failure(integration_result, failure_reason, integration_result%accepted_steps, &
                                        max(1, integration_result%rejected_steps), integration_result%final_order, &
@@ -563,11 +590,11 @@ contains
 
       active_diagnostics%fallback_attempts = active_diagnostics%fallback_attempts + 1
       select case (failure_reason)
-      case (intode_reason_max_steps)
+      case (intode_reason_max_steps, intode_reason_max_rhs_evals, intode_reason_max_rejects)
          active_diagnostics%fallback_max_steps = active_diagnostics%fallback_max_steps + 1
       case (intode_reason_invalid)
          active_diagnostics%fallback_invalid = active_diagnostics%fallback_invalid + 1
-      case (intode_reason_h_min)
+      case (intode_reason_h_min, intode_reason_stiffness)
          active_diagnostics%fallback_h_min = active_diagnostics%fallback_h_min + 1
       end select
       call record_intode_fallback_attempt_context(active_diagnostics, workspace%intode_trace%current_context)
@@ -877,6 +904,12 @@ contains
             name = "invalid"
          case (intode_reason_h_min)
             name = "h_min"
+         case (intode_reason_max_rhs_evals)
+            name = "max_rhs_evals"
+         case (intode_reason_max_rejects)
+            name = "max_rejects"
+         case (intode_reason_stiffness)
+            name = "stiffness"
          case default
             name = "unknown"
          end select

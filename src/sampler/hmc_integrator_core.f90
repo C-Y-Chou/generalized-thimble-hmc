@@ -1,7 +1,7 @@
 module hmc_integrator_core
    use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-   use runtime_env_mod, only: read_string_env, parse_logical_env
+   use runtime_env_mod, only: read_string_env, parse_logical_env, parse_int_env
    use solve_flow, only: flow, flowz, flowzr, flow_workspace_t, intode_diagnostics_context_t, set_intode_stage_trace, set_intode_newton_iter_trace, &
                          set_intode_quasi_iter_trace, set_intode_residual_role_trace, &
                          intode_stage_newton, intode_stage_quasi, intode_stage_rattle_flow, intode_stage_external, &
@@ -93,6 +93,9 @@ module hmc_integrator_core
    type(hmc_policy_context_t), save, target :: module_hmc_policy_context
    type(hmc_replay_runtime_context_t), save, target :: module_hmc_replay_runtime_context
    type(hmc_replay_diagnostics_context_t), save, target :: module_hmc_replay_diagnostics_context
+   logical, save :: rg_reject_case_stdout_loaded = .false.
+   logical, save :: rg_reject_case_stdout_enabled = .false.
+   integer, save :: rg_reject_case_stdout_remaining = 20
 
 contains
 
@@ -606,7 +609,7 @@ contains
                                                     reverse_gate_used_far_anchor)
          if (.not. reverse_gate_passed) then
             if (present(step_status)) step_status = hmc_step_status_reverse_gate_rejected
-            if (size(state_z) >= 1 .and. size(ws%del_z) >= 2 .and. size(state_x) >= 2) then
+            if (should_write_rg_reject_case_stdout() .and. size(state_z) >= 1 .and. size(ws%del_z) >= 2 .and. size(state_x) >= 2) then
                write (*, '(A,1X,ES24.16,1X,ES24.16,1X,ES24.16,1X,ES24.16,1X,ES24.16,1X,ES24.16,1X,ES24.16,1X,ES24.16)') &
                   '[RG_REJECT_CASE] z0_re z0_im delz_u delz_v x0_u zacc_re zacc_im xacc_u=', &
                   real(state_z(1), dp), aimag(state_z(1)), ws%del_z(1), ws%del_z(2), state_x(2), &
@@ -946,6 +949,32 @@ contains
          active_diagnostics => module_hmc_replay_diagnostics_context
       end if
    end subroutine resolve_hmc_replay_diagnostics
+
+   logical function should_write_rg_reject_case_stdout() result(should_write)
+      implicit none
+
+      call load_rg_reject_case_stdout_config()
+      should_write = .false.
+      if (.not. rg_reject_case_stdout_enabled) return
+      if (rg_reject_case_stdout_remaining < 0) then
+         should_write = .true.
+         return
+      end if
+      if (rg_reject_case_stdout_remaining <= 0) return
+      should_write = .true.
+      rg_reject_case_stdout_remaining = rg_reject_case_stdout_remaining - 1
+   end function should_write_rg_reject_case_stdout
+
+   subroutine load_rg_reject_case_stdout_config()
+      implicit none
+
+      if (rg_reject_case_stdout_loaded) return
+      rg_reject_case_stdout_loaded = .true.
+      rg_reject_case_stdout_enabled = .false.
+      rg_reject_case_stdout_remaining = 20
+      call parse_logical_env("TLTM_RG_REJECT_CASE_STDOUT", rg_reject_case_stdout_enabled)
+      call parse_int_env("TLTM_RG_REJECT_CASE_STDOUT_MAX", rg_reject_case_stdout_remaining)
+   end subroutine load_rg_reject_case_stdout_config
 
    subroutine load_hmc_bridge_policy(hmc_policy)
       implicit none

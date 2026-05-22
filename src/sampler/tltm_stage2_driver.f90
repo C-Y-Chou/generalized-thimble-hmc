@@ -47,8 +47,9 @@ module tltm_stage2_driver
                                           constraint_reverse_gate_path_far_skip, &
                                           constraint_reverse_gate_path_far_light, &
                                           constraint_reverse_gate_path_far_anchor
-   use tltm_types_mod, only: tltm_slot_t, tltm_pair_stats_t, tltm_label_track_t, allocate_tltm_slot, release_tltm_slot, &
-                             record_tltm_local_transition, mark_tltm_slot_state_changed
+   use tltm_types_mod, only: tltm_slot_t, tltm_pair_stats_t, tltm_label_track_t, tltm_reflow_cache_entries, &
+                             allocate_tltm_slot, release_tltm_slot, record_tltm_local_transition, &
+                             mark_tltm_slot_state_changed
    use tltm_run_context_mod, only: tltm_run_context_t, release_tltm_run_context, set_tltm_config_context
    implicit none
 
@@ -60,6 +61,31 @@ module tltm_stage2_driver
    character(len=*), parameter :: stage2_rng_kernel_v2 = "stage2_kernel_rng_v2"
    integer(int64) :: phase_cache_hit_count = 0_int64
    integer(int64) :: phase_cache_miss_count = 0_int64
+   integer(int64) :: effective_energy_cache_hit_count = 0_int64
+   integer(int64) :: effective_energy_cache_miss_count = 0_int64
+   integer(int64) :: effective_energy_compute_count = 0_int64
+   integer(int64) :: swap_reflow_cache_hit_count = 0_int64
+   integer(int64) :: swap_reflow_cache_miss_count = 0_int64
+   integer(int64) :: swap_reflow_cache_store_count = 0_int64
+   integer(int64) :: swap_reflow_flow_call_count = 0_int64
+   integer(int64) :: swap_reflow_flow_failure_count = 0_int64
+   logical :: stage2_cache_config_loaded = .false.
+   logical :: stage2_effective_energy_cache_enabled = .true.
+   logical :: stage2_swap_reflow_cache_enabled = .true.
+
+   type :: stage2_timing_t
+      real(dp) :: local_update_sweep_sec = 0.0_dp
+      real(dp) :: swap_sweep_sec = 0.0_dp
+      real(dp) :: swap_reflow_sec = 0.0_dp
+      real(dp) :: effective_energy_sec = 0.0_dp
+      real(dp) :: label_bookkeeping_sec = 0.0_dp
+      real(dp) :: measure_slots_sec = 0.0_dp
+      real(dp) :: history_io_sec = 0.0_dp
+      real(dp) :: label_trace_sec = 0.0_dp
+      real(dp) :: progress_log_sec = 0.0_dp
+   end type stage2_timing_t
+
+   type(stage2_timing_t) :: stage2_timing
 
    type :: solver_counter_snapshot_t
       integer(int64) :: newton_count = 0_int64
@@ -193,7 +219,7 @@ contains
       integer(int64) :: reverse_gate_reject_counts(constraint_reverse_gate_path_count)
 
       call read_parameters()
-      call reset_phase_cache_stats()
+      call reset_stage2_production_instrumentation()
       call bind_model_context(model_context)
       call bind_constraint_solver_stats_context(constraint_stats_context)
       call reset_intode_fallback_stats()
@@ -557,25 +583,34 @@ contains
 
       run_t0 = wall_time_seconds()
       do cycle_idx = 1, cycle_count
+         slot_t0 = wall_time_seconds()
          call run_local_update_sweep(slots, local_updates, local_accept_census, cycle_idx, run_contexts, audit_context, &
                                      qn_diagnostics_context, qn_policy_context, hmc_policy_context, &
                                      hmc_replay_diagnostics_context, newton_flow_status_context, constraint_stats_context, &
                                      qn_diagnostics_contexts, qn_policy_contexts, &
                                      hmc_replay_diagnostics_contexts, newton_flow_status_contexts, constraint_stats_contexts, &
                                      rng_stream_contract, base_seed, parallel_local_updates)
+         stage2_timing%local_update_sweep_sec = stage2_timing%local_update_sweep_sec + (wall_time_seconds() - slot_t0)
 
          if (swap_enabled .and. n_slots > 1) then
+            slot_t0 = wall_time_seconds()
             call perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state, run_contexts, rng_stream_contract, base_seed, parallel_swap_pairs)
+            stage2_timing%swap_sweep_sec = stage2_timing%swap_sweep_sec + (wall_time_seconds() - slot_t0)
          end if
 
          if (.not. fixed_flow_mode) then
+            slot_t0 = wall_time_seconds()
             call refresh_label_positions(slots, label_tracks)
             call update_round_trip_bookkeeping(label_tracks, cycle_idx, hot_slot)
+            stage2_timing%label_bookkeeping_sec = stage2_timing%label_bookkeeping_sec + (wall_time_seconds() - slot_t0)
          end if
 
+         slot_t0 = wall_time_seconds()
          do i = 1, n_slots
             call measure_slot(slots(i))
          end do
+         stage2_timing%measure_slots_sec = stage2_timing%measure_slots_sec + (wall_time_seconds() - slot_t0)
+         slot_t0 = wall_time_seconds()
          if (write_cold_history) then
             call write_cold_history_sample_if_enabled(slots(history_slot_index), unit_cold_z, unit_cold_phi, cycle_idx, &
                                                       cold_history_stride, cold_history_max_samples, cold_history_written, cold_sample_ok)
@@ -696,10 +731,17 @@ contains
                error stop 1
             end if
          end if
-         if (.not. fixed_flow_mode) call write_label_trace(unit_trace, cycle_idx, label_tracks)
+         stage2_timing%history_io_sec = stage2_timing%history_io_sec + (wall_time_seconds() - slot_t0)
+         if (.not. fixed_flow_mode) then
+            slot_t0 = wall_time_seconds()
+            call write_label_trace(unit_trace, cycle_idx, label_tracks)
+            stage2_timing%label_trace_sec = stage2_timing%label_trace_sec + (wall_time_seconds() - slot_t0)
+         end if
 
          if (cycle_idx == 1 .or. mod(cycle_idx, 10) == 0 .or. cycle_idx == cycle_count) then
+            slot_t0 = wall_time_seconds()
             write (*, '(A,I0,A,I0)') "[TLTM-S2] cycle ", cycle_idx, "/", cycle_count
+            stage2_timing%progress_log_sec = stage2_timing%progress_log_sec + (wall_time_seconds() - slot_t0)
          end if
       end do
       elapsed = wall_time_seconds() - run_t0
@@ -1499,32 +1541,117 @@ contains
       phase_cache_miss_count = 0_int64
    end subroutine reset_phase_cache_stats
 
+   subroutine reset_stage2_production_instrumentation()
+      stage2_cache_config_loaded = .false.
+      call load_stage2_cache_config()
+      call reset_phase_cache_stats()
+      effective_energy_cache_hit_count = 0_int64
+      effective_energy_cache_miss_count = 0_int64
+      effective_energy_compute_count = 0_int64
+      swap_reflow_cache_hit_count = 0_int64
+      swap_reflow_cache_miss_count = 0_int64
+      swap_reflow_cache_store_count = 0_int64
+      swap_reflow_flow_call_count = 0_int64
+      swap_reflow_flow_failure_count = 0_int64
+      stage2_timing = stage2_timing_t()
+   end subroutine reset_stage2_production_instrumentation
+
+   subroutine load_stage2_cache_config()
+      if (stage2_cache_config_loaded) return
+      stage2_cache_config_loaded = .true.
+      stage2_effective_energy_cache_enabled = .true.
+      stage2_swap_reflow_cache_enabled = .true.
+      call parse_logical_env("TLTM_STAGE2_EFFECTIVE_ENERGY_CACHE_ENABLED", stage2_effective_energy_cache_enabled)
+      call parse_logical_env("TLTM_STAGE2_SWAP_REFLOW_CACHE_ENABLED", stage2_swap_reflow_cache_enabled)
+   end subroutine load_stage2_cache_config
+
+   subroutine add_effective_energy_compute_time(delta)
+      real(dp), intent(in) :: delta
+
+!$omp atomic update
+      effective_energy_compute_count = effective_energy_compute_count + 1_int64
+!$omp atomic update
+      stage2_timing%effective_energy_sec = stage2_timing%effective_energy_sec + delta
+   end subroutine add_effective_energy_compute_time
+
+   subroutine add_swap_reflow_time(delta)
+      real(dp), intent(in) :: delta
+
+!$omp atomic update
+      stage2_timing%swap_reflow_sec = stage2_timing%swap_reflow_sec + delta
+   end subroutine add_swap_reflow_time
+
+   subroutine record_effective_energy_cache_hit()
+!$omp atomic update
+      effective_energy_cache_hit_count = effective_energy_cache_hit_count + 1_int64
+   end subroutine record_effective_energy_cache_hit
+
+   subroutine record_effective_energy_cache_miss()
+!$omp atomic update
+      effective_energy_cache_miss_count = effective_energy_cache_miss_count + 1_int64
+   end subroutine record_effective_energy_cache_miss
+
+   subroutine record_swap_reflow_cache_hit()
+!$omp atomic update
+      swap_reflow_cache_hit_count = swap_reflow_cache_hit_count + 1_int64
+   end subroutine record_swap_reflow_cache_hit
+
+   subroutine record_swap_reflow_cache_miss()
+!$omp atomic update
+      swap_reflow_cache_miss_count = swap_reflow_cache_miss_count + 1_int64
+   end subroutine record_swap_reflow_cache_miss
+
+   subroutine record_swap_reflow_cache_store()
+!$omp atomic update
+      swap_reflow_cache_store_count = swap_reflow_cache_store_count + 1_int64
+   end subroutine record_swap_reflow_cache_store
+
+   subroutine record_swap_reflow_flow_call()
+!$omp atomic update
+      swap_reflow_flow_call_count = swap_reflow_flow_call_count + 1_int64
+   end subroutine record_swap_reflow_flow_call
+
+   subroutine record_swap_reflow_flow_failure()
+!$omp atomic update
+      swap_reflow_flow_failure_count = swap_reflow_flow_failure_count + 1_int64
+   end subroutine record_swap_reflow_flow_failure
+
    subroutine slot_phase_factor(slot, phi, error)
       type(tltm_slot_t), intent(inout) :: slot
       complex(dp), intent(out) :: phi
       logical, intent(out) :: error
+      real(dp) :: fingerprint
 
-      if (slot%phase_cache_valid .and. slot%phase_cache_version == slot%state_version) then
+      fingerprint = slot_state_fingerprint(slot)
+      if (slot%phase_cache_valid .and. slot%phase_cache_version == slot%state_version .and. &
+          same_cache_fingerprint(slot%phase_cache_fingerprint, fingerprint)) then
          phase_cache_hit_count = phase_cache_hit_count + 1_int64
          phi = slot%cached_phase_factor
          error = .false.
          return
       end if
+      slot%phase_cache_valid = .false.
 
       call refresh_slot_phase_cache(slot, phi, error)
    end subroutine slot_phase_factor
 
-   subroutine refresh_slot_phase_cache(slot, phi, error)
+   subroutine refresh_slot_phase_cache(slot, phi, error, count_phase_cache_miss)
       type(tltm_slot_t), intent(inout) :: slot
       complex(dp), intent(out) :: phi
       logical, intent(out) :: error
+      logical, intent(in), optional :: count_phase_cache_miss
 
       complex(dp) :: log_det_j, s_val
       real(dp) :: s_imag
+      logical :: count_miss
+      real(dp) :: t0
 
-      phase_cache_miss_count = phase_cache_miss_count + 1_int64
+      count_miss = .true.
+      if (present(count_phase_cache_miss)) count_miss = count_phase_cache_miss
+      if (count_miss) phase_cache_miss_count = phase_cache_miss_count + 1_int64
       slot%phase_cache_valid = .false.
       slot%phase_cache_version = -1_int64
+      slot%phase_cache_fingerprint = -1.0_dp
 
       if (size(slot%jac, 1) /= size(slot%z) .or. size(slot%jac, 2) /= size(slot%z)) then
          phi = cmplx(1.0_dp, 0.0_dp, dp)
@@ -1532,13 +1659,16 @@ contains
          return
       end if
 
+      t0 = wall_time_seconds()
       call log_determinant(slot%jac, log_det_j, error)
       if (error) then
+         call add_effective_energy_compute_time(wall_time_seconds() - t0)
          phi = cmplx(1.0_dp, 0.0_dp, dp)
          return
       end if
 
       call calculate_action(slot%z, s_val)
+      call add_effective_energy_compute_time(wall_time_seconds() - t0)
       s_imag = aimag(s_val)
       phi = exp(cmplx(0.0_dp, -1.0_dp, dp)*s_imag + cmplx(0.0_dp, 1.0_dp, dp)*aimag(log_det_j))
 
@@ -1546,6 +1676,7 @@ contains
       slot%cached_action = s_val
       slot%cached_log_det_j = log_det_j
       slot%phase_cache_version = slot%state_version
+      slot%phase_cache_fingerprint = slot_state_fingerprint(slot)
       slot%phase_cache_valid = .true.
       error = .false.
    end subroutine refresh_slot_phase_cache
@@ -1687,13 +1818,14 @@ contains
       real(dp), intent(in) :: accept_uniforms(:)
       type(tltm_run_context_t), intent(inout) :: run_contexts(:)
 
-      integer :: n_pairs, pair_idx, task_idx, dir_idx, idx, flow_status, label_tmp
+      integer :: n_pairs, pair_idx, task_idx, dir_idx, idx, label_tmp
       integer :: n_x, n_z
-      logical :: flow_failed, accept
+      logical :: accept
       real(dp) :: delta, acc_prob
       logical, allocatable :: ok_base(:), ok_ap(:), ok_bp(:)
       real(dp), allocatable :: e_a(:), e_b(:), e_ap(:), e_bp(:)
       real(dp), allocatable :: x_ap(:, :), x_bp(:, :)
+      complex(dp), allocatable :: s_ap(:), s_bp(:), logj_ap(:), logj_bp(:)
       complex(dp), allocatable :: z_ap(:, :), z_bp(:, :)
       complex(dp), allocatable :: j_ap(:, :, :), j_bp(:, :, :)
 
@@ -1704,6 +1836,7 @@ contains
       allocate (ok_base(n_pairs), ok_ap(n_pairs), ok_bp(n_pairs))
       allocate (e_a(n_pairs), e_b(n_pairs), e_ap(n_pairs), e_bp(n_pairs))
       allocate (x_ap(n_x, n_pairs), x_bp(n_x, n_pairs))
+      allocate (s_ap(n_pairs), s_bp(n_pairs), logj_ap(n_pairs), logj_bp(n_pairs))
       allocate (z_ap(n_z, n_pairs), z_bp(n_z, n_pairs))
       allocate (j_ap(n_z, n_z, n_pairs), j_bp(n_z, n_z, n_pairs))
 
@@ -1718,33 +1851,29 @@ contains
       do pair_idx = 1, n_pairs
          idx = pair_indices(pair_idx)
          pair_stats(idx)%proposal_count = pair_stats(idx)%proposal_count + 1
-         call compute_effective_energy(slots(idx)%z, slots(idx)%jac, e_a(pair_idx), ok_ap(pair_idx))
-         call compute_effective_energy(slots(idx + 1)%z, slots(idx + 1)%jac, e_b(pair_idx), ok_bp(pair_idx))
+         call compute_slot_effective_energy(slots(idx), e_a(pair_idx), ok_ap(pair_idx))
+         call compute_slot_effective_energy(slots(idx + 1), e_b(pair_idx), ok_bp(pair_idx))
          ok_base(pair_idx) = ok_ap(pair_idx) .and. ok_bp(pair_idx)
          ok_ap(pair_idx) = .false.
          ok_bp(pair_idx) = .false.
       end do
 
-!$omp parallel do default(shared) private(task_idx, pair_idx, dir_idx, idx, flow_failed, flow_status) schedule(dynamic,1)
+!$omp parallel do default(shared) private(task_idx, pair_idx, dir_idx, idx) schedule(dynamic,1)
       do task_idx = 1, 2*n_pairs
          pair_idx = (task_idx + 1)/2
          if (.not. ok_base(pair_idx)) cycle
          dir_idx = 1 + mod(task_idx - 1, 2)
          idx = pair_indices(pair_idx)
          if (dir_idx == 1) then
-            x_ap(:, pair_idx) = slots(idx + 1)%x
-            flow_status = intode_status_unknown
-            call flow_at(slots(idx)%flow_time, x_ap(:, pair_idx), z_ap(:, pair_idx), j_ap(:, :, pair_idx), flow_failed, &
-                         flow_status, run_contexts(idx)%flow%workspace, run_contexts(idx)%diagnostics%intode)
-            ok_ap(pair_idx) = (.not. flow_failed) .and. intode_status_is_strict_success(flow_status)
-            if (ok_ap(pair_idx)) call compute_effective_energy(z_ap(:, pair_idx), j_ap(:, :, pair_idx), e_ap(pair_idx), ok_ap(pair_idx))
+            call reflow_slot_to_time(slots(idx + 1), slots(idx)%flow_time, x_ap(:, pair_idx), z_ap(:, pair_idx), &
+                                     j_ap(:, :, pair_idx), ok_ap(pair_idx), run_contexts(idx))
+            if (ok_ap(pair_idx)) call compute_effective_energy(z_ap(:, pair_idx), j_ap(:, :, pair_idx), e_ap(pair_idx), &
+                                                               ok_ap(pair_idx), s_ap(pair_idx), logj_ap(pair_idx))
          else
-            x_bp(:, pair_idx) = slots(idx)%x
-            flow_status = intode_status_unknown
-            call flow_at(slots(idx + 1)%flow_time, x_bp(:, pair_idx), z_bp(:, pair_idx), j_bp(:, :, pair_idx), flow_failed, &
-                         flow_status, run_contexts(idx + 1)%flow%workspace, run_contexts(idx + 1)%diagnostics%intode)
-            ok_bp(pair_idx) = (.not. flow_failed) .and. intode_status_is_strict_success(flow_status)
-            if (ok_bp(pair_idx)) call compute_effective_energy(z_bp(:, pair_idx), j_bp(:, :, pair_idx), e_bp(pair_idx), ok_bp(pair_idx))
+            call reflow_slot_to_time(slots(idx), slots(idx + 1)%flow_time, x_bp(:, pair_idx), z_bp(:, pair_idx), &
+                                     j_bp(:, :, pair_idx), ok_bp(pair_idx), run_contexts(idx + 1))
+            if (ok_bp(pair_idx)) call compute_effective_energy(z_bp(:, pair_idx), j_bp(:, :, pair_idx), e_bp(pair_idx), &
+                                                               ok_bp(pair_idx), s_bp(pair_idx), logj_bp(pair_idx))
          end if
       end do
 !$omp end parallel do
@@ -1776,12 +1905,14 @@ contains
             slots(idx)%z = z_ap(:, pair_idx)
             slots(idx)%jac = j_ap(:, :, pair_idx)
             call mark_tltm_slot_state_changed(slots(idx))
+            call set_slot_phase_cache_from_action_logdet(slots(idx), s_ap(pair_idx), logj_ap(pair_idx))
             slots(idx)%label_id = slots(idx + 1)%label_id
 
             slots(idx + 1)%x = x_bp(:, pair_idx)
             slots(idx + 1)%z = z_bp(:, pair_idx)
             slots(idx + 1)%jac = j_bp(:, :, pair_idx)
             call mark_tltm_slot_state_changed(slots(idx + 1))
+            call set_slot_phase_cache_from_action_logdet(slots(idx + 1), s_bp(pair_idx), logj_bp(pair_idx))
             slots(idx + 1)%label_id = label_tmp
             pair_stats(idx)%accept_count = pair_stats(idx)%accept_count + 1
          else
@@ -1789,7 +1920,7 @@ contains
          end if
       end do
 
-      deallocate (ok_base, ok_ap, ok_bp, e_a, e_b, e_ap, e_bp, x_ap, x_bp, z_ap, z_bp, j_ap, j_bp)
+      deallocate (ok_base, ok_ap, ok_bp, e_a, e_b, e_ap, e_bp, x_ap, x_bp, s_ap, s_bp, logj_ap, logj_bp, z_ap, z_bp, j_ap, j_bp)
    end subroutine attempt_parallel_adjacent_swaps
 
    subroutine attempt_adjacent_swap(slot_a, slot_b, stats, swap_rng_state, run_context_a, run_context_b, &
@@ -1804,9 +1935,10 @@ contains
 
       real(dp) :: e_a, e_b, e_ap, e_bp, delta, acc_prob
       logical :: ok_a, ok_b, ok_ap, ok_bp, accept
-      integer :: flow_status_ap, flow_status_bp, label_tmp
+      integer :: label_tmp
       character(len=32) :: rng_contract_local
       real(dp), allocatable :: x_ap(:), x_bp(:)
+      complex(dp) :: s_ap, s_bp, logj_ap, logj_bp
       complex(dp), allocatable :: z_ap(:), z_bp(:), j_ap(:, :), j_bp(:, :)
 
       rng_contract_local = stage2_rng_per_replica_v1
@@ -1814,8 +1946,8 @@ contains
 
       stats%proposal_count = stats%proposal_count + 1
 
-      call compute_effective_energy(slot_a%z, slot_a%jac, e_a, ok_a)
-      call compute_effective_energy(slot_b%z, slot_b%jac, e_b, ok_b)
+      call compute_slot_effective_energy(slot_a, e_a, ok_a)
+      call compute_slot_effective_energy(slot_b, e_b, ok_b)
       if (.not. ok_a .or. .not. ok_b) then
          stats%last_accept_probability = 0.0_dp
          stats%reject_count = stats%reject_count + 1
@@ -1827,19 +1959,11 @@ contains
       allocate (j_ap(size(slot_a%jac, 1), size(slot_a%jac, 2)))
       allocate (j_bp(size(slot_b%jac, 1), size(slot_b%jac, 2)))
 
-      x_ap = slot_b%x
-      flow_status_ap = intode_status_unknown
-      call flow_at(slot_a%flow_time, x_ap, z_ap, j_ap, ok_ap, flow_status_ap, &
-                   run_context_a%flow%workspace, run_context_a%diagnostics%intode)
-      ok_ap = (.not. ok_ap) .and. intode_status_is_strict_success(flow_status_ap)
-      if (ok_ap) call compute_effective_energy(z_ap, j_ap, e_ap, ok_ap)
+      call reflow_slot_to_time(slot_b, slot_a%flow_time, x_ap, z_ap, j_ap, ok_ap, run_context_a)
+      if (ok_ap) call compute_effective_energy(z_ap, j_ap, e_ap, ok_ap, s_ap, logj_ap)
 
-      x_bp = slot_a%x
-      flow_status_bp = intode_status_unknown
-      call flow_at(slot_b%flow_time, x_bp, z_bp, j_bp, ok_bp, flow_status_bp, &
-                   run_context_b%flow%workspace, run_context_b%diagnostics%intode)
-      ok_bp = (.not. ok_bp) .and. intode_status_is_strict_success(flow_status_bp)
-      if (ok_bp) call compute_effective_energy(z_bp, j_bp, e_bp, ok_bp)
+      call reflow_slot_to_time(slot_a, slot_b%flow_time, x_bp, z_bp, j_bp, ok_bp, run_context_b)
+      if (ok_bp) call compute_effective_energy(z_bp, j_bp, e_bp, ok_bp, s_bp, logj_bp)
 
       if (.not. ok_ap .or. .not. ok_bp) then
          stats%last_accept_probability = 0.0_dp
@@ -1867,12 +1991,14 @@ contains
          slot_a%z = z_ap
          slot_a%jac = j_ap
          call mark_tltm_slot_state_changed(slot_a)
+         call set_slot_phase_cache_from_action_logdet(slot_a, s_ap, logj_ap)
          slot_a%label_id = slot_b%label_id
 
          slot_b%x = x_bp
          slot_b%z = z_bp
          slot_b%jac = j_bp
          call mark_tltm_slot_state_changed(slot_b)
+         call set_slot_phase_cache_from_action_logdet(slot_b, s_bp, logj_bp)
          slot_b%label_id = label_tmp
          stats%accept_count = stats%accept_count + 1
       else
@@ -1904,14 +2030,166 @@ contains
       end select
    end function draw_swap_accept_uniform
 
-   subroutine compute_effective_energy(z, jac, energy, ok)
+   subroutine reflow_slot_to_time(source_slot, target_flow_time, x_out, z_out, jac_out, ok, run_context)
+      type(tltm_slot_t), intent(inout) :: source_slot
+      real(dp), intent(in) :: target_flow_time
+      real(dp), intent(out) :: x_out(:)
+      complex(dp), intent(out) :: z_out(:)
+      complex(dp), intent(out) :: jac_out(:, :)
+      logical, intent(out) :: ok
+      type(tltm_run_context_t), intent(inout) :: run_context
+
+      integer :: entry, store_entry, flow_status
+      logical :: flow_failed
+      real(dp) :: t0, source_fingerprint
+
+      ok = .false.
+      if (size(x_out) /= size(source_slot%x) .or. size(z_out) /= size(source_slot%z) .or. &
+          size(jac_out, 1) /= size(source_slot%jac, 1) .or. size(jac_out, 2) /= size(source_slot%jac, 2)) return
+
+      x_out = source_slot%x
+      source_fingerprint = slot_state_fingerprint(source_slot)
+      if (stage2_swap_reflow_cache_enabled .and. allocated(source_slot%reflow_cache_z) .and. allocated(source_slot%reflow_cache_jac)) then
+         do entry = 1, tltm_reflow_cache_entries
+            if (source_slot%reflow_cache_valid(entry) .and. &
+                source_slot%reflow_cache_version(entry) == source_slot%state_version .and. &
+                same_flow_time(source_slot%reflow_cache_target_time(entry), target_flow_time) .and. &
+                same_cache_fingerprint(source_slot%reflow_cache_source_fingerprint(entry), source_fingerprint)) then
+               z_out = source_slot%reflow_cache_z(:, entry)
+               jac_out = source_slot%reflow_cache_jac(:, :, entry)
+               ok = .true.
+               call record_swap_reflow_cache_hit()
+               return
+            end if
+         end do
+         call record_swap_reflow_cache_miss()
+      end if
+
+      flow_status = intode_status_unknown
+      call record_swap_reflow_flow_call()
+      t0 = wall_time_seconds()
+      call flow_at(target_flow_time, x_out, z_out, jac_out, flow_failed, flow_status, &
+                   run_context%flow%workspace, run_context%diagnostics%intode)
+      call add_swap_reflow_time(wall_time_seconds() - t0)
+      ok = (.not. flow_failed) .and. intode_status_is_strict_success(flow_status)
+      if (.not. ok) then
+         call record_swap_reflow_flow_failure()
+         return
+      end if
+
+      if (.not. stage2_swap_reflow_cache_enabled) return
+      if (.not. allocated(source_slot%reflow_cache_z) .or. .not. allocated(source_slot%reflow_cache_jac)) return
+      store_entry = first_invalid_reflow_cache_entry(source_slot)
+      if (store_entry <= 0) then
+         store_entry = source_slot%reflow_cache_next_entry
+         if (store_entry < 1 .or. store_entry > tltm_reflow_cache_entries) store_entry = 1
+      end if
+      source_slot%reflow_cache_z(:, store_entry) = z_out
+      source_slot%reflow_cache_jac(:, :, store_entry) = jac_out
+      source_slot%reflow_cache_version(store_entry) = source_slot%state_version
+      source_slot%reflow_cache_target_time(store_entry) = target_flow_time
+      source_slot%reflow_cache_source_fingerprint(store_entry) = source_fingerprint
+      source_slot%reflow_cache_valid(store_entry) = .true.
+      source_slot%reflow_cache_next_entry = store_entry + 1
+      if (source_slot%reflow_cache_next_entry > tltm_reflow_cache_entries) source_slot%reflow_cache_next_entry = 1
+      call record_swap_reflow_cache_store()
+   end subroutine reflow_slot_to_time
+
+   integer function first_invalid_reflow_cache_entry(slot) result(entry_idx)
+      type(tltm_slot_t), intent(in) :: slot
+      integer :: entry
+
+      entry_idx = 0
+      do entry = 1, tltm_reflow_cache_entries
+         if (.not. slot%reflow_cache_valid(entry)) then
+            entry_idx = entry
+            return
+         end if
+      end do
+   end function first_invalid_reflow_cache_entry
+
+   pure logical function same_flow_time(a, b) result(same)
+      real(dp), intent(in) :: a, b
+
+      same = abs(a - b) <= 10.0_dp*epsilon(1.0_dp)*max(1.0_dp, abs(a), abs(b))
+   end function same_flow_time
+
+   pure logical function same_cache_fingerprint(a, b) result(same)
+      real(dp), intent(in) :: a, b
+
+      same = abs(a - b) <= 100.0_dp*epsilon(1.0_dp)*max(1.0_dp, abs(a), abs(b))
+   end function same_cache_fingerprint
+
+   pure real(dp) function slot_state_fingerprint(slot) result(fingerprint)
+      type(tltm_slot_t), intent(in) :: slot
+
+      fingerprint = sum(real(slot%z, dp)) + 3.0_dp*sum(aimag(slot%z)) + &
+                    5.0_dp*sum(real(slot%jac, dp)) + 7.0_dp*sum(aimag(slot%jac))
+   end function slot_state_fingerprint
+
+   subroutine compute_slot_effective_energy(slot, energy, ok)
+      type(tltm_slot_t), intent(inout) :: slot
+      real(dp), intent(out) :: energy
+      logical, intent(out) :: ok
+
+      complex(dp) :: phi
+      logical :: error
+      real(dp) :: fingerprint
+
+      if (.not. stage2_effective_energy_cache_enabled) then
+         call compute_effective_energy(slot%z, slot%jac, energy, ok)
+         return
+      end if
+
+      fingerprint = slot_state_fingerprint(slot)
+      if (slot%phase_cache_valid .and. slot%phase_cache_version == slot%state_version .and. &
+          same_cache_fingerprint(slot%phase_cache_fingerprint, fingerprint)) then
+         energy = real(slot%cached_action, dp) - real(slot%cached_log_det_j, dp)
+         ok = ieee_is_finite(energy) .and. ieee_is_finite(aimag(slot%cached_action)) .and. &
+              ieee_is_finite(aimag(slot%cached_log_det_j))
+         if (.not. ok) energy = 0.0_dp
+         call record_effective_energy_cache_hit()
+         return
+      end if
+
+      slot%phase_cache_valid = .false.
+      call record_effective_energy_cache_miss()
+      call refresh_slot_phase_cache(slot, phi, error, count_phase_cache_miss=.false.)
+      if (error .or. (.not. slot%phase_cache_valid)) then
+         energy = 0.0_dp
+         ok = .false.
+         return
+      end if
+      energy = real(slot%cached_action, dp) - real(slot%cached_log_det_j, dp)
+      ok = ieee_is_finite(energy) .and. ieee_is_finite(aimag(slot%cached_action)) .and. &
+           ieee_is_finite(aimag(slot%cached_log_det_j))
+      if (.not. ok) energy = 0.0_dp
+   end subroutine compute_slot_effective_energy
+
+   subroutine set_slot_phase_cache_from_action_logdet(slot, s_val, log_det_j)
+      type(tltm_slot_t), intent(inout) :: slot
+      complex(dp), intent(in) :: s_val, log_det_j
+      complex(dp) :: phi
+
+      phi = exp(cmplx(0.0_dp, -1.0_dp, dp)*aimag(s_val) + cmplx(0.0_dp, 1.0_dp, dp)*aimag(log_det_j))
+      slot%cached_phase_factor = phi
+      slot%cached_action = s_val
+      slot%cached_log_det_j = log_det_j
+      slot%phase_cache_version = slot%state_version
+      slot%phase_cache_fingerprint = slot_state_fingerprint(slot)
+      slot%phase_cache_valid = .true.
+   end subroutine set_slot_phase_cache_from_action_logdet
+
+   subroutine compute_effective_energy(z, jac, energy, ok, s_val_out, log_det_j_out)
       complex(dp), intent(in) :: z(:)
       complex(dp), intent(in) :: jac(:, :)
       real(dp), intent(out) :: energy
       logical, intent(out) :: ok
+      complex(dp), intent(out), optional :: s_val_out, log_det_j_out
 
       complex(dp) :: s_val, log_det_j
       logical :: det_error
+      real(dp) :: t0
 
       if (size(jac, 1) /= size(z) .or. size(jac, 2) /= size(z)) then
          energy = 0.0_dp
@@ -1925,8 +2203,10 @@ contains
          return
       end if
 
+      t0 = wall_time_seconds()
       call calculate_action(z, s_val)
       call log_determinant(jac, log_det_j, det_error)
+      call add_effective_energy_compute_time(wall_time_seconds() - t0)
       if (det_error) then
          energy = 0.0_dp
          ok = .false.
@@ -1936,6 +2216,10 @@ contains
       energy = real(s_val, dp) - real(log_det_j, dp)
       ok = ieee_is_finite(energy) .and. ieee_is_finite(aimag(s_val)) .and. ieee_is_finite(aimag(log_det_j))
       if (.not. ok) energy = 0.0_dp
+      if (ok) then
+         if (present(s_val_out)) s_val_out = s_val
+         if (present(log_det_j_out)) log_det_j_out = log_det_j
+      end if
    end subroutine compute_effective_energy
 
    subroutine free_swap_buffers(x_ap, x_bp, z_ap, z_bp, j_ap, j_bp)
@@ -2412,7 +2696,7 @@ contains
       integer :: ios, i, total_count
       integer :: metropolis_reject_total, reverse_gate_reject_total, proposal_failure_total
       integer :: hamiltonian_invalid_total, delta_h_invalid_total, output_size_mismatch_total
-      real(dp) :: accept_rate, abs_mean_phi, pair_accept_rate, avg_round_trip
+      real(dp) :: accept_rate, abs_mean_phi, pair_accept_rate, avg_round_trip, production_timed_sec
       integer :: total_round_trip
       type(local_accept_census_t) :: total_accept_census
       integer(int64) :: newton_flow_success_count, newton_flow_zero_time_count, newton_flow_stiff_rescue_count
@@ -2468,6 +2752,32 @@ contains
       write (unit_summary, '(A,I0)') "# base_seed=", base_seed
       write (unit_summary, '(A,I0)') "# swap_rng_seed=", swap_rng_seed
       write (unit_summary, '(A,F12.6)') "# elapsed_sec=", elapsed
+      write (unit_summary, '(A,L1,A,L1)') &
+         "# production_cache_controls effective_energy_cache_enabled=", stage2_effective_energy_cache_enabled, &
+         " swap_reflow_cache_enabled=", stage2_swap_reflow_cache_enabled
+      production_timed_sec = stage2_timing%local_update_sweep_sec + stage2_timing%swap_sweep_sec + &
+                             stage2_timing%label_bookkeeping_sec + stage2_timing%measure_slots_sec + &
+                             stage2_timing%history_io_sec + stage2_timing%label_trace_sec + stage2_timing%progress_log_sec
+      write (unit_summary, '(A,8(F12.6,A),F12.6)') &
+         "# production_timing local_update_sweep_sec=", stage2_timing%local_update_sweep_sec, &
+         " swap_sweep_sec=", stage2_timing%swap_sweep_sec, &
+         " label_bookkeeping_sec=", stage2_timing%label_bookkeeping_sec, &
+         " measure_slots_sec=", stage2_timing%measure_slots_sec, &
+         " history_io_sec=", stage2_timing%history_io_sec, &
+         " label_trace_sec=", stage2_timing%label_trace_sec, &
+         " progress_log_sec=", stage2_timing%progress_log_sec, &
+         " accounted_loop_sec=", production_timed_sec, " unaccounted_loop_sec=", max(0.0_dp, elapsed - production_timed_sec)
+      write (unit_summary, '(A,2(F12.6,A),I0)') &
+         "# production_subtiming swap_reflow_sec=", stage2_timing%swap_reflow_sec, &
+         " action_logdet_sec=", stage2_timing%effective_energy_sec, &
+         " action_logdet_compute_count=", effective_energy_compute_count
+      write (unit_summary, '(A,I0,A,I0,A,I0)') &
+         "# effective_energy_cache hits=", effective_energy_cache_hit_count, &
+         " misses=", effective_energy_cache_miss_count, " action_logdet_computes=", effective_energy_compute_count
+      write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0)') &
+         "# swap_reflow_cache hits=", swap_reflow_cache_hit_count, " misses=", swap_reflow_cache_miss_count, &
+         " stores=", swap_reflow_cache_store_count, " flow_calls=", swap_reflow_flow_call_count, &
+         " flow_failures=", swap_reflow_flow_failure_count
       write (unit_summary, '(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') &
          "# fallback_stats calls_total=", calls_total, " calls_integrating=", calls_integrating, &
          " attempts=", fallback_attempts, " success=", fallback_success, " failure=", fallback_failure, &
@@ -3190,6 +3500,7 @@ contains
       integer :: unit_manifest, ios
       logical :: path_ok
       character(len=128) :: git_commit
+      character(len=64) :: flow_backend_token, flow_policy_id
       character(len=512) :: config_json, local_csv, swap_csv, label_csv, phase_csv, observable_schema_json
 
       call ensure_parent_directory_exists(manifest_file, path_ok)
@@ -3205,6 +3516,7 @@ contains
       end if
 
       call resolve_git_commit(git_commit)
+      call resolve_flow_policy_id(flow_policy_id, flow_backend_token)
 
       write (unit_manifest, '(A)') "{"
       call write_json_string_field(unit_manifest, "schema_version", "tltm.stage2.manifest.v1alpha2", .true.)
@@ -3214,7 +3526,7 @@ contains
       call write_json_string_field(unit_manifest, "canonical_route_id", "constrained_hmc_reverse_gate_metropolis_v1", .true.)
       call write_json_string_field(unit_manifest, "integrator_policy_id", "rattle_v1", .true.)
       call write_json_string_field(unit_manifest, "constraint_solver_policy_id", "newton_projection_v1", .true.)
-      call write_json_string_field(unit_manifest, "flow_policy_id", "odex_hairer_endpoint_v1", .true.)
+      call write_json_string_field(unit_manifest, "flow_policy_id", trim(flow_policy_id), .true.)
       call write_json_string_field(unit_manifest, "qn_solver_policy_id", "official_dfols_residual_certified_v1", .true.)
       call write_json_string_field(unit_manifest, "reverse_gate_policy_id", "reverse_trajectory_certification_v1", .true.)
       call write_json_string_field(unit_manifest, "failure_policy_id", "reject_stay_put_v1", .true.)
@@ -3235,6 +3547,7 @@ contains
       call write_json_string_field(unit_manifest, "tolerance_profile", "f20f_most_conservative_double", .true., 4)
       call write_json_string_field(unit_manifest, "fortran_real_kind", "real64", .true., 4)
       call write_json_string_field(unit_manifest, "ode_backend_precision", "double_real64", .true., 4)
+      call write_json_string_field(unit_manifest, "ode_backend", trim(flow_backend_token), .true., 4)
       call write_json_string_field(unit_manifest, "residual_certification_precision", "double_real64", .true., 4)
       call write_json_string_field(unit_manifest, "output_binary_precision", "double_real64", .true., 4)
       call write_json_string_field(unit_manifest, "single_mixed_status", "experimental_until_certified", .false., 4)
@@ -3279,6 +3592,24 @@ contains
 
       write (unit_manifest, '(A)') '  "env_overrides": {'
       call write_json_env_field(unit_manifest, "CHAIN_RNG_SEED", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_ODE_BACKEND", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_ODE_CONTROLLER_POLICY", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_ODE_INITIAL_STEP_FRACTION", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_DOP853_MAX_REJECT", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_DOP853_MAX_RHS_EVALS", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_DOP853_MIN_STEP", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_DOP853_MAX_STEP", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_DOP853_SAFETY", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_DOP853_FAC1", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_DOP853_FAC2", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_DOP853_BETA", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_DOP853_HINIT_ENABLED", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_DOP853_HINIT_FACTOR", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_DOP853_HINIT_MIN", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_DOP853_STIFFNESS_CHECK_ENABLED", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_DOP853_STIFFNESS_CHECK_INTERVAL", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_DOP853_STIFFNESS_MAX_HITS", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_DOP853_STIFFNESS_THRESHOLD", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_FLOW_TIME_LADDER", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_NUM_REPLICAS", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_MAX_FLOW_TIME", .true., 4)
@@ -3316,6 +3647,8 @@ contains
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_COLD_OBSERVABLE_MAX_SAMPLES", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_ALL_REPLICA_OBSERVABLE_STRIDE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_ALL_REPLICA_OBSERVABLE_MAX_SAMPLES", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_EFFECTIVE_ENERGY_CACHE_ENABLED", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_SWAP_REFLOW_CACHE_ENABLED", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_OUTPUT_DIR", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_MANIFEST_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_PROTOCOL_FILE", .true., 4)
@@ -3784,6 +4117,31 @@ contains
       git_commit = "unknown"
       call read_string_env("TLTM_GIT_COMMIT", git_commit)
    end subroutine resolve_git_commit
+
+   subroutine resolve_flow_policy_id(flow_policy_id, backend_token)
+      character(len=*), intent(out) :: flow_policy_id, backend_token
+      character(len=64) :: env_value
+      logical :: has_backend
+
+      backend_token = "odex"
+      env_value = ""
+      call read_string_env("TLTM_ODE_BACKEND", env_value, has_backend)
+      if (has_backend) backend_token = trim(to_lower_ascii(adjustl(env_value)))
+
+      select case (trim(backend_token))
+      case ("", "odex", "hairer_odex")
+         backend_token = "odex"
+         flow_policy_id = "odex_hairer_endpoint_v1"
+      case ("dop853", "dopri853", "dormand_prince_853")
+         backend_token = "dop853"
+         flow_policy_id = "dop853_endpoint_v1"
+      case ("cvode", "sundials", "sundials_cvode")
+         backend_token = "sundials_cvode"
+         flow_policy_id = "sundials_cvode_endpoint_v1"
+      case default
+         flow_policy_id = "unknown_ode_backend_endpoint_v1"
+      end select
+   end subroutine resolve_flow_policy_id
 
    subroutine write_json_string_field(unit_json, key, value, trailing_comma, indent)
       integer, intent(in) :: unit_json

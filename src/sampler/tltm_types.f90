@@ -14,6 +14,7 @@ module tltm_types_mod
    integer, parameter :: tltm_diag_schema_version_local_transition = 1
    integer, parameter :: tltm_event_context_local_transition = 1
    integer, parameter :: tltm_counter_denominator_local_transition = 1
+   integer, parameter :: tltm_reflow_cache_entries = 2
 
    type :: tltm_local_transition_event_t
       integer :: schema_version = tltm_diag_schema_version_local_transition
@@ -73,6 +74,14 @@ module tltm_types_mod
       complex(dp) :: cached_phase_factor = cmplx(1.0_dp, 0.0_dp, dp)
       complex(dp) :: cached_action = cmplx(0.0_dp, 0.0_dp, dp)
       complex(dp) :: cached_log_det_j = cmplx(0.0_dp, 0.0_dp, dp)
+      real(dp) :: phase_cache_fingerprint = -1.0_dp
+      integer(int64) :: reflow_cache_version(tltm_reflow_cache_entries) = -1_int64
+      real(dp) :: reflow_cache_target_time(tltm_reflow_cache_entries) = 0.0_dp
+      real(dp) :: reflow_cache_source_fingerprint(tltm_reflow_cache_entries) = -1.0_dp
+      logical :: reflow_cache_valid(tltm_reflow_cache_entries) = .false.
+      integer :: reflow_cache_next_entry = 1
+      complex(dp), allocatable :: reflow_cache_z(:, :)
+      complex(dp), allocatable :: reflow_cache_jac(:, :, :)
    end type tltm_slot_t
 
    type :: tltm_pair_stats_t
@@ -109,6 +118,8 @@ contains
       slot%state_version = slot%state_version + 1_int64
       slot%phase_cache_version = -1_int64
       slot%phase_cache_valid = .false.
+      slot%phase_cache_fingerprint = -1.0_dp
+      slot%reflow_cache_valid = .false.
    end subroutine mark_tltm_slot_state_changed
 
    pure function make_tltm_local_transition_event(accepted, proposal_failed, transition_status) result(event)
@@ -239,9 +250,17 @@ contains
       if (.not. allocated(slot%x)) allocate (slot%x(z_size))
       if (.not. allocated(slot%z)) allocate (slot%z(z_size))
       if (.not. allocated(slot%jac)) allocate (slot%jac(z_size, z_size))
+      if (.not. allocated(slot%reflow_cache_z)) allocate (slot%reflow_cache_z(z_size, tltm_reflow_cache_entries))
+      if (.not. allocated(slot%reflow_cache_jac)) allocate (slot%reflow_cache_jac(z_size, z_size, tltm_reflow_cache_entries))
       slot%state_version = 0_int64
       slot%phase_cache_version = -1_int64
       slot%phase_cache_valid = .false.
+      slot%phase_cache_fingerprint = -1.0_dp
+      slot%reflow_cache_version = -1_int64
+      slot%reflow_cache_target_time = 0.0_dp
+      slot%reflow_cache_source_fingerprint = -1.0_dp
+      slot%reflow_cache_valid = .false.
+      slot%reflow_cache_next_entry = 1
    end subroutine allocate_tltm_slot
 
    subroutine release_tltm_slot(slot)
@@ -250,6 +269,8 @@ contains
       if (allocated(slot%x)) deallocate (slot%x)
       if (allocated(slot%z)) deallocate (slot%z)
       if (allocated(slot%jac)) deallocate (slot%jac)
+      if (allocated(slot%reflow_cache_z)) deallocate (slot%reflow_cache_z)
+      if (allocated(slot%reflow_cache_jac)) deallocate (slot%reflow_cache_jac)
    end subroutine release_tltm_slot
 
 end module tltm_types_mod

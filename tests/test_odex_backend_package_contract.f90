@@ -53,9 +53,13 @@ contains
 end module test_odex_backend_package_rhs
 
 program test_odex_backend_package_contract
-   use odex_backend, only: build_nsteps, odex_controller_policy_hairer_experimental, &
+   use odex_backend, only: build_nsteps, odex_backend_kind_dop853, odex_controller_policy_hairer_experimental, &
                            odex_default_options, odex_integrate_endpoint, odex_integrate_endpoint_context, &
-                           odex_options, odex_result, odex_status_failure_invalid, odex_status_failure_max_steps, &
+                           odex_options, odex_reason_h_min, odex_reason_max_rhs_evals, odex_reason_max_rejects, &
+                           odex_reason_stiffness, odex_result, odex_status_failure_h_min, &
+                           odex_status_failure_invalid, odex_status_failure_max_rhs_evals, &
+                           odex_status_failure_max_rejects, odex_status_failure_max_steps, &
+                           odex_status_failure_stiffness, &
                            odex_status_success, odex_status_success_zero_time, odex_observe_stability_reject, &
                            odex_step_sequence_iwork3, odex_stability_control_conservative, odex_workspace
    use test_odex_backend_package_rhs, only: dummy_context_t, exp_lambda, rhs_exp, rhs_exp_context, &
@@ -70,6 +74,7 @@ program test_odex_backend_package_contract
 
    call check_iwork3_sequence(failures)
    call check_endpoint_accuracy(failures)
+   call check_dop853_backend_contract(failures)
    call check_hairer_experimental_endpoint_accuracy(failures)
    call check_hairer_experimental_analytic_gates(failures)
    call check_forward_backward(failures)
@@ -146,6 +151,128 @@ contains
          write (*, '(A)') "[FAIL] standalone backend default Hairer endpoint accuracy changed."
       end if
    end subroutine check_endpoint_accuracy
+
+   subroutine check_dop853_backend_contract(failures)
+      integer, intent(inout) :: failures
+      type(odex_options) :: options, budget_options, hmin_options, maxstep_options, reject_options, stiff_options
+      type(odex_workspace) :: workspace, workspace_context
+      type(odex_result) :: result_state, result_context, budget_result, hmin_result, maxstep_result
+      type(odex_result) :: reject_result, stiff_result
+      type(dummy_context_t) :: rhs_context
+      real(dp) :: y0(1), y_out(1), y_out_context(1), y_exact(1), err, err_context, err_maxstep
+      logical :: failed, failed_context, failed_budget, failed_hmin, failed_maxstep, failed_reject, failed_stiff
+      logical :: ok, ok_context, budget_ok, hmin_ok, maxstep_ok, reject_ok, stiff_ok
+
+      call odex_default_options(options, 1.0e-11_dp, 1.0e-11_dp)
+      options%backend = odex_backend_kind_dop853
+      options%initial_step_fraction = 0.02_dp
+      exp_lambda = -2.0_dp
+      y0(1) = 1.0_dp
+      call odex_integrate_endpoint(rhs_exp, y0, 1.0_dp, y_out, failed, result_state, workspace, options)
+      y_exact(1) = y0(1)*exp(exp_lambda)
+      err = maxval(abs(y_out - y_exact))
+      ok = (.not. failed) .and. result_state%status == odex_status_success .and. &
+           result_state%endpoint_available .and. result_state%final_order == 8 .and. &
+           result_state%accepted_steps > 0 .and. result_state%accepted_steps < 1000 .and. &
+           result_state%odex_rhs_evals > 0 .and. &
+           result_state%odex_rhs_evals <= 2 + 12*result_state%odex_error_estimates .and. &
+           result_state%odex_error_estimates == result_state%accepted_steps + result_state%rejected_steps .and. &
+           result_state%odex_hairer_policy_steps == 0 .and. result_state%odex_tltm_policy_steps == 0 .and. &
+           err <= 1.0e-9_dp
+
+      call odex_integrate_endpoint_context(rhs_exp_context, y0, 1.0_dp, y_out_context, failed_context, &
+                                           result_context, workspace_context, options, rhs_context)
+      err_context = maxval(abs(y_out_context - y_exact))
+      ok_context = (.not. failed_context) .and. result_context%status == odex_status_success .and. &
+                   result_context%endpoint_available .and. result_context%final_order == 8 .and. &
+                   result_context%accepted_steps > 0 .and. &
+                   result_context%odex_error_estimates == result_context%accepted_steps + &
+                   result_context%rejected_steps .and. err_context <= 1.0e-9_dp
+
+      call odex_default_options(budget_options, 1.0e-12_dp, 1.0e-12_dp)
+      budget_options%backend = odex_backend_kind_dop853
+      budget_options%initial_step_fraction = 0.5_dp
+      budget_options%dop853_max_rhs_evals = 12
+      exp_lambda = -100.0_dp
+      y0(1) = 1.0_dp
+      call odex_integrate_endpoint(rhs_exp, y0, 1.0_dp, y_out, failed_budget, budget_result, workspace, budget_options)
+      budget_ok = failed_budget .and. budget_result%status == odex_status_failure_max_rhs_evals .and. &
+                  budget_result%failure_reason == odex_reason_max_rhs_evals .and. &
+                  .not. budget_result%endpoint_available .and. budget_result%odex_rhs_evals <= 12 .and. &
+                  budget_result%odex_error_estimates <= 1
+
+      call odex_default_options(hmin_options, 1.0e-10_dp, 1.0e-10_dp)
+      hmin_options%backend = odex_backend_kind_dop853
+      hmin_options%initial_step_fraction = 0.01_dp
+      hmin_options%dop853_min_step = 2.0_dp
+      exp_lambda = -2.0_dp
+      y0(1) = 1.0_dp
+      call odex_integrate_endpoint(rhs_exp, y0, 1.0_dp, y_out, failed_hmin, hmin_result, workspace, hmin_options)
+      hmin_ok = failed_hmin .and. hmin_result%status == odex_status_failure_h_min .and. &
+                hmin_result%failure_reason == odex_reason_h_min .and. .not. hmin_result%endpoint_available .and. &
+                hmin_result%accepted_steps == 0 .and. hmin_result%rejected_steps == 0 .and. &
+                hmin_result%odex_rhs_evals == 0
+
+      call odex_default_options(maxstep_options, 1.0e-10_dp, 1.0e-10_dp)
+      maxstep_options%backend = odex_backend_kind_dop853
+      maxstep_options%dop853_max_step = 0.05_dp
+      exp_lambda = -2.0_dp
+      y0(1) = 1.0_dp
+      call odex_integrate_endpoint(rhs_exp, y0, 1.0_dp, y_out, failed_maxstep, maxstep_result, workspace, maxstep_options)
+      err_maxstep = maxval(abs(y_out - y_exact))
+      maxstep_ok = (.not. failed_maxstep) .and. maxstep_result%status == odex_status_success .and. &
+                   maxstep_result%accepted_steps >= 20 .and. abs(maxstep_result%final_step_size) <= 0.0500000001_dp .and. &
+                   err_maxstep <= 1.0e-9_dp
+
+      call odex_default_options(reject_options, 1.0e-14_dp, 1.0e-14_dp)
+      reject_options%backend = odex_backend_kind_dop853
+      reject_options%dop853_hinit_enabled = .false.
+      reject_options%initial_step_fraction = 1.0_dp
+      reject_options%dop853_max_reject = 1
+      exp_lambda = -100.0_dp
+      y0(1) = 1.0_dp
+      call odex_integrate_endpoint(rhs_exp, y0, 1.0_dp, y_out, failed_reject, reject_result, workspace, reject_options)
+      reject_ok = failed_reject .and. reject_result%status == odex_status_failure_max_rejects .and. &
+                  reject_result%failure_reason == odex_reason_max_rejects .and. reject_result%rejected_steps == 1 .and. &
+                  reject_result%odex_error_estimates == 1
+
+      call odex_default_options(stiff_options, 1.0e-10_dp, 1.0e-10_dp)
+      stiff_options%backend = odex_backend_kind_dop853
+      stiff_options%dop853_stiffness_check_interval = 1
+      stiff_options%dop853_stiffness_max_hits = 1
+      stiff_options%dop853_stiffness_threshold = 1.0e-12_dp
+      exp_lambda = -2.0_dp
+      y0(1) = 1.0_dp
+      call odex_integrate_endpoint(rhs_exp, y0, 1.0_dp, y_out, failed_stiff, stiff_result, workspace, stiff_options)
+      stiff_ok = failed_stiff .and. stiff_result%status == odex_status_failure_stiffness .and. &
+                 stiff_result%failure_reason == odex_reason_stiffness .and. stiff_result%accepted_steps >= 1
+
+      write (*, '(A,L1,A,L1,A,L1,A,L1,A,L1,A,L1,A,L1,A,I0,A,I0,A,ES12.4)') "[CHECK] dop853_backend ok=", ok, &
+         " context=", ok_context, " budget=", budget_ok, " hmin=", hmin_ok, " maxstep=", maxstep_ok, &
+         " reject=", reject_ok, " stiff=", stiff_ok, &
+         " accepted=", result_state%accepted_steps, " rhs=", result_state%odex_rhs_evals, " err=", err
+      if (.not. (ok .and. ok_context .and. budget_ok .and. hmin_ok .and. maxstep_ok .and. reject_ok .and. stiff_ok)) then
+         failures = failures + 1
+         write (*, '(A)') "[FAIL] DOP853 backend contract changed."
+         write (*, '(A,I0,A,I0,A,I0,A,I0,A,I0)') "[DETAIL] dop853 status=", result_state%status, &
+            " accepted=", result_state%accepted_steps, " rejected=", result_state%rejected_steps, &
+            " rhs=", result_state%odex_rhs_evals, " attempts=", result_state%odex_error_estimates
+         write (*, '(A,I0,A,I0,A,I0,A,I0)') "[DETAIL] dop853 budget status=", budget_result%status, &
+            " rhs=", budget_result%odex_rhs_evals, " accepted=", budget_result%accepted_steps, &
+            " rejected=", budget_result%rejected_steps
+         write (*, '(A,I0,A,I0,A,I0)') "[DETAIL] dop853 hmin status=", hmin_result%status, &
+            " reason=", hmin_result%failure_reason, " rhs=", hmin_result%odex_rhs_evals
+         write (*, '(A,I0,A,I0,A,I0,A,I0)') "[DETAIL] dop853 maxstep status=", maxstep_result%status, &
+            " accepted=", maxstep_result%accepted_steps, " rejected=", maxstep_result%rejected_steps, &
+            " rhs=", maxstep_result%odex_rhs_evals
+         write (*, '(A,I0,A,I0,A,I0,A,I0)') "[DETAIL] dop853 reject status=", reject_result%status, &
+            " reason=", reject_result%failure_reason, " rejected=", reject_result%rejected_steps, &
+            " attempts=", reject_result%odex_error_estimates
+         write (*, '(A,I0,A,I0,A,I0,A,I0)') "[DETAIL] dop853 stiff status=", stiff_result%status, &
+            " reason=", stiff_result%failure_reason, " accepted=", stiff_result%accepted_steps, &
+            " attempts=", stiff_result%odex_error_estimates
+      end if
+   end subroutine check_dop853_backend_contract
 
    subroutine check_hairer_experimental_endpoint_accuracy(failures)
       integer, intent(inout) :: failures
