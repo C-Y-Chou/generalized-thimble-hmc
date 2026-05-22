@@ -70,6 +70,9 @@ This document defines the intended responsibilities of top-level directories and
 - `codex/workspaces/fortran_modernization/tasks/scripts/scan_stephanov_n6_bank_hmc_protocol.py`
   - local development helper that scans Stephanov `n=6` bank-started nofb HMC
     protocol candidates with fixed adaptive-preflow initialization
+- `codex/workspaces/fortran_modernization/tasks/scripts/scan_stephanov_n6_flowtime_sign_problem.py`
+  - local development helper that runs Stephanov `n=6` bank-started flow-time
+    sign-problem ladders and summarizes phase/observable diagnostics
 
 ## 5. Governance Rules
 

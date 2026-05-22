@@ -42,6 +42,7 @@ Updated: 2026-05-22 JST
 - Required read before continuing CV-011 RNG work: `runbooks/CV011_STAGE2_KERNEL_RNG_V2_IMPLEMENTATION_20260514.md`.  `TLTM_STAGE2_RNG_STREAM_CONTRACT=stage2_kernel_rng_v2` is implemented as the Stage2 default; `legacy_global_v0` is compatibility only, and `per_replica_rng_v1` is retained for the post-B anchor/audit path.
 - Operational rule from 2026-05-16 JST: do not run TLTM production or screen jobs locally.  Use the remote PBS route for Stage2/Stage3 screens.  Temporary 2026-05-22 exception while the cluster is under maintenance: local Stephanov implementation/contract runs, including short `n=6` working-point checks, are allowed for implementation verification only, not as production evidence.
 - Stephanov `n=6, t=1e-6` local working protocol is recorded in `runbooks/STEPHANOV_N6_HMC_PROTOCOL_DECISION_20260522.md`: start from the `t=0` checkpoint bank, run adaptive preflow with staged flow and zero-momentum relaxation using preflow `L=0.16,nstep=2`, then run nofb HMC with `epsilon=0.10,nstep=6,L=0.60`.  Treat this as a local development protocol, not production evidence.
+- Stephanov `n=6` bank-adaptive nofb flow-time analysis is recorded in `runbooks/STEPHANOV_N6_LOWFLOW_LADDER_20260522.md`: local focused `t=0` vs `t=1e-6` 8-record x 2000-cycle confirmation found no statistically clear phase-coherence improvement (`0.02831 +/- 0.00882` vs `0.03471 +/- 0.00745`) and `t=1e-6` was about `5.4x` slower.  Do not push nofb to higher flow time based on current local evidence.
 
 ## Current Position
 
