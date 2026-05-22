@@ -65,6 +65,11 @@ PY
   export TLTM_OFFICIAL_DFOLS_PYTHONPATH="${DFOLS_SITE_PACKAGES}${TLTM_OFFICIAL_DFOLS_PYTHONPATH:+:${TLTM_OFFICIAL_DFOLS_PYTHONPATH}}"
 fi
 
+# Configure Python.h/libpython for the official DFO-LS C bridge on cluster02.
+# The login image does not always provide python3.11-devel under /usr/include.
+# shellcheck source=/dev/null
+. codex/workspaces/fortran_modernization/tasks/scripts/python_embed_env.sh
+
 export OMP_NUM_THREADS=4
 export OPENBLAS_NUM_THREADS=4
 export MKL_NUM_THREADS=4
@@ -74,7 +79,8 @@ export OMP_PLACES=cores
 export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
 
 make -C build clean
-make -C build OMP=1 ../bin/run_tltm_stage2
+make -C build OMP=1 PYTHON="${PYTHON}" PYTHON_EMBED_CFLAGS="${PYTHON_EMBED_CFLAGS}" \
+  PYTHON_EMBED_LDFLAGS="${PYTHON_EMBED_LDFLAGS}" ../bin/run_tltm_stage2
 
 /usr/bin/time -p python3 codex/workspaces/fortran_modernization/tasks/scripts/run_stephanov_n6_tltm_ladder.py \
   --skip-build \
