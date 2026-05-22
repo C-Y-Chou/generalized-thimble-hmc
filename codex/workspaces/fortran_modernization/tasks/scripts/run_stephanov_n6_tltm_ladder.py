@@ -21,6 +21,11 @@ def parse_args():
         "--bank-file",
         default="output/stephanov_checkpoint_banks/stephanov_n6_t0_bank_dev_4x1000_s10_b20_20260522/bank/x_bank.dat",
     )
+    parser.add_argument(
+        "--bank-index-file",
+        default="",
+        help="CSV index for bank-file. Defaults to x_bank_index.csv next to the bank file when present.",
+    )
     parser.add_argument("--output-root", default="output/stephanov_tltm_ladders")
     parser.add_argument("--run-name", default="")
     parser.add_argument("--ladder", default="0,3e-5,1e-4,3e-4,1e-3,3e-3,1e-2,2e-2,3e-2")
@@ -49,6 +54,23 @@ def parse_int_list(text):
 
 def parse_float_list(text):
     return [float(item.strip()) for item in text.split(",") if item.strip()]
+
+
+def validate_bank_records(bank_file, bank_index_file, records):
+    index_path = Path(bank_index_file) if bank_index_file else bank_file.with_name("x_bank_index.csv")
+    if not index_path.exists():
+        return
+    with index_path.open(newline="", encoding="utf-8") as handle:
+        count = sum(1 for _row in csv.DictReader(handle))
+    if count <= 0:
+        raise RuntimeError("Bank index has no records: {0}".format(index_path))
+    bad = [record for record in records if record < 0 or record >= count]
+    if bad:
+        raise RuntimeError(
+            "Requested bank records {0} outside valid range 0..{1} from {2}".format(
+                ",".join(str(record) for record in bad), count - 1, index_path
+            )
+        )
 
 
 def set_param(lines, key, value):
@@ -278,6 +300,7 @@ def main():
     ladder = parse_float_list(args.ladder)
     if len(ladder) < 2:
         raise RuntimeError("TLTM ladder needs at least two replicas.")
+    validate_bank_records(bank_file, args.bank_index_file, records)
     run_build(repo_root, args.skip_build)
     params_out = run_dir / "parameters.dat"
     hmc_l = write_parameters(params_file.read_text(encoding="utf-8"), params_out, ladder, args)

@@ -87,7 +87,7 @@ make -C build OMP=1 PYTHON="${PYTHON}" PYTHON_EMBED_CFLAGS="${PYTHON_EMBED_CFLAG
 
 /usr/bin/time -p python3 codex/workspaces/fortran_modernization/tasks/scripts/run_stephanov_n6_tltm_ladder.py \
   --skip-build \
-  --records 0,81,162,243,324,405,486,567 \
+  --records 0,40,81,121,162,202,243,283 \
   --cycles 40 \
   --jobs 8 \
   --threads 1 \
