@@ -110,79 +110,101 @@ module constraint_solver_stats_mod
    end type constraint_solver_stats_context_t
 
    type(constraint_solver_stats_context_t), target, save :: module_constraint_solver_stats_context
-   integer(int64), pointer, save :: newton_success_count => module_constraint_solver_stats_context%newton_success_count
-   integer(int64), pointer, save :: quasi_success_count => module_constraint_solver_stats_context%quasi_success_count
-   integer(int64), pointer, save :: quasi_probe_attempt_count => module_constraint_solver_stats_context%quasi_probe_attempt_count
-   integer(int64), pointer, save :: quasi_probe_success_count => module_constraint_solver_stats_context%quasi_probe_success_count
-   integer(int64), pointer, save :: quasi_full_attempt_count => module_constraint_solver_stats_context%quasi_full_attempt_count
-   integer(int64), pointer, save :: quasi_full_success_count => module_constraint_solver_stats_context%quasi_full_success_count
-   integer(int64), pointer, save :: quasi_class_local_count => module_constraint_solver_stats_context%quasi_class_local_count
-   integer(int64), pointer, save :: quasi_class_mid_count => module_constraint_solver_stats_context%quasi_class_mid_count
-   integer(int64), pointer, save :: quasi_class_global_count => module_constraint_solver_stats_context%quasi_class_global_count
-   integer(int64), pointer, save :: quasi_far_route_skip_count => module_constraint_solver_stats_context%quasi_far_route_skip_count
-   integer(int64), pointer, save :: quasi_far_route_light_count => module_constraint_solver_stats_context%quasi_far_route_light_count
-   integer(int64), pointer, save :: quasi_far_route_anchor_count => module_constraint_solver_stats_context%quasi_far_route_anchor_count
-   integer(int64), pointer, save :: fail_count => module_constraint_solver_stats_context%fail_count
-   integer(int64), pointer, save :: near_fail_candidate_count => module_constraint_solver_stats_context%near_fail_candidate_count
-   integer(int64), pointer, save :: far_fail_count => module_constraint_solver_stats_context%far_fail_count
-   integer(int64), pointer, save :: near_rescue_attempt_count => module_constraint_solver_stats_context%near_rescue_attempt_count
-   integer(int64), pointer, save :: near_rescue_success_count => module_constraint_solver_stats_context%near_rescue_success_count
-   integer(int64), pointer, save :: near_unusable_count => module_constraint_solver_stats_context%near_unusable_count
-   integer(int64), pointer, save :: near_fail_fast_count => module_constraint_solver_stats_context%near_fail_fast_count
-   integer(int64), pointer, save :: far_fail_fast_count => module_constraint_solver_stats_context%far_fail_fast_count
-   integer(int64), pointer, save :: far_rescue_scope_count => module_constraint_solver_stats_context%far_rescue_scope_count
-   integer(int64), pointer, save :: far_rescue_success_count => module_constraint_solver_stats_context%far_rescue_success_count
-   integer(int64), pointer, save :: far_rescue_fail_count => module_constraint_solver_stats_context%far_rescue_fail_count
-   integer(int64), pointer, save :: far_rescue_fail_fast_case_count => module_constraint_solver_stats_context%far_rescue_fail_fast_case_count
-   integer(int64), pointer, save :: far_rescue_spent_success_count => module_constraint_solver_stats_context%far_rescue_spent_success_count
-   integer(int64), pointer, save :: far_rescue_spent_fail_count => module_constraint_solver_stats_context%far_rescue_spent_fail_count
-   integer(int64), pointer, save :: far_rescue_flowzr_used_sum => module_constraint_solver_stats_context%far_rescue_flowzr_used_sum
-   integer(int64), pointer, save :: far_rescue_final_resort_used_sum => module_constraint_solver_stats_context%far_rescue_final_resort_used_sum
-   integer(int64), pointer, save :: far_rescue_flowzr_used_success_sum => module_constraint_solver_stats_context%far_rescue_flowzr_used_success_sum
-   integer(int64), pointer, save :: far_rescue_final_resort_used_success_sum => module_constraint_solver_stats_context%far_rescue_final_resort_used_success_sum
-   integer(int64), pointer, save :: far_rescue_flowzr_used_fail_sum => module_constraint_solver_stats_context%far_rescue_flowzr_used_fail_sum
-   integer(int64), pointer, save :: far_rescue_final_resort_used_fail_sum => module_constraint_solver_stats_context%far_rescue_final_resort_used_fail_sum
-   integer(int64), pointer, save :: quasi_budget_hit_count => module_constraint_solver_stats_context%quasi_budget_hit_count
-   integer(int64), pointer, save :: quasi_budget_used_sum => module_constraint_solver_stats_context%quasi_budget_used_sum
-   integer, pointer, save :: quasi_budget_used_max => module_constraint_solver_stats_context%quasi_budget_used_max
-   integer, pointer, save :: quasi_budget_limit_last => module_constraint_solver_stats_context%quasi_budget_limit_last
-   integer(int64), pointer, save :: quasi_global_filter_candidate_count => module_constraint_solver_stats_context%quasi_global_filter_candidate_count
-   integer(int64), pointer, save :: quasi_global_filter_pass_count => module_constraint_solver_stats_context%quasi_global_filter_pass_count
-   integer(int64), pointer, save :: quasi_global_filter_reject_count => module_constraint_solver_stats_context%quasi_global_filter_reject_count
-   integer, pointer, save :: failure_capture_limit_runtime => module_constraint_solver_stats_context%failure_capture_limit_runtime
-   integer, pointer, save :: failure_capture_start_sample => module_constraint_solver_stats_context%failure_capture_start_sample
-   logical, pointer, save :: failure_capture_policy_ready => module_constraint_solver_stats_context%failure_capture_policy_ready
-   integer, pointer, save :: failure_capture_count => module_constraint_solver_stats_context%failure_capture_count
-   integer, pointer, save :: failure_capture_z0_unit => module_constraint_solver_stats_context%failure_capture_z0_unit
-   integer, pointer, save :: failure_capture_delz_unit => module_constraint_solver_stats_context%failure_capture_delz_unit
-   integer, pointer, save :: failure_capture_x0_unit => module_constraint_solver_stats_context%failure_capture_x0_unit
-   integer, pointer, save :: failure_capture_quasi_unit => module_constraint_solver_stats_context%failure_capture_quasi_unit
-   integer, pointer, save :: failure_capture_meta_unit => module_constraint_solver_stats_context%failure_capture_meta_unit
-   logical, pointer, save :: failure_capture_files_ready => module_constraint_solver_stats_context%failure_capture_files_ready
-   logical, pointer, save :: failure_capture_write_error => module_constraint_solver_stats_context%failure_capture_write_error
-   character(len=512), pointer, save :: failure_capture_z0_file => module_constraint_solver_stats_context%failure_capture_z0_file
-   character(len=512), pointer, save :: failure_capture_delz_file => module_constraint_solver_stats_context%failure_capture_delz_file
-   character(len=512), pointer, save :: failure_capture_x0_file => module_constraint_solver_stats_context%failure_capture_x0_file
-   character(len=512), pointer, save :: failure_capture_quasi_file => module_constraint_solver_stats_context%failure_capture_quasi_file
-   character(len=512), pointer, save :: failure_capture_meta_file => module_constraint_solver_stats_context%failure_capture_meta_file
-   integer, pointer, save :: context_chain_sample_idx => module_constraint_solver_stats_context%context_chain_sample_idx
-   integer, pointer, save :: context_hmc_repeat_idx => module_constraint_solver_stats_context%context_hmc_repeat_idx
-   integer, pointer, save :: prev_meta_attempt_flowz => module_constraint_solver_stats_context%prev_meta_attempt_flowz
-   integer, pointer, save :: prev_meta_attempt_flowzr => module_constraint_solver_stats_context%prev_meta_attempt_flowzr
-   integer, pointer, save :: prev_meta_attempt_flow => module_constraint_solver_stats_context%prev_meta_attempt_flow
-   integer, pointer, save :: prev_meta_attempt_unknown => module_constraint_solver_stats_context%prev_meta_attempt_unknown
-   integer, pointer, save :: prev_meta_fail_flowz => module_constraint_solver_stats_context%prev_meta_fail_flowz
-   integer, pointer, save :: prev_meta_fail_flowzr => module_constraint_solver_stats_context%prev_meta_fail_flowzr
-   integer, pointer, save :: prev_meta_fail_flow => module_constraint_solver_stats_context%prev_meta_fail_flow
-   integer, pointer, save :: prev_meta_fail_unknown => module_constraint_solver_stats_context%prev_meta_fail_unknown
-   integer, pointer, save :: prev_meta_success_final_resort => module_constraint_solver_stats_context%prev_meta_success_final_resort
-   integer, pointer, save :: prev_meta_fail_final_resort => module_constraint_solver_stats_context%prev_meta_fail_final_resort
-   integer(int64), pointer, save :: reverse_gate_candidate_count(:) => module_constraint_solver_stats_context%reverse_gate_candidate_count
-   integer(int64), pointer, save :: reverse_gate_pass_count(:) => module_constraint_solver_stats_context%reverse_gate_pass_count
-   integer(int64), pointer, save :: reverse_gate_reject_count(:) => module_constraint_solver_stats_context%reverse_gate_reject_count
-   integer, pointer, save :: constraint_solver_stats_suppression_depth => &
-      module_constraint_solver_stats_context%constraint_solver_stats_suppression_depth
+   integer(int64), pointer, save :: newton_success_count => null()
+   integer(int64), pointer, save :: quasi_success_count => null()
+   integer(int64), pointer, save :: quasi_probe_attempt_count => null()
+   integer(int64), pointer, save :: quasi_probe_success_count => null()
+   integer(int64), pointer, save :: quasi_full_attempt_count => null()
+   integer(int64), pointer, save :: quasi_full_success_count => null()
+   integer(int64), pointer, save :: quasi_class_local_count => null()
+   integer(int64), pointer, save :: quasi_class_mid_count => null()
+   integer(int64), pointer, save :: quasi_class_global_count => null()
+   integer(int64), pointer, save :: quasi_far_route_skip_count => null()
+   integer(int64), pointer, save :: quasi_far_route_light_count => null()
+   integer(int64), pointer, save :: quasi_far_route_anchor_count => null()
+   integer(int64), pointer, save :: fail_count => null()
+   integer(int64), pointer, save :: near_fail_candidate_count => null()
+   integer(int64), pointer, save :: far_fail_count => null()
+   integer(int64), pointer, save :: near_rescue_attempt_count => null()
+   integer(int64), pointer, save :: near_rescue_success_count => null()
+   integer(int64), pointer, save :: near_unusable_count => null()
+   integer(int64), pointer, save :: near_fail_fast_count => null()
+   integer(int64), pointer, save :: far_fail_fast_count => null()
+   integer(int64), pointer, save :: far_rescue_scope_count => null()
+   integer(int64), pointer, save :: far_rescue_success_count => null()
+   integer(int64), pointer, save :: far_rescue_fail_count => null()
+   integer(int64), pointer, save :: far_rescue_fail_fast_case_count => null()
+   integer(int64), pointer, save :: far_rescue_spent_success_count => null()
+   integer(int64), pointer, save :: far_rescue_spent_fail_count => null()
+   integer(int64), pointer, save :: far_rescue_flowzr_used_sum => null()
+   integer(int64), pointer, save :: far_rescue_final_resort_used_sum => null()
+   integer(int64), pointer, save :: far_rescue_flowzr_used_success_sum => null()
+   integer(int64), pointer, save :: far_rescue_final_resort_used_success_sum => null()
+   integer(int64), pointer, save :: far_rescue_flowzr_used_fail_sum => null()
+   integer(int64), pointer, save :: far_rescue_final_resort_used_fail_sum => null()
+   integer(int64), pointer, save :: quasi_budget_hit_count => null()
+   integer(int64), pointer, save :: quasi_budget_used_sum => null()
+   integer, pointer, save :: quasi_budget_used_max => null()
+   integer, pointer, save :: quasi_budget_limit_last => null()
+   integer(int64), pointer, save :: quasi_global_filter_candidate_count => null()
+   integer(int64), pointer, save :: quasi_global_filter_pass_count => null()
+   integer(int64), pointer, save :: quasi_global_filter_reject_count => null()
+   integer, pointer, save :: failure_capture_limit_runtime => null()
+   integer, pointer, save :: failure_capture_start_sample => null()
+   logical, pointer, save :: failure_capture_policy_ready => null()
+   integer, pointer, save :: failure_capture_count => null()
+   integer, pointer, save :: failure_capture_z0_unit => null()
+   integer, pointer, save :: failure_capture_delz_unit => null()
+   integer, pointer, save :: failure_capture_x0_unit => null()
+   integer, pointer, save :: failure_capture_quasi_unit => null()
+   integer, pointer, save :: failure_capture_meta_unit => null()
+   logical, pointer, save :: failure_capture_files_ready => null()
+   logical, pointer, save :: failure_capture_write_error => null()
+   character(len=512), pointer, save :: failure_capture_z0_file => null()
+   character(len=512), pointer, save :: failure_capture_delz_file => null()
+   character(len=512), pointer, save :: failure_capture_x0_file => null()
+   character(len=512), pointer, save :: failure_capture_quasi_file => null()
+   character(len=512), pointer, save :: failure_capture_meta_file => null()
+   integer, pointer, save :: context_chain_sample_idx => null()
+   integer, pointer, save :: context_hmc_repeat_idx => null()
+   integer, pointer, save :: prev_meta_attempt_flowz => null()
+   integer, pointer, save :: prev_meta_attempt_flowzr => null()
+   integer, pointer, save :: prev_meta_attempt_flow => null()
+   integer, pointer, save :: prev_meta_attempt_unknown => null()
+   integer, pointer, save :: prev_meta_fail_flowz => null()
+   integer, pointer, save :: prev_meta_fail_flowzr => null()
+   integer, pointer, save :: prev_meta_fail_flow => null()
+   integer, pointer, save :: prev_meta_fail_unknown => null()
+   integer, pointer, save :: prev_meta_success_final_resort => null()
+   integer, pointer, save :: prev_meta_fail_final_resort => null()
+   integer(int64), pointer, save :: reverse_gate_candidate_count(:) => null()
+   integer(int64), pointer, save :: reverse_gate_pass_count(:) => null()
+   integer(int64), pointer, save :: reverse_gate_reject_count(:) => null()
+   integer, pointer, save :: constraint_solver_stats_suppression_depth => null()
    logical, save :: constraint_solver_stats_aliases_bound = .false.
+!$omp threadprivate(constraint_solver_stats_aliases_bound)
+!$omp threadprivate(newton_success_count, quasi_success_count, quasi_probe_attempt_count, quasi_probe_success_count)
+!$omp threadprivate(quasi_full_attempt_count, quasi_full_success_count, quasi_class_local_count, quasi_class_mid_count)
+!$omp threadprivate(quasi_class_global_count, quasi_far_route_skip_count, quasi_far_route_light_count)
+!$omp threadprivate(quasi_far_route_anchor_count, fail_count, near_fail_candidate_count, far_fail_count)
+!$omp threadprivate(near_rescue_attempt_count, near_rescue_success_count, near_unusable_count, near_fail_fast_count)
+!$omp threadprivate(far_fail_fast_count, far_rescue_scope_count, far_rescue_success_count, far_rescue_fail_count)
+!$omp threadprivate(far_rescue_fail_fast_case_count, far_rescue_spent_success_count, far_rescue_spent_fail_count)
+!$omp threadprivate(far_rescue_flowzr_used_sum, far_rescue_final_resort_used_sum)
+!$omp threadprivate(far_rescue_flowzr_used_success_sum, far_rescue_final_resort_used_success_sum)
+!$omp threadprivate(far_rescue_flowzr_used_fail_sum, far_rescue_final_resort_used_fail_sum)
+!$omp threadprivate(quasi_budget_hit_count, quasi_budget_used_sum, quasi_budget_used_max, quasi_budget_limit_last)
+!$omp threadprivate(quasi_global_filter_candidate_count, quasi_global_filter_pass_count, quasi_global_filter_reject_count)
+!$omp threadprivate(failure_capture_limit_runtime, failure_capture_start_sample, failure_capture_policy_ready)
+!$omp threadprivate(failure_capture_count, failure_capture_z0_unit, failure_capture_delz_unit, failure_capture_x0_unit)
+!$omp threadprivate(failure_capture_quasi_unit, failure_capture_meta_unit, failure_capture_files_ready)
+!$omp threadprivate(failure_capture_write_error, failure_capture_z0_file, failure_capture_delz_file)
+!$omp threadprivate(failure_capture_x0_file, failure_capture_quasi_file, failure_capture_meta_file)
+!$omp threadprivate(context_chain_sample_idx, context_hmc_repeat_idx, prev_meta_attempt_flowz, prev_meta_attempt_flowzr)
+!$omp threadprivate(prev_meta_attempt_flow, prev_meta_attempt_unknown, prev_meta_fail_flowz, prev_meta_fail_flowzr)
+!$omp threadprivate(prev_meta_fail_flow, prev_meta_fail_unknown, prev_meta_success_final_resort, prev_meta_fail_final_resort)
+!$omp threadprivate(reverse_gate_candidate_count, reverse_gate_pass_count, reverse_gate_reject_count)
+!$omp threadprivate(constraint_solver_stats_suppression_depth)
 
 contains
 

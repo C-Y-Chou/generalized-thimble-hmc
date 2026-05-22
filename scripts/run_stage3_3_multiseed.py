@@ -345,7 +345,7 @@ def parse_args():
         "--stage2-threads",
         type=int,
         default=int(os.environ.get("STAGE3_3_STAGE2_THREADS", "1")),
-        help="OMP/MKL thread budget for each run_tltm_stage2 process.",
+        help="OpenMP slot-update and BLAS/MKL thread budget for each run_tltm_stage2 process.",
     )
     parser.add_argument(
         "--eval-threads",
@@ -1371,6 +1371,7 @@ def run_one_seed(
             "TLTM_STAGE2_COLD_Z_HISTORY_FILE": str(cold_z_history_file),
             "TLTM_STAGE2_COLD_PHI_HISTORY_FILE": str(cold_phi_history_file),
             "TLTM_STAGE2_RNG_STREAM_CONTRACT": setup["stage2_rng_stream_contract"],
+            "TLTM_STAGE2_PARALLEL_LOCAL_UPDATES": "1" if stage2_threads > 1 else "0",
             # Keep failure-capture counters off the active window in stage-3.3 production runs.
             "CONSTRAINT_FAIL_CAPTURE_START_SAMPLE": os.environ.get("CONSTRAINT_FAIL_CAPTURE_START_SAMPLE", "2147483647"),
         }
@@ -2010,17 +2011,10 @@ def main():
         print("  stage2_v1_sidecars: {0}".format(args.stage2_v1_sidecars))
         print("  stage2_protocol_audit: {0} (effective={1})".format(args.stage2_protocol_audit, protocol_audit_enabled))
         print("  stage2_protocol_audit_fail_on: {0}".format(args.stage2_protocol_audit_fail_on))
-        print("  replica_update_policy: serial-within-stage2-process")
+        print("  replica_update_policy: slot-parallel-when-stage2_threads>1-and-rng-v2")
         print("  detected_available_cpus: {0}".format(resource_budget["available_cpus"]))
         print("  requested_cpu_budget: {0}".format(resource_budget["requested_cpus"]))
         return
-
-    if args.stage2_threads > 1:
-        print(
-            "[WARN] stage2 replica updates are still serial inside each run_tltm_stage2 process; "
-            "--stage2-threads only controls OpenMP/MKL-enabled code paths.",
-            file=sys.stderr,
-        )
 
     if not args.skip_build:
         omp_enabled = max(args.stage2_threads, args.eval_threads) > 1

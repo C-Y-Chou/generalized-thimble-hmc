@@ -19,6 +19,7 @@ module model_stephanov
 
    public :: stephanov_calculate_action, stephanov_ds, stephanov_hessian, stephanov_hessian_vec, stephanov_ds_hessian_vec_batch
    public :: stephanov_observable_count, get_stephanov_observable_name, stephanov_evaluate_observables
+   public :: stephanov_evaluate_observable_by_index
 
 contains
 
@@ -288,6 +289,67 @@ contains
          observables(5) = cmplx(min_singular_value_complex(q_mat), 0.0_dp, dp)
       end if
    end subroutine stephanov_evaluate_observables
+
+   subroutine stephanov_evaluate_observable_by_index(z, index, observable)
+      complex(dp), intent(in) :: z(:)
+      integer, intent(in) :: index
+      complex(dp), intent(out) :: observable
+
+      complex(dp), allocatable :: a_mat(:, :), b_mat(:, :), q_mat(:, :), q_inv(:, :), a_plus_b(:, :)
+      complex(dp), allocatable :: dirac(:, :)
+      complex(dp) :: logdet_value, action_value, trace_k, trace_density
+      logical :: logdet_error
+      integer :: expected_count, n_model, i
+
+      call validate_stephanov_state(z, "stephanov_evaluate_observable_by_index", n_model)
+      expected_count = stephanov_observable_count()
+      if (index < 1 .or. index > expected_count) then
+         write (*, '(A,I0)') "[ERROR] stephanov_evaluate_observable_by_index: invalid observable index=", index
+         error stop 1
+      end if
+
+      select case (index)
+      case (1, 2)
+         allocate (a_mat(n_model, n_model), b_mat(n_model, n_model), q_mat(n_model, n_model), &
+                   q_inv(n_model, n_model), a_plus_b(n_model, n_model))
+         call build_stephanov_ab(z, n_model, a_mat, b_mat)
+         q_mat = matmul(b_mat, a_mat)
+         do i = 1, n_model
+            q_mat(i, i) = q_mat(i, i) + cmplx(stephanov_mass*stephanov_mass, 0.0_dp, dp)
+         end do
+         call invert_complex_matrix(q_mat, q_inv, "stephanov_evaluate_observable_by_index")
+         if (index == 1) then
+            trace_k = trace_complex(q_inv)
+            observable = cmplx(stephanov_mass/real(n_model, dp), 0.0_dp, dp)*trace_k
+         else
+            a_plus_b = a_mat + b_mat
+            trace_density = trace_complex(matmul(q_inv, a_plus_b))
+            observable = cmplx(stephanov_mu, 0.0_dp, dp) - &
+               ci/cmplx(2.0_dp*real(n_model, dp), 0.0_dp, dp)*trace_density
+         end if
+      case (3)
+         allocate (a_mat(n_model, n_model), b_mat(n_model, n_model), dirac(2*n_model, 2*n_model))
+         call build_stephanov_ab(z, n_model, a_mat, b_mat)
+         call build_stephanov_dirac(a_mat, b_mat, n_model, dirac)
+         call log_determinant(dirac, logdet_value, logdet_error)
+         if (logdet_error) then
+            write (*, '(A)') "[ERROR] stephanov_evaluate_observable_by_index: log det failed."
+            error stop 1
+         end if
+         observable = logdet_value
+      case (4)
+         call stephanov_calculate_action(z, action_value)
+         observable = exp(-ci*cmplx(aimag(action_value), 0.0_dp, dp))
+      case (5)
+         allocate (a_mat(n_model, n_model), b_mat(n_model, n_model), q_mat(n_model, n_model))
+         call build_stephanov_ab(z, n_model, a_mat, b_mat)
+         q_mat = matmul(b_mat, a_mat)
+         do i = 1, n_model
+            q_mat(i, i) = q_mat(i, i) + cmplx(stephanov_mass*stephanov_mass, 0.0_dp, dp)
+         end do
+         observable = cmplx(min_singular_value_complex(q_mat), 0.0_dp, dp)
+      end select
+   end subroutine stephanov_evaluate_observable_by_index
 
    subroutine validate_stephanov_state(z, caller, n_model)
       complex(dp), intent(in) :: z(:)

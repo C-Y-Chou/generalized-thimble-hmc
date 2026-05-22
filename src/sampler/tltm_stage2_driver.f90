@@ -21,10 +21,11 @@ module tltm_stage2_driver
                               newton_eval_flow_status_context_t
    use hmc_kernels, only: get_real_jacobian_cache_stats
    use hmc_integrator_core, only: reset_reverse_gate_replay_status_counts, get_reverse_gate_replay_status_counts, &
-                                  hmc_policy_context_t, hmc_replay_diagnostics_context_t
+                                  hmc_policy_context_t, hmc_replay_diagnostics_context_t, load_hmc_bridge_policy
    use quasi_newton_solver_mod, only: get_quasi_global_filter_stats, reset_quasi_eval_flow_status_counts, &
                                       get_quasi_eval_flow_status_counts, qn_diagnostics_context_t, &
-                                      release_qn_diagnostics_context, qn_policy_context_t, release_qn_policy_context
+                                      release_qn_diagnostics_context, qn_policy_context_t, release_qn_policy_context, &
+                                      load_qn_backend_policy
    use constraint_solver_stats_mod, only: constraint_solver_stats_context_t, bind_constraint_solver_stats_context, &
                                           release_constraint_solver_stats_context, reset_constraint_solver_stats, get_constraint_solver_stats, &
                                           get_constraint_solver_quasi_stage_stats, &
@@ -127,6 +128,11 @@ contains
       type(newton_eval_flow_status_context_t) :: newton_flow_status_context
       type(intode_diagnostics_context_t) :: intode_diagnostics_summary
       type(constraint_solver_stats_context_t) :: constraint_stats_context
+      type(qn_policy_context_t), allocatable :: qn_policy_contexts(:)
+      type(qn_diagnostics_context_t), allocatable :: qn_diagnostics_contexts(:)
+      type(hmc_replay_diagnostics_context_t), allocatable :: hmc_replay_diagnostics_contexts(:)
+      type(newton_eval_flow_status_context_t), allocatable :: newton_flow_status_contexts(:)
+      type(constraint_solver_stats_context_t), allocatable :: constraint_stats_contexts(:)
       type(model_context_t), target :: model_context
       type(mt95_state_t) :: swap_rng_state
       real(dp), allocatable :: flow_ladder(:)
@@ -141,6 +147,7 @@ contains
       integer :: init_preflow_integration_steps
       real(dp) :: max_flow_time, init_sigma, init_preflow_trajectory_length
       logical :: swap_enabled, fixed_flow_mode, ok
+      logical :: parallel_local_updates
       logical :: use_initial_x
       integer :: i, cycle_idx, hot_slot, history_slot_index
       real(dp) :: run_t0, elapsed, slot_t0
@@ -155,6 +162,7 @@ contains
       logical :: write_all_observable, all_observable_ok
       logical :: write_v1_manifest, write_v1_protocol, write_v1_package
       logical :: path_ok
+      complex(dp), allocatable :: cold_observable_values(:), all_observable_values(:, :)
       integer :: cold_history_stride, all_history_stride
       integer :: cold_history_max_samples, all_history_max_samples
       integer :: cold_history_written, all_history_written
@@ -209,6 +217,8 @@ contains
       call resolve_stage2_observable_paths(cold_observable_file, write_cold_observable, all_observable_dir, write_all_observable)
       call resolve_stage2_io_controls(cold_history_stride, cold_history_max_samples, all_history_stride, all_history_max_samples, &
                                       cold_observable_stride, cold_observable_max_samples, all_observable_stride, all_observable_max_samples)
+      if (write_cold_observable) call ensure_observable_buffer(cold_observable_values)
+      if (write_all_observable) call ensure_observable_matrix(all_observable_values, n_slots)
       cold_history_written = 0
       cold_x_history_written = 0
       all_history_written = 0
@@ -237,12 +247,20 @@ contains
       hot_slot = n_slots - 1
 
       allocate (slots(n_slots), local_accept_census(n_slots), run_contexts(n_slots))
+      allocate (qn_policy_contexts(n_slots), qn_diagnostics_contexts(n_slots), hmc_replay_diagnostics_contexts(n_slots), &
+                newton_flow_status_contexts(n_slots), constraint_stats_contexts(n_slots))
       if (fixed_flow_mode) then
          allocate (label_tracks(0))
       else
          allocate (label_tracks(n_slots))
       end if
       call seed_run_context_configs(run_contexts)
+      do i = 1, n_slots
+         call reset_quasi_eval_flow_status_counts(qn_diagnostics_contexts(i))
+         call reset_reverse_gate_replay_status_counts(hmc_replay_diagnostics_contexts(i))
+         call reset_newton_eval_flow_status_counts(newton_flow_status_contexts(i))
+         constraint_stats_contexts(i) = constraint_solver_stats_context_t()
+      end do
       if (n_slots > 1) then
          allocate (pair_stats(n_slots - 1))
       else
@@ -274,6 +292,15 @@ contains
       end do
 
       if (trim(rng_stream_contract) == stage2_rng_legacy_global_v0) call sgrnd(base_seed)
+      call load_qn_backend_policy(qn_policy_context)
+      call load_hmc_bridge_policy(hmc_policy_context)
+      call load_rg_reject_audit_config(audit_context)
+      call load_local_transition_audit_config(audit_context)
+      do i = 1, n_slots
+         qn_policy_contexts(i) = qn_policy_context
+      end do
+      parallel_local_updates = stage2_local_updates_parallel_enabled(rng_stream_contract, audit_context)
+      write (*, '(A,L1)') "[TLTM-S2] parallel_local_updates=", parallel_local_updates
 
       call initialize_pair_stats(pair_stats)
       if (.not. fixed_flow_mode) call initialize_label_tracks(label_tracks, n_slots)
@@ -420,7 +447,7 @@ contains
          end if
          call write_observable_sample_if_enabled(slots(history_slot_index), unit_cold_obs, 0, &
                                                  cold_observable_stride, cold_observable_max_samples, &
-                                                 cold_observable_written, "cold-slot", cold_observable_ok)
+                                                 cold_observable_written, "cold-slot", cold_observable_values, cold_observable_ok)
          if (.not. cold_observable_ok) then
             close (unit=unit_cold_obs)
             if (write_cold_history) then
@@ -484,6 +511,7 @@ contains
             error stop 1
          end if
          call write_all_replica_observable_samples_if_enabled(slots, all_obs_units, 0, &
+                                                              all_observable_values, &
                                                               all_observable_stride, all_observable_max_samples, &
                                                               all_observable_written, all_observable_ok)
          if (.not. all_observable_ok) then
@@ -527,13 +555,12 @@ contains
 
       run_t0 = wall_time_seconds()
       do cycle_idx = 1, cycle_count
-         do i = 1, n_slots
-            slot_t0 = wall_time_seconds()
-            call run_local_updates(slots(i), local_updates, local_accept_census(i), cycle_idx, run_contexts(i), audit_context, &
-                                   qn_diagnostics_context, qn_policy_context, hmc_policy_context, hmc_replay_diagnostics_context, &
-                                   newton_flow_status_context, rng_stream_contract, base_seed)
-            slots(i)%local_runtime = slots(i)%local_runtime + (wall_time_seconds() - slot_t0)
-         end do
+         call run_local_update_sweep(slots, local_updates, local_accept_census, cycle_idx, run_contexts, audit_context, &
+                                     qn_diagnostics_context, qn_policy_context, hmc_policy_context, &
+                                     hmc_replay_diagnostics_context, newton_flow_status_context, constraint_stats_context, &
+                                     qn_diagnostics_contexts, qn_policy_contexts, &
+                                     hmc_replay_diagnostics_contexts, newton_flow_status_contexts, constraint_stats_contexts, &
+                                     rng_stream_contract, base_seed, parallel_local_updates)
 
          if (swap_enabled .and. n_slots > 1) then
             call perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state, run_contexts, rng_stream_contract, base_seed)
@@ -597,7 +624,7 @@ contains
          if (write_cold_observable) then
             call write_observable_sample_if_enabled(slots(history_slot_index), unit_cold_obs, cycle_idx, &
                                                     cold_observable_stride, cold_observable_max_samples, &
-                                                    cold_observable_written, "cold-slot", cold_observable_ok)
+                                                    cold_observable_written, "cold-slot", cold_observable_values, cold_observable_ok)
             if (.not. cold_observable_ok) then
                close (unit_trace)
                if (write_cold_history) then
@@ -644,6 +671,7 @@ contains
          end if
          if (write_all_observable) then
             call write_all_replica_observable_samples_if_enabled(slots, all_obs_units, cycle_idx, &
+                                                                 all_observable_values, &
                                                                  all_observable_stride, all_observable_max_samples, &
                                                                  all_observable_written, all_observable_ok)
             if (.not. all_observable_ok) then
@@ -684,6 +712,13 @@ contains
       if (write_cold_observable) close (unit_cold_obs)
       if (write_all_observable) call close_all_replica_observable_files(all_obs_units)
       call aggregate_intode_diagnostics_from_run_contexts(run_contexts, intode_diagnostics_summary)
+      if (parallel_local_updates) then
+         call aggregate_qn_diagnostics_contexts(qn_diagnostics_contexts, qn_diagnostics_context)
+         call aggregate_hmc_replay_diagnostics_contexts(hmc_replay_diagnostics_contexts, hmc_replay_diagnostics_context)
+         call aggregate_newton_flow_status_contexts(newton_flow_status_contexts, newton_flow_status_context)
+         call aggregate_constraint_stats_contexts(constraint_stats_contexts, constraint_stats_context)
+      end if
+      call bind_constraint_solver_stats_context(constraint_stats_context)
       call get_intode_fallback_stats(calls_total, calls_integrating, fallback_attempts, fallback_success, fallback_failure, &
                                      fallback_max_steps, fallback_invalid, fallback_h_min, intode_diagnostics_summary)
       call get_constraint_solver_stats(solver_total_count, solver_newton_count, solver_quasi_count, solver_failed_count, &
@@ -742,6 +777,9 @@ contains
                                     elapsed, slots, pair_stats, label_tracks)
       call write_phase_cache_stats_if_enabled()
       call write_real_jacobian_cache_stats_if_enabled(run_contexts)
+      call release_all_qn_policy_contexts(qn_policy_contexts)
+      call release_all_qn_diagnostics_contexts(qn_diagnostics_contexts)
+      call release_all_constraint_stats_contexts(constraint_stats_contexts)
       call release_qn_diagnostics_context(qn_diagnostics_context)
       call release_qn_policy_context(qn_policy_context)
       call release_all_run_contexts(run_contexts)
@@ -752,6 +790,13 @@ contains
       if (allocated(pair_stats)) deallocate (pair_stats)
       if (allocated(label_tracks)) deallocate (label_tracks)
       if (allocated(local_accept_census)) deallocate (local_accept_census)
+      if (allocated(qn_policy_contexts)) deallocate (qn_policy_contexts)
+      if (allocated(qn_diagnostics_contexts)) deallocate (qn_diagnostics_contexts)
+      if (allocated(hmc_replay_diagnostics_contexts)) deallocate (hmc_replay_diagnostics_contexts)
+      if (allocated(newton_flow_status_contexts)) deallocate (newton_flow_status_contexts)
+      if (allocated(constraint_stats_contexts)) deallocate (constraint_stats_contexts)
+      if (allocated(cold_observable_values)) deallocate (cold_observable_values)
+      if (allocated(all_observable_values)) deallocate (all_observable_values)
 
       write (*, '(A,1X,A)') "[DONE][TLTM-S2] Summary written to", trim(summary_file)
       write (*, '(A,1X,A)') "[DONE][TLTM-S2] Label trace written to", trim(label_trace_file)
@@ -938,6 +983,61 @@ contains
 
       ok = .true.
    end subroutine load_initial_x_record
+
+   subroutine run_local_update_sweep(slots, local_updates, local_accept_census, cycle_idx, run_contexts, audit_context, &
+                                     qn_diagnostics_context, qn_policy_context, hmc_policy_context, &
+                                     hmc_replay_diagnostics_context, newton_flow_status_context, constraint_stats_context, &
+                                     qn_diagnostics_contexts, qn_policy_contexts, &
+                                     hmc_replay_diagnostics_contexts, newton_flow_status_contexts, constraint_stats_contexts, &
+                                     rng_stream_contract, base_seed, parallel_local_updates)
+      type(tltm_slot_t), intent(inout) :: slots(:)
+      integer, intent(in) :: local_updates
+      type(local_accept_census_t), intent(inout) :: local_accept_census(:)
+      integer, intent(in) :: cycle_idx
+      type(tltm_run_context_t), intent(inout) :: run_contexts(:)
+      type(stage2_audit_context_t), intent(inout) :: audit_context
+      type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics_context
+      type(qn_policy_context_t), intent(inout), target :: qn_policy_context
+      type(hmc_policy_context_t), intent(inout), target :: hmc_policy_context
+      type(hmc_replay_diagnostics_context_t), intent(inout), target :: hmc_replay_diagnostics_context
+      type(newton_eval_flow_status_context_t), intent(inout), target :: newton_flow_status_context
+      type(constraint_solver_stats_context_t), intent(inout), target :: constraint_stats_context
+      type(qn_diagnostics_context_t), intent(inout), target :: qn_diagnostics_contexts(:)
+      type(qn_policy_context_t), intent(inout), target :: qn_policy_contexts(:)
+      type(hmc_replay_diagnostics_context_t), intent(inout), target :: hmc_replay_diagnostics_contexts(:)
+      type(newton_eval_flow_status_context_t), intent(inout), target :: newton_flow_status_contexts(:)
+      type(constraint_solver_stats_context_t), intent(inout), target :: constraint_stats_contexts(:)
+      character(len=*), intent(in) :: rng_stream_contract
+      integer, intent(in) :: base_seed
+      logical, intent(in) :: parallel_local_updates
+
+      integer :: i
+      real(dp) :: slot_t0
+
+      if (parallel_local_updates) then
+!$omp parallel do default(shared) private(i, slot_t0) schedule(static)
+         do i = 1, size(slots)
+            call bind_constraint_solver_stats_context(constraint_stats_contexts(i))
+            slot_t0 = wall_time_seconds()
+            call run_local_updates(slots(i), local_updates, local_accept_census(i), cycle_idx, run_contexts(i), audit_context, &
+                                   qn_diagnostics_contexts(i), qn_policy_contexts(i), hmc_policy_context, &
+                                   hmc_replay_diagnostics_contexts(i), newton_flow_status_contexts(i), &
+                                   rng_stream_contract, base_seed)
+            slots(i)%local_runtime = slots(i)%local_runtime + (wall_time_seconds() - slot_t0)
+         end do
+!$omp end parallel do
+      else
+         call bind_constraint_solver_stats_context(constraint_stats_context)
+         do i = 1, size(slots)
+            slot_t0 = wall_time_seconds()
+            call run_local_updates(slots(i), local_updates, local_accept_census(i), cycle_idx, run_contexts(i), audit_context, &
+                                   qn_diagnostics_context, qn_policy_context, hmc_policy_context, &
+                                   hmc_replay_diagnostics_context, newton_flow_status_context, &
+                                   rng_stream_contract, base_seed)
+            slots(i)%local_runtime = slots(i)%local_runtime + (wall_time_seconds() - slot_t0)
+         end do
+      end if
+   end subroutine run_local_update_sweep
 
    subroutine run_local_updates(slot, local_updates, accept_census, cycle_idx, run_context, audit_context, qn_diagnostics_context, &
                                 qn_policy_context, hmc_policy_context, hmc_replay_diagnostics_context, newton_flow_status_context, &
@@ -1923,6 +2023,142 @@ contains
       end if
    end subroutine add_intode_diagnostics
 
+   subroutine aggregate_qn_diagnostics_contexts(parts, aggregate)
+      type(qn_diagnostics_context_t), intent(in) :: parts(:)
+      type(qn_diagnostics_context_t), intent(inout) :: aggregate
+      integer :: idx
+
+      do idx = 1, size(parts)
+         aggregate%global_filter_candidate_count = aggregate%global_filter_candidate_count + parts(idx)%global_filter_candidate_count
+         aggregate%global_filter_pass_count = aggregate%global_filter_pass_count + parts(idx)%global_filter_pass_count
+         aggregate%global_filter_reject_count = aggregate%global_filter_reject_count + parts(idx)%global_filter_reject_count
+         aggregate%eval_flow_status_success = aggregate%eval_flow_status_success + parts(idx)%eval_flow_status_success
+         aggregate%eval_flow_status_zero_time = aggregate%eval_flow_status_zero_time + parts(idx)%eval_flow_status_zero_time
+         aggregate%eval_flow_status_stiff_rescue = aggregate%eval_flow_status_stiff_rescue + parts(idx)%eval_flow_status_stiff_rescue
+         aggregate%eval_flow_status_solver_assist = aggregate%eval_flow_status_solver_assist + parts(idx)%eval_flow_status_solver_assist
+         aggregate%eval_flow_status_failure_max_steps = aggregate%eval_flow_status_failure_max_steps + parts(idx)%eval_flow_status_failure_max_steps
+         aggregate%eval_flow_status_failure_invalid = aggregate%eval_flow_status_failure_invalid + parts(idx)%eval_flow_status_failure_invalid
+         aggregate%eval_flow_status_failure_h_min = aggregate%eval_flow_status_failure_h_min + parts(idx)%eval_flow_status_failure_h_min
+         aggregate%eval_flow_status_unknown = aggregate%eval_flow_status_unknown + parts(idx)%eval_flow_status_unknown
+      end do
+   end subroutine aggregate_qn_diagnostics_contexts
+
+   subroutine aggregate_hmc_replay_diagnostics_contexts(parts, aggregate)
+      type(hmc_replay_diagnostics_context_t), intent(in) :: parts(:)
+      type(hmc_replay_diagnostics_context_t), intent(inout), target :: aggregate
+      integer :: idx
+
+      do idx = 1, size(parts)
+         aggregate%reverse_gate_replay_status_success = aggregate%reverse_gate_replay_status_success + &
+            parts(idx)%reverse_gate_replay_status_success
+         aggregate%reverse_gate_replay_status_output_size_mismatch = aggregate%reverse_gate_replay_status_output_size_mismatch + &
+            parts(idx)%reverse_gate_replay_status_output_size_mismatch
+         aggregate%reverse_gate_replay_status_momentum_size_mismatch = aggregate%reverse_gate_replay_status_momentum_size_mismatch + &
+            parts(idx)%reverse_gate_replay_status_momentum_size_mismatch
+         aggregate%reverse_gate_replay_status_initial_force_failed = aggregate%reverse_gate_replay_status_initial_force_failed + &
+            parts(idx)%reverse_gate_replay_status_initial_force_failed
+         aggregate%reverse_gate_replay_status_constraint_failed = aggregate%reverse_gate_replay_status_constraint_failed + &
+            parts(idx)%reverse_gate_replay_status_constraint_failed
+         aggregate%reverse_gate_replay_status_final_flow_failed = aggregate%reverse_gate_replay_status_final_flow_failed + &
+            parts(idx)%reverse_gate_replay_status_final_flow_failed
+         aggregate%reverse_gate_replay_status_final_force_failed = aggregate%reverse_gate_replay_status_final_force_failed + &
+            parts(idx)%reverse_gate_replay_status_final_force_failed
+         aggregate%reverse_gate_replay_status_final_projection_failed = aggregate%reverse_gate_replay_status_final_projection_failed + &
+            parts(idx)%reverse_gate_replay_status_final_projection_failed
+         aggregate%reverse_gate_replay_status_reverse_gate_rejected = aggregate%reverse_gate_replay_status_reverse_gate_rejected + &
+            parts(idx)%reverse_gate_replay_status_reverse_gate_rejected
+         aggregate%reverse_gate_replay_status_final_flow_max_steps = aggregate%reverse_gate_replay_status_final_flow_max_steps + &
+            parts(idx)%reverse_gate_replay_status_final_flow_max_steps
+         aggregate%reverse_gate_replay_status_final_flow_invalid = aggregate%reverse_gate_replay_status_final_flow_invalid + &
+            parts(idx)%reverse_gate_replay_status_final_flow_invalid
+         aggregate%reverse_gate_replay_status_final_flow_h_min = aggregate%reverse_gate_replay_status_final_flow_h_min + &
+            parts(idx)%reverse_gate_replay_status_final_flow_h_min
+         aggregate%reverse_gate_replay_status_final_flow_non_strict_success = &
+            aggregate%reverse_gate_replay_status_final_flow_non_strict_success + &
+            parts(idx)%reverse_gate_replay_status_final_flow_non_strict_success
+         aggregate%reverse_gate_replay_status_unknown = aggregate%reverse_gate_replay_status_unknown + &
+            parts(idx)%reverse_gate_replay_status_unknown
+      end do
+   end subroutine aggregate_hmc_replay_diagnostics_contexts
+
+   subroutine aggregate_newton_flow_status_contexts(parts, aggregate)
+      type(newton_eval_flow_status_context_t), intent(in) :: parts(:)
+      type(newton_eval_flow_status_context_t), intent(inout), target :: aggregate
+      integer :: idx
+
+      do idx = 1, size(parts)
+         aggregate%success = aggregate%success + parts(idx)%success
+         aggregate%zero_time = aggregate%zero_time + parts(idx)%zero_time
+         aggregate%stiff_rescue = aggregate%stiff_rescue + parts(idx)%stiff_rescue
+         aggregate%solver_assist = aggregate%solver_assist + parts(idx)%solver_assist
+         aggregate%failure_max_steps = aggregate%failure_max_steps + parts(idx)%failure_max_steps
+         aggregate%failure_invalid = aggregate%failure_invalid + parts(idx)%failure_invalid
+         aggregate%failure_h_min = aggregate%failure_h_min + parts(idx)%failure_h_min
+         aggregate%unknown = aggregate%unknown + parts(idx)%unknown
+      end do
+   end subroutine aggregate_newton_flow_status_contexts
+
+   subroutine aggregate_constraint_stats_contexts(parts, aggregate)
+      type(constraint_solver_stats_context_t), intent(in) :: parts(:)
+      type(constraint_solver_stats_context_t), intent(inout), target :: aggregate
+      integer :: idx
+
+      do idx = 1, size(parts)
+         aggregate%newton_success_count = aggregate%newton_success_count + parts(idx)%newton_success_count
+         aggregate%quasi_success_count = aggregate%quasi_success_count + parts(idx)%quasi_success_count
+         aggregate%quasi_probe_attempt_count = aggregate%quasi_probe_attempt_count + parts(idx)%quasi_probe_attempt_count
+         aggregate%quasi_probe_success_count = aggregate%quasi_probe_success_count + parts(idx)%quasi_probe_success_count
+         aggregate%quasi_full_attempt_count = aggregate%quasi_full_attempt_count + parts(idx)%quasi_full_attempt_count
+         aggregate%quasi_full_success_count = aggregate%quasi_full_success_count + parts(idx)%quasi_full_success_count
+         aggregate%quasi_class_local_count = aggregate%quasi_class_local_count + parts(idx)%quasi_class_local_count
+         aggregate%quasi_class_mid_count = aggregate%quasi_class_mid_count + parts(idx)%quasi_class_mid_count
+         aggregate%quasi_class_global_count = aggregate%quasi_class_global_count + parts(idx)%quasi_class_global_count
+         aggregate%quasi_far_route_skip_count = aggregate%quasi_far_route_skip_count + parts(idx)%quasi_far_route_skip_count
+         aggregate%quasi_far_route_light_count = aggregate%quasi_far_route_light_count + parts(idx)%quasi_far_route_light_count
+         aggregate%quasi_far_route_anchor_count = aggregate%quasi_far_route_anchor_count + parts(idx)%quasi_far_route_anchor_count
+         aggregate%fail_count = aggregate%fail_count + parts(idx)%fail_count
+         aggregate%near_fail_candidate_count = aggregate%near_fail_candidate_count + parts(idx)%near_fail_candidate_count
+         aggregate%far_fail_count = aggregate%far_fail_count + parts(idx)%far_fail_count
+         aggregate%near_rescue_attempt_count = aggregate%near_rescue_attempt_count + parts(idx)%near_rescue_attempt_count
+         aggregate%near_rescue_success_count = aggregate%near_rescue_success_count + parts(idx)%near_rescue_success_count
+         aggregate%near_unusable_count = aggregate%near_unusable_count + parts(idx)%near_unusable_count
+         aggregate%near_fail_fast_count = aggregate%near_fail_fast_count + parts(idx)%near_fail_fast_count
+         aggregate%far_fail_fast_count = aggregate%far_fail_fast_count + parts(idx)%far_fail_fast_count
+         aggregate%far_rescue_scope_count = aggregate%far_rescue_scope_count + parts(idx)%far_rescue_scope_count
+         aggregate%far_rescue_success_count = aggregate%far_rescue_success_count + parts(idx)%far_rescue_success_count
+         aggregate%far_rescue_fail_count = aggregate%far_rescue_fail_count + parts(idx)%far_rescue_fail_count
+         aggregate%far_rescue_fail_fast_case_count = aggregate%far_rescue_fail_fast_case_count + &
+            parts(idx)%far_rescue_fail_fast_case_count
+         aggregate%far_rescue_spent_success_count = aggregate%far_rescue_spent_success_count + &
+            parts(idx)%far_rescue_spent_success_count
+         aggregate%far_rescue_spent_fail_count = aggregate%far_rescue_spent_fail_count + parts(idx)%far_rescue_spent_fail_count
+         aggregate%far_rescue_flowzr_used_sum = aggregate%far_rescue_flowzr_used_sum + parts(idx)%far_rescue_flowzr_used_sum
+         aggregate%far_rescue_final_resort_used_sum = aggregate%far_rescue_final_resort_used_sum + &
+            parts(idx)%far_rescue_final_resort_used_sum
+         aggregate%far_rescue_flowzr_used_success_sum = aggregate%far_rescue_flowzr_used_success_sum + &
+            parts(idx)%far_rescue_flowzr_used_success_sum
+         aggregate%far_rescue_final_resort_used_success_sum = aggregate%far_rescue_final_resort_used_success_sum + &
+            parts(idx)%far_rescue_final_resort_used_success_sum
+         aggregate%far_rescue_flowzr_used_fail_sum = aggregate%far_rescue_flowzr_used_fail_sum + &
+            parts(idx)%far_rescue_flowzr_used_fail_sum
+         aggregate%far_rescue_final_resort_used_fail_sum = aggregate%far_rescue_final_resort_used_fail_sum + &
+            parts(idx)%far_rescue_final_resort_used_fail_sum
+         aggregate%quasi_budget_hit_count = aggregate%quasi_budget_hit_count + parts(idx)%quasi_budget_hit_count
+         aggregate%quasi_budget_used_sum = aggregate%quasi_budget_used_sum + parts(idx)%quasi_budget_used_sum
+         aggregate%quasi_budget_used_max = max(aggregate%quasi_budget_used_max, parts(idx)%quasi_budget_used_max)
+         aggregate%quasi_budget_limit_last = max(aggregate%quasi_budget_limit_last, parts(idx)%quasi_budget_limit_last)
+         aggregate%quasi_global_filter_candidate_count = aggregate%quasi_global_filter_candidate_count + &
+            parts(idx)%quasi_global_filter_candidate_count
+         aggregate%quasi_global_filter_pass_count = aggregate%quasi_global_filter_pass_count + &
+            parts(idx)%quasi_global_filter_pass_count
+         aggregate%quasi_global_filter_reject_count = aggregate%quasi_global_filter_reject_count + &
+            parts(idx)%quasi_global_filter_reject_count
+         aggregate%reverse_gate_candidate_count = aggregate%reverse_gate_candidate_count + parts(idx)%reverse_gate_candidate_count
+         aggregate%reverse_gate_pass_count = aggregate%reverse_gate_pass_count + parts(idx)%reverse_gate_pass_count
+         aggregate%reverse_gate_reject_count = aggregate%reverse_gate_reject_count + parts(idx)%reverse_gate_reject_count
+      end do
+   end subroutine aggregate_constraint_stats_contexts
+
    subroutine write_cvode_context_stats(unit_summary, line_prefix, context_code, intode_diagnostics)
       integer, intent(in) :: unit_summary, context_code
       character(len=*), intent(in) :: line_prefix
@@ -2513,6 +2749,41 @@ contains
          error stop 1
       end select
    end subroutine resolve_stage2_rng_stream_contract
+
+   logical function stage2_local_updates_parallel_enabled(rng_stream_contract, audit_context) result(enabled)
+      character(len=*), intent(in) :: rng_stream_contract
+      type(stage2_audit_context_t), intent(in) :: audit_context
+
+      logical :: requested, has_qn_capture, has_flowz_capture, has_flowz_cost_capture
+      character(len=512) :: env_value
+
+      requested = .false.
+      call parse_logical_env("TLTM_STAGE2_PARALLEL_LOCAL_UPDATES", requested)
+      enabled = .false.
+      if (.not. requested) return
+
+      if (trim(rng_stream_contract) /= stage2_rng_kernel_v2) then
+         write (*, '(A)') "[WARN][TLTM-S2] Parallel local updates require stage2_kernel_rng_v2; using serial updates."
+         return
+      end if
+      if (audit_context%rg_reject_audit_enabled .or. audit_context%local_transition_audit_enabled) then
+         write (*, '(A)') "[WARN][TLTM-S2] Parallel local updates disabled while Stage2 audit files are active."
+         return
+      end if
+
+      env_value = ""
+      call read_string_env("QN_ATTEMPT_CAPTURE_DIR", env_value, has_qn_capture)
+      env_value = ""
+      call read_string_env("TLTM_FLOWZ_CAPTURE_FILE", env_value, has_flowz_capture)
+      env_value = ""
+      call read_string_env("TLTM_FLOWZ_COST_CAPTURE_FILE", env_value, has_flowz_cost_capture)
+      if (has_qn_capture .or. has_flowz_capture .or. has_flowz_cost_capture) then
+         write (*, '(A)') "[WARN][TLTM-S2] Parallel local updates disabled while diagnostic capture files are active."
+         return
+      end if
+
+      enabled = .true.
+   end function stage2_local_updates_parallel_enabled
 
    subroutine resolve_stage2_cold_history_paths(cold_z_history_file, cold_phi_history_file, write_cold_history)
       character(len=*), intent(out) :: cold_z_history_file, cold_phi_history_file
@@ -3738,10 +4009,12 @@ contains
       obs_file = trim(all_observable_dir)//"/"//trim(replica_dir)//"/output/observable_history.dat"
    end subroutine replica_observable_path
 
-   subroutine write_all_replica_observable_samples_if_enabled(slots, obs_units, sample_idx, stride, max_samples, written_count, ok)
+   subroutine write_all_replica_observable_samples_if_enabled(slots, obs_units, sample_idx, observable_values, &
+                                                              stride, max_samples, written_count, ok)
       type(tltm_slot_t), intent(inout) :: slots(:)
       integer, intent(in) :: obs_units(:)
       integer, intent(in) :: sample_idx, stride, max_samples
+      complex(dp), intent(inout) :: observable_values(:, :)
       integer, intent(inout) :: written_count
       logical, intent(out) :: ok
       integer :: i
@@ -3753,34 +4026,41 @@ contains
          ok = .false.
          return
       end if
+      if (size(observable_values, 1) /= model_observable_count() .or. size(observable_values, 2) /= size(slots)) then
+         write (*, '(A)') "[ERROR][TLTM-S2] All-replica observable scratch shape does not match slot/observable count."
+         ok = .false.
+         return
+      end if
       do i = 1, size(slots)
-         call write_observable_sample(slots(i), obs_units(i), "all-replica", ok)
+         call write_observable_sample(slots(i), obs_units(i), "all-replica", observable_values(:, i), ok)
          if (.not. ok) return
       end do
       written_count = written_count + 1
    end subroutine write_all_replica_observable_samples_if_enabled
 
-   subroutine write_observable_sample_if_enabled(slot, unit_obs, sample_idx, stride, max_samples, written_count, context, ok)
+   subroutine write_observable_sample_if_enabled(slot, unit_obs, sample_idx, stride, max_samples, written_count, context, &
+                                                 observable_values, ok)
       type(tltm_slot_t), intent(inout) :: slot
       integer, intent(in) :: unit_obs
       integer, intent(in) :: sample_idx, stride, max_samples
       integer, intent(inout) :: written_count
       character(len=*), intent(in) :: context
+      complex(dp), intent(inout) :: observable_values(:)
       logical, intent(out) :: ok
 
       ok = .true.
       if (.not. history_sample_enabled(sample_idx, stride, max_samples, written_count)) return
-      call write_observable_sample(slot, unit_obs, context, ok)
+      call write_observable_sample(slot, unit_obs, context, observable_values, ok)
       if (ok) written_count = written_count + 1
    end subroutine write_observable_sample_if_enabled
 
-   subroutine write_observable_sample(slot, unit_obs, context, ok)
+   subroutine write_observable_sample(slot, unit_obs, context, observable_values, ok)
       type(tltm_slot_t), intent(inout) :: slot
       integer, intent(in) :: unit_obs
       character(len=*), intent(in) :: context
+      complex(dp), intent(inout) :: observable_values(:)
       logical, intent(out) :: ok
       complex(dp) :: phi
-      complex(dp), allocatable :: observable_values(:)
       logical :: phase_error
       integer :: observable_count
 
@@ -3792,13 +4072,43 @@ contains
       end if
 
       observable_count = model_observable_count()
-      allocate (observable_values(observable_count))
+      if (size(observable_values) /= observable_count) then
+         write (*, '(A)') "[ERROR][TLTM-S2] Observable scratch length does not match model observable count."
+         ok = .false.
+         return
+      end if
       call evaluate_model_observables(slot%z, observable_values)
       write (unit_obs) phi
       write (unit_obs) observable_values
-      deallocate (observable_values)
       ok = .true.
    end subroutine write_observable_sample
+
+   subroutine ensure_observable_buffer(observable_values)
+      complex(dp), allocatable, intent(inout) :: observable_values(:)
+      integer :: observable_count
+
+      observable_count = model_observable_count()
+      if (.not. allocated(observable_values)) then
+         allocate (observable_values(observable_count))
+      elseif (size(observable_values) /= observable_count) then
+         deallocate (observable_values)
+         allocate (observable_values(observable_count))
+      end if
+   end subroutine ensure_observable_buffer
+
+   subroutine ensure_observable_matrix(observable_values, n_slots)
+      complex(dp), allocatable, intent(inout) :: observable_values(:, :)
+      integer, intent(in) :: n_slots
+      integer :: observable_count
+
+      observable_count = model_observable_count()
+      if (.not. allocated(observable_values)) then
+         allocate (observable_values(observable_count, n_slots))
+      elseif (size(observable_values, 1) /= observable_count .or. size(observable_values, 2) /= n_slots) then
+         deallocate (observable_values)
+         allocate (observable_values(observable_count, n_slots))
+      end if
+   end subroutine ensure_observable_matrix
 
    subroutine close_all_replica_observable_files(obs_units)
       integer, allocatable, intent(inout) :: obs_units(:)
@@ -3894,5 +4204,35 @@ contains
       end do
       deallocate (run_contexts)
    end subroutine release_all_run_contexts
+
+   subroutine release_all_qn_policy_contexts(contexts)
+      type(qn_policy_context_t), allocatable, intent(inout) :: contexts(:)
+      integer :: i
+
+      if (.not. allocated(contexts)) return
+      do i = 1, size(contexts)
+         call release_qn_policy_context(contexts(i))
+      end do
+   end subroutine release_all_qn_policy_contexts
+
+   subroutine release_all_qn_diagnostics_contexts(contexts)
+      type(qn_diagnostics_context_t), allocatable, intent(inout) :: contexts(:)
+      integer :: i
+
+      if (.not. allocated(contexts)) return
+      do i = 1, size(contexts)
+         call release_qn_diagnostics_context(contexts(i))
+      end do
+   end subroutine release_all_qn_diagnostics_contexts
+
+   subroutine release_all_constraint_stats_contexts(contexts)
+      type(constraint_solver_stats_context_t), allocatable, intent(inout), target :: contexts(:)
+      integer :: i
+
+      if (.not. allocated(contexts)) return
+      do i = 1, size(contexts)
+         call release_constraint_solver_stats_context(contexts(i))
+      end do
+   end subroutine release_all_constraint_stats_contexts
 
 end module tltm_stage2_driver

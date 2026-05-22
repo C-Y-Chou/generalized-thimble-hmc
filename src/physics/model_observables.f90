@@ -1,6 +1,7 @@
 module model_observables
    use utils, only: dp
    use model_stephanov, only: get_stephanov_observable_name, stephanov_evaluate_observables, &
+                              stephanov_evaluate_observable_by_index, &
                               stephanov_observable_count
    implicit none
 
@@ -61,7 +62,6 @@ contains
       complex(dp), intent(in) :: z(:)
       integer, intent(in) :: index
       complex(dp), intent(out) :: observable
-      complex(dp), allocatable :: values(:)
       integer :: count
 
       count = model_observable_count()
@@ -70,9 +70,7 @@ contains
          error stop 1
       end if
 
-      allocate (values(count))
-      call evaluate_model_observables(z, values)
-      observable = values(index)
+      call stephanov_evaluate_observable_by_index(z, index, observable)
    end subroutine evaluate_model_observable_by_index
 
    pure function lower_ascii(text) result(lowered)

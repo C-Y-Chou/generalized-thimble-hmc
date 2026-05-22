@@ -1,7 +1,8 @@
 program test_action_derivatives
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use model, only: calculate_action, ds, ds_hessian_vec_batch, hessian, hessian_vec
-   use model_observables, only: evaluate_model_observables, find_model_observable, get_model_observable_name, model_observable_count
+   use model_observables, only: evaluate_model_observables, evaluate_model_observable_by_index, &
+                                find_model_observable, get_model_observable_name, model_observable_count
    use param_mod, only: derivative_mode, set_derivative_mode, stephanov_emit_diagnostics, stephanov_include_mu_prefactor, &
                         stephanov_mass, stephanov_mu, stephanov_n, stephanov_nf, stephanov_tau
    use utils, only: dp
@@ -188,6 +189,7 @@ contains
    subroutine check_observables(z_state_in)
       complex(dp), intent(in) :: z_state_in(:)
       integer :: obs_count, obs_idx
+      complex(dp) :: single_observable
 
       obs_count = model_observable_count()
       if (obs_count /= 5) then
@@ -205,6 +207,12 @@ contains
          if ((.not. ieee_is_finite(real(observables(obs_idx), dp))) .or. &
              (.not. ieee_is_finite(aimag(observables(obs_idx))))) then
             write (*, '(A,A)') "[ERROR] Nonfinite observable: ", trim(obs_name)
+            error stop 1
+         end if
+         call evaluate_model_observable_by_index(z_state_in, obs_idx, single_observable)
+         if (abs(single_observable - observables(obs_idx)) > 1.0e-12_dp) then
+            write (*, '(A,I0,A,ES12.4)') "[ERROR] Single observable fast path mismatch at index ", &
+               obs_idx, ": diff=", abs(single_observable - observables(obs_idx))
             error stop 1
          end if
       end do

@@ -70,7 +70,7 @@ Validation:
 
 ### 2. Parallelize Stage2 slot local updates
 
-Status: TODO
+Status: DONE
 
 Hot path:
 - `src/sampler/tltm_stage2_driver.f90`
@@ -96,6 +96,46 @@ Validation gate:
 - Schedule-invariance test shows identical transition decisions and summaries
   modulo runtime fields.
 - Swap-kernel contract and post-B RNG reference anchor pass.
+
+Implementation:
+- Added opt-in `TLTM_STAGE2_PARALLEL_LOCAL_UPDATES=1` inside
+  `run_tltm_stage2`.
+- Parallel local updates are enabled only when the active RNG contract is
+  `stage2_kernel_rng_v2`; audit/capture modes keep the old serial path.
+- The parallel region covers only per-slot local updates.  Swap, measurement,
+  history, observable writing, label tracking, and summaries remain ordered
+  exactly as before.
+- Added per-slot QN diagnostics, HMC replay diagnostics, Newton flow-status,
+  constraint-stats, and QN policy contexts for the OpenMP path.
+- Kept the nonparallel path on the original scalar contexts so diagnostic
+  capture and serial summaries remain behavior-preserving.
+- Preloaded RG/local audit configs before the parallel gate so audit file envs
+  cannot lazy-open inside an OpenMP region.
+- `scripts/run_stage3_3_multiseed.py --stage2-threads > 1` now requests slot
+  parallelism and reports the replica update policy accordingly.
+
+Validation:
+- OMP build and focused tests:
+  `make -B -C build OMP=1 ../bin/run_tltm_stage2 test2 test_numerical_helper_contracts`.
+- Stage2 RNG v2 anchor:
+  `python3 codex/workspaces/fortran_modernization/tasks/scripts/stage2_rng_v2_anchor.py --skip-build`.
+- 2-slot schedule-invariance smoke:
+  `output/tests/stage2_slot_parallel`.
+  Serial had `parallel_local_updates=F`; OpenMP run had
+  `parallel_local_updates=T`.
+- Parity at the 2-slot smoke: label trace, cold observable stream, and both
+  all-replica observable streams are byte-identical; summaries match after
+  removing only elapsed and per-slot runtime fields.
+- 4-slot schedule-invariance smoke:
+  `output/tests/stage2_slot_parallel_4slot_timing`.
+  Label trace and runtime-normalized summary match.  Local elapsed was
+  `0.604593 s` serial vs `1.171492 s` parallel, so this tiny n=2 smoke is
+  overhead-dominated and is not used as speed evidence.
+- Audit gate smoke:
+  `output/tests/stage2_slot_parallel_audit_gate`.
+  With `TLTM_RG_REJECT_AUDIT_FILE` set and parallelism requested, Stage2
+  prints `Parallel local updates disabled...` and runs serial
+  (`parallel_local_updates=F`).
 
 ### 3. Add batched model-provider RHS hooks
 
@@ -386,7 +426,7 @@ Validation:
 
 ### 7. Reuse observable and writer buffers
 
-Status: TODO
+Status: DONE
 
 Hot path:
 - `src/sampler/tltm_stage2_driver.f90`
@@ -409,6 +449,34 @@ Validation gate:
 - Allocation-free path is covered by focused tests for all registered
   observables.
 - Existing Stage2 summary and evaluate-expectations readbacks remain unchanged.
+
+Implementation:
+- Added `stephanov_evaluate_observable_by_index` and routed
+  `evaluate_model_observable_by_index` through the model-provider single-index
+  path instead of allocating a full observable vector.
+- The single-index path uses the same Stephanov algebra as the full-vector
+  observable evaluator for all registered observables.
+- Added run-level observable scratch buffers for the cold-slot observable
+  stream and all-replica observable streams.
+- Stage2 observable writers now reuse caller-owned scratch arrays instead of
+  allocating a temporary observable vector at every sample.
+
+Validation:
+- OMP build and focused tests:
+  `make -B -C build OMP=1 ../bin/run_tltm_stage2 test2 test_numerical_helper_contracts`.
+- `tests/test_action_derivatives.f90` now checks every registered observable
+  by comparing the single-index path against the full-vector path on the same
+  random complex Stephanov seeds for `n=2`, `n=4`, and the working `n=6`
+  case.
+- Previous-writer comparison:
+  `output/tests/stage2_observable_writer_prev_compare`.
+  A clean `HEAD` worktree was built as the pre-change writer reference, then
+  the current scratch-buffer writer was run with the same seed and controls.
+- Parity against the pre-change writer: label trace, cold observable stream,
+  and both all-replica observable streams are byte-identical; summaries match
+  after removing only elapsed and per-slot runtime fields.
+- Stage2 RNG v2 anchor remains passing after the writer-buffer change:
+  `python3 codex/workspaces/fortran_modernization/tasks/scripts/stage2_rng_v2_anchor.py --skip-build`.
 
 ## Exclusions
 
