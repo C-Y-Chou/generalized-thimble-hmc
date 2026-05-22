@@ -235,9 +235,16 @@ Implemented in this workspace:
   `TLTM_STAGE2_PARALLEL_SWAPS=1`.
 - Swap accept uniforms are prepared before the OpenMP region, preserving swap
   RNG order.
-- `TLTM_STAGE2_PARALLEL_LOCAL_UPDATES=1` is now refused while production
-  reverse gate is enabled, because the smoke test found reverse-gate diagnostic
-  counter drift even though label traces stayed identical.
+- `TLTM_STAGE2_PARALLEL_LOCAL_UPDATES=1` is allowed with production reverse
+  gate enabled under `stage2_kernel_rng_v2`; per-slot diagnostics are
+  aggregated after the local-update OpenMP region and the main thread is
+  rebound to the aggregate constraint-stats context before swap/summary work.
+- Direction-level swap reflow parallelism computes both reflow directions for
+  all non-overlapping swap pairs across the OpenMP worker pool, then applies
+  accept/reject serially in pair order.
+- `run_stephanov_n6_tltm_ladder.py` is the local/cluster-ready runner for the
+  N6 t=0 bank ladder timing probes; it defaults to production reverse gate on,
+  preflow reverse gate off, and opt-in Stage2 local/swap parallelism.
 
 Local validation completed:
 
@@ -249,9 +256,14 @@ Local validation completed:
 - Swap-only serial-vs-parallel smoke: normalized summary and label trace matched.
 - Local-update serial-vs-parallel smoke with reverse gate off: normalized
   summary and label trace matched, preserving the previous opt-in use case.
-- Production request smoke with `QN_REVERSE_GATE_ENABLED=1`,
-  `TLTM_STAGE2_PARALLEL_LOCAL_UPDATES=1`, and
-  `TLTM_STAGE2_PARALLEL_SWAPS=1`: local parallel was refused, swap parallel ran,
-  and normalized summary plus label trace matched serial.
+- Production reverse-gate-on local-update serial-vs-parallel smoke:
+  `stage2_rg_on_local_parallel_parity_serial_rebind_20260522` vs
+  `stage2_rg_on_local_parallel_parity_omp_rebind_20260522`.  Label trace
+  matched; normalized summary, constraint stats, reverse-gate route stats, and
+  reverse-gate replay stats matched.
+- Local N6 9-slot 2-record x 40-cycle timing showed the optimization direction
+  but is not a cluster performance claim:
+  `after_prefswap` wall `422.98 s`, direction-level swap reflow wall
+  `351.23 s`, local+swap parallel wall `306.76 s`.
 - Stage2 RNG-v2 anchor passed with reverse gate on and parallel swap requested:
   `python3 codex/workspaces/fortran_modernization/tasks/scripts/stage2_rng_v2_anchor.py --skip-build --output-root output/tests/stage2_rng_v2_anchor_prefswap_rg`

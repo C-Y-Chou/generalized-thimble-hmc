@@ -1028,6 +1028,7 @@ contains
             slots(i)%local_runtime = slots(i)%local_runtime + (wall_time_seconds() - slot_t0)
          end do
 !$omp end parallel do
+         call bind_constraint_solver_stats_context(constraint_stats_context)
       else
          call bind_constraint_solver_stats_context(constraint_stats_context)
          do i = 1, size(slots)
@@ -1643,7 +1644,6 @@ contains
       integer :: start_idx, idx, pair_idx, n_pairs
       integer, allocatable :: pair_indices(:)
       real(dp), allocatable :: accept_uniforms(:)
-      type(mt95_state_t) :: swap_rng_unused
 
       if (size(slots) <= 1) return
 
@@ -1675,17 +1675,122 @@ contains
          accept_uniforms(pair_idx) = draw_swap_accept_uniform(pair_stats(idx), swap_rng_state, rng_stream_contract, base_seed, cycle_idx)
       end do
 
-!$omp parallel do default(shared) private(pair_idx, idx, swap_rng_unused) schedule(static)
-      do pair_idx = 1, n_pairs
-         idx = pair_indices(pair_idx)
-         call attempt_adjacent_swap(slots(idx), slots(idx + 1), pair_stats(idx), swap_rng_unused, run_contexts(idx), &
-                                    run_contexts(idx + 1), rng_stream_contract, base_seed, cycle_idx, &
-                                    accept_uniform=accept_uniforms(pair_idx))
-      end do
-!$omp end parallel do
+      call attempt_parallel_adjacent_swaps(slots, pair_stats, pair_indices, accept_uniforms, run_contexts)
 
       deallocate (pair_indices, accept_uniforms)
    end subroutine perform_swap_sweep
+
+   subroutine attempt_parallel_adjacent_swaps(slots, pair_stats, pair_indices, accept_uniforms, run_contexts)
+      type(tltm_slot_t), intent(inout) :: slots(:)
+      type(tltm_pair_stats_t), intent(inout) :: pair_stats(:)
+      integer, intent(in) :: pair_indices(:)
+      real(dp), intent(in) :: accept_uniforms(:)
+      type(tltm_run_context_t), intent(inout) :: run_contexts(:)
+
+      integer :: n_pairs, pair_idx, task_idx, dir_idx, idx, flow_status, label_tmp
+      integer :: n_x, n_z
+      logical :: flow_failed, accept
+      real(dp) :: delta, acc_prob
+      logical, allocatable :: ok_base(:), ok_ap(:), ok_bp(:)
+      real(dp), allocatable :: e_a(:), e_b(:), e_ap(:), e_bp(:)
+      real(dp), allocatable :: x_ap(:, :), x_bp(:, :)
+      complex(dp), allocatable :: z_ap(:, :), z_bp(:, :)
+      complex(dp), allocatable :: j_ap(:, :, :), j_bp(:, :, :)
+
+      n_pairs = size(pair_indices)
+      if (n_pairs <= 0) return
+      n_x = size(slots(1)%x)
+      n_z = size(slots(1)%z)
+      allocate (ok_base(n_pairs), ok_ap(n_pairs), ok_bp(n_pairs))
+      allocate (e_a(n_pairs), e_b(n_pairs), e_ap(n_pairs), e_bp(n_pairs))
+      allocate (x_ap(n_x, n_pairs), x_bp(n_x, n_pairs))
+      allocate (z_ap(n_z, n_pairs), z_bp(n_z, n_pairs))
+      allocate (j_ap(n_z, n_z, n_pairs), j_bp(n_z, n_z, n_pairs))
+
+      ok_base = .false.
+      ok_ap = .false.
+      ok_bp = .false.
+      e_a = 0.0_dp
+      e_b = 0.0_dp
+      e_ap = 0.0_dp
+      e_bp = 0.0_dp
+
+      do pair_idx = 1, n_pairs
+         idx = pair_indices(pair_idx)
+         pair_stats(idx)%proposal_count = pair_stats(idx)%proposal_count + 1
+         call compute_effective_energy(slots(idx)%z, slots(idx)%jac, e_a(pair_idx), ok_ap(pair_idx))
+         call compute_effective_energy(slots(idx + 1)%z, slots(idx + 1)%jac, e_b(pair_idx), ok_bp(pair_idx))
+         ok_base(pair_idx) = ok_ap(pair_idx) .and. ok_bp(pair_idx)
+         ok_ap(pair_idx) = .false.
+         ok_bp(pair_idx) = .false.
+      end do
+
+!$omp parallel do default(shared) private(task_idx, pair_idx, dir_idx, idx, flow_failed, flow_status) schedule(dynamic,1)
+      do task_idx = 1, 2*n_pairs
+         pair_idx = (task_idx + 1)/2
+         if (.not. ok_base(pair_idx)) cycle
+         dir_idx = 1 + mod(task_idx - 1, 2)
+         idx = pair_indices(pair_idx)
+         if (dir_idx == 1) then
+            x_ap(:, pair_idx) = slots(idx + 1)%x
+            flow_status = intode_status_unknown
+            call flow_at(slots(idx)%flow_time, x_ap(:, pair_idx), z_ap(:, pair_idx), j_ap(:, :, pair_idx), flow_failed, &
+                         flow_status, run_contexts(idx)%flow%workspace, run_contexts(idx)%diagnostics%intode)
+            ok_ap(pair_idx) = (.not. flow_failed) .and. intode_status_is_strict_success(flow_status)
+            if (ok_ap(pair_idx)) call compute_effective_energy(z_ap(:, pair_idx), j_ap(:, :, pair_idx), e_ap(pair_idx), ok_ap(pair_idx))
+         else
+            x_bp(:, pair_idx) = slots(idx)%x
+            flow_status = intode_status_unknown
+            call flow_at(slots(idx + 1)%flow_time, x_bp(:, pair_idx), z_bp(:, pair_idx), j_bp(:, :, pair_idx), flow_failed, &
+                         flow_status, run_contexts(idx + 1)%flow%workspace, run_contexts(idx + 1)%diagnostics%intode)
+            ok_bp(pair_idx) = (.not. flow_failed) .and. intode_status_is_strict_success(flow_status)
+            if (ok_bp(pair_idx)) call compute_effective_energy(z_bp(:, pair_idx), j_bp(:, :, pair_idx), e_bp(pair_idx), ok_bp(pair_idx))
+         end if
+      end do
+!$omp end parallel do
+
+      do pair_idx = 1, n_pairs
+         idx = pair_indices(pair_idx)
+         if (.not. ok_base(pair_idx)) then
+            pair_stats(idx)%last_accept_probability = 0.0_dp
+            pair_stats(idx)%reject_count = pair_stats(idx)%reject_count + 1
+            cycle
+         end if
+         if (.not. ok_ap(pair_idx) .or. .not. ok_bp(pair_idx)) then
+            pair_stats(idx)%last_accept_probability = 0.0_dp
+            pair_stats(idx)%reject_count = pair_stats(idx)%reject_count + 1
+            cycle
+         end if
+
+         delta = (e_ap(pair_idx) + e_bp(pair_idx)) - (e_a(pair_idx) + e_b(pair_idx))
+         if (delta <= 0.0_dp) then
+            acc_prob = 1.0_dp
+         else
+            acc_prob = exp(-delta)
+         end if
+         pair_stats(idx)%last_accept_probability = acc_prob
+         accept = (accept_uniforms(pair_idx) <= acc_prob)
+         if (accept) then
+            label_tmp = slots(idx)%label_id
+            slots(idx)%x = x_ap(:, pair_idx)
+            slots(idx)%z = z_ap(:, pair_idx)
+            slots(idx)%jac = j_ap(:, :, pair_idx)
+            call mark_tltm_slot_state_changed(slots(idx))
+            slots(idx)%label_id = slots(idx + 1)%label_id
+
+            slots(idx + 1)%x = x_bp(:, pair_idx)
+            slots(idx + 1)%z = z_bp(:, pair_idx)
+            slots(idx + 1)%jac = j_bp(:, :, pair_idx)
+            call mark_tltm_slot_state_changed(slots(idx + 1))
+            slots(idx + 1)%label_id = label_tmp
+            pair_stats(idx)%accept_count = pair_stats(idx)%accept_count + 1
+         else
+            pair_stats(idx)%reject_count = pair_stats(idx)%reject_count + 1
+         end if
+      end do
+
+      deallocate (ok_base, ok_ap, ok_bp, e_a, e_b, e_ap, e_bp, x_ap, x_bp, z_ap, z_bp, j_ap, j_bp)
+   end subroutine attempt_parallel_adjacent_swaps
 
    subroutine attempt_adjacent_swap(slot_a, slot_b, stats, swap_rng_state, run_context_a, run_context_b, &
                                     rng_stream_contract, base_seed, cycle_idx, accept_uniform)
@@ -2813,10 +2918,6 @@ contains
 
       if (trim(rng_stream_contract) /= stage2_rng_kernel_v2) then
          write (*, '(A)') "[WARN][TLTM-S2] Parallel local updates require stage2_kernel_rng_v2; using serial updates."
-         return
-      end if
-      if (hmc_policy_context%qn_reverse_gate_enabled) then
-         write (*, '(A)') "[WARN][TLTM-S2] Parallel local updates disabled while production reverse gate is enabled."
          return
       end if
       if (audit_context%rg_reject_audit_enabled .or. audit_context%local_transition_audit_enabled) then

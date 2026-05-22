@@ -52,10 +52,23 @@ Modernization/source agents may:
 - add or update a request row in
   `codex/workspaces/fortran_modernization/state/CLUSTER02_SCHEDULER_REQUESTS.tsv`.
 
+Modernization/source agents may also submit PBS jobs when explicitly acting
+through the scheduler protocol.  This is allowed only if they:
+
+- create or update a request row in `CLUSTER02_SCHEDULER_REQUESTS.tsv`;
+- refresh live queue state with the scheduler agent before submission;
+- export `TLTM_CLUSTER02_SCHEDULER_AUTHORITY=cluster02_scheduler` and the
+  matching `TLTM_SCHEDULER_REQUEST_ID`;
+- call through `codex/agents/cluster02_scheduler/cluster02_qsub_gate.sh` or a
+  launcher that enforces the same authority/request-ledger contract;
+- record submitted job ids, output roots, and follow-up observations in the
+  scheduler state files.
+
 Modernization/source agents must not:
 
-- choose queues as an authority decision;
-- submit `qsub` jobs, cancel/requeue/repair jobs, or rebuild merge dependencies;
+- choose queues outside the scheduler policy and live snapshot;
+- submit bare `qsub` jobs, cancel/requeue/repair jobs, or rebuild merge dependencies
+  outside the scheduler protocol;
 - bypass the scheduler by running a job-specific submitter directly;
 - fast-forward an execution worktree while pinned jobs from that worktree are
   active.
