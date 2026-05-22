@@ -238,13 +238,100 @@ output/stephanov_flowtime_sign_problem/stephanov_n6_endpoint_discovery_veryhighf
 | `0.01` | `0.23941` | `0.77` | `0.20` | phase visibly improves; nofb unusable standalone |
 | `0.03` | `0.99811` | `1.00` | `0.00` | apparent phase is frozen samples; no HMC motion |
 
-Updated conclusion: it is plausible and expected that sufficiently large flow
-time improves the sign problem.  Current local evidence suggests `t ~= 0.01` is
-the first clearly phase-improved high-flow endpoint, but direct nofb at that
-flow is not well behaved.  A reasonable next TLTM test is therefore a ladder from
-a stable low endpoint around `3e-5` or `1e-4` toward a high endpoint around
-`1e-2`, with intermediate replicas chosen by swap acceptance and local failure
-diagnostics.
+Historical note: this first short probe suggested `t ~= 0.01` as a possible
+high-flow endpoint.  The later high-flow scale scan below supersedes that
+interpretation: `t=0.02` is the current high-flow scale candidate.
+
+## High-Flow Scale Check After Literature Anchor
+
+The literature scale for Stephanov `n=6, mu=0.6` is `O(0.02)`, but it is used
+only as a scale hint.  The project decision must come from our own fixed-flow
+and TLTM checks.
+
+Protocol tuning at `t=0.02`:
+
+```bash
+python3 codex/workspaces/fortran_modernization/tasks/scripts/scan_stephanov_n6_bank_hmc_protocol.py \
+  --skip-build \
+  --stage epsilon \
+  --flow-time 0.02 \
+  --records 0,162 \
+  --cycles 60 \
+  --fixed-nstep 3 \
+  --epsilon-values 0.02,0.03,0.04,0.05,0.065,0.08 \
+  --timeout-sec 720 \
+  --run-name stephanov_n6_t02_eps_scan_nstep3_2x60_20260522 \
+  --force
+```
+
+The selected high-flow local protocol for the next check is:
+
+```text
+epsilon = 0.04
+nstep   = 4
+L       = 0.16
+```
+
+The `nstep` scan used:
+
+```text
+output/stephanov_hmc_protocol_scans/stephanov_n6_t02_nstep_scan_eps004_2x60_20260522/nstep_summary.csv
+```
+
+| nstep | L | attempt acceptance | valid-proposal Metropolis acceptance | move norm2 / wall sec |
+|---:|---:|---:|---:|---:|
+| `2` | `0.08` | `0.883` | `0.972` | `0.364` |
+| `3` | `0.12` | `0.808` | `0.980` | `0.652` |
+| `4` | `0.16` | `0.717` | `0.956` | `0.943` |
+| `5` | `0.20` | `0.558` | `1.000` | `0.998` |
+| `6` | `0.24` | `0.575` | `0.958` | `1.390` |
+
+High-flow fixed nofb check:
+
+```bash
+python3 codex/workspaces/fortran_modernization/tasks/scripts/scan_stephanov_n6_flowtime_sign_problem.py \
+  --skip-build \
+  --flow-times 0.01,0.015,0.02 \
+  --records 0,81,162,243 \
+  --cycles 250 \
+  --burn 50 \
+  --hmc-epsilon 0.04 \
+  --hmc-nstep 4 \
+  --timeout-sec 1200 \
+  --run-name stephanov_n6_highflow_scale_eps004_nstep4_4x250_20260522 \
+  --force
+```
+
+Output:
+
+```text
+output/stephanov_flowtime_sign_problem/stephanov_n6_highflow_scale_eps004_nstep4_4x250_20260522/flowtime_summary.csv
+```
+
+| flow time | phase coherence | phase JK err | phase eff n | attempt acceptance | chiral condensate | number density |
+|---:|---:|---:|---:|---:|---:|---:|
+| `0.01` | `0.04302` | `0.08587` | `1.49` | `0.764` | `0.02557 + 0.00585 i` | `1.33119 - 0.29235 i` |
+| `0.015` | `0.01349` | `0.02362` | `0.15` | `0.706` | `0.06391 + 0.04434 i` | `-1.03127 + 0.22584 i` |
+| `0.02` | `0.21996` | `0.07150` | `38.90` | `0.640` | `0.00524 + 0.00044 i` | `1.12987 + 0.20866 i` |
+
+Independent exact values for `n=6, m=0.004, mu=0.6, tau=0` from the
+one-dimensional `N_f=1` formula:
+
+```text
+chiral_condensate = 0.0244771983
+number_density    = 0.5661155667
+```
+
+Interpretation:
+
+- `t=0.02` is now the only tested high-flow point with a clear phase-coherence
+  gain in this scan.
+- The fixed-flow nofb observable at `t=0.02` is not consistent with the exact
+  finite-`n` values.  This is evidence that fixed-flow nofb at the high-flow
+  endpoint is not by itself a reliable physics estimator.
+- The correct next test is therefore TLTM coverage, not a standalone
+  fixed-flow nofb claim: build a ladder up to `t=0.02`, then judge swap
+  acceptance, round trips, label diffusion, and exact-observable consistency.
 
 ## Preliminary Conclusion
 

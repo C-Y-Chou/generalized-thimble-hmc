@@ -25,6 +25,7 @@ def parse_args():
     parser.add_argument("--run-name", default="")
     parser.add_argument("--records", default="0,81")
     parser.add_argument("--stage", choices=("epsilon", "nstep"), required=True)
+    parser.add_argument("--flow-time", type=float, default=0.000001)
     parser.add_argument("--epsilon-values", default="0.04,0.05,0.065,0.08,0.10,0.12")
     parser.add_argument("--nstep-values", default="2,3,4,5,6,8,9")
     parser.add_argument("--fixed-nstep", type=int, default=5)
@@ -68,11 +69,11 @@ def set_param(lines, key, value):
     return out
 
 
-def write_parameters(base_text, out_path, trajectory_length, nstep):
+def write_parameters(base_text, out_path, trajectory_length, nstep, flow_time):
     lines = base_text.splitlines()
     lines = set_param(lines, "trajectory_length", "{0:g}".format(trajectory_length))
     lines = set_param(lines, "integration_steps", str(nstep))
-    lines = set_param(lines, "initial_flow_time", "0.000001")
+    lines = set_param(lines, "initial_flow_time", "{0:g}".format(flow_time))
     lines = set_param(lines, "enable_quasi_fallback", "false")
     out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -168,7 +169,7 @@ def movement_metrics(x_path):
 
 
 def run_case(repo_root, run_dir, params_file, bank_file, stage, tag, L, nstep, epsilon, records, cycles, timeout_sec, seed_base,
-             init_mode, preflow_L, preflow_nstep):
+             init_mode, preflow_L, preflow_nstep, flow_time):
     rows = []
     case_dir = run_dir / stage / tag
     case_dir.mkdir(parents=True, exist_ok=True)
@@ -185,8 +186,8 @@ def run_case(repo_root, run_dir, params_file, bank_file, stage, tag, L, nstep, e
                 "TLTM_STAGE2_INIT_MODE": init_mode,
                 "TLTM_STAGE2_INIT_PREFLOW_TRAJECTORY_LENGTH": "{0:g}".format(preflow_L),
                 "TLTM_STAGE2_INIT_PREFLOW_INTEGRATION_STEPS": str(preflow_nstep),
-                "TLTM_STAGE2_FLOW_TIME_LADDER": "0.000001",
-                "TLTM_STAGE2_MAX_FLOW_TIME": "0.000001",
+                "TLTM_STAGE2_FLOW_TIME_LADDER": "{0:g}".format(flow_time),
+                "TLTM_STAGE2_MAX_FLOW_TIME": "{0:g}".format(flow_time),
                 "TLTM_STAGE2_NUM_REPLICAS": "1",
                 "TLTM_STAGE2_CYCLES": str(cycles),
                 "TLTM_STAGE2_LOCAL_UPDATES": "1",
@@ -234,6 +235,7 @@ def run_case(repo_root, run_dir, params_file, bank_file, stage, tag, L, nstep, e
             "L": L,
             "nstep": nstep,
             "epsilon": epsilon,
+            "flow_time": flow_time,
             "init_mode": init_mode,
             "preflow_L": preflow_L,
             "preflow_nstep": preflow_nstep,
@@ -248,9 +250,10 @@ def run_case(repo_root, run_dir, params_file, bank_file, stage, tag, L, nstep, e
 
 def aggregate_rows(rows):
     fields = [
-        "stage", "tag", "L", "nstep", "epsilon", "status", "records", "elapsed_wall_sec",
+        "stage", "tag", "flow_time", "L", "nstep", "epsilon", "status", "records", "elapsed_wall_sec",
         "init_mode", "preflow_L", "preflow_nstep", "samples_by_record", "accepted", "metropolis_reject", "proposal_failure",
-        "hamiltonian_invalid", "delta_h_invalid", "accept_rate", "accepted_per_wall_sec",
+        "hamiltonian_invalid", "delta_h_invalid", "attempt_accept_rate", "valid_proposal_metropolis_accept_rate",
+        "proposal_failure_rate", "accepted_per_wall_sec",
         "mean_step_norm2", "nonzero_step_rate", "move_norm2_per_wall_sec", "runtime_sum_sec",
     ]
     if not rows:
@@ -263,6 +266,7 @@ def aggregate_rows(rows):
     h_invalid = sum(int(row.get("hamiltonian_invalid", 0)) for row in rows)
     dh_invalid = sum(int(row.get("delta_h_invalid", 0)) for row in rows)
     transitions = accepts + rejects + failures
+    metropolis_transitions = accepts + rejects
     move_sum = sum(float(row.get("move_norm2_sum", 0.0)) for row in rows)
     move_count = sum(max(0, int(row.get("samples", 0)) - 1) for row in rows)
     nonzero_sum = sum(float(row.get("nonzero_step_rate", 0.0)) * max(0, int(row.get("samples", 0)) - 1) for row in rows)
@@ -272,6 +276,7 @@ def aggregate_rows(rows):
         "L": rows[0]["L"],
         "nstep": rows[0]["nstep"],
         "epsilon": rows[0]["epsilon"],
+        "flow_time": rows[0]["flow_time"],
         "status": status,
         "records": ";".join(str(row["record"]) for row in rows),
         "init_mode": rows[0]["init_mode"],
@@ -284,7 +289,9 @@ def aggregate_rows(rows):
         "proposal_failure": failures,
         "hamiltonian_invalid": h_invalid,
         "delta_h_invalid": dh_invalid,
-        "accept_rate": accepts / float(transitions) if transitions else 0.0,
+        "attempt_accept_rate": accepts / float(transitions) if transitions else 0.0,
+        "valid_proposal_metropolis_accept_rate": accepts / float(metropolis_transitions) if metropolis_transitions else 0.0,
+        "proposal_failure_rate": failures / float(transitions) if transitions else 0.0,
         "accepted_per_wall_sec": accepts / elapsed if elapsed > 0.0 else 0.0,
         "mean_step_norm2": move_sum / float(move_count) if move_count else 0.0,
         "nonzero_step_rate": nonzero_sum / float(move_count) if move_count else 0.0,
@@ -330,16 +337,21 @@ def main():
     detail_rows = []
     for tag, L, nstep, epsilon in candidates:
         params_file = params_dir / ("{0}_{1}.dat".format(args.stage, tag))
-        write_parameters(base_text, params_file, L, nstep)
+        write_parameters(base_text, params_file, L, nstep, args.flow_time)
         rows = run_case(
             repo_root, run_dir, params_file, bank_file, args.stage, tag, L, nstep, epsilon,
             records, args.cycles, args.timeout_sec, args.seed_base, args.init_mode, args.preflow_L, args.preflow_nstep,
+            args.flow_time,
         )
         detail_rows.extend(rows)
         agg = aggregate_rows(rows)
         aggregate.append(agg)
-        print("[SCAN] {0} status={1} acc={2:.3f} move/sec={3:.3f}".format(
-            tag, agg["status"], agg["accept_rate"], agg["move_norm2_per_wall_sec"]
+        print("[SCAN] {0} status={1} attempt_acc={2:.3f} valid_met_acc={3:.3f} move/sec={4:.3f}".format(
+            tag,
+            agg["status"],
+            agg["attempt_accept_rate"],
+            agg["valid_proposal_metropolis_accept_rate"],
+            agg["move_norm2_per_wall_sec"],
         ), flush=True)
 
     summary_path = run_dir / ("{0}_summary.csv".format(args.stage))

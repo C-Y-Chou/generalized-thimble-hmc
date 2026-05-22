@@ -40,6 +40,8 @@ def parse_args():
     parser.add_argument("--seed-base", type=int, default=8820000)
     parser.add_argument("--preflow-L", type=float, default=0.16)
     parser.add_argument("--preflow-nstep", type=int, default=2)
+    parser.add_argument("--hmc-epsilon", type=float, default=None)
+    parser.add_argument("--hmc-nstep", type=int, default=None)
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--force", action="store_true")
     return parser.parse_args()
@@ -55,6 +57,45 @@ def parse_float_list(text):
 
 def label_float(value):
     return "{0:g}".format(value).replace(".", "p").replace("-", "m")
+
+
+def set_param(lines, key, value):
+    out = []
+    found = False
+    key_l = key.lower()
+    for line in lines:
+        stripped = line.strip().lower()
+        if stripped.startswith(key_l + " ") or stripped.startswith(key_l + "="):
+            out.append("{0} = {1}".format(key, value))
+            found = True
+        else:
+            out.append(line)
+    if not found:
+        out.append("{0} = {1}".format(key, value))
+    return out
+
+
+def write_parameters(base_text, out_path, flow_time, args):
+    lines = base_text.splitlines()
+    hmc_L = ""
+    hmc_nstep = ""
+    hmc_epsilon = ""
+    if (args.hmc_epsilon is None) != (args.hmc_nstep is None):
+        raise RuntimeError("--hmc-epsilon and --hmc-nstep must be supplied together")
+    if args.hmc_epsilon is not None:
+        if args.hmc_epsilon <= 0.0:
+            raise RuntimeError("--hmc-epsilon must be positive")
+        if args.hmc_nstep < 1:
+            raise RuntimeError("--hmc-nstep must be >= 1")
+        hmc_L = args.hmc_epsilon * args.hmc_nstep
+        hmc_nstep = args.hmc_nstep
+        hmc_epsilon = args.hmc_epsilon
+        lines = set_param(lines, "trajectory_length", "{0:g}".format(hmc_L))
+        lines = set_param(lines, "integration_steps", str(hmc_nstep))
+    lines = set_param(lines, "initial_flow_time", "{0:g}".format(flow_time))
+    lines = set_param(lines, "enable_quasi_fallback", "false")
+    out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return hmc_L, hmc_nstep, hmc_epsilon
 
 
 def run_build(repo_root, skip_build):
@@ -224,6 +265,7 @@ def analyze_chains(chain_rows, burn):
     density_err_re, density_err_im = jackknife_error(obs_jk_values[1])
 
     transitions = sum(row["accepts"] + row["metropolis_reject"] + row["proposal_failure"] for row in chain_stats)
+    metropolis_transitions = sum(row["accepts"] + row["metropolis_reject"] for row in chain_stats)
     accepted = sum(row["accepts"] for row in chain_stats)
     proposal_failures = sum(row["proposal_failure"] for row in chain_stats)
     return chain_stats, {
@@ -232,7 +274,8 @@ def analyze_chains(chain_rows, burn):
         "phase_jk_err": jackknife_scalar_error(phase_jk_values),
         "phase_eff_frac": phase_coherence * phase_coherence,
         "phase_eff_n": total_count * phase_coherence * phase_coherence,
-        "accept_rate": accepted / float(transitions) if transitions else 0.0,
+        "attempt_accept_rate": accepted / float(transitions) if transitions else 0.0,
+        "valid_proposal_metropolis_accept_rate": accepted / float(metropolis_transitions) if metropolis_transitions else 0.0,
         "proposal_failure": proposal_failures,
         "proposal_failure_rate": proposal_failures / float(transitions) if transitions else 0.0,
         "accepted": accepted,
@@ -249,7 +292,7 @@ def analyze_chains(chain_rows, burn):
     }
 
 
-def run_chain(repo_root, run_dir, params_file, bank_file, flow_time, record_idx, chain_idx, args):
+def run_chain(repo_root, run_dir, params_file, bank_file, flow_time, record_idx, chain_idx, args, hmc_L, hmc_nstep, hmc_epsilon):
     chain_dir = run_dir / ("t_{0}".format(label_float(flow_time))) / ("record_{0:04d}".format(record_idx))
     chain_dir.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
@@ -305,6 +348,9 @@ def run_chain(repo_root, run_dir, params_file, bank_file, flow_time, record_idx,
         "chain_idx": chain_idx,
         "status": status,
         "elapsed_wall_sec": elapsed,
+        "hmc_L": hmc_L,
+        "hmc_nstep": hmc_nstep,
+        "hmc_epsilon": hmc_epsilon,
         "observable_file": str(chain_dir / "observable_history.dat"),
         **summary,
     }
@@ -334,16 +380,24 @@ def main():
             raise RuntimeError("Run directory exists; use --force: {0}".format(run_dir))
         shutil.rmtree(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
+    params_dir = run_dir / "params"
+    params_dir.mkdir(parents=True, exist_ok=True)
     records = parse_int_list(args.records)
     flow_times = parse_float_list(args.flow_times)
     run_build(repo_root, args.skip_build)
+    base_text = params_file.read_text(encoding="utf-8")
 
     aggregate_rows = []
     detail_rows = []
     for flow_time in flow_times:
+        flow_params_file = params_dir / ("flow_t_{0}.dat".format(label_float(flow_time)))
+        hmc_L, hmc_nstep, hmc_epsilon = write_parameters(base_text, flow_params_file, flow_time, args)
         chain_rows = []
         for chain_idx, record_idx in enumerate(records):
-            row = run_chain(repo_root, run_dir, params_file, bank_file, flow_time, record_idx, chain_idx, args)
+            row = run_chain(
+                repo_root, run_dir, flow_params_file, bank_file, flow_time, record_idx, chain_idx, args,
+                hmc_L, hmc_nstep, hmc_epsilon,
+            )
             chain_rows.append(row)
             detail_rows.append(row)
         if all(row["status"] == "done" and Path(row["observable_file"]).exists() for row in chain_rows):
@@ -361,15 +415,19 @@ def main():
             "burn": args.burn,
             "preflow_L": args.preflow_L,
             "preflow_nstep": args.preflow_nstep,
+            "hmc_L": hmc_L,
+            "hmc_nstep": hmc_nstep,
+            "hmc_epsilon": hmc_epsilon,
             **aggregate,
         }
         aggregate_rows.append(aggregate_row)
         print(
-            "[FLOW] t={0:g} status={1} phase={2:.5f} acc={3:.3f} pfail={4}".format(
+            "[FLOW] t={0:g} status={1} phase={2:.5f} attempt_acc={3:.3f} valid_met_acc={4:.3f} pfail={5}".format(
                 flow_time,
                 status,
                 float(aggregate_row.get("phase_coherence", 0.0)),
-                float(aggregate_row.get("accept_rate", 0.0)),
+                float(aggregate_row.get("attempt_accept_rate", 0.0)),
+                float(aggregate_row.get("valid_proposal_metropolis_accept_rate", 0.0)),
                 int(aggregate_row.get("proposal_failure", 0)),
             ),
             flush=True,

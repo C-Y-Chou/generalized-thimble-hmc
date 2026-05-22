@@ -17,10 +17,16 @@ Tune HMC protocol in the standard HMC order:
 3. Only after the HMC protocol is fixed, run nofb flow-time physics/sign-problem
    tests.
 
-Do not use nofb proposal failure minimization as a tuning objective.  In nofb,
-proposal failures are diagnostic output for the selected protocol and flow
-time.  Reducing them by shrinking `epsilon` or `L` can hide the geometry/flow
-difficulty that nofb is supposed to expose.
+Do not use nofb proposal failure minimization as a separate tuning objective.
+Proposal failures still count as local-update attempts: the primary acceptance
+reported for protocol scans is
+`accepted / (accepted + metropolis_reject + proposal_failure)`.  A secondary
+conditional Metropolis acceptance may be reported for diagnostics, but it must
+not replace attempt acceptance when choosing `epsilon`, `nstep`, or `L`.
+
+In nofb, proposal failures are also diagnostic output for the selected protocol
+and flow time.  Reducing them by shrinking `epsilon` or `L` can hide the
+geometry/flow difficulty that nofb is supposed to expose.
 
 ## Epsilon Selection
 
@@ -30,13 +36,14 @@ are not operational:
 - catastrophic timeout or no samples produced,
 - clear invalid-Hamiltonian / invalid-delta-H behavior,
 - runtime per proposal so large that the protocol cannot support development,
-- acceptance clearly too low for useful HMC.
+- attempt acceptance clearly too low for useful HMC.
 
-Acceptance is a guide for step-size scale, not the final objective.  High
-acceptance by itself is not evidence of a good protocol; it can mean the step
-size or trajectory is too conservative.  A Stan-like target around `0.8` is a
-reasonable reference scale for choosing `epsilon`, but the final decision must
-also consider constrained-flow runtime.
+Attempt acceptance is a guide for step-size scale, not the final objective.
+High acceptance by itself is not evidence of a good protocol; it can mean the
+step size or trajectory is too conservative.  A Stan-like target around `0.8`
+is a reasonable reference scale for choosing `epsilon`, but the final decision
+must also consider whether the selected protocol gives useful movement and
+stable finite samples.
 
 ## Trajectory-Length Selection
 
@@ -47,6 +54,7 @@ wall time, not acceptance alone.  This is the stage where `L` is selected.
 ## nofb Flow Tests
 
 For nofb flow-time tests, report proposal failures as part of the result
-alongside phase coherence, observable error bars, acceptance, and runtime.
+alongside phase coherence, observable error bars, attempt acceptance, and
+runtime.
 Do not retune the HMC protocol just to make nofb failure rates smaller unless
 the selected protocol cannot produce usable samples at all.
