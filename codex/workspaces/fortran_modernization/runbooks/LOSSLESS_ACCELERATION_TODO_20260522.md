@@ -247,7 +247,7 @@ Validation:
 
 ### 5. Make external BLAS/LAPACK linkage real
 
-Status: TODO
+Status: DONE
 
 Hot path:
 - `build/makefile`
@@ -272,6 +272,58 @@ Validation gate:
 - Stage2 tiny smoke, retained-core contracts, and observable parity pass.
 - Treat output as roundoff-equivalent, not necessarily bitwise identical across
   BLAS implementations.
+
+Implementation:
+- Added `USE_EXTERNAL_LINALG=1` to the makefile.
+- Default remains `USE_EXTERNAL_LINALG=0`, with `core/lapack_fallback` included
+  in `CORE_SRC`.
+- External mode removes `core/lapack_fallback` from all common and focused
+  source lists, then appends `EXTERNAL_LINALG_LIBS` after objects through
+  `LDLIBS`.
+- On macOS, external mode defaults to `-framework Accelerate`; on other GNU
+  builds, set `EXTERNAL_LINALG_LIBS`, for example `-lopenblas`.
+- Added a linalg backend stamp so switching fallback/external modes forces
+  relink instead of leaving a stale binary.
+
+Validation:
+- Dry-run link commands:
+  default fallback includes `.obj/src/core/lapack_fallback.o`; external mode
+  excludes it and appends `-framework Accelerate`.
+- Fallback helper test:
+  `make -C build test_numerical_helper_contracts`.
+- External helper/test build:
+  `make -C build USE_EXTERNAL_LINALG=1 ../bin/run_tltm_stage2 test2 test_odex_flow_jacobian_contract test_retained_core_newton_contract test_numerical_helper_contracts`.
+- External link inspection:
+  `otool -L bin/run_tltm_stage2` lists
+  `/System/Library/Frameworks/Accelerate.framework/.../Accelerate`.
+- External symbol inspection:
+  `nm -gU bin/run_tltm_stage2` has no local `T` definitions for
+  `dgemv`, `dgetrf`, `dgetrs`, `dgesv`, `zgetrf`, or `zgesv`; `nm -u` shows
+  the used BLAS/LAPACK symbols are externally resolved.
+- Stage2 RNG v2 anchor under external mode:
+  `python3 codex/workspaces/fortran_modernization/tasks/scripts/stage2_rng_v2_anchor.py --skip-build`.
+- Fixed validation point:
+  `t=0.02`, records `0,81`, cycles `40`, burn `5`, `epsilon=0.04`,
+  `nstep=4`, `jobs=1`.
+- Fallback before:
+  `output/stephanov_flowtime_sign_problem/lossless_jac_cache_validation_serial_t002_2x40_20260522`.
+- External after:
+  `output/stephanov_flowtime_sign_problem/lossless_external_linalg_validation_serial_t002_2x40_20260522`.
+- Parity: label trace is byte-identical for both records; acceptance,
+  proposal-failure, sample-count, and status fields match exactly.
+- Continuous state history is roundoff-equivalent:
+  `x_history.dat <= 6.70e-14`.
+- Observable stream is roundoff-equivalent after accounting for
+  `logdet_dirac` imaginary-branch differences by multiples of `2*pi`; raw
+  `logdet_im` differences reached `2*pi` for record `0000` and `4*pi` for
+  record `0081`, while phase-factor components and summary observables differ
+  only at roundoff level.
+- Local wall time changed from `78.42 s` to `82.28 s` (`0.95x`) for this small
+  Accelerate validation point.  External linkage is now real and optional, but
+  this local small-`n` run does not show a speedup.
+- Rebuilt default fallback after external validation; `run_tltm_stage2` no
+  longer links Accelerate, local fallback symbols are present, and the Stage2
+  RNG v2 anchor still passes.
 
 ### 6. Parallelize scan records, flow times, and seed jobs outside Stage2
 

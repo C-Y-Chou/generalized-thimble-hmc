@@ -105,6 +105,7 @@ OMP         ?= 0
 ARCH_FLAG_INTEL ?= -xCORE-AVX2
 ARCH_FLAG_GNU   ?= -march=native
 UNAME_S     := $(shell uname -s 2>/dev/null || echo unknown)
+USE_EXTERNAL_LINALG ?= 0
 ifeq ($(UNAME_S),Darwin)
 NOEXECSTACK_LDFLAG :=
 else
@@ -147,9 +148,31 @@ FFLAGS_OPT  = -O3 $(ARCH_FLAG) $(THREAD_FLAG) $(OPT_COMMON)
 FFLAGS_FAST = -O2 -g $(ARCH_FLAG) $(THREAD_FLAG) $(OPT_COMMON)
 MOD_FLAG    = -J$(MOD_DIR)
 GNU_LINALG_LIBS ?=
-LDFLAGS_OPT = $(THREAD_FLAG) $(GNU_LINALG_LIBS) $(NOEXECSTACK_LDFLAG)
+LDFLAGS_OPT = $(THREAD_FLAG) $(NOEXECSTACK_LDFLAG)
 LDFLAGS_FAST = $(LDFLAGS_OPT)
 LDFLAGS     ?= $(LDFLAGS_OPT)
+endif
+
+ifeq ($(UNAME_S),Darwin)
+DEFAULT_EXTERNAL_LINALG_LIBS := -framework Accelerate
+else ifeq ($(FC_FAMILY),intel)
+DEFAULT_EXTERNAL_LINALG_LIBS := $(MKL_FLAG)
+else
+DEFAULT_EXTERNAL_LINALG_LIBS := $(GNU_LINALG_LIBS)
+endif
+EXTERNAL_LINALG_LIBS ?= $(DEFAULT_EXTERNAL_LINALG_LIBS)
+ifneq ($(filter 1 yes true on,$(USE_EXTERNAL_LINALG)),)
+LINALG_BACKEND := external
+LINALG_MODE_SIGNATURE := external|$(EXTERNAL_LINALG_LIBS)
+LINALG_FALLBACK_SRC :=
+ifeq ($(strip $(EXTERNAL_LINALG_LIBS)),)
+$(error USE_EXTERNAL_LINALG=1 requires EXTERNAL_LINALG_LIBS, for example EXTERNAL_LINALG_LIBS='-lopenblas')
+endif
+LDLIBS += $(EXTERNAL_LINALG_LIBS)
+else
+LINALG_BACKEND := fallback
+LINALG_MODE_SIGNATURE := fallback
+LINALG_FALLBACK_SRC := core/lapack_fallback
 endif
 
 # Include path for generated module files
@@ -162,6 +185,7 @@ BIN_DIR     = ../bin
 OBJ_DIR     = .obj
 MOD_DIR     = $(OBJ_DIR)/mod
 OFFICIAL_DFOLS_MODE_STAMP := $(OBJ_DIR)/official_dfols_bridge_mode.stamp
+LINALG_MODE_STAMP := $(OBJ_DIR)/linalg_backend_mode.stamp
 OUT_DIR     ?= ../output
 OUT_PROD_DIR ?= $(OUT_DIR)/production
 OUT_TEST_DIR ?= $(OUT_DIR)/tests
@@ -171,7 +195,7 @@ DEP_SCRIPT  = ../scripts/fortran_module_deps.py
 DEP_OUT     = $(OBJ_DIR)/fortran_module_deps.mk
 
 # --------- layered source lists ----------------------------------------------
-CORE_SRC     = core/mtdefs core/mt95 core/tltm_rng core/utils core/lapack_fallback core/perf_profile
+CORE_SRC     = core/mtdefs core/mt95 core/tltm_rng core/utils $(LINALG_FALLBACK_SRC) core/perf_profile
 CONFIG_SRC   = config/runtime_env_mod config/param_mod
 PHYSICS_SRC  = physics/model_stephanov physics/model physics/model_observables physics/odex_backend physics/solve_flow
 SAMPLER_SRC  = sampler/hmc_kernels sampler/hmc_constraints sampler/hmc_state_buffers sampler/tltm_run_context sampler/hmc_reversibility_checks \
@@ -207,18 +231,18 @@ SOURCES_TEST_ODEX_FOUNDATION := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_foundati
 SOURCES_TEST_ODEX_ASSIST_POLICY := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_assist_policy.f90
 SOURCES_TEST_ODEX_RESULT := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_result_contract.f90
 SOURCES_TEST_ODEX_FLOW_JAC := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_flow_jacobian_contract.f90
-SOURCES_TEST_ODEX_BACKEND_PACKAGE := $(call mk_src,core/utils core/lapack_fallback physics/odex_backend) $(TEST_DIR)/test_odex_backend_package_contract.f90
-SOURCES_TEST_ODEX_CONTROLLER_OBSERVATION := $(call mk_src,core/utils core/lapack_fallback physics/odex_backend) $(TEST_DIR)/test_odex_controller_observation_contract.f90
-SOURCES_TEST_ODEX_CONTROLLER_ALIGNMENT := $(call mk_src,core/utils core/lapack_fallback physics/odex_backend) $(TEST_DIR)/test_odex_controller_alignment_spec.f90
-SOURCES_TEST_SUNDIALS_CVODE_BACKEND := $(call mk_src,core/utils core/lapack_fallback config/runtime_env_mod physics/odex_backend) $(TEST_DIR)/test_sundials_cvode_backend_contract.f90
+SOURCES_TEST_ODEX_BACKEND_PACKAGE := $(call mk_src,core/utils $(LINALG_FALLBACK_SRC) physics/odex_backend) $(TEST_DIR)/test_odex_backend_package_contract.f90
+SOURCES_TEST_ODEX_CONTROLLER_OBSERVATION := $(call mk_src,core/utils $(LINALG_FALLBACK_SRC) physics/odex_backend) $(TEST_DIR)/test_odex_controller_observation_contract.f90
+SOURCES_TEST_ODEX_CONTROLLER_ALIGNMENT := $(call mk_src,core/utils $(LINALG_FALLBACK_SRC) physics/odex_backend) $(TEST_DIR)/test_odex_controller_alignment_spec.f90
+SOURCES_TEST_SUNDIALS_CVODE_BACKEND := $(call mk_src,core/utils $(LINALG_FALLBACK_SRC) config/runtime_env_mod physics/odex_backend) $(TEST_DIR)/test_sundials_cvode_backend_contract.f90
 SOURCES_TEST_OFFICIAL_DFOLS_PRESET := $(SOURCES_COMMON) $(TEST_DIR)/test_official_dfols_preset_contract.f90
 SOURCES_TEST_TLTM_SWAP := $(SOURCES_COMMON) $(TEST_DIR)/test_tltm_swap_kernel_contract.f90
 SOURCES_TEST_MT95_STATE := $(call mk_src,core/mtdefs core/mt95 core/tltm_rng) $(TEST_DIR)/test_mt95_state_contract.f90
 SOURCES_TEST_TLTM_RNG := $(call mk_src,core/mtdefs core/mt95 core/tltm_rng) $(TEST_DIR)/test_tltm_rng_contract.f90
-SOURCES_TEST_PERF_PROFILE := $(call mk_src,core/lapack_fallback core/utils config/runtime_env_mod core/perf_profile) $(TEST_DIR)/test_perf_profile_context_contract.f90
+SOURCES_TEST_PERF_PROFILE := $(call mk_src,$(LINALG_FALLBACK_SRC) core/utils config/runtime_env_mod core/perf_profile) $(TEST_DIR)/test_perf_profile_context_contract.f90
 SOURCES_TEST_NUMERICAL_HELPERS := $(SOURCES_COMMON) $(TEST_DIR)/test_numerical_helper_contracts.f90
-SOURCES_TEST_HMC_REVERSIBILITY := $(call mk_src,core/lapack_fallback core/utils config/runtime_env_mod sampler/hmc_reversibility_checks) $(TEST_DIR)/test_hmc_reversibility_context_contract.f90
-SOURCES_TEST_NEWTON_FLOW_STATUS := $(call mk_src,core/mtdefs core/mt95 core/tltm_rng core/lapack_fallback core/utils core/perf_profile config/runtime_env_mod config/param_mod physics/model_stephanov physics/model physics/odex_backend physics/solve_flow sampler/hmc_constraints) $(TEST_DIR)/test_newton_eval_flow_status_context_contract.f90
+SOURCES_TEST_HMC_REVERSIBILITY := $(call mk_src,$(LINALG_FALLBACK_SRC) core/utils config/runtime_env_mod sampler/hmc_reversibility_checks) $(TEST_DIR)/test_hmc_reversibility_context_contract.f90
+SOURCES_TEST_NEWTON_FLOW_STATUS := $(call mk_src,core/mtdefs core/mt95 core/tltm_rng $(LINALG_FALLBACK_SRC) core/utils core/perf_profile config/runtime_env_mod config/param_mod physics/model_stephanov physics/model physics/odex_backend physics/solve_flow sampler/hmc_constraints) $(TEST_DIR)/test_newton_eval_flow_status_context_contract.f90
 SOURCES_TEST_RETAINED_NEWTON := $(SOURCES_COMMON) $(TEST_DIR)/test_retained_core_newton_contract.f90
 SOURCES_TEST_RETAINED_RATTLE_RG := $(SOURCES_COMMON) $(TEST_DIR)/test_retained_core_rattle_rg_contract.f90
 SOURCES_TEST_RETAINED_QN_ROUTE := $(SOURCES_COMMON) $(TEST_DIR)/test_retained_core_qn_route_contract.f90
@@ -318,6 +342,36 @@ OBJECTS_TEST_RETAINED_RATTLE_RG += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST_RETAINED_QN_ROUTE += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST_RETAINED_RG_REJECT += $(SUNDIALS_CVODE_C_OBJECT)
 
+OBJECTS_STEP2 += $(LINALG_MODE_STAMP)
+OBJECTS_STEP3 += $(LINALG_MODE_STAMP)
+OBJECTS_STEP9 += $(LINALG_MODE_STAMP)
+OBJECTS_STEP10 += $(LINALG_MODE_STAMP)
+OBJECTS_BTN_RESIDUAL += $(LINALG_MODE_STAMP)
+OBJECTS_FLOWZ_REPLAY += $(LINALG_MODE_STAMP)
+OBJECTS_TEST1 += $(LINALG_MODE_STAMP)
+OBJECTS_TEST2 += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_ODEX += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_ODEX_FOUNDATION += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_ODEX_ASSIST_POLICY += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_ODEX_RESULT += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_ODEX_FLOW_JAC += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_ODEX_BACKEND_PACKAGE += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_ODEX_CONTROLLER_OBSERVATION += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_ODEX_CONTROLLER_ALIGNMENT += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_SUNDIALS_CVODE_BACKEND += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_OFFICIAL_DFOLS_PRESET += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_TLTM_SWAP += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_MT95_STATE += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_TLTM_RNG += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_PERF_PROFILE += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_NUMERICAL_HELPERS += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_HMC_REVERSIBILITY += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_NEWTON_FLOW_STATUS += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_RETAINED_NEWTON += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_RETAINED_RATTLE_RG += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_RETAINED_QN_ROUTE += $(LINALG_MODE_STAMP)
+OBJECTS_TEST_RETAINED_RG_REJECT += $(LINALG_MODE_STAMP)
+
 SOURCES_DEP := $(sort $(SOURCES_STEP2) $(SOURCES_STEP3) $(SOURCES_STEP9) $(SOURCES_BTN_RESIDUAL) $(SOURCES_FLOWZ_REPLAY) \
                 $(SOURCES_STEP10) $(SOURCES_TEST1) $(SOURCES_TEST2) $(SOURCES_TEST_ODEX) \
                 $(SOURCES_TEST_ODEX_FOUNDATION) $(SOURCES_TEST_ODEX_ASSIST_POLICY) \
@@ -402,6 +456,12 @@ $(OBJ_DIR)/src/external/sundials_cvode_bridge_stub.o: $(SRC_DIR)/external/sundia
 
 $(OFFICIAL_DFOLS_MODE_STAMP): FORCE | $(MOD_DIR)
 	@mode="$(OFFICIAL_DFOLS_C_MODE)"; \
+	if [ ! -f "$@" ] || [ "$$(cat "$@")" != "$$mode" ]; then \
+		echo "$$mode" > "$@"; \
+	fi
+
+$(LINALG_MODE_STAMP): FORCE | $(MOD_DIR)
+	@mode="$(LINALG_MODE_SIGNATURE)"; \
 	if [ ! -f "$@" ] || [ "$$(cat "$@")" != "$$mode" ]; then \
 		echo "$$mode" > "$@"; \
 	fi
@@ -511,7 +571,8 @@ help:
 	@echo "  make ENABLE_OFFICIAL_DFOLS=0 - build a stub bridge for package-off route tests"
 	@echo "  make ENABLE_SUNDIALS_CVODE=1 SUNDIALS_PREFIX=<prefix> - build the disabled-by-default SUNDIALS CVODE ODE backend"
 	@echo "  make TLTM_PRECISION=double TLTM_TOLERANCE_PROFILE=f20f_most_conservative_double - selected certified precision/tolerance profile (only supported mode)"
-	@echo "  make GNU_LINALG_LIBS='-lopenblas'   - optionally link external BLAS/LAPACK on GNU"
+	@echo "  make USE_EXTERNAL_LINALG=1 EXTERNAL_LINALG_LIBS='-lopenblas' - link external BLAS/LAPACK instead of fallback"
+	@echo "  make USE_EXTERNAL_LINALG=1 - on macOS defaults to Accelerate"
 	@echo ""
 	@echo "Run targets:"
 	@echo "  make chain    - run generate_markov_chain (outputs -> $(OUT_PROD_DIR), log -> $(OUT_LOG_DIR))"
