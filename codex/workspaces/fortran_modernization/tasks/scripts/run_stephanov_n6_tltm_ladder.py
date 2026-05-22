@@ -99,6 +99,8 @@ def parse_summary(path):
         "elapsed_sec": 0.0,
         "pair0_accept_rate": 0.0,
         "min_pair_accept_rate": 0.0,
+        "min_pair_id": -1,
+        "pair_accept_rates": "",
         "total_round_trip": 0,
         "max_slot_runtime_sec": 0.0,
         "accepted_local_total": 0,
@@ -137,12 +139,34 @@ def parse_summary(path):
         elif section == "pairs" and len(parts) >= 7:
             pair_id = int(parts[0])
             rate = float(parts[6])
-            pair_rates.append(rate)
+            pair_rates.append((pair_id, rate))
             if pair_id == 0:
                 metrics["pair0_accept_rate"] = rate
     if pair_rates:
-        metrics["min_pair_accept_rate"] = min(pair_rates)
+        min_pair_id, min_pair_rate = min(pair_rates, key=lambda item: item[1])
+        metrics["min_pair_id"] = min_pair_id
+        metrics["min_pair_accept_rate"] = min_pair_rate
+        metrics["pair_accept_rates"] = ";".join(
+            "{0}:{1:.6g}".format(pair_id, rate) for pair_id, rate in pair_rates
+        )
     return metrics
+
+
+def mean_pair_accept_rates(rows):
+    sums = {}
+    counts = {}
+    for row in rows:
+        for item in str(row.get("pair_accept_rates", "")).split(";"):
+            if not item:
+                continue
+            pair_text, rate_text = item.split(":", 1)
+            pair_id = int(pair_text)
+            sums[pair_id] = sums.get(pair_id, 0.0) + float(rate_text)
+            counts[pair_id] = counts.get(pair_id, 0) + 1
+    return ";".join(
+        "{0}:{1:.6g}".format(pair_id, sums[pair_id] / float(counts[pair_id]))
+        for pair_id in sorted(sums)
+    )
 
 
 def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, chain_idx, args, hmc_l):
@@ -292,6 +316,7 @@ def main():
         "max_record_wall_sec": max((row["wall_sec"] for row in rows), default=0.0),
         "mean_pair0_accept_rate": sum(row["pair0_accept_rate"] for row in rows) / float(len(rows)) if rows else 0.0,
         "mean_min_pair_accept_rate": sum(row["min_pair_accept_rate"] for row in rows) / float(len(rows)) if rows else 0.0,
+        "mean_pair_accept_rates": mean_pair_accept_rates(rows),
         "total_round_trip": sum(row["total_round_trip"] for row in rows),
         "total_proposal_failure": sum(row["proposal_failure_total"] for row in rows),
         "total_reverse_gate_reject": sum(row["reverse_gate_reject_total"] for row in rows),
