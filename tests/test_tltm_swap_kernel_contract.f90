@@ -115,6 +115,19 @@ program test_tltm_swap_kernel_contract
 
    call initialize_slot(slot_a, 0, 0, flow_a, seed_a)
    call initialize_slot(slot_b, 1, 1, flow_b, seed_b)
+   call reset_pair_stats(stats)
+   call attempt_adjacent_swap(slot_a, slot_b, stats, swap_rng_state, run_context_a, run_context_b, accept_uniform=0.0_dp)
+   call assert_equal_int(stats%proposal_count, 1, "forced-uniform swap records one proposal")
+   call assert_equal_int(stats%accept_count, 1, "forced-uniform zero accepts any valid positive-probability swap")
+   call assert_equal_int(stats%reject_count, 0, "forced-uniform zero does not reject valid swap")
+   call assert_close(stats%last_accept_probability, expected_probability, tol, "forced-uniform swap preserves probability computation")
+   call assert_equal_int(slot_a%label_id, 1, "forced-uniform accepted swap moves label b into slot a")
+   call assert_equal_int(slot_b%label_id, 0, "forced-uniform accepted swap moves label a into slot b")
+   call assert_close_vec(slot_a%x, x_ap, tol, "forced-uniform accepted slot a stores reflowed b seed")
+   call assert_close_vec(slot_b%x, x_bp, tol, "forced-uniform accepted slot b stores reflowed a seed")
+
+   call initialize_slot(slot_a, 0, 0, flow_a, seed_a)
+   call initialize_slot(slot_b, 1, 1, flow_b, seed_b)
    x_a0 = slot_a%x
    x_b0 = slot_b%x
    write (*, '(A)') "[INFO] Expecting one log_determinant failure from a deliberate singular-Jacobian rejection test."

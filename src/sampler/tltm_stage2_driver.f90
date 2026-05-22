@@ -147,7 +147,7 @@ contains
       integer :: init_preflow_integration_steps
       real(dp) :: max_flow_time, init_sigma, init_preflow_trajectory_length
       logical :: swap_enabled, fixed_flow_mode, ok
-      logical :: parallel_local_updates
+      logical :: parallel_local_updates, parallel_swap_pairs
       logical :: use_initial_x
       integer :: i, cycle_idx, hot_slot, history_slot_index
       real(dp) :: run_t0, elapsed, slot_t0
@@ -299,8 +299,10 @@ contains
       do i = 1, n_slots
          qn_policy_contexts(i) = qn_policy_context
       end do
-      parallel_local_updates = stage2_local_updates_parallel_enabled(rng_stream_contract, audit_context)
+      parallel_local_updates = stage2_local_updates_parallel_enabled(rng_stream_contract, audit_context, hmc_policy_context)
+      parallel_swap_pairs = stage2_swap_pairs_parallel_enabled(audit_context)
       write (*, '(A,L1)') "[TLTM-S2] parallel_local_updates=", parallel_local_updates
+      write (*, '(A,L1)') "[TLTM-S2] parallel_swap_pairs=", parallel_swap_pairs
 
       call initialize_pair_stats(pair_stats)
       if (.not. fixed_flow_mode) call initialize_label_tracks(label_tracks, n_slots)
@@ -563,7 +565,7 @@ contains
                                      rng_stream_contract, base_seed, parallel_local_updates)
 
          if (swap_enabled .and. n_slots > 1) then
-            call perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state, run_contexts, rng_stream_contract, base_seed)
+            call perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state, run_contexts, rng_stream_contract, base_seed, parallel_swap_pairs)
          end if
 
          if (.not. fixed_flow_mode) then
@@ -1629,7 +1631,7 @@ contains
          hits, ",", misses, ",", factor_failures
    end subroutine write_real_jacobian_cache_row
 
-   subroutine perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state, run_contexts, rng_stream_contract, base_seed)
+   subroutine perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state, run_contexts, rng_stream_contract, base_seed, parallel_swap_pairs)
       type(tltm_slot_t), intent(inout) :: slots(:)
       type(tltm_pair_stats_t), intent(inout) :: pair_stats(:)
       integer, intent(in) :: cycle_idx
@@ -1637,7 +1639,11 @@ contains
       type(tltm_run_context_t), intent(inout) :: run_contexts(:)
       character(len=*), intent(in) :: rng_stream_contract
       integer, intent(in) :: base_seed
-      integer :: start_idx, idx
+      logical, intent(in) :: parallel_swap_pairs
+      integer :: start_idx, idx, pair_idx, n_pairs
+      integer, allocatable :: pair_indices(:)
+      real(dp), allocatable :: accept_uniforms(:)
+      type(mt95_state_t) :: swap_rng_unused
 
       if (size(slots) <= 1) return
 
@@ -1647,20 +1653,49 @@ contains
          start_idx = 2
       end if
 
+      n_pairs = 0
       do idx = start_idx, size(slots) - 1, 2
-         call attempt_adjacent_swap(slots(idx), slots(idx + 1), pair_stats(idx), swap_rng_state, run_contexts(idx), &
-                                    run_contexts(idx + 1), rng_stream_contract, base_seed, cycle_idx)
+         n_pairs = n_pairs + 1
       end do
+      if (n_pairs <= 0) return
+
+      if (.not. parallel_swap_pairs) then
+         do idx = start_idx, size(slots) - 1, 2
+            call attempt_adjacent_swap(slots(idx), slots(idx + 1), pair_stats(idx), swap_rng_state, run_contexts(idx), &
+                                       run_contexts(idx + 1), rng_stream_contract, base_seed, cycle_idx)
+         end do
+         return
+      end if
+
+      allocate (pair_indices(n_pairs), accept_uniforms(n_pairs))
+      pair_idx = 0
+      do idx = start_idx, size(slots) - 1, 2
+         pair_idx = pair_idx + 1
+         pair_indices(pair_idx) = idx
+         accept_uniforms(pair_idx) = draw_swap_accept_uniform(pair_stats(idx), swap_rng_state, rng_stream_contract, base_seed, cycle_idx)
+      end do
+
+!$omp parallel do default(shared) private(pair_idx, idx, swap_rng_unused) schedule(static)
+      do pair_idx = 1, n_pairs
+         idx = pair_indices(pair_idx)
+         call attempt_adjacent_swap(slots(idx), slots(idx + 1), pair_stats(idx), swap_rng_unused, run_contexts(idx), &
+                                    run_contexts(idx + 1), rng_stream_contract, base_seed, cycle_idx, &
+                                    accept_uniform=accept_uniforms(pair_idx))
+      end do
+!$omp end parallel do
+
+      deallocate (pair_indices, accept_uniforms)
    end subroutine perform_swap_sweep
 
    subroutine attempt_adjacent_swap(slot_a, slot_b, stats, swap_rng_state, run_context_a, run_context_b, &
-                                    rng_stream_contract, base_seed, cycle_idx)
+                                    rng_stream_contract, base_seed, cycle_idx, accept_uniform)
       type(tltm_slot_t), intent(inout) :: slot_a, slot_b
       type(tltm_pair_stats_t), intent(inout) :: stats
       type(mt95_state_t), intent(inout) :: swap_rng_state
       type(tltm_run_context_t), intent(inout) :: run_context_a, run_context_b
       character(len=*), intent(in), optional :: rng_stream_contract
       integer, intent(in), optional :: base_seed, cycle_idx
+      real(dp), intent(in), optional :: accept_uniform
 
       real(dp) :: e_a, e_b, e_ap, e_bp, delta, acc_prob
       logical :: ok_a, ok_b, ok_ap, ok_bp, accept
@@ -1716,20 +1751,11 @@ contains
       end if
       stats%last_accept_probability = acc_prob
 
-      select case (trim(rng_contract_local))
-      case (stage2_rng_kernel_v2)
-         if (.not. present(base_seed) .or. .not. present(cycle_idx)) then
-            write (*, '(A)') "[ERROR][TLTM-S2] stage2_kernel_rng_v2 swap requires base_seed and cycle_idx."
-            error stop 1
-         end if
-         accept = (tltm_rng_uniform(tltm_rng_domain_stage2_swap_accept, base_seed, cycle_idx, stats%pair_id, 0, 1) <= acc_prob)
-      case (stage2_rng_legacy_global_v0)
-         accept = (grnd() <= acc_prob)
-      case default
-         call mt95_set_state(swap_rng_state)
-         accept = (grnd() <= acc_prob)
-         call mt95_get_state(swap_rng_state)
-      end select
+      if (present(accept_uniform)) then
+         accept = (accept_uniform <= acc_prob)
+      else
+         accept = (draw_swap_accept_uniform(stats, swap_rng_state, rng_contract_local, base_seed, cycle_idx) <= acc_prob)
+      end if
       if (accept) then
          label_tmp = slot_a%label_id
          slot_a%x = x_ap
@@ -1750,6 +1776,28 @@ contains
 
       call free_swap_buffers(x_ap, x_bp, z_ap, z_bp, j_ap, j_bp)
    end subroutine attempt_adjacent_swap
+
+   real(dp) function draw_swap_accept_uniform(stats, swap_rng_state, rng_stream_contract, base_seed, cycle_idx) result(value)
+      type(tltm_pair_stats_t), intent(in) :: stats
+      type(mt95_state_t), intent(inout) :: swap_rng_state
+      character(len=*), intent(in) :: rng_stream_contract
+      integer, intent(in), optional :: base_seed, cycle_idx
+
+      select case (trim(rng_stream_contract))
+      case (stage2_rng_kernel_v2)
+         if (.not. present(base_seed) .or. .not. present(cycle_idx)) then
+            write (*, '(A)') "[ERROR][TLTM-S2] stage2_kernel_rng_v2 swap requires base_seed and cycle_idx."
+            error stop 1
+         end if
+         value = tltm_rng_uniform(tltm_rng_domain_stage2_swap_accept, base_seed, cycle_idx, stats%pair_id, 0, 1)
+      case (stage2_rng_legacy_global_v0)
+         value = grnd()
+      case default
+         call mt95_set_state(swap_rng_state)
+         value = grnd()
+         call mt95_get_state(swap_rng_state)
+      end select
+   end function draw_swap_accept_uniform
 
    subroutine compute_effective_energy(z, jac, energy, ok)
       complex(dp), intent(in) :: z(:)
@@ -2750,9 +2798,10 @@ contains
       end select
    end subroutine resolve_stage2_rng_stream_contract
 
-   logical function stage2_local_updates_parallel_enabled(rng_stream_contract, audit_context) result(enabled)
+   logical function stage2_local_updates_parallel_enabled(rng_stream_contract, audit_context, hmc_policy_context) result(enabled)
       character(len=*), intent(in) :: rng_stream_contract
       type(stage2_audit_context_t), intent(in) :: audit_context
+      type(hmc_policy_context_t), intent(in) :: hmc_policy_context
 
       logical :: requested, has_qn_capture, has_flowz_capture, has_flowz_cost_capture
       character(len=512) :: env_value
@@ -2764,6 +2813,10 @@ contains
 
       if (trim(rng_stream_contract) /= stage2_rng_kernel_v2) then
          write (*, '(A)') "[WARN][TLTM-S2] Parallel local updates require stage2_kernel_rng_v2; using serial updates."
+         return
+      end if
+      if (hmc_policy_context%qn_reverse_gate_enabled) then
+         write (*, '(A)') "[WARN][TLTM-S2] Parallel local updates disabled while production reverse gate is enabled."
          return
       end if
       if (audit_context%rg_reject_audit_enabled .or. audit_context%local_transition_audit_enabled) then
@@ -2784,6 +2837,36 @@ contains
 
       enabled = .true.
    end function stage2_local_updates_parallel_enabled
+
+   logical function stage2_swap_pairs_parallel_enabled(audit_context) result(enabled)
+      type(stage2_audit_context_t), intent(in) :: audit_context
+
+      logical :: requested, has_qn_capture, has_flowz_capture, has_flowz_cost_capture
+      character(len=512) :: env_value
+
+      requested = .false.
+      call parse_logical_env("TLTM_STAGE2_PARALLEL_SWAPS", requested)
+      enabled = .false.
+      if (.not. requested) return
+
+      if (audit_context%rg_reject_audit_enabled .or. audit_context%local_transition_audit_enabled) then
+         write (*, '(A)') "[WARN][TLTM-S2] Parallel swap pairs disabled while Stage2 audit files are active."
+         return
+      end if
+
+      env_value = ""
+      call read_string_env("QN_ATTEMPT_CAPTURE_DIR", env_value, has_qn_capture)
+      env_value = ""
+      call read_string_env("TLTM_FLOWZ_CAPTURE_FILE", env_value, has_flowz_capture)
+      env_value = ""
+      call read_string_env("TLTM_FLOWZ_COST_CAPTURE_FILE", env_value, has_flowz_cost_capture)
+      if (has_qn_capture .or. has_flowz_capture .or. has_flowz_cost_capture) then
+         write (*, '(A)') "[WARN][TLTM-S2] Parallel swap pairs disabled while diagnostic capture files are active."
+         return
+      end if
+
+      enabled = .true.
+   end function stage2_swap_pairs_parallel_enabled
 
    subroutine resolve_stage2_cold_history_paths(cold_z_history_file, cold_phi_history_file, write_cold_history)
       character(len=*), intent(out) :: cold_z_history_file, cold_phi_history_file
@@ -3101,10 +3184,14 @@ contains
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_CYCLES", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_LOCAL_UPDATES", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_SWAP_ENABLED", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_PARALLEL_LOCAL_UPDATES", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_PARALLEL_SWAPS", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_INIT_SIGMA", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_INIT_MODE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_INIT_PREFLOW_TRAJECTORY_LENGTH", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_INIT_PREFLOW_INTEGRATION_STEPS", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_INIT_PREFLOW_MAX_STAGES", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_INIT_PREFLOW_MAX_SHRINKS", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_INITIAL_X_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_INITIAL_X_RECORD", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_RNG_STREAM_CONTRACT", .true., 4)

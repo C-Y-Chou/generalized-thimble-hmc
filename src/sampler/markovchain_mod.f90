@@ -1,6 +1,6 @@
 module markovchain_mod
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-   use runtime_env_mod, only: read_string_env, runtime_to_lower_ascii => to_lower_ascii
+   use runtime_env_mod, only: parse_int_env, read_string_env, runtime_to_lower_ascii => to_lower_ascii
    use solve_flow, only: flow, flow_workspace_t, intode_diagnostics_context_t, &
                          get_intode_fallback_stats, &
                          get_intode_fallback_context_stats, &
@@ -10,6 +10,7 @@ module markovchain_mod
                         quasi_fallback_enabled, set_initial_flow_time, state_total_size, x_history_file, z_history_file
    use, intrinsic :: iso_fortran_env, only: int64
    use hmc, only: integrate_hmc_warmup
+   use hmc_integrator_core, only: hmc_policy_context_t
    use hmc_constraints, only: newton_eval_flow_status_context_t
    use model, only: grand
    use hmc_kernels, only: calculate_hamiltonian
@@ -312,10 +313,13 @@ contains
       real(dp), parameter :: action_rel_tol_cap = 5.0e-2_dp
       integer, parameter :: max_relax_iter_base = 24
       integer, parameter :: max_relax_iter_cap = 96
+      integer, parameter :: max_preflow_stages_default = 512
+      integer, parameter :: max_preflow_shrinks_default = 4096
       real(dp), parameter :: step_shrink = 0.5_dp
       real(dp), parameter :: step_grow_base = 1.25_dp
 
       integer :: flow_status, n_seed, relax_steps, relax_iter, relax_level_local, max_relax_iter
+      integer :: max_preflow_stages, max_preflow_shrinks, shrink_count
       real(dp) :: t_current, t_next, dt_try, dt_min, dt_max
       real(dp) :: relax_step_size, action_delta, action_rel_tol, step_grow, relax_scale
       real(dp), allocatable :: x_candidate(:)
@@ -324,6 +328,13 @@ contains
 
       success = .false.
       stage_count = 0
+      max_preflow_stages = max_preflow_stages_default
+      max_preflow_shrinks = max_preflow_shrinks_default
+      call parse_int_env("TLTM_STAGE2_INIT_PREFLOW_MAX_STAGES", max_preflow_stages)
+      call parse_int_env("TLTM_STAGE2_INIT_PREFLOW_MAX_SHRINKS", max_preflow_shrinks)
+      max_preflow_stages = max(1, max_preflow_stages)
+      max_preflow_shrinks = max(1, max_preflow_shrinks)
+      shrink_count = 0
 
       if (target_flow_time <= near_zero_tol) then
          call x_set_flow_time(x_state, 0.0_dp)
@@ -350,8 +361,16 @@ contains
 
       t_current = 0.0_dp
       do while (t_current < target_flow_time - near_zero_tol)
+         if (stage_count >= max_preflow_stages) then
+            write (*, '(A,I0,A,F10.6,A,F10.6)') "[INIT] adaptive preflow guard hit: max_stages=", &
+               max_preflow_stages, " target_t=", target_flow_time, " current_t=", t_current
+            deallocate (x_candidate, z_candidate, jac_candidate)
+            return
+         end if
          do
             if (dt_try < dt_min) then
+               write (*, '(A,ES11.3,A,ES11.3,A,F10.6,A,F10.6)') "[INIT] adaptive preflow guard hit: dt_try=", &
+                  dt_try, " dt_min=", dt_min, " target_t=", target_flow_time, " current_t=", t_current
                deallocate (x_candidate, z_candidate, jac_candidate)
                return
             end if
@@ -362,6 +381,13 @@ contains
             flow_status = intode_status_unknown
             call flow(x_candidate, z_candidate, jac_candidate, flow_failed, flow_status, flow_workspace, intode_diagnostics)
             if (flow_failed .or. (.not. intode_status_is_strict_success(flow_status))) then
+               shrink_count = shrink_count + 1
+               if (shrink_count > max_preflow_shrinks) then
+                  write (*, '(A,I0,A,F10.6,A,F10.6)') "[INIT] adaptive preflow guard hit: max_shrinks=", &
+                     max_preflow_shrinks, " target_t=", target_flow_time, " current_t=", t_current
+                  deallocate (x_candidate, z_candidate, jac_candidate)
+                  return
+               end if
                dt_try = dt_try*step_shrink
                cycle
             end if
@@ -370,6 +396,13 @@ contains
                                           action_rel_tol, max_relax_iter, relax_ok, action_delta, relax_iter, newton_flow_status, &
                                           flow_workspace, intode_diagnostics)
             if (.not. relax_ok) then
+               shrink_count = shrink_count + 1
+               if (shrink_count > max_preflow_shrinks) then
+                  write (*, '(A,I0,A,F10.6,A,F10.6)') "[INIT] adaptive preflow guard hit: max_shrinks=", &
+                     max_preflow_shrinks, " target_t=", target_flow_time, " current_t=", t_current
+                  deallocate (x_candidate, z_candidate, jac_candidate)
+                  return
+               end if
                dt_try = dt_try*step_shrink
                cycle
             end if
@@ -445,6 +478,7 @@ contains
       complex(dp), allocatable :: z_trial(:), jac_trial(:, :)
       real(dp) :: h_initial, h_proposed, action_scale
       integer :: iter
+      type(hmc_policy_context_t) :: preflow_hmc_policy
 
       allocate (x_trial(size(x_state)))
       allocate (z_trial(size(z_state)))
@@ -453,11 +487,12 @@ contains
       success = .false.
       action_delta = huge(1.0_dp)
       iter_used = 0
+      call load_preflow_hmc_policy(preflow_hmc_policy)
 
       do iter = 1, max_iter
          call integrate_hmc_warmup(x_state, z_state, step_size, num_steps, x_trial, z_trial, h_initial, h_proposed, jac_state, &
                                    jac_trial, flow_workspace=flow_workspace, newton_flow_status=newton_flow_status, &
-                                   intode_diagnostics=intode_diagnostics)
+                                   intode_diagnostics=intode_diagnostics, hmc_policy=preflow_hmc_policy)
          if ((.not. ieee_is_finite(h_initial)) .or. (.not. ieee_is_finite(h_proposed))) exit
 
          action_delta = abs(h_proposed - h_initial)
@@ -476,6 +511,22 @@ contains
 
       deallocate (x_trial, z_trial, jac_trial)
    end subroutine relax_with_zero_momentum
+
+   subroutine load_preflow_hmc_policy(preflow_hmc_policy)
+      type(hmc_policy_context_t), intent(out) :: preflow_hmc_policy
+
+      logical, save :: policy_logged = .false.
+      preflow_hmc_policy%hmc_policy_loaded = .true.
+      preflow_hmc_policy%qn_reverse_gate_enabled = .false.
+      preflow_hmc_policy%qn_first_constraint_solver_enabled = .false.
+      preflow_hmc_policy%qn_reverse_gate_tol = 1.0e-8_dp
+
+      if (.not. policy_logged) then
+         write (*, '(A,L1,A)') "[INIT] preflow HMC policy: reverse_gate_enabled=", &
+            preflow_hmc_policy%qn_reverse_gate_enabled, " qn_first_constraint_solver=F"
+         policy_logged = .true.
+      end if
+   end subroutine load_preflow_hmc_policy
 
    subroutine print_chain_header(chain_length, step_size, num_steps)
       implicit none
