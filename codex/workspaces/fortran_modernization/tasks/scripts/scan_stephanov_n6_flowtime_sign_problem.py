@@ -2,6 +2,7 @@
 """Run a local Stephanov n=6 flow-time sign-problem ladder from a t=0 bank."""
 
 import argparse
+import concurrent.futures
 import csv
 import os
 import shutil
@@ -42,6 +43,7 @@ def parse_args():
     parser.add_argument("--preflow-nstep", type=int, default=2)
     parser.add_argument("--hmc-epsilon", type=float, default=None)
     parser.add_argument("--hmc-nstep", type=int, default=None)
+    parser.add_argument("--jobs", type=int, default=1, help="Run independent records concurrently per flow time.")
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--force", action="store_true")
     return parser.parse_args()
@@ -355,6 +357,7 @@ def run_chain(repo_root, run_dir, params_file, bank_file, flow_time, record_idx,
             "TLTM_STAGE2_COLD_OBSERVABLE_STRIDE": "1",
             "TLTM_STAGE2_COLD_X_HISTORY_FILE": str(chain_dir / "x_history.dat"),
             "TLTM_STAGE2_COLD_X_HISTORY_STRIDE": "1",
+            "TLTM_STAGE2_PHASE_CACHE_STATS_FILE": str(chain_dir / "phase_cache_stats.csv"),
             "TLTM_STAGE2_V1_OUTPUT_DIR": str(chain_dir / "v1"),
             "TLTM_STAGE2_RNG_STREAM_CONTRACT": "stage2_kernel_rng_v2",
             "CONSTRAINT_FAIL_CAPTURE_START_SAMPLE": "2147483647",
@@ -398,6 +401,37 @@ def run_chain(repo_root, run_dir, params_file, bank_file, flow_time, record_idx,
     }
 
 
+def run_flow_records(repo_root, run_dir, params_file, bank_file, flow_time, records, args, hmc_L, hmc_nstep, hmc_epsilon):
+    jobs = max(1, int(args.jobs))
+    tasks = [
+        (chain_idx, record_idx)
+        for chain_idx, record_idx in enumerate(records)
+    ]
+    if jobs == 1 or len(tasks) <= 1:
+        return [
+            run_chain(
+                repo_root, run_dir, params_file, bank_file, flow_time, record_idx, chain_idx, args,
+                hmc_L, hmc_nstep, hmc_epsilon,
+            )
+            for chain_idx, record_idx in tasks
+        ]
+
+    rows_by_chain = {}
+    with concurrent.futures.ProcessPoolExecutor(max_workers=min(jobs, len(tasks))) as pool:
+        future_to_chain = {
+            pool.submit(
+                run_chain,
+                repo_root, run_dir, params_file, bank_file, flow_time, record_idx, chain_idx, args,
+                hmc_L, hmc_nstep, hmc_epsilon,
+            ): chain_idx
+            for chain_idx, record_idx in tasks
+        }
+        for future in concurrent.futures.as_completed(future_to_chain):
+            chain_idx = future_to_chain[future]
+            rows_by_chain[chain_idx] = future.result()
+    return [rows_by_chain[chain_idx] for chain_idx, _record_idx in tasks]
+
+
 def write_csv(path, rows):
     if not rows:
         return
@@ -426,22 +460,36 @@ def main():
     params_dir.mkdir(parents=True, exist_ok=True)
     records = parse_int_list(args.records)
     flow_times = parse_float_list(args.flow_times)
+    if args.jobs < 1:
+        raise RuntimeError("--jobs must be >= 1")
     run_build(repo_root, args.skip_build)
     base_text = params_file.read_text(encoding="utf-8")
+    plan_rows = []
+    for flow_time in flow_times:
+        for chain_idx, record_idx in enumerate(records):
+            plan_rows.append(
+                {
+                    "flow_time": flow_time,
+                    "record": record_idx,
+                    "chain_idx": chain_idx,
+                    "seed": args.seed_base + record_idx + 10000 * chain_idx,
+                    "jobs": args.jobs,
+                }
+            )
+    write_csv(run_dir / "scan_plan.csv", plan_rows)
 
     aggregate_rows = []
     detail_rows = []
     for flow_time in flow_times:
         flow_params_file = params_dir / ("flow_t_{0}.dat".format(label_float(flow_time)))
         hmc_L, hmc_nstep, hmc_epsilon = write_parameters(base_text, flow_params_file, flow_time, args)
-        chain_rows = []
-        for chain_idx, record_idx in enumerate(records):
-            row = run_chain(
-                repo_root, run_dir, flow_params_file, bank_file, flow_time, record_idx, chain_idx, args,
-                hmc_L, hmc_nstep, hmc_epsilon,
-            )
-            chain_rows.append(row)
-            detail_rows.append(row)
+        flow_start = time.monotonic()
+        chain_rows = run_flow_records(
+            repo_root, run_dir, flow_params_file, bank_file, flow_time, records, args,
+            hmc_L, hmc_nstep, hmc_epsilon,
+        )
+        flow_wall_sec = time.monotonic() - flow_start
+        detail_rows.extend(chain_rows)
         if all(row["status"] == "done" and Path(row["observable_file"]).exists() for row in chain_rows):
             chain_stats, aggregate = analyze_chains(chain_rows, args.burn)
             detail_rows[-len(chain_rows):] = chain_stats
@@ -460,6 +508,9 @@ def main():
             "hmc_L": hmc_L,
             "hmc_nstep": hmc_nstep,
             "hmc_epsilon": hmc_epsilon,
+            "jobs": args.jobs,
+            "flow_wall_sec": flow_wall_sec,
+            "record_wall_sum_sec": sum(float(row.get("elapsed_wall_sec", 0.0)) for row in chain_rows),
             **aggregate,
         }
         aggregate_rows.append(aggregate_row)

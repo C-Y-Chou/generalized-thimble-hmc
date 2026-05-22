@@ -1,4 +1,5 @@
 module tltm_types_mod
+   use, intrinsic :: iso_fortran_env, only: int64
    use mt95, only: mt95_state_t
    use utils, only: dp
    use markovchain_transition_status, only: metropolis_status_rejected, &
@@ -66,6 +67,12 @@ module tltm_types_mod
       integer :: output_size_mismatch_count = 0
       integer :: observable_samples = 0
       complex(dp) :: phi_sum = cmplx(0.0_dp, 0.0_dp, dp)
+      integer(int64) :: state_version = 0_int64
+      integer(int64) :: phase_cache_version = -1_int64
+      logical :: phase_cache_valid = .false.
+      complex(dp) :: cached_phase_factor = cmplx(1.0_dp, 0.0_dp, dp)
+      complex(dp) :: cached_action = cmplx(0.0_dp, 0.0_dp, dp)
+      complex(dp) :: cached_log_det_j = cmplx(0.0_dp, 0.0_dp, dp)
    end type tltm_slot_t
 
    type :: tltm_pair_stats_t
@@ -95,6 +102,14 @@ module tltm_types_mod
    end interface record_tltm_local_transition
 
 contains
+
+   subroutine mark_tltm_slot_state_changed(slot)
+      type(tltm_slot_t), intent(inout) :: slot
+
+      slot%state_version = slot%state_version + 1_int64
+      slot%phase_cache_version = -1_int64
+      slot%phase_cache_valid = .false.
+   end subroutine mark_tltm_slot_state_changed
 
    pure function make_tltm_local_transition_event(accepted, proposal_failed, transition_status) result(event)
       logical, intent(in) :: accepted, proposal_failed
@@ -224,6 +239,9 @@ contains
       if (.not. allocated(slot%x)) allocate (slot%x(z_size))
       if (.not. allocated(slot%z)) allocate (slot%z(z_size))
       if (.not. allocated(slot%jac)) allocate (slot%jac(z_size, z_size))
+      slot%state_version = 0_int64
+      slot%phase_cache_version = -1_int64
+      slot%phase_cache_valid = .false.
    end subroutine allocate_tltm_slot
 
    subroutine release_tltm_slot(slot)

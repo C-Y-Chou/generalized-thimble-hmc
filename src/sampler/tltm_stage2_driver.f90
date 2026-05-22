@@ -17,7 +17,6 @@ module tltm_stage2_driver
                        tltm_rng_fill_normal, tltm_rng_uniform
    use markovchain_mod, only: adaptive_preflow_to_target_at
    use markovchain_metropolis, only: metropolis_step_at
-   use markovchain_phase, only: compute_phase_factor
    use hmc_constraints, only: reset_newton_eval_flow_status_counts, get_newton_eval_flow_status_counts, &
                               newton_eval_flow_status_context_t
    use hmc_integrator_core, only: reset_reverse_gate_replay_status_counts, get_reverse_gate_replay_status_counts, &
@@ -47,7 +46,7 @@ module tltm_stage2_driver
                                           constraint_reverse_gate_path_far_light, &
                                           constraint_reverse_gate_path_far_anchor
    use tltm_types_mod, only: tltm_slot_t, tltm_pair_stats_t, tltm_label_track_t, allocate_tltm_slot, release_tltm_slot, &
-                             record_tltm_local_transition
+                             record_tltm_local_transition, mark_tltm_slot_state_changed
    use tltm_run_context_mod, only: tltm_run_context_t, release_tltm_run_context, set_tltm_config_context
    implicit none
 
@@ -57,6 +56,8 @@ module tltm_stage2_driver
    character(len=*), parameter :: stage2_rng_legacy_global_v0 = "legacy_global_v0"
    character(len=*), parameter :: stage2_rng_per_replica_v1 = "per_replica_rng_v1"
    character(len=*), parameter :: stage2_rng_kernel_v2 = "stage2_kernel_rng_v2"
+   integer(int64) :: phase_cache_hit_count = 0_int64
+   integer(int64) :: phase_cache_miss_count = 0_int64
 
    type :: solver_counter_snapshot_t
       integer(int64) :: newton_count = 0_int64
@@ -183,6 +184,7 @@ contains
       integer(int64) :: reverse_gate_reject_counts(constraint_reverse_gate_path_count)
 
       call read_parameters()
+      call reset_phase_cache_stats()
       call bind_model_context(model_context)
       call bind_constraint_solver_stats_context(constraint_stats_context)
       call reset_intode_fallback_stats()
@@ -737,6 +739,7 @@ contains
                                     local_updates, init_sigma, init_preflow_trajectory_length, init_preflow_integration_steps, &
                                     init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode, &
                                     elapsed, slots, pair_stats, label_tracks)
+      call write_phase_cache_stats_if_enabled()
       call release_qn_diagnostics_context(qn_diagnostics_context)
       call release_qn_policy_context(qn_policy_context)
       call release_all_run_contexts(run_contexts)
@@ -842,6 +845,7 @@ contains
                       run_context%flow%workspace, run_context%diagnostics%intode)
          if ((.not. flow_failed) .and. intode_status_is_strict_success(flow_status)) then
             ok = .true.
+            call mark_tltm_slot_state_changed(slot)
             if (trim(init_mode) == "direct" .or. trim(init_mode) == "legacy") then
                write (*, '(A,I0,A,I0,A,F10.6)') "[TLTM-S2][INIT] slot=", slot%slot_id, &
                   " initial-x direct record=", initial_x_record, " ready at t=", slot%flow_time
@@ -876,6 +880,7 @@ contains
                       run_context%flow%workspace, run_context%diagnostics%intode)
          if ((.not. flow_failed) .and. intode_status_is_strict_success(flow_status)) then
             ok = .true.
+            call mark_tltm_slot_state_changed(slot)
             if (trim(init_mode) == "direct" .or. trim(init_mode) == "legacy") then
                write (*, '(A,I0,A,F10.6,A,I0)') "[TLTM-S2][INIT] slot=", slot%slot_id, &
                   " direct flow ready at t=", slot%flow_time, " attempt=", attempt
@@ -1028,6 +1033,7 @@ contains
             slot%x = x_new
             slot%z = z_new
             slot%jac = j_new
+            call mark_tltm_slot_state_changed(slot)
             call accumulate_accepted_local_census(accept_census, solver_before, solver_after)
          end if
          call record_tltm_local_transition(slot, accepted, proposal_failed, transition_status)
@@ -1376,12 +1382,92 @@ contains
       complex(dp) :: phi
       logical :: error
 
-      call compute_phase_factor(slot%z, slot%jac, phi, error)
+      call slot_phase_factor(slot, phi, error)
       if (.not. error) then
          slot%phi_sum = slot%phi_sum + phi
          slot%observable_samples = slot%observable_samples + 1
       end if
    end subroutine measure_slot
+
+   subroutine reset_phase_cache_stats()
+      phase_cache_hit_count = 0_int64
+      phase_cache_miss_count = 0_int64
+   end subroutine reset_phase_cache_stats
+
+   subroutine slot_phase_factor(slot, phi, error)
+      type(tltm_slot_t), intent(inout) :: slot
+      complex(dp), intent(out) :: phi
+      logical, intent(out) :: error
+
+      if (slot%phase_cache_valid .and. slot%phase_cache_version == slot%state_version) then
+         phase_cache_hit_count = phase_cache_hit_count + 1_int64
+         phi = slot%cached_phase_factor
+         error = .false.
+         return
+      end if
+
+      call refresh_slot_phase_cache(slot, phi, error)
+   end subroutine slot_phase_factor
+
+   subroutine refresh_slot_phase_cache(slot, phi, error)
+      type(tltm_slot_t), intent(inout) :: slot
+      complex(dp), intent(out) :: phi
+      logical, intent(out) :: error
+
+      complex(dp) :: log_det_j, s_val
+      real(dp) :: s_imag
+
+      phase_cache_miss_count = phase_cache_miss_count + 1_int64
+      slot%phase_cache_valid = .false.
+      slot%phase_cache_version = -1_int64
+
+      if (size(slot%jac, 1) /= size(slot%z) .or. size(slot%jac, 2) /= size(slot%z)) then
+         phi = cmplx(1.0_dp, 0.0_dp, dp)
+         error = .true.
+         return
+      end if
+
+      call log_determinant(slot%jac, log_det_j, error)
+      if (error) then
+         phi = cmplx(1.0_dp, 0.0_dp, dp)
+         return
+      end if
+
+      call calculate_action(slot%z, s_val)
+      s_imag = aimag(s_val)
+      phi = exp(cmplx(0.0_dp, -1.0_dp, dp)*s_imag + cmplx(0.0_dp, 1.0_dp, dp)*aimag(log_det_j))
+
+      slot%cached_phase_factor = phi
+      slot%cached_action = s_val
+      slot%cached_log_det_j = log_det_j
+      slot%phase_cache_version = slot%state_version
+      slot%phase_cache_valid = .true.
+      error = .false.
+   end subroutine refresh_slot_phase_cache
+
+   subroutine write_phase_cache_stats_if_enabled()
+      character(len=512) :: stats_file
+      logical :: has_stats_file
+      integer :: unit_stats, ios
+
+      stats_file = ""
+      call read_string_env("TLTM_STAGE2_PHASE_CACHE_STATS_FILE", stats_file, has_stats_file)
+      if (.not. has_stats_file) return
+
+      call ensure_parent_directory_exists(stats_file, has_stats_file)
+      if (.not. has_stats_file) then
+         write (*, '(A,1X,A)') "[WARN][TLTM-S2] Cannot prepare phase-cache stats path:", trim(stats_file)
+         return
+      end if
+      open (newunit=unit_stats, file=trim(stats_file), status='replace', action='write', iostat=ios)
+      if (ios /= 0) then
+         write (*, '(A,1X,A)') "[WARN][TLTM-S2] Cannot open phase-cache stats file:", trim(stats_file)
+         return
+      end if
+      write (unit_stats, '(A)') "phase_cache_hits,phase_cache_misses"
+      write (unit_stats, '(I0,A,I0)') phase_cache_hit_count, ",", phase_cache_miss_count
+      close (unit_stats)
+   end subroutine write_phase_cache_stats_if_enabled
 
    subroutine perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state, run_contexts, rng_stream_contract, base_seed)
       type(tltm_slot_t), intent(inout) :: slots(:)
@@ -1489,11 +1575,13 @@ contains
          slot_a%x = x_ap
          slot_a%z = z_ap
          slot_a%jac = j_ap
+         call mark_tltm_slot_state_changed(slot_a)
          slot_a%label_id = slot_b%label_id
 
          slot_b%x = x_bp
          slot_b%z = z_bp
          slot_b%jac = j_bp
+         call mark_tltm_slot_state_changed(slot_b)
          slot_b%label_id = label_tmp
          stats%accept_count = stats%accept_count + 1
       else
@@ -3427,7 +3515,7 @@ contains
    end subroutine replica_history_paths
 
    subroutine write_all_replica_history_samples(slots, z_units, phi_units, ok)
-      type(tltm_slot_t), intent(in) :: slots(:)
+      type(tltm_slot_t), intent(inout) :: slots(:)
       integer, intent(in) :: z_units(:), phi_units(:)
       logical, intent(out) :: ok
       integer :: i
@@ -3445,7 +3533,7 @@ contains
    end subroutine write_all_replica_history_samples
 
    subroutine write_all_replica_history_samples_if_enabled(slots, z_units, phi_units, sample_idx, stride, max_samples, written_count, ok)
-      type(tltm_slot_t), intent(in) :: slots(:)
+      type(tltm_slot_t), intent(inout) :: slots(:)
       integer, intent(in) :: z_units(:), phi_units(:)
       integer, intent(in) :: sample_idx, stride, max_samples
       integer, intent(inout) :: written_count
@@ -3476,7 +3564,7 @@ contains
    end subroutine close_all_replica_history_files
 
    subroutine write_cold_history_sample(slot, unit_z, unit_phi, ok)
-      type(tltm_slot_t), intent(in) :: slot
+      type(tltm_slot_t), intent(inout) :: slot
       integer, intent(in) :: unit_z, unit_phi
       logical, intent(out) :: ok
 
@@ -3484,7 +3572,7 @@ contains
    end subroutine write_cold_history_sample
 
    subroutine write_cold_history_sample_if_enabled(slot, unit_z, unit_phi, sample_idx, stride, max_samples, written_count, ok)
-      type(tltm_slot_t), intent(in) :: slot
+      type(tltm_slot_t), intent(inout) :: slot
       integer, intent(in) :: unit_z, unit_phi
       integer, intent(in) :: sample_idx, stride, max_samples
       integer, intent(inout) :: written_count
@@ -3519,14 +3607,14 @@ contains
    end subroutine write_cold_x_history_sample_if_enabled
 
    subroutine write_history_sample(slot, unit_z, unit_phi, context, ok)
-      type(tltm_slot_t), intent(in) :: slot
+      type(tltm_slot_t), intent(inout) :: slot
       integer, intent(in) :: unit_z, unit_phi
       character(len=*), intent(in) :: context
       logical, intent(out) :: ok
       complex(dp) :: phi
       logical :: phase_error
 
-      call compute_phase_factor(slot%z, slot%jac, phi, phase_error)
+      call slot_phase_factor(slot, phi, phase_error)
       if (phase_error) then
          write (*, '(A,1X,A,A)') "[ERROR][TLTM-S2] Failed to compute", trim(context), " phase for history sample."
          ok = .false.
@@ -3591,7 +3679,7 @@ contains
    end subroutine replica_observable_path
 
    subroutine write_all_replica_observable_samples_if_enabled(slots, obs_units, sample_idx, stride, max_samples, written_count, ok)
-      type(tltm_slot_t), intent(in) :: slots(:)
+      type(tltm_slot_t), intent(inout) :: slots(:)
       integer, intent(in) :: obs_units(:)
       integer, intent(in) :: sample_idx, stride, max_samples
       integer, intent(inout) :: written_count
@@ -3613,7 +3701,7 @@ contains
    end subroutine write_all_replica_observable_samples_if_enabled
 
    subroutine write_observable_sample_if_enabled(slot, unit_obs, sample_idx, stride, max_samples, written_count, context, ok)
-      type(tltm_slot_t), intent(in) :: slot
+      type(tltm_slot_t), intent(inout) :: slot
       integer, intent(in) :: unit_obs
       integer, intent(in) :: sample_idx, stride, max_samples
       integer, intent(inout) :: written_count
@@ -3627,7 +3715,7 @@ contains
    end subroutine write_observable_sample_if_enabled
 
    subroutine write_observable_sample(slot, unit_obs, context, ok)
-      type(tltm_slot_t), intent(in) :: slot
+      type(tltm_slot_t), intent(inout) :: slot
       integer, intent(in) :: unit_obs
       character(len=*), intent(in) :: context
       logical, intent(out) :: ok
@@ -3636,7 +3724,7 @@ contains
       logical :: phase_error
       integer :: observable_count
 
-      call compute_phase_factor(slot%z, slot%jac, phi, phase_error)
+      call slot_phase_factor(slot, phi, phase_error)
       if (phase_error) then
          write (*, '(A,1X,A,A)') "[ERROR][TLTM-S2] Failed to compute", trim(context), " phase for observable sample."
          ok = .false.

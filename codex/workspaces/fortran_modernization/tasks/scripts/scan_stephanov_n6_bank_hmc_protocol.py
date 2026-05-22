@@ -2,6 +2,7 @@
 """Scan Stephanov n=6 HMC protocol from fixed t=0 checkpoint-bank records."""
 
 import argparse
+import concurrent.futures
 import csv
 import os
 import shutil
@@ -36,6 +37,7 @@ def parse_args():
     parser.add_argument("--init-mode", choices=("adaptive", "direct"), default="adaptive")
     parser.add_argument("--preflow-L", type=float, default=0.16)
     parser.add_argument("--preflow-nstep", type=int, default=2)
+    parser.add_argument("--jobs", type=int, default=1, help="Run independent records concurrently per candidate.")
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--force", action="store_true")
     return parser.parse_args()
@@ -168,87 +170,112 @@ def movement_metrics(x_path):
     }
 
 
-def run_case(repo_root, run_dir, params_file, bank_file, stage, tag, L, nstep, epsilon, records, cycles, timeout_sec, seed_base,
-             init_mode, preflow_L, preflow_nstep, flow_time):
-    rows = []
+def run_record_case(repo_root, run_dir, params_file, bank_file, stage, tag, L, nstep, epsilon, record_idx, cycles, timeout_sec,
+                    seed_base, init_mode, preflow_L, preflow_nstep, flow_time):
     case_dir = run_dir / stage / tag
     case_dir.mkdir(parents=True, exist_ok=True)
-    for chain_idx, record_idx in enumerate(records):
-        chain_dir = case_dir / ("record_{0:04d}".format(record_idx))
-        chain_dir.mkdir(parents=True, exist_ok=True)
-        env = os.environ.copy()
-        env.update(
-            {
-                "TLTM_PARAMETERS_FILE": str(params_file),
-                "CHAIN_RNG_SEED": str(seed_base + record_idx),
-                "TLTM_STAGE2_INITIAL_X_FILE": str(bank_file),
-                "TLTM_STAGE2_INITIAL_X_RECORD": str(record_idx),
-                "TLTM_STAGE2_INIT_MODE": init_mode,
-                "TLTM_STAGE2_INIT_PREFLOW_TRAJECTORY_LENGTH": "{0:g}".format(preflow_L),
-                "TLTM_STAGE2_INIT_PREFLOW_INTEGRATION_STEPS": str(preflow_nstep),
-                "TLTM_STAGE2_FLOW_TIME_LADDER": "{0:g}".format(flow_time),
-                "TLTM_STAGE2_MAX_FLOW_TIME": "{0:g}".format(flow_time),
-                "TLTM_STAGE2_NUM_REPLICAS": "1",
-                "TLTM_STAGE2_CYCLES": str(cycles),
-                "TLTM_STAGE2_LOCAL_UPDATES": "1",
-                "TLTM_STAGE2_SWAP_ENABLED": "0",
-                "TLTM_STAGE2_HISTORY_STRIDE": "1",
-                "TLTM_STAGE2_COLD_X_HISTORY_STRIDE": "1",
-                "TLTM_STAGE2_SUMMARY_FILE": str(chain_dir / "summary.dat"),
-                "TLTM_STAGE2_LABEL_TRACE_FILE": str(chain_dir / "label_trace.dat"),
-                "TLTM_STAGE2_COLD_X_HISTORY_FILE": str(chain_dir / "x_history.dat"),
-                "TLTM_STAGE2_V1_OUTPUT_DIR": str(chain_dir / "v1"),
-                "TLTM_STAGE2_RNG_STREAM_CONTRACT": "stage2_kernel_rng_v2",
-                "CONSTRAINT_FAIL_CAPTURE_START_SAMPLE": "2147483647",
-            }
-        )
-        start = time.monotonic()
-        status = "done"
-        try:
-            proc = subprocess.run(
-                [str(repo_root / "bin" / "run_tltm_stage2")],
-                cwd=str(repo_root),
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                universal_newlines=True,
-                timeout=timeout_sec,
-                check=False,
-            )
-            output = proc.stdout
-            if proc.returncode != 0:
-                status = "failed"
-        except subprocess.TimeoutExpired as exc:
-            output = exc.stdout or ""
-            status = "timeout"
-        elapsed = time.monotonic() - start
-        (chain_dir / "run.log").write_text(output, encoding="utf-8", errors="replace")
-        summary = {}
-        movement = {"mean_step_norm2": 0.0, "nonzero_step_rate": 0.0, "move_norm2_sum": 0.0}
-        if status == "done" and (chain_dir / "summary.dat").exists():
-            summary = parse_summary(chain_dir / "summary.dat")
-            movement = movement_metrics(chain_dir / "x_history.dat")
-        row = {
-            "stage": stage,
-            "tag": tag,
-            "record": record_idx,
-            "L": L,
-            "nstep": nstep,
-            "epsilon": epsilon,
-            "flow_time": flow_time,
-            "init_mode": init_mode,
-            "preflow_L": preflow_L,
-            "preflow_nstep": preflow_nstep,
-            "status": status,
-            "elapsed_wall_sec": elapsed,
-            **summary,
-            **movement,
+    chain_dir = case_dir / ("record_{0:04d}".format(record_idx))
+    chain_dir.mkdir(parents=True, exist_ok=True)
+    env = os.environ.copy()
+    env.update(
+        {
+            "TLTM_PARAMETERS_FILE": str(params_file),
+            "CHAIN_RNG_SEED": str(seed_base + record_idx),
+            "TLTM_STAGE2_INITIAL_X_FILE": str(bank_file),
+            "TLTM_STAGE2_INITIAL_X_RECORD": str(record_idx),
+            "TLTM_STAGE2_INIT_MODE": init_mode,
+            "TLTM_STAGE2_INIT_PREFLOW_TRAJECTORY_LENGTH": "{0:g}".format(preflow_L),
+            "TLTM_STAGE2_INIT_PREFLOW_INTEGRATION_STEPS": str(preflow_nstep),
+            "TLTM_STAGE2_FLOW_TIME_LADDER": "{0:g}".format(flow_time),
+            "TLTM_STAGE2_MAX_FLOW_TIME": "{0:g}".format(flow_time),
+            "TLTM_STAGE2_NUM_REPLICAS": "1",
+            "TLTM_STAGE2_CYCLES": str(cycles),
+            "TLTM_STAGE2_LOCAL_UPDATES": "1",
+            "TLTM_STAGE2_SWAP_ENABLED": "0",
+            "TLTM_STAGE2_HISTORY_STRIDE": "1",
+            "TLTM_STAGE2_COLD_X_HISTORY_STRIDE": "1",
+            "TLTM_STAGE2_SUMMARY_FILE": str(chain_dir / "summary.dat"),
+            "TLTM_STAGE2_LABEL_TRACE_FILE": str(chain_dir / "label_trace.dat"),
+            "TLTM_STAGE2_COLD_X_HISTORY_FILE": str(chain_dir / "x_history.dat"),
+            "TLTM_STAGE2_PHASE_CACHE_STATS_FILE": str(chain_dir / "phase_cache_stats.csv"),
+            "TLTM_STAGE2_V1_OUTPUT_DIR": str(chain_dir / "v1"),
+            "TLTM_STAGE2_RNG_STREAM_CONTRACT": "stage2_kernel_rng_v2",
+            "CONSTRAINT_FAIL_CAPTURE_START_SAMPLE": "2147483647",
         }
-        rows.append(row)
-    return rows
+    )
+    start = time.monotonic()
+    status = "done"
+    try:
+        proc = subprocess.run(
+            [str(repo_root / "bin" / "run_tltm_stage2")],
+            cwd=str(repo_root),
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            timeout=timeout_sec,
+            check=False,
+        )
+        output = proc.stdout
+        if proc.returncode != 0:
+            status = "failed"
+    except subprocess.TimeoutExpired as exc:
+        output = exc.stdout or ""
+        status = "timeout"
+    elapsed = time.monotonic() - start
+    (chain_dir / "run.log").write_text(output, encoding="utf-8", errors="replace")
+    summary = {}
+    movement = {"mean_step_norm2": 0.0, "nonzero_step_rate": 0.0, "move_norm2_sum": 0.0}
+    if status == "done" and (chain_dir / "summary.dat").exists():
+        summary = parse_summary(chain_dir / "summary.dat")
+        movement = movement_metrics(chain_dir / "x_history.dat")
+    return {
+        "stage": stage,
+        "tag": tag,
+        "record": record_idx,
+        "L": L,
+        "nstep": nstep,
+        "epsilon": epsilon,
+        "flow_time": flow_time,
+        "init_mode": init_mode,
+        "preflow_L": preflow_L,
+        "preflow_nstep": preflow_nstep,
+        "status": status,
+        "elapsed_wall_sec": elapsed,
+        **summary,
+        **movement,
+    }
 
 
-def aggregate_rows(rows):
+def run_case_records(repo_root, run_dir, params_file, bank_file, stage, tag, L, nstep, epsilon, records, cycles, timeout_sec,
+                     seed_base, init_mode, preflow_L, preflow_nstep, flow_time, jobs):
+    jobs = max(1, int(jobs))
+    if jobs == 1 or len(records) <= 1:
+        return [
+            run_record_case(
+                repo_root, run_dir, params_file, bank_file, stage, tag, L, nstep, epsilon, record_idx,
+                cycles, timeout_sec, seed_base, init_mode, preflow_L, preflow_nstep, flow_time,
+            )
+            for record_idx in records
+        ]
+
+    rows_by_record = {}
+    with concurrent.futures.ProcessPoolExecutor(max_workers=min(jobs, len(records))) as pool:
+        future_to_record = {
+            pool.submit(
+                run_record_case,
+                repo_root, run_dir, params_file, bank_file, stage, tag, L, nstep, epsilon, record_idx,
+                cycles, timeout_sec, seed_base, init_mode, preflow_L, preflow_nstep, flow_time,
+            ): record_idx
+            for record_idx in records
+        }
+        for future in concurrent.futures.as_completed(future_to_record):
+            record_idx = future_to_record[future]
+            rows_by_record[record_idx] = future.result()
+    return [rows_by_record[record_idx] for record_idx in records]
+
+
+def aggregate_rows(rows, case_wall_sec=None):
     fields = [
         "stage", "tag", "flow_time", "L", "nstep", "epsilon", "status", "records", "elapsed_wall_sec",
         "init_mode", "preflow_L", "preflow_nstep", "samples_by_record", "accepted", "metropolis_reject", "proposal_failure",
@@ -259,7 +286,8 @@ def aggregate_rows(rows):
     if not rows:
         return {}
     status = "done" if all(row["status"] == "done" for row in rows) else ",".join(sorted(set(row["status"] for row in rows)))
-    elapsed = sum(row["elapsed_wall_sec"] for row in rows)
+    record_wall_sum = sum(row["elapsed_wall_sec"] for row in rows)
+    elapsed = case_wall_sec if case_wall_sec is not None else record_wall_sum
     accepts = sum(int(row.get("accepts", 0)) for row in rows)
     rejects = sum(int(row.get("metropolis_reject", 0)) for row in rows)
     failures = sum(int(row.get("proposal_failure", 0)) for row in rows)
@@ -283,6 +311,7 @@ def aggregate_rows(rows):
         "preflow_L": rows[0]["preflow_L"],
         "preflow_nstep": rows[0]["preflow_nstep"],
         "elapsed_wall_sec": elapsed,
+        "record_wall_sum_sec": record_wall_sum,
         "samples_by_record": ";".join(str(row.get("samples", 0)) for row in rows),
         "accepted": accepts,
         "metropolis_reject": rejects,
@@ -318,6 +347,8 @@ def main():
     params_dir = run_dir / "params"
     params_dir.mkdir(parents=True, exist_ok=True)
     records = parse_int_list(args.records)
+    if args.jobs < 1:
+        raise RuntimeError("--jobs must be >= 1")
     run_build(repo_root, args.skip_build)
     base_text = base_parameters.read_text(encoding="utf-8")
 
@@ -335,16 +366,39 @@ def main():
 
     aggregate = []
     detail_rows = []
+    plan_rows = []
+    for tag, L, nstep, epsilon in candidates:
+        for record_idx in records:
+            plan_rows.append(
+                {
+                    "stage": args.stage,
+                    "tag": tag,
+                    "record": record_idx,
+                    "seed": args.seed_base + record_idx,
+                    "flow_time": args.flow_time,
+                    "L": L,
+                    "nstep": nstep,
+                    "epsilon": epsilon,
+                    "jobs": args.jobs,
+                }
+            )
+    with (run_dir / "scan_plan.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(plan_rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(plan_rows)
     for tag, L, nstep, epsilon in candidates:
         params_file = params_dir / ("{0}_{1}.dat".format(args.stage, tag))
         write_parameters(base_text, params_file, L, nstep, args.flow_time)
-        rows = run_case(
-            repo_root, run_dir, params_file, bank_file, args.stage, tag, L, nstep, epsilon,
-            records, args.cycles, args.timeout_sec, args.seed_base, args.init_mode, args.preflow_L, args.preflow_nstep,
-            args.flow_time,
+        case_start = time.monotonic()
+        rows = run_case_records(
+            repo_root, run_dir, params_file, bank_file, args.stage, tag, L, nstep, epsilon, records,
+            args.cycles, args.timeout_sec, args.seed_base, args.init_mode, args.preflow_L, args.preflow_nstep,
+            args.flow_time, args.jobs,
         )
+        case_wall_sec = time.monotonic() - case_start
         detail_rows.extend(rows)
-        agg = aggregate_rows(rows)
+        agg = aggregate_rows(rows, case_wall_sec)
+        agg["jobs"] = args.jobs
         aggregate.append(agg)
         print("[SCAN] {0} status={1} attempt_acc={2:.3f} valid_met_acc={3:.3f} move/sec={4:.3f}".format(
             tag,
