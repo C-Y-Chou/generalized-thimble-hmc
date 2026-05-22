@@ -73,6 +73,7 @@ export OMP_PROC_BIND=true
 export OMP_PLACES=cores
 export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
 
+make -C build clean
 make -C build OMP=1 ../bin/run_tltm_stage2
 
 /usr/bin/time -p python3 codex/workspaces/fortran_modernization/tasks/scripts/run_stephanov_n6_tltm_ladder.py \
