@@ -333,6 +333,48 @@ Interpretation:
   fixed-flow nofb claim: build a ladder up to `t=0.02`, then judge swap
   acceptance, round trips, label diffusion, and exact-observable consistency.
 
+## Non-Ergodic Fixed-Flow Endpoint Correction
+
+The fixed-flow nofb endpoint scans started from selected records in the `t=0`
+bank are not assumed to be ergodic across all relevant sections of the
+complexified manifold.  Therefore, an equal-weight aggregate across bank
+records must not be used as a negative endpoint signal when the section-level
+chains show different phase directions or magnitudes.
+
+Correct interpretation rule:
+
+- use equal-weight aggregate phase only as a diagnostic of the current nofb
+  test shape, not as a physics or endpoint rejection criterion;
+- judge fixed-flow endpoint candidates section-wise: local phase coherence,
+  phase effective sample size, attempt acceptance, and nonzero movement within
+  each started section;
+- if sections disagree, the conclusion is non-ergodicity or unknown section
+  weighting, not necessarily insufficient flow time;
+- section weights and cross-section transport must be decided by a TLTM ladder
+  using swap acceptance, round trips, label diffusion, and observable
+  consistency, not by fixed-flow nofb equal weighting.
+
+High-flow follow-up scans using `t=0` bank starts:
+
+```text
+output/stephanov_flowtime_sign_problem/stephanov_n6_endpoint_upscan_eps004_nstep4_4x250_20260522
+output/stephanov_flowtime_sign_problem/stephanov_n6_endpoint_upscan_eps003_nstep5_t003_t005_4x250_20260522
+```
+
+Section-wise readback:
+
+| flow time | epsilon | nstep | aggregate phase | record phases | attempt acceptance | movement interpretation |
+|---:|---:|---:|---:|---|---:|---|
+| `0.02` | `0.04` | `4` | `0.21996` | `0.37984, 0.30808, 0.27464, 0.36762` | `0.640` | all four records move; robust local high-flow anchor |
+| `0.03` | `0.04` | `4` | `0.19447` | `0.57749, 0.25521, 0.33296, 0.38320` | `0.521` | all four records move; aggregate cancellation is not endpoint rejection |
+| `0.03` | `0.03` | `5` | `0.15583` | `0.13190, 0.04077, 0.27340, 0.26164` | `0.640` | lower epsilon improves acceptance but changes section sampling; not a rejection by aggregate |
+| `0.04` | `0.03` | `5` | `0.07404` | `0.39488, 0.04762, 0.22140, 0.13839` | `0.542` | all four records move; section disagreement means nofb is non-ergodic |
+
+The `t=0.05` run with `epsilon=0.03, nstep=5` was intentionally stopped before
+completion.  It was already much harder to enter and sample the endpoint, and
+the current decision is to avoid spending local time on a fixed-flow nofb scan
+whose aggregate phase would not answer the section-weighting question.
+
 ## Preliminary Conclusion
 
 The sign problem remains severe throughout this very-low-flow ladder.  The

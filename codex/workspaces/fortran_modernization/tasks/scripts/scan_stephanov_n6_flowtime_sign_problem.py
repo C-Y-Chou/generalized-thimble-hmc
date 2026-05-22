@@ -151,6 +151,39 @@ def parse_summary(path):
     return out
 
 
+def read_x_records(path):
+    values = array("d")
+    file_size = Path(path).stat().st_size
+    with Path(path).open("rb") as handle:
+        values.fromfile(handle, file_size // 8)
+    if len(values) % 72 != 0:
+        raise RuntimeError("x history width mismatch: {0}".format(path))
+    records = []
+    for start in range(0, len(values), 72):
+        records.append(values[start:start + 72])
+    return records
+
+
+def movement_metrics(x_path):
+    if not Path(x_path).exists():
+        return {"mean_step_norm2": 0.0, "nonzero_step_rate": 0.0, "move_norm2_sum": 0.0}
+    records = read_x_records(x_path)
+    if len(records) < 2:
+        return {"mean_step_norm2": 0.0, "nonzero_step_rate": 0.0, "move_norm2_sum": 0.0}
+    moves = []
+    nonzero = 0
+    for prev, curr in zip(records[:-1], records[1:]):
+        norm2 = sum((float(b) - float(a)) ** 2 for a, b in zip(prev, curr))
+        moves.append(norm2)
+        if norm2 > 0.0:
+            nonzero += 1
+    return {
+        "mean_step_norm2": sum(moves) / float(len(moves)),
+        "nonzero_step_rate": nonzero / float(len(moves)),
+        "move_norm2_sum": sum(moves),
+    }
+
+
 def read_observable_stream(path):
     values = array("d")
     file_size = Path(path).stat().st_size
@@ -268,6 +301,9 @@ def analyze_chains(chain_rows, burn):
     metropolis_transitions = sum(row["accepts"] + row["metropolis_reject"] for row in chain_stats)
     accepted = sum(row["accepts"] for row in chain_stats)
     proposal_failures = sum(row["proposal_failure"] for row in chain_stats)
+    move_count = sum(max(0, int(row.get("samples", 0)) - 1) for row in chain_stats)
+    move_sum = sum(float(row.get("move_norm2_sum", 0.0)) for row in chain_stats)
+    nonzero_sum = sum(float(row.get("nonzero_step_rate", 0.0)) * max(0, int(row.get("samples", 0)) - 1) for row in chain_stats)
     return chain_stats, {
         "used_samples": total_count,
         "phase_coherence": phase_coherence,
@@ -281,6 +317,8 @@ def analyze_chains(chain_rows, burn):
         "accepted": accepted,
         "metropolis_reject": sum(row["metropolis_reject"] for row in chain_stats),
         "runtime_max_sec": max((row["runtime_sec"] for row in chain_stats), default=0.0),
+        "mean_step_norm2": move_sum / float(move_count) if move_count else 0.0,
+        "nonzero_step_rate": nonzero_sum / float(move_count) if move_count else 0.0,
         "chiral_re": obs_means[0].real,
         "chiral_im": obs_means[0].imag,
         "chiral_err_re": chiral_err_re,
@@ -315,6 +353,8 @@ def run_chain(repo_root, run_dir, params_file, bank_file, flow_time, record_idx,
             "TLTM_STAGE2_LABEL_TRACE_FILE": str(chain_dir / "label_trace.dat"),
             "TLTM_STAGE2_COLD_OBSERVABLE_FILE": str(chain_dir / "observable_history.dat"),
             "TLTM_STAGE2_COLD_OBSERVABLE_STRIDE": "1",
+            "TLTM_STAGE2_COLD_X_HISTORY_FILE": str(chain_dir / "x_history.dat"),
+            "TLTM_STAGE2_COLD_X_HISTORY_STRIDE": "1",
             "TLTM_STAGE2_V1_OUTPUT_DIR": str(chain_dir / "v1"),
             "TLTM_STAGE2_RNG_STREAM_CONTRACT": "stage2_kernel_rng_v2",
             "CONSTRAINT_FAIL_CAPTURE_START_SAMPLE": "2147483647",
@@ -342,6 +382,7 @@ def run_chain(repo_root, run_dir, params_file, bank_file, flow_time, record_idx,
     elapsed = time.monotonic() - start
     (chain_dir / "run.log").write_text(output, encoding="utf-8", errors="replace")
     summary = parse_summary(chain_dir / "summary.dat")
+    movement = movement_metrics(chain_dir / "x_history.dat")
     return {
         "flow_time": flow_time,
         "record": record_idx,
@@ -353,6 +394,7 @@ def run_chain(repo_root, run_dir, params_file, bank_file, flow_time, record_idx,
         "hmc_epsilon": hmc_epsilon,
         "observable_file": str(chain_dir / "observable_history.dat"),
         **summary,
+        **movement,
     }
 
 
@@ -422,12 +464,13 @@ def main():
         }
         aggregate_rows.append(aggregate_row)
         print(
-            "[FLOW] t={0:g} status={1} phase={2:.5f} attempt_acc={3:.3f} valid_met_acc={4:.3f} pfail={5}".format(
+            "[FLOW] t={0:g} status={1} phase={2:.5f} attempt_acc={3:.3f} valid_met_acc={4:.3f} move={5:.3f} pfail={6}".format(
                 flow_time,
                 status,
                 float(aggregate_row.get("phase_coherence", 0.0)),
                 float(aggregate_row.get("attempt_accept_rate", 0.0)),
                 float(aggregate_row.get("valid_proposal_metropolis_accept_rate", 0.0)),
+                float(aggregate_row.get("mean_step_norm2", 0.0)),
                 int(aggregate_row.get("proposal_failure", 0)),
             ),
             flush=True,
