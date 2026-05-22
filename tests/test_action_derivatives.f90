@@ -1,15 +1,16 @@
 program test_action_derivatives
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-   use model, only: calculate_action, ds, hessian, hessian_vec
+   use model, only: calculate_action, ds, ds_hessian_vec_batch, hessian, hessian_vec
    use model_observables, only: evaluate_model_observables, find_model_observable, get_model_observable_name, model_observable_count
    use param_mod, only: derivative_mode, set_derivative_mode, stephanov_emit_diagnostics, stephanov_include_mu_prefactor, &
                         stephanov_mass, stephanov_mu, stephanov_n, stephanov_nf, stephanov_tau
    use utils, only: dp
    implicit none
 
-   complex(dp), allocatable :: z_state(:), z_work(:), v_dir(:)
+   complex(dp), allocatable :: z_state(:), z_work(:), v_dir(:), v_batch(:, :)
    complex(dp), allocatable :: grad_manual(:), grad_numeric(:)
-   complex(dp), allocatable :: hv_manual(:), hv_numeric(:)
+   complex(dp), allocatable :: hv_manual(:), hv_numeric(:), hv_batch(:, :), hv_reference(:, :)
+   complex(dp), allocatable :: grad_batch(:)
    complex(dp), allocatable :: grad_p2(:), grad_p1(:), grad_m1(:), grad_m2(:)
    complex(dp), allocatable :: hess_manual(:, :)
    complex(dp), allocatable :: observables(:)
@@ -41,8 +42,9 @@ contains
 
       n_state = 2*stephanov_n*stephanov_n
       call reset_case_allocations()
-      allocate (z_state(n_state), z_work(n_state), v_dir(n_state))
+      allocate (z_state(n_state), z_work(n_state), v_dir(n_state), v_batch(n_state, 4))
       allocate (grad_manual(n_state), grad_numeric(n_state), hv_manual(n_state), hv_numeric(n_state))
+      allocate (grad_batch(n_state), hv_batch(n_state, 4), hv_reference(n_state, 4))
       allocate (grad_p2(n_state), grad_p1(n_state), grad_m1(n_state), grad_m2(n_state))
       allocate (hess_manual(n_state, n_state), random_real(n_state), random_imag(n_state))
 
@@ -111,6 +113,20 @@ contains
          error stop 1
       end if
 
+      call fill_batch_directions(n_state)
+      call ds_hessian_vec_batch(z_state, v_batch, grad_batch, hv_batch)
+      do i = 1, size(v_batch, 2)
+         call hessian_vec(z_state, v_batch(:, i), hv_reference(:, i))
+      end do
+      grad_diff_norm = sqrt(sum(abs(grad_batch - grad_manual)**2))
+      hv_diff_norm = sqrt(sum(abs(hv_batch - hv_reference)**2))
+      write (*, '(A,ES12.4)') "[CHECK] Norm of batched ds-scalar ds=", grad_diff_norm
+      write (*, '(A,ES12.4)') "[CHECK] Norm of batched Hv-scalar Hv=", hv_diff_norm
+      if (grad_diff_norm > 1.0e-12_dp .or. hv_diff_norm > 1.0e-11_dp) then
+         write (*, '(A)') "[ERROR] Stephanov batched ds/Hv provider does not match scalar reference."
+         error stop 1
+      end if
+
       call check_observables(z_state)
       write (*, '(A,A)') "[CHECK] derivative_mode=", trim(derivative_mode)
       write (*, '(A,A)') "[DONE] Stephanov random-complex derivative case complete: ", trim(case_label)
@@ -134,10 +150,14 @@ contains
       if (allocated(z_state)) deallocate (z_state)
       if (allocated(z_work)) deallocate (z_work)
       if (allocated(v_dir)) deallocate (v_dir)
+      if (allocated(v_batch)) deallocate (v_batch)
       if (allocated(grad_manual)) deallocate (grad_manual)
       if (allocated(grad_numeric)) deallocate (grad_numeric)
+      if (allocated(grad_batch)) deallocate (grad_batch)
       if (allocated(hv_manual)) deallocate (hv_manual)
       if (allocated(hv_numeric)) deallocate (hv_numeric)
+      if (allocated(hv_batch)) deallocate (hv_batch)
+      if (allocated(hv_reference)) deallocate (hv_reference)
       if (allocated(grad_p2)) deallocate (grad_p2)
       if (allocated(grad_p1)) deallocate (grad_p1)
       if (allocated(grad_m1)) deallocate (grad_m1)
@@ -147,6 +167,23 @@ contains
       if (allocated(random_imag)) deallocate (random_imag)
       if (allocated(observables)) deallocate (observables)
    end subroutine reset_case_allocations
+
+   subroutine fill_batch_directions(n_state_in)
+      integer, intent(in) :: n_state_in
+      integer :: col
+
+      v_batch(:, 1) = v_dir
+      v_batch(:, 2) = cmplx(0.0_dp, 0.0_dp, dp)
+      v_batch(1, 2) = cmplx(1.0_dp, 0.0_dp, dp)
+      v_batch(:, 3) = cmplx(0.0_dp, 0.0_dp, dp)
+      v_batch(n_state_in, 3) = cmplx(0.0_dp, 1.0_dp, dp)
+      call random_number(random_real)
+      call random_number(random_imag)
+      do col = 1, n_state_in
+         v_batch(col, 4) = cmplx(0.15_dp*(2.0_dp*random_real(col) - 1.0_dp), &
+                                 0.15_dp*(2.0_dp*random_imag(col) - 1.0_dp), dp)
+      end do
+   end subroutine fill_batch_directions
 
    subroutine check_observables(z_state_in)
       complex(dp), intent(in) :: z_state_in(:)

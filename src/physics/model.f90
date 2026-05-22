@@ -1,7 +1,8 @@
 module model
    use utils, only: dp
    use mt95, only: gaussrnd
-   use model_stephanov, only: stephanov_calculate_action, stephanov_ds, stephanov_hessian, stephanov_hessian_vec
+   use model_stephanov, only: stephanov_calculate_action, stephanov_ds, stephanov_hessian, stephanov_hessian_vec, &
+                              stephanov_ds_hessian_vec_batch
 
    implicit none
 
@@ -70,5 +71,29 @@ contains
 
       call stephanov_hessian_vec(z, v, hv)
    end subroutine hessian_vec
+
+   logical function batched_ds_hessian_vec_available() result(available)
+      available = .true.
+   end function batched_ds_hessian_vec_available
+
+   subroutine ds_hessian_vec_batch(z, vectors, grad, hvectors)
+      implicit none
+      complex(dp), intent(in) :: z(:), vectors(:, :)
+      complex(dp), intent(out) :: grad(:), hvectors(:, :)
+
+      call stephanov_ds_hessian_vec_batch(z, vectors, grad, hvectors)
+   end subroutine ds_hessian_vec_batch
+
+   subroutine ds_hessian_vec_batch_fallback(z, vectors, grad, hvectors)
+      implicit none
+      complex(dp), intent(in) :: z(:), vectors(:, :)
+      complex(dp), intent(out) :: grad(:), hvectors(:, :)
+      integer :: col
+
+      call ds(z, grad)
+      do col = 1, size(vectors, 2)
+         call hessian_vec(z, vectors(:, col), hvectors(:, col))
+      end do
+   end subroutine ds_hessian_vec_batch_fallback
 
 end module model

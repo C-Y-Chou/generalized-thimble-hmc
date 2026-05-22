@@ -99,7 +99,7 @@ Validation gate:
 
 ### 3. Add batched model-provider RHS hooks
 
-Status: TODO
+Status: DONE
 
 Hot path:
 - `src/physics/model.f90`
@@ -127,6 +127,44 @@ Validation gate:
 - Retained-core Newton and RATTLE/RG contracts pass.
 - Stephanov exact-reference and observable parity checks pass before using this
   for production scans.
+
+Implementation:
+- Added `batched_ds_hessian_vec_available()` and `ds_hessian_vec_batch()` to
+  the model provider interface.
+- Kept the scalar `ds` plus repeated `hessian_vec` loop as the fallback path
+  inside `rhs_flow_jac_context`.
+- Added a Stephanov-specific batch provider that builds the Dirac matrix and
+  inverse once per RHS point, then evaluates `ds(z)` and all requested
+  Hessian-vector columns from the same inverse.
+- Extended the random-complex Stephanov derivative test to compare the batched
+  provider against scalar `ds` and repeated scalar `hessian_vec` directions.
+
+Validation:
+- Build/test:
+  `make -C build test2 test_odex_flow_jacobian_contract`.
+- Stage2 RNG v2 anchor:
+  `python3 codex/workspaces/fortran_modernization/tasks/scripts/stage2_rng_v2_anchor.py --skip-build`.
+- Batched derivative checks passed for `n=2`, `n=4`, and the working `n=6`
+  Stephanov case:
+  `Norm of batched ds-scalar ds=0.0000E+00` and
+  `Norm of batched Hv-scalar Hv=0.0000E+00`.
+- Fixed validation point:
+  `t=0.02`, records `0,81`, cycles `40`, burn `5`, `epsilon=0.04`,
+  `nstep=4`, `jobs=1`.
+- Before:
+  `output/stephanov_flowtime_sign_problem/lossless_cache_validation_serial_t002_2x40_20260522`.
+- After:
+  `output/stephanov_flowtime_sign_problem/lossless_batch_rhs_validation_serial_t002_2x40_20260522`.
+- Parity: label trace is byte-identical for both records; integer/status
+  summary fields match after removing runtime/path fields.
+- Continuous histories are roundoff-equivalent, not bitwise identical, because
+  the batched provider reuses one Dirac inverse instead of repeating the same
+  inverse construction for every tangent column.  Observed maxima:
+  `x_history.dat <= 9.55e-14`, `observable_history.dat <= 1.44e-12`,
+  summary scaled float difference `<= 2.84e-13`.
+- Local wall time changed from `139.89 s` to `76.88 s` relative to the
+  cache-enabled baseline (`1.82x`), or from `149.30 s` to `76.88 s` relative
+  to the original serial validation point (`1.94x`).
 
 ### 4. Reuse real-Jacobian maps and LU factorizations within a step
 

@@ -2,7 +2,7 @@ module solve_flow
    use param_mod, only: at, rt
    use runtime_env_mod, only: parse_int_env, parse_real_env, read_string_env
    use utils, only: dp, complex_to_real, map_to_complex, pack_legacy_x, real_to_complex
-   use model, only: ds, hessian_vec
+   use model, only: batched_ds_hessian_vec_available, ds, ds_hessian_vec_batch, hessian_vec
    use odex_backend, only: build_nsteps, ensure_odex_workspace_object, ode_rhs, ode_rhs_context, &
                            odex_apply_backend_name, odex_apply_controller_policy_name, &
                            odex_backend_default_options => odex_default_options, &
@@ -1903,12 +1903,17 @@ contains
 
          call real_to_complex_vec_fast(y(1:n), workspace%flow_jac_z(1:n_complex))
          call real_to_complex_mat_rowmajor_fast(y(n + 1:), workspace%flow_jac_j(1:n_jac, 1:n_jac))
-         call ds(workspace%flow_jac_z(1:n_complex), workspace%flow_jac_ds(1:n_complex))
+         if (batched_ds_hessian_vec_available()) then
+            call ds_hessian_vec_batch(workspace%flow_jac_z(1:n_complex), workspace%flow_jac_j(1:n_jac, 1:n_jac), &
+                                      workspace%flow_jac_ds(1:n_complex), workspace%flow_jac_jprod(1:n_jac, 1:n_jac))
+         else
+            call ds(workspace%flow_jac_z(1:n_complex), workspace%flow_jac_ds(1:n_complex))
+            do col = 1, n_jac
+               call hessian_vec(workspace%flow_jac_z(1:n_complex), workspace%flow_jac_j(1:n_jac, col), &
+                                workspace%flow_jac_jprod(1:n_jac, col))
+            end do
+         end if
          call complex_to_real_vec_conjg_scaled_fast(workspace%flow_jac_ds(1:n_complex), f(1:n), 1.0_dp)
-         do col = 1, n_jac
-            call hessian_vec(workspace%flow_jac_z(1:n_complex), workspace%flow_jac_j(1:n_jac, col), &
-                             workspace%flow_jac_jprod(1:n_jac, col))
-         end do
          call map_to_real_conjg_scaled(workspace%flow_jac_jprod(1:n_jac, 1:n_jac), f(n + 1:), 1.0_dp)
       end select
    end function rhs_flow_jac_context

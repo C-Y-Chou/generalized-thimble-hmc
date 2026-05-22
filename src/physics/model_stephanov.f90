@@ -17,7 +17,7 @@ module model_stephanov
    ]
    complex(dp), parameter :: ci = cmplx(0.0_dp, 1.0_dp, dp)
 
-   public :: stephanov_calculate_action, stephanov_ds, stephanov_hessian, stephanov_hessian_vec
+   public :: stephanov_calculate_action, stephanov_ds, stephanov_hessian, stephanov_hessian_vec, stephanov_ds_hessian_vec_batch
    public :: stephanov_observable_count, get_stephanov_observable_name, stephanov_evaluate_observables
 
 contains
@@ -178,6 +178,65 @@ contains
          end do
       end do
    end subroutine stephanov_hessian_vec
+
+   subroutine stephanov_ds_hessian_vec_batch(z, vectors, grad, hvectors)
+      complex(dp), intent(in) :: z(:), vectors(:, :)
+      complex(dp), intent(out) :: grad(:), hvectors(:, :)
+
+      complex(dp), allocatable :: a_mat(:, :), b_mat(:, :), dirac(:, :), dirac_inv(:, :)
+      complex(dp), allocatable :: d_dirac(:, :), work(:, :)
+      complex(dp) :: nf_c, n_c, vx, vy
+      integer :: n_model, n_state, i, j, col
+
+      call validate_stephanov_state(z, "stephanov_ds_hessian_vec_batch", n_model)
+      n_state = size(z)
+      if (size(grad) /= n_state .or. size(vectors, 1) /= n_state .or. size(hvectors, 1) /= n_state .or. &
+          size(hvectors, 2) /= size(vectors, 2)) then
+         write (*, '(A)') "[ERROR] stephanov_ds_hessian_vec_batch: size mismatch."
+         error stop 1
+      end if
+
+      allocate (a_mat(n_model, n_model), b_mat(n_model, n_model), dirac(2*n_model, 2*n_model), &
+                dirac_inv(2*n_model, 2*n_model), d_dirac(2*n_model, 2*n_model), work(2*n_model, 2*n_model))
+      call build_stephanov_ab(z, n_model, a_mat, b_mat)
+      call build_stephanov_dirac(a_mat, b_mat, n_model, dirac)
+      call invert_complex_matrix(dirac, dirac_inv, "stephanov_ds_hessian_vec_batch")
+
+      nf_c = cmplx(real(stephanov_nf, dp), 0.0_dp, dp)
+      n_c = cmplx(real(n_model, dp), 0.0_dp, dp)
+      grad = cmplx(0.0_dp, 0.0_dp, dp)
+      do j = 1, n_model
+         do i = 1, n_model
+            grad(offset_x(i, j, n_model)) = 2.0_dp*n_c*z(offset_x(i, j, n_model)) - &
+               nf_c*ci*(dirac_inv(n_model + j, i) + dirac_inv(i, n_model + j))
+            grad(offset_y(i, j, n_model)) = 2.0_dp*n_c*z(offset_y(i, j, n_model)) - &
+               nf_c*(dirac_inv(i, n_model + j) - dirac_inv(n_model + j, i))
+         end do
+      end do
+
+      hvectors = cmplx(0.0_dp, 0.0_dp, dp)
+      do col = 1, size(vectors, 2)
+         d_dirac = cmplx(0.0_dp, 0.0_dp, dp)
+         do j = 1, n_model
+            do i = 1, n_model
+               vx = vectors(offset_x(i, j, n_model), col)
+               vy = vectors(offset_y(i, j, n_model), col)
+               d_dirac(i, n_model + j) = ci*(vx + ci*vy)
+               d_dirac(n_model + j, i) = ci*(vx - ci*vy)
+            end do
+         end do
+
+         work = matmul(matmul(dirac_inv, d_dirac), dirac_inv)
+         do j = 1, n_model
+            do i = 1, n_model
+               hvectors(offset_x(i, j, n_model), col) = 2.0_dp*n_c*vectors(offset_x(i, j, n_model), col) + &
+                  nf_c*ci*(work(n_model + j, i) + work(i, n_model + j))
+               hvectors(offset_y(i, j, n_model), col) = 2.0_dp*n_c*vectors(offset_y(i, j, n_model), col) + &
+                  nf_c*(work(i, n_model + j) - work(n_model + j, i))
+            end do
+         end do
+      end do
+   end subroutine stephanov_ds_hessian_vec_batch
 
    subroutine stephanov_evaluate_observables(z, observables)
       complex(dp), intent(in) :: z(:)
