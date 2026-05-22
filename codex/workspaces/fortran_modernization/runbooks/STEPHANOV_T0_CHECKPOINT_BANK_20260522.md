@@ -133,8 +133,9 @@ The largest reported 5%-tail occupancy deviation among these tracked scalars is
 ## Interpretation
 
 This bank is sufficient for the next local development step: remove Gaussian
-preflow initialization from `t=1e-6` protocol scans by starting from fixed,
-thermalized `t=0` physical states.
+starts from `t=1e-6` protocol scans by starting from fixed, thermalized `t=0`
+physical states, then applying adaptive preflow with staged flow and
+zero-momentum relaxation to reach the nonzero target flow time.
 
 It is not sufficient for a final physics coverage claim.  Before using it for a
 claim about sign-problem improvement or absence of initialization bias, rerun
@@ -143,12 +144,13 @@ observables, proposal failures, and error bars are stable under bank expansion.
 
 ## Next Step
 
-Implement a restart/read path for `x_bank.dat` or per-chain `x_history.dat`, then
+Use the restart/read path for `x_bank.dat` or per-chain `x_history.dat`, then
 run `n=6, t=1e-6, nofb` confirmation from disjoint checkpoint subsets using the
-selected HMC protocol:
+selected bank-adaptive HMC protocol:
 
 ```text
-epsilon = 0.08
-nstep   = 2
-L       = 0.16
+epsilon = 0.10
+nstep   = 6
+L       = 0.60
+initialization preflow L/nstep = 0.16/2
 ```

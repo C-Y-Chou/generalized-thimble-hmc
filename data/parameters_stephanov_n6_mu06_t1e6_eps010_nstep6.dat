@@ -1,0 +1,43 @@
+# Runtime flags
+istest = false
+tra2 = false
+eo = false
+
+# Markov chain control
+chain_length = 10000000
+hmc_repeat = 1
+warmup = 0
+
+# Integrator control
+trajectory_length = 0.60
+integration_steps = 6
+initial_flow_time = 0.000001
+integrator_method = rattle
+
+# State layout. Flow time is metadata; x_size is only the legacy packed size.
+physical_state_size = 72
+x_size = 73
+
+# Active source provider: Stephanov finite-density chiral random matrix model.
+derivative_mode = manual
+stephanov_n = 6
+stephanov_nf = 1
+stephanov_mass = 0.004
+stephanov_mu = 0.6
+stephanov_tau = 0.0
+stephanov_include_mu_prefactor = false
+stephanov_emit_diagnostics = true
+
+# Unique F20F double production preset.
+abs_tol = 1.0d-14
+rel_tol = 1.0d-14
+constraint_tol = 1.0d-13
+enable_quasi_fallback = false
+
+# Expectation analysis
+bootstrap_samples = 0
+
+# Files
+x_history_file = ../output/production/x_history.dat
+z_history_file = ../output/production/z_history.dat
+phi_history_file = ../output/production/phi_history.dat

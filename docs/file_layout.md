@@ -67,6 +67,9 @@ This document defines the intended responsibilities of top-level directories and
 - `codex/workspaces/fortran_modernization/tasks/scripts/build_stephanov_t0_checkpoint_bank.py`
   - local development helper that runs Stage2 `t=0` chains and consolidates
     physical `x` checkpoints into a restart bank
+- `codex/workspaces/fortran_modernization/tasks/scripts/scan_stephanov_n6_bank_hmc_protocol.py`
+  - local development helper that scans Stephanov `n=6` bank-started nofb HMC
+    protocol candidates with fixed adaptive-preflow initialization
 
 ## 5. Governance Rules
 

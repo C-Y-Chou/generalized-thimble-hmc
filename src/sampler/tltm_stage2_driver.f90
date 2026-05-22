@@ -130,12 +130,16 @@ contains
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file, label_trace_file
       character(len=512) :: cold_x_history_file, cold_z_history_file, cold_phi_history_file, cold_observable_file
+      character(len=512) :: initial_x_file
       character(len=512) :: all_history_dir, all_observable_dir
       character(len=512) :: v1_output_dir, v1_manifest_file, v1_protocol_file
       character(len=32) :: init_mode, rng_stream_contract
       integer :: n_slots, base_seed, swap_rng_seed, cycle_count, local_updates, physical_state_size
-      real(dp) :: max_flow_time, init_sigma
+      integer :: initial_x_record
+      integer :: init_preflow_integration_steps
+      real(dp) :: max_flow_time, init_sigma, init_preflow_trajectory_length
       logical :: swap_enabled, fixed_flow_mode, ok
+      logical :: use_initial_x
       integer :: i, cycle_idx, hot_slot, history_slot_index
       real(dp) :: run_t0, elapsed, slot_t0
       integer, parameter :: unit_trace = 78
@@ -192,7 +196,10 @@ contains
       call resolve_stage2_controls(config%integrator%initial_flow_time, config%chain%length, config%chain%hmc_repeat, &
                                    n_slots, flow_ladder, max_flow_time, cycle_count, local_updates, init_sigma, init_mode, &
                                    swap_enabled)
+      call resolve_stage2_init_preflow_controls(config%integrator%trajectory_length, config%integrator%integration_steps, &
+                                                init_preflow_trajectory_length, init_preflow_integration_steps)
       call resolve_stage2_output_paths(summary_file, label_trace_file)
+      call resolve_stage2_initial_x_source(initial_x_file, initial_x_record, use_initial_x)
       call resolve_stage2_cold_history_paths(cold_z_history_file, cold_phi_history_file, write_cold_history)
       call resolve_stage2_cold_x_history_path(cold_x_history_file, write_cold_x_history)
       call resolve_stage2_all_history_dir(all_history_dir, write_all_history)
@@ -218,6 +225,8 @@ contains
          " max_flow=", max_flow_time, " cycles=", cycle_count, " local_updates=", local_updates, &
          " init_sigma=", init_sigma, " swap_enabled=", swap_enabled, " fixed_flow_mode=", fixed_flow_mode
       write (*, '(A,A)') "[TLTM-S2] init_mode=", trim(init_mode)
+      write (*, '(A,F8.4,A,I0)') "[TLTM-S2] init preflow params: L=", init_preflow_trajectory_length, &
+         " nstep=", init_preflow_integration_steps
       write (*, '(A,F8.4,A,I0,A,F8.4)') "[TLTM-S2] local params: L=", config%integrator%trajectory_length, &
          " nstep=", config%integrator%integration_steps, " max_flow(test)=", max_flow_time
       write (*, '(A,A,A,I0)') "[TLTM-S2] rng_stream_contract=", trim(rng_stream_contract), " swap_rng_seed=", swap_rng_seed
@@ -243,7 +252,9 @@ contains
          slots(i)%flow_time = flow_ladder(i)
          slots(i)%rng_seed = derive_seed(base_seed, i)
          call allocate_tltm_slot(slots(i), physical_state_size)
-         call initialize_slot(slots(i), init_sigma, stage2_init_attempts_default, init_mode, rng_stream_contract, base_seed, ok, run_contexts(i), &
+         call initialize_slot(slots(i), init_sigma, stage2_init_attempts_default, init_mode, rng_stream_contract, base_seed, &
+                              init_preflow_trajectory_length, init_preflow_integration_steps, &
+                              use_initial_x, initial_x_file, initial_x_record + i - 1, ok, run_contexts(i), &
                               newton_flow_status_context)
          if (.not. ok) then
             write (*, '(A,I0,A,F8.4,A)') "[ERROR][TLTM-S2] Slot ", slots(i)%slot_id, &
@@ -723,7 +734,8 @@ contains
                                     cold_observable_stride, cold_observable_max_samples, cold_observable_written, &
                                     all_observable_stride, all_observable_max_samples, all_observable_written, &
                                     base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
-                                    local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode, &
+                                    local_updates, init_sigma, init_preflow_trajectory_length, init_preflow_integration_steps, &
+                                    init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode, &
                                     elapsed, slots, pair_stats, label_tracks)
       call release_qn_diagnostics_context(qn_diagnostics_context)
       call release_qn_policy_context(qn_policy_context)
@@ -769,13 +781,20 @@ contains
       call close_stage2_audit_context(audit_context)
    end subroutine execute_tltm_stage2
 
-   subroutine initialize_slot(slot, init_sigma, max_attempts, init_mode, rng_stream_contract, base_seed, ok, run_context, newton_flow_status_context)
+   subroutine initialize_slot(slot, init_sigma, max_attempts, init_mode, rng_stream_contract, base_seed, &
+                              init_preflow_trajectory_length, init_preflow_integration_steps, &
+                              use_initial_x, initial_x_file, initial_x_record, ok, run_context, newton_flow_status_context)
       type(tltm_slot_t), intent(inout) :: slot
       real(dp), intent(in) :: init_sigma
       integer, intent(in) :: max_attempts
       character(len=*), intent(in) :: init_mode
       character(len=*), intent(in) :: rng_stream_contract
       integer, intent(in) :: base_seed
+      real(dp), intent(in) :: init_preflow_trajectory_length
+      integer, intent(in) :: init_preflow_integration_steps
+      logical, intent(in) :: use_initial_x
+      character(len=*), intent(in) :: initial_x_file
+      integer, intent(in) :: initial_x_record
       logical, intent(out) :: ok
       type(tltm_run_context_t), intent(inout) :: run_context
       type(newton_eval_flow_status_context_t), intent(inout), target :: newton_flow_status_context
@@ -788,7 +807,8 @@ contains
       real(dp) :: trajectory_length
 
       ok = .false.
-      call resolve_run_integrator_controls(run_context, trajectory_length, integration_steps)
+      trajectory_length = init_preflow_trajectory_length
+      integration_steps = init_preflow_integration_steps
       allocate (x_seed(size(slot%x)))
       select case (trim(rng_stream_contract))
       case (stage2_rng_per_replica_v1)
@@ -797,6 +817,40 @@ contains
       case (stage2_rng_legacy_global_v0)
          call sgrnd(slot%rng_seed)
       end select
+
+      if (use_initial_x) then
+         call load_initial_x_record(initial_x_file, initial_x_record, slot%x, ok)
+         if (.not. ok) then
+            if (allocated(x_seed)) deallocate (x_seed)
+            return
+         end if
+         if (trim(init_mode) /= "direct" .and. trim(init_mode) /= "legacy") then
+            call adaptive_preflow_to_target_at(slot%x, slot%flow_time, trajectory_length, &
+                                               integration_steps, 0, preflow_success, stage_count, &
+                                               newton_flow_status=newton_flow_status_context, flow_workspace=run_context%flow%workspace, &
+                                               intode_diagnostics=run_context%diagnostics%intode)
+            if (.not. preflow_success) then
+               if (allocated(x_seed)) deallocate (x_seed)
+               return
+            end if
+            write (*, '(A,I0,A,I0,A,F10.6,A,I0)') "[TLTM-S2][INIT] slot=", slot%slot_id, &
+               " initial-x adaptive preflow record=", initial_x_record, " ready at t=", slot%flow_time, &
+               " stages=", stage_count
+         end if
+         flow_status = intode_status_unknown
+         call flow_at(slot%flow_time, slot%x, slot%z, slot%jac, flow_failed, flow_status, &
+                      run_context%flow%workspace, run_context%diagnostics%intode)
+         if ((.not. flow_failed) .and. intode_status_is_strict_success(flow_status)) then
+            ok = .true.
+            if (trim(init_mode) == "direct" .or. trim(init_mode) == "legacy") then
+               write (*, '(A,I0,A,I0,A,F10.6)') "[TLTM-S2][INIT] slot=", slot%slot_id, &
+                  " initial-x direct record=", initial_x_record, " ready at t=", slot%flow_time
+            end if
+            call measure_slot(slot)
+         end if
+         if (allocated(x_seed)) deallocate (x_seed)
+         return
+      end if
 
       do attempt = 1, max_attempts
          if (trim(rng_stream_contract) == stage2_rng_kernel_v2) then
@@ -838,6 +892,45 @@ contains
       end if
       if (allocated(x_seed)) deallocate (x_seed)
    end subroutine initialize_slot
+
+   subroutine load_initial_x_record(initial_x_file, record_index, x_state, ok)
+      character(len=*), intent(in) :: initial_x_file
+      integer, intent(in) :: record_index
+      real(dp), intent(out) :: x_state(:)
+      logical, intent(out) :: ok
+
+      integer :: unit_x, ios
+      integer(int64) :: pos_bytes, record_bytes
+
+      ok = .false.
+      if (record_index < 0) then
+         write (*, '(A,I0)') "[ERROR][TLTM-S2] Invalid initial-x record index=", record_index
+         return
+      end if
+
+      record_bytes = int(size(x_state), int64)*8_int64
+      pos_bytes = 1_int64 + int(record_index, int64)*record_bytes
+      open (newunit=unit_x, file=trim(initial_x_file), status='old', access='stream', &
+            form='unformatted', action='read', iostat=ios)
+      if (ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot open initial-x file:", trim(initial_x_file)
+         return
+      end if
+
+      read (unit_x, pos=pos_bytes, iostat=ios) x_state
+      close (unit_x)
+      if (ios /= 0) then
+         write (*, '(A,I0,A,1X,A)') "[ERROR][TLTM-S2] Cannot read initial-x record=", record_index, &
+            " file=", trim(initial_x_file)
+         return
+      end if
+      if (any(.not. ieee_is_finite(x_state))) then
+         write (*, '(A,I0)') "[ERROR][TLTM-S2] Initial-x record has nonfinite values: record=", record_index
+         return
+      end if
+
+      ok = .true.
+   end subroutine load_initial_x_record
 
    subroutine run_local_updates(slot, local_updates, accept_census, cycle_idx, run_context, audit_context, qn_diagnostics_context, &
                                 qn_policy_context, hmc_policy_context, hmc_replay_diagnostics_context, newton_flow_status_context, &
@@ -2206,6 +2299,27 @@ contains
       call parse_logical_env("TLTM_STAGE2_SWAP_ENABLED", swap_enabled)
    end subroutine resolve_stage2_controls
 
+   subroutine resolve_stage2_init_preflow_controls(default_trajectory_length, default_integration_steps, &
+                                                   init_preflow_trajectory_length, init_preflow_integration_steps)
+      real(dp), intent(in) :: default_trajectory_length
+      integer, intent(in) :: default_integration_steps
+      real(dp), intent(out) :: init_preflow_trajectory_length
+      integer, intent(out) :: init_preflow_integration_steps
+
+      init_preflow_trajectory_length = default_trajectory_length
+      init_preflow_integration_steps = default_integration_steps
+      call parse_real_env("TLTM_STAGE2_INIT_PREFLOW_TRAJECTORY_LENGTH", init_preflow_trajectory_length)
+      call parse_int_env("TLTM_STAGE2_INIT_PREFLOW_INTEGRATION_STEPS", init_preflow_integration_steps)
+      if ((.not. ieee_is_finite(init_preflow_trajectory_length)) .or. init_preflow_trajectory_length <= 0.0_dp) then
+         write (*, '(A)') "[ERROR][TLTM-S2] TLTM_STAGE2_INIT_PREFLOW_TRAJECTORY_LENGTH must be finite and > 0."
+         error stop 1
+      end if
+      if (init_preflow_integration_steps < 1) then
+         write (*, '(A)') "[ERROR][TLTM-S2] TLTM_STAGE2_INIT_PREFLOW_INTEGRATION_STEPS must be >= 1."
+         error stop 1
+      end if
+   end subroutine resolve_stage2_init_preflow_controls
+
    subroutine resolve_stage2_output_paths(summary_file, label_trace_file)
       character(len=*), intent(out) :: summary_file, label_trace_file
 
@@ -2215,6 +2329,21 @@ contains
       label_trace_file = "../output/tests/tltm_stage2_label_trace.dat"
       call read_string_env("TLTM_STAGE2_LABEL_TRACE_FILE", label_trace_file)
    end subroutine resolve_stage2_output_paths
+
+   subroutine resolve_stage2_initial_x_source(initial_x_file, initial_x_record, use_initial_x)
+      character(len=*), intent(out) :: initial_x_file
+      integer, intent(out) :: initial_x_record
+      logical, intent(out) :: use_initial_x
+
+      initial_x_file = ""
+      initial_x_record = 0
+      call read_string_env("TLTM_STAGE2_INITIAL_X_FILE", initial_x_file, use_initial_x)
+      call parse_int_env("TLTM_STAGE2_INITIAL_X_RECORD", initial_x_record)
+      if (initial_x_record < 0) then
+         write (*, '(A)') "[ERROR][TLTM-S2] TLTM_STAGE2_INITIAL_X_RECORD must be >= 0."
+         error stop 1
+      end if
+   end subroutine resolve_stage2_initial_x_source
 
    subroutine resolve_stage2_rng_stream_contract(rng_stream_contract)
       character(len=*), intent(out) :: rng_stream_contract
@@ -2379,7 +2508,8 @@ contains
                                        cold_observable_stride, cold_observable_max_samples, cold_observable_written, &
                                        all_observable_stride, all_observable_max_samples, all_observable_written, &
                                        base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
-                                       local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode, &
+                                       local_updates, init_sigma, init_preflow_trajectory_length, init_preflow_integration_steps, &
+                                       init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode, &
                                        elapsed, slots, pair_stats, label_tracks)
       character(len=*), intent(in) :: manifest_file, protocol_file
       logical, intent(in) :: write_manifest, write_protocol
@@ -2394,7 +2524,8 @@ contains
       integer, intent(in) :: cold_observable_stride, cold_observable_max_samples, cold_observable_written
       integer, intent(in) :: all_observable_stride, all_observable_max_samples, all_observable_written
       integer, intent(in) :: base_seed, swap_rng_seed, cycle_count, local_updates
-      real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma, elapsed
+      integer, intent(in) :: init_preflow_integration_steps
+      real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma, init_preflow_trajectory_length, elapsed
       character(len=*), intent(in) :: init_mode, rng_stream_contract
       logical, intent(in) :: swap_enabled, fixed_flow_mode
       type(tltm_slot_t), intent(in) :: slots(:)
@@ -2404,7 +2535,8 @@ contains
       if (write_protocol) call write_stage2_v1_protocol(protocol_file, fixed_flow_mode)
       if (write_package) then
          call write_stage2_v1_resolved_config(output_dir, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
-                                              local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode)
+                                              local_updates, init_sigma, init_preflow_trajectory_length, init_preflow_integration_steps, &
+                                              init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode)
          call write_stage2_v1_diagnostics_package(output_dir, slots, pair_stats, label_tracks)
       end if
       if (write_manifest) call write_stage2_v1_manifest(manifest_file, protocol_file, write_protocol, &
@@ -2416,7 +2548,9 @@ contains
                                                         cold_observable_stride, cold_observable_max_samples, cold_observable_written, &
                                                         all_observable_stride, all_observable_max_samples, all_observable_written, &
                                                         base_seed, swap_rng_seed, flow_ladder, &
-                                                        max_flow_time, cycle_count, local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, &
+                                                        max_flow_time, cycle_count, local_updates, init_sigma, &
+                                                        init_preflow_trajectory_length, init_preflow_integration_steps, &
+                                                        init_mode, rng_stream_contract, swap_enabled, &
                                                         fixed_flow_mode, elapsed, output_dir, write_package)
    end subroutine write_stage2_v1_sidecars
 
@@ -2429,7 +2563,8 @@ contains
                                        cold_observable_stride, cold_observable_max_samples, cold_observable_written, &
                                        all_observable_stride, all_observable_max_samples, all_observable_written, &
                                        base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
-                                       local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode, &
+                                       local_updates, init_sigma, init_preflow_trajectory_length, init_preflow_integration_steps, &
+                                       init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode, &
                                        elapsed, output_dir, write_package)
       character(len=*), intent(in) :: manifest_file, protocol_file
       logical, intent(in) :: write_protocol
@@ -2442,7 +2577,8 @@ contains
       integer, intent(in) :: cold_observable_stride, cold_observable_max_samples, cold_observable_written
       integer, intent(in) :: all_observable_stride, all_observable_max_samples, all_observable_written
       integer, intent(in) :: base_seed, swap_rng_seed, cycle_count, local_updates
-      real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma, elapsed
+      integer, intent(in) :: init_preflow_integration_steps
+      real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma, init_preflow_trajectory_length, elapsed
       character(len=*), intent(in) :: init_mode, rng_stream_contract
       logical, intent(in) :: swap_enabled, fixed_flow_mode
       character(len=*), intent(in) :: output_dir
@@ -2510,6 +2646,8 @@ contains
       call write_json_int_field(unit_manifest, "local_updates", local_updates, .true., 4)
       call write_json_real_field(unit_manifest, "init_sigma", init_sigma, .true., 4)
       call write_json_string_field(unit_manifest, "init_mode", trim(init_mode), .true., 4)
+      call write_json_real_field(unit_manifest, "init_preflow_trajectory_length", init_preflow_trajectory_length, .true., 4)
+      call write_json_int_field(unit_manifest, "init_preflow_integration_steps", init_preflow_integration_steps, .true., 4)
       call write_json_logical_field(unit_manifest, "swap_enabled", swap_enabled, .true., 4)
       call write_json_logical_field(unit_manifest, "fixed_flow_mode", fixed_flow_mode, .true., 4)
       call write_json_logical_field(unit_manifest, "replica_exchange_active", swap_enabled .and. size(flow_ladder) > 1 .and. (.not. fixed_flow_mode), &
@@ -2546,6 +2684,10 @@ contains
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_SWAP_ENABLED", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_INIT_SIGMA", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_INIT_MODE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_INIT_PREFLOW_TRAJECTORY_LENGTH", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_INIT_PREFLOW_INTEGRATION_STEPS", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_INITIAL_X_FILE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_INITIAL_X_RECORD", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_RNG_STREAM_CONTRACT", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_SUMMARY_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_LABEL_TRACE_FILE", .true., 4)
@@ -2659,10 +2801,12 @@ contains
    end subroutine write_stage2_v1_manifest
 
    subroutine write_stage2_v1_resolved_config(output_dir, base_seed, swap_rng_seed, flow_ladder, max_flow_time, cycle_count, &
-                                              local_updates, init_sigma, init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode)
+                                              local_updates, init_sigma, init_preflow_trajectory_length, init_preflow_integration_steps, &
+                                              init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode)
       character(len=*), intent(in) :: output_dir
       integer, intent(in) :: base_seed, swap_rng_seed, cycle_count, local_updates
-      real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma
+      integer, intent(in) :: init_preflow_integration_steps
+      real(dp), intent(in) :: flow_ladder(:), max_flow_time, init_sigma, init_preflow_trajectory_length
       character(len=*), intent(in) :: init_mode, rng_stream_contract
       logical, intent(in) :: swap_enabled, fixed_flow_mode
 
@@ -2730,6 +2874,8 @@ contains
       call write_json_int_field(unit_config, "local_updates", local_updates, .true., 4)
       call write_json_real_field(unit_config, "init_sigma", init_sigma, .true., 4)
       call write_json_string_field(unit_config, "init_mode", trim(init_mode), .true., 4)
+      call write_json_real_field(unit_config, "init_preflow_trajectory_length", init_preflow_trajectory_length, .true., 4)
+      call write_json_int_field(unit_config, "init_preflow_integration_steps", init_preflow_integration_steps, .true., 4)
       call write_json_string_field(unit_config, "rng_stream_contract", trim(rng_stream_contract), .true., 4)
       call write_json_logical_field(unit_config, "swap_enabled", swap_enabled, .true., 4)
       call write_json_logical_field(unit_config, "fixed_flow_mode", fixed_flow_mode, .true., 4)
