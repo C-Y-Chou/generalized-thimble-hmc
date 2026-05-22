@@ -40,6 +40,9 @@ This document defines the intended responsibilities of top-level directories and
   - compiled executables and some generated runtime plots/logs (convenience artifacts; rebuild before production)
 - `output/`
   - chain histories and observable output files
+- `output/stephanov_checkpoint_banks/`
+  - local/generated Stephanov `t=0` checkpoint-bank artifacts; ignored by git
+    and rebuilt through the runbook command when needed
 - `run.log`
   - runtime log output
 
@@ -61,6 +64,9 @@ This document defines the intended responsibilities of top-level directories and
   - coding and logging conventions
 - `docs/file_layout.md`
   - this document
+- `codex/workspaces/fortran_modernization/tasks/scripts/build_stephanov_t0_checkpoint_bank.py`
+  - local development helper that runs Stage2 `t=0` chains and consolidates
+    physical `x` checkpoints into a restart bank
 
 ## 5. Governance Rules
 

@@ -129,7 +129,7 @@ contains
       type(mt95_state_t) :: swap_rng_state
       real(dp), allocatable :: flow_ladder(:)
       character(len=512) :: summary_file, label_trace_file
-      character(len=512) :: cold_z_history_file, cold_phi_history_file, cold_observable_file
+      character(len=512) :: cold_x_history_file, cold_z_history_file, cold_phi_history_file, cold_observable_file
       character(len=512) :: all_history_dir, all_observable_dir
       character(len=512) :: v1_output_dir, v1_manifest_file, v1_protocol_file
       character(len=32) :: init_mode, rng_stream_contract
@@ -139,10 +139,11 @@ contains
       integer :: i, cycle_idx, hot_slot, history_slot_index
       real(dp) :: run_t0, elapsed, slot_t0
       integer, parameter :: unit_trace = 78
-      integer, parameter :: unit_cold_z = 79, unit_cold_phi = 80, unit_cold_obs = 81
+      integer, parameter :: unit_cold_z = 79, unit_cold_phi = 80, unit_cold_obs = 81, unit_cold_x = 82
       integer, allocatable :: all_z_units(:), all_phi_units(:), all_obs_units(:)
       integer :: io_status
       logical :: write_cold_history, cold_sample_ok
+      logical :: write_cold_x_history, cold_x_sample_ok
       logical :: write_all_history, all_sample_ok
       logical :: write_cold_observable, cold_observable_ok
       logical :: write_all_observable, all_observable_ok
@@ -151,6 +152,7 @@ contains
       integer :: cold_history_stride, all_history_stride
       integer :: cold_history_max_samples, all_history_max_samples
       integer :: cold_history_written, all_history_written
+      integer :: cold_x_history_written
       integer :: cold_observable_stride, all_observable_stride
       integer :: cold_observable_max_samples, all_observable_max_samples
       integer :: cold_observable_written, all_observable_written
@@ -192,11 +194,13 @@ contains
                                    swap_enabled)
       call resolve_stage2_output_paths(summary_file, label_trace_file)
       call resolve_stage2_cold_history_paths(cold_z_history_file, cold_phi_history_file, write_cold_history)
+      call resolve_stage2_cold_x_history_path(cold_x_history_file, write_cold_x_history)
       call resolve_stage2_all_history_dir(all_history_dir, write_all_history)
       call resolve_stage2_observable_paths(cold_observable_file, write_cold_observable, all_observable_dir, write_all_observable)
       call resolve_stage2_io_controls(cold_history_stride, cold_history_max_samples, all_history_stride, all_history_max_samples, &
                                       cold_observable_stride, cold_observable_max_samples, all_observable_stride, all_observable_max_samples)
       cold_history_written = 0
+      cold_x_history_written = 0
       all_history_written = 0
       cold_observable_written = 0
       all_observable_written = 0
@@ -316,8 +320,59 @@ contains
          end if
       end if
 
+      if (write_cold_x_history) then
+         if (.not. write_cold_history) then
+            history_slot_index = find_max_flow_slot_index(slots)
+            write (*, '(A,I0,A,F10.6)') "[TLTM-S2] x-history slot index=", history_slot_index - 1, &
+               " flow_time=", slots(history_slot_index)%flow_time
+         end if
+         call ensure_parent_directory_exists(cold_x_history_file, path_ok)
+         if (.not. path_ok) then
+            write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot prepare directory for cold x-history file:", &
+               trim(cold_x_history_file)
+            if (write_cold_history) then
+               close (unit=unit_cold_z)
+               close (unit=unit_cold_phi)
+            end if
+            call release_all_slots(slots)
+            if (allocated(flow_ladder)) deallocate (flow_ladder)
+            if (allocated(pair_stats)) deallocate (pair_stats)
+            if (allocated(label_tracks)) deallocate (label_tracks)
+            error stop 1
+         end if
+         open (unit=unit_cold_x, file=trim(cold_x_history_file), status='replace', access='stream', &
+               form='unformatted', action='write', iostat=io_status)
+         if (io_status /= 0) then
+            write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot open cold x-history file:", trim(cold_x_history_file)
+            if (write_cold_history) then
+               close (unit=unit_cold_z)
+               close (unit=unit_cold_phi)
+            end if
+            call release_all_slots(slots)
+            if (allocated(flow_ladder)) deallocate (flow_ladder)
+            if (allocated(pair_stats)) deallocate (pair_stats)
+            if (allocated(label_tracks)) deallocate (label_tracks)
+            error stop 1
+         end if
+         call write_cold_x_history_sample_if_enabled(slots(history_slot_index), unit_cold_x, 0, &
+                                                     cold_history_stride, cold_history_max_samples, &
+                                                     cold_x_history_written, cold_x_sample_ok)
+         if (.not. cold_x_sample_ok) then
+            close (unit=unit_cold_x)
+            if (write_cold_history) then
+               close (unit=unit_cold_z)
+               close (unit=unit_cold_phi)
+            end if
+            call release_all_slots(slots)
+            if (allocated(flow_ladder)) deallocate (flow_ladder)
+            if (allocated(pair_stats)) deallocate (pair_stats)
+            if (allocated(label_tracks)) deallocate (label_tracks)
+            error stop 1
+         end if
+      end if
+
       if (write_cold_observable) then
-         if (.not. write_cold_history) history_slot_index = find_max_flow_slot_index(slots)
+         if ((.not. write_cold_history) .and. (.not. write_cold_x_history)) history_slot_index = find_max_flow_slot_index(slots)
          write (*, '(A,I0,A,F10.6)') "[TLTM-S2] observable stream slot index=", history_slot_index - 1, &
             " flow_time=", slots(history_slot_index)%flow_time
          call ensure_parent_directory_exists(cold_observable_file, path_ok)
@@ -327,6 +382,7 @@ contains
                close (unit=unit_cold_z)
                close (unit=unit_cold_phi)
             end if
+            if (write_cold_x_history) close (unit=unit_cold_x)
             call release_all_slots(slots)
             if (allocated(flow_ladder)) deallocate (flow_ladder)
             if (allocated(pair_stats)) deallocate (pair_stats)
@@ -341,6 +397,7 @@ contains
                close (unit=unit_cold_z)
                close (unit=unit_cold_phi)
             end if
+            if (write_cold_x_history) close (unit=unit_cold_x)
             call release_all_slots(slots)
             if (allocated(flow_ladder)) deallocate (flow_ladder)
             if (allocated(pair_stats)) deallocate (pair_stats)
@@ -356,6 +413,7 @@ contains
                close (unit=unit_cold_z)
                close (unit=unit_cold_phi)
             end if
+            if (write_cold_x_history) close (unit=unit_cold_x)
             call release_all_slots(slots)
             if (allocated(flow_ladder)) deallocate (flow_ladder)
             if (allocated(pair_stats)) deallocate (pair_stats)
@@ -482,6 +540,32 @@ contains
                close (unit_trace)
                close (unit_cold_z)
                close (unit_cold_phi)
+               if (write_cold_x_history) close (unit_cold_x)
+               if (write_all_history) call close_all_replica_history_files(all_z_units, all_phi_units)
+               if (write_cold_observable) close (unit_cold_obs)
+               if (write_all_observable) call close_all_replica_observable_files(all_obs_units)
+               call close_stage2_audit_context(audit_context)
+               call release_qn_diagnostics_context(qn_diagnostics_context)
+               call release_qn_policy_context(qn_policy_context)
+               call release_all_run_contexts(run_contexts)
+               call release_all_slots(slots)
+               if (allocated(flow_ladder)) deallocate (flow_ladder)
+               if (allocated(pair_stats)) deallocate (pair_stats)
+               if (allocated(label_tracks)) deallocate (label_tracks)
+               error stop 1
+            end if
+         end if
+         if (write_cold_x_history) then
+            call write_cold_x_history_sample_if_enabled(slots(history_slot_index), unit_cold_x, cycle_idx, &
+                                                        cold_history_stride, cold_history_max_samples, &
+                                                        cold_x_history_written, cold_x_sample_ok)
+            if (.not. cold_x_sample_ok) then
+               close (unit_trace)
+               if (write_cold_history) then
+                  close (unit_cold_z)
+                  close (unit_cold_phi)
+               end if
+               close (unit_cold_x)
                if (write_all_history) call close_all_replica_history_files(all_z_units, all_phi_units)
                if (write_cold_observable) close (unit_cold_obs)
                if (write_all_observable) call close_all_replica_observable_files(all_obs_units)
@@ -506,6 +590,7 @@ contains
                   close (unit_cold_z)
                   close (unit_cold_phi)
                end if
+               if (write_cold_x_history) close (unit_cold_x)
                close (unit_cold_obs)
                if (write_all_history) call close_all_replica_history_files(all_z_units, all_phi_units)
                if (write_all_observable) call close_all_replica_observable_files(all_obs_units)
@@ -580,6 +665,7 @@ contains
          close (unit_cold_z)
          close (unit_cold_phi)
       end if
+      if (write_cold_x_history) close (unit_cold_x)
       if (write_all_history) call close_all_replica_history_files(all_z_units, all_phi_units)
       if (write_cold_observable) close (unit_cold_obs)
       if (write_all_observable) call close_all_replica_observable_files(all_obs_units)
@@ -655,6 +741,10 @@ contains
       if (write_cold_history) then
          write (*, '(A,I0,A,1X,A)') "[DONE][TLTM-S2] Max-flow z-history samples=", cold_history_written, " file=", trim(cold_z_history_file)
          write (*, '(A,1X,A)') "[DONE][TLTM-S2] Max-flow phi-history written to", trim(cold_phi_history_file)
+      end if
+      if (write_cold_x_history) then
+         write (*, '(A,I0,A,1X,A)') "[DONE][TLTM-S2] Max-flow x-history samples=", cold_x_history_written, &
+            " file=", trim(cold_x_history_file)
       end if
       if (write_all_history) then
          write (*, '(A,I0,A,1X,A)') "[DONE][TLTM-S2] All-replica history samples=", all_history_written, " dir=", trim(all_history_dir)
@@ -2166,6 +2256,14 @@ contains
       write_cold_history = has_z_path .and. has_phi_path
    end subroutine resolve_stage2_cold_history_paths
 
+   subroutine resolve_stage2_cold_x_history_path(cold_x_history_file, write_cold_x_history)
+      character(len=*), intent(out) :: cold_x_history_file
+      logical, intent(out) :: write_cold_x_history
+
+      cold_x_history_file = ""
+      call read_string_env("TLTM_STAGE2_COLD_X_HISTORY_FILE", cold_x_history_file, write_cold_x_history)
+   end subroutine resolve_stage2_cold_x_history_path
+
    subroutine resolve_stage2_all_history_dir(all_history_dir, write_all_history)
       character(len=*), intent(out) :: all_history_dir
       logical, intent(out) :: write_all_history
@@ -2451,6 +2549,7 @@ contains
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_RNG_STREAM_CONTRACT", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_SUMMARY_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_LABEL_TRACE_FILE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_COLD_X_HISTORY_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_COLD_Z_HISTORY_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_COLD_PHI_HISTORY_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_ALL_REPLICA_HISTORY_DIR", .true., 4)
@@ -3250,6 +3349,28 @@ contains
       call write_cold_history_sample(slot, unit_z, unit_phi, ok)
       if (ok) written_count = written_count + 1
    end subroutine write_cold_history_sample_if_enabled
+
+   subroutine write_cold_x_history_sample(slot, unit_x, ok)
+      type(tltm_slot_t), intent(in) :: slot
+      integer, intent(in) :: unit_x
+      logical, intent(out) :: ok
+
+      write (unit_x) slot%x
+      ok = .true.
+   end subroutine write_cold_x_history_sample
+
+   subroutine write_cold_x_history_sample_if_enabled(slot, unit_x, sample_idx, stride, max_samples, written_count, ok)
+      type(tltm_slot_t), intent(in) :: slot
+      integer, intent(in) :: unit_x
+      integer, intent(in) :: sample_idx, stride, max_samples
+      integer, intent(inout) :: written_count
+      logical, intent(out) :: ok
+
+      ok = .true.
+      if (.not. history_sample_enabled(sample_idx, stride, max_samples, written_count)) return
+      call write_cold_x_history_sample(slot, unit_x, ok)
+      if (ok) written_count = written_count + 1
+   end subroutine write_cold_x_history_sample_if_enabled
 
    subroutine write_history_sample(slot, unit_z, unit_phi, context, ok)
       type(tltm_slot_t), intent(in) :: slot
