@@ -357,7 +357,8 @@ contains
          end if
          call solve_constraint_newton(cttol, 100, ws%temp_x, ws%temp_z, ws%del_z, step_size, has_error, ws%Jl, final_x, &
                                       ws%temp_jac, workspace=ws%newton_ws, flow_workspace=flow_workspace, &
-                                      newton_flow_status=newton_flow_status, intode_diagnostics=intode_diagnostics)
+                                      newton_flow_status=newton_flow_status, intode_diagnostics=intode_diagnostics, &
+                                      jac_cache=ws%jac_cache)
       end if
       if (.not. has_error) then
          call record_constraint_solver_newton_success()
@@ -580,7 +581,8 @@ contains
       end if
 
       momentum = momentum - step_size*ws%dV
-      call decompose_tangent_projection(momentum, ws%E0_perp, ws%del_z, ws%Jl, ws%temp_jac, has_error, ws%decompose_ws)
+      call decompose_tangent_projection(momentum, ws%E0_perp, ws%del_z, ws%Jl, ws%temp_jac, has_error, ws%decompose_ws, &
+                                        ws%jac_cache)
       if (has_error) then
          call abort_failed_step(hmc_step_status_final_projection_failed)
          return

@@ -168,7 +168,7 @@ Validation:
 
 ### 4. Reuse real-Jacobian maps and LU factorizations within a step
 
-Status: TODO
+Status: DONE
 
 Hot path:
 - `src/sampler/hmc_kernels.f90`
@@ -193,6 +193,57 @@ Validation gate:
   roundoff.
 - Retained-core RATTLE/RG contract passes.
 - Reverse-gate reject identity remains unchanged.
+
+Implementation:
+- Added caller-owned `real_jacobian_cache_t` in `hmc_kernels`.
+- The cache stores the exact complex Jacobian snapshot, mapped real matrix, LU
+  factor, pivot array, and hit/miss counters.
+- Cache validity is content-based: an exact complex-Jacobian match reuses the
+  mapped real matrix and LU factor; any shape/content change causes a miss and
+  fresh `map_to_real_mat` + `dgetrf`.
+- Added a shared `jac_cache` to `rattle_step_workspace_t` so initial
+  projection, Newton constraint solve, final projection, warmup steps, and
+  reverse-probe workspaces can reuse the same factorization when they really
+  see the same Jacobian.
+- Kept per-routine fallback caches for standalone callers that do not pass a
+  shared workspace cache.
+- Added optional `TLTM_STAGE2_REAL_JAC_CACHE_STATS_FILE` diagnostics, and the
+  Stephanov flow-time scan script writes it per record.
+
+Validation:
+- Script syntax:
+  `python3 -m py_compile codex/workspaces/fortran_modernization/tasks/scripts/scan_stephanov_n6_flowtime_sign_problem.py`.
+- Focused helper contract:
+  `make -C build test_numerical_helper_contracts`.
+- Cache contract: cached and uncached tangent projection outputs are
+  bit-identical for the same Jacobian; observed counters were `hits=1`,
+  `misses=2`, `factor_failures=0`, with the second miss triggered by a
+  deliberate Jacobian content change.
+- Retained checks:
+  `make -C build test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_rg_reject_identity test_odex_flow_jacobian_contract`.
+- Stephanov derivative checks:
+  `make -C build test2`.
+- Stage2 RNG v2 anchor:
+  `python3 codex/workspaces/fortran_modernization/tasks/scripts/stage2_rng_v2_anchor.py --skip-build`.
+- Fixed validation point:
+  `t=0.02`, records `0,81`, cycles `40`, burn `5`, `epsilon=0.04`,
+  `nstep=4`, `jobs=1`.
+- Before:
+  `output/stephanov_flowtime_sign_problem/lossless_batch_rhs_validation_serial_t002_2x40_20260522`.
+- After:
+  `output/stephanov_flowtime_sign_problem/lossless_jac_cache_validation_serial_t002_2x40_20260522`.
+- Parity: label trace, `x_history.dat`, and `observable_history.dat` are
+  byte-identical for both records; summary/detail fields match exactly after
+  removing runtime/path fields.
+- Real-Jacobian cache stats:
+  record `0000` proposal shared cache had `201` hits / `139` misses /
+  `0` factor failures; record `0081` had `165` hits / `119` misses /
+  `0` factor failures.  The per-routine fallback caches stayed at zero, which
+  confirms the shared caller-owned cache was the active path.
+- Local wall time changed from `76.88 s` to `78.42 s` relative to the batched
+  RHS baseline (`0.98x`).  This validation point is flow/RHS dominated, and
+  #4 is correctness-clean but has no measurable end-to-end speedup at this
+  scale.
 
 ### 5. Make external BLAS/LAPACK linkage real
 

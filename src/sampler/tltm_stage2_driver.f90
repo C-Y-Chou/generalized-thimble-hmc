@@ -19,6 +19,7 @@ module tltm_stage2_driver
    use markovchain_metropolis, only: metropolis_step_at
    use hmc_constraints, only: reset_newton_eval_flow_status_counts, get_newton_eval_flow_status_counts, &
                               newton_eval_flow_status_context_t
+   use hmc_kernels, only: get_real_jacobian_cache_stats
    use hmc_integrator_core, only: reset_reverse_gate_replay_status_counts, get_reverse_gate_replay_status_counts, &
                                   hmc_policy_context_t, hmc_replay_diagnostics_context_t
    use quasi_newton_solver_mod, only: get_quasi_global_filter_stats, reset_quasi_eval_flow_status_counts, &
@@ -740,6 +741,7 @@ contains
                                     init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode, &
                                     elapsed, slots, pair_stats, label_tracks)
       call write_phase_cache_stats_if_enabled()
+      call write_real_jacobian_cache_stats_if_enabled(run_contexts)
       call release_qn_diagnostics_context(qn_diagnostics_context)
       call release_qn_policy_context(qn_policy_context)
       call release_all_run_contexts(run_contexts)
@@ -1468,6 +1470,64 @@ contains
       write (unit_stats, '(I0,A,I0)') phase_cache_hit_count, ",", phase_cache_miss_count
       close (unit_stats)
    end subroutine write_phase_cache_stats_if_enabled
+
+   subroutine write_real_jacobian_cache_stats_if_enabled(run_contexts)
+      type(tltm_run_context_t), intent(in) :: run_contexts(:)
+
+      character(len=512) :: stats_file
+      logical :: has_stats_file
+      integer :: unit_stats, ios, idx
+
+      stats_file = ""
+      call read_string_env("TLTM_STAGE2_REAL_JAC_CACHE_STATS_FILE", stats_file, has_stats_file)
+      if (.not. has_stats_file) return
+
+      call ensure_parent_directory_exists(stats_file, has_stats_file)
+      if (.not. has_stats_file) then
+         write (*, '(A,1X,A)') "[WARN][TLTM-S2] Cannot prepare real-Jacobian cache stats path:", trim(stats_file)
+         return
+      end if
+      open (newunit=unit_stats, file=trim(stats_file), status='replace', action='write', iostat=ios)
+      if (ios /= 0) then
+         write (*, '(A,1X,A)') "[WARN][TLTM-S2] Cannot open real-Jacobian cache stats file:", trim(stats_file)
+         return
+      end if
+      write (unit_stats, '(A)') "slot,workspace,cache,hits,misses,factor_failures"
+      do idx = 1, size(run_contexts)
+         call write_real_jacobian_cache_row(unit_stats, idx - 1, "proposal", "shared", &
+                                            run_contexts(idx)%hmc%proposal_ws%jac_cache)
+         call write_real_jacobian_cache_row(unit_stats, idx - 1, "proposal", "decompose", &
+                                            run_contexts(idx)%hmc%proposal_ws%decompose_ws%jac_cache)
+         call write_real_jacobian_cache_row(unit_stats, idx - 1, "proposal", "newton", &
+                                            run_contexts(idx)%hmc%proposal_ws%newton_ws%jac_cache)
+         call write_real_jacobian_cache_row(unit_stats, idx - 1, "reverse_probe", "shared", &
+                                            run_contexts(idx)%hmc%reverse_probe_ws%jac_cache)
+         call write_real_jacobian_cache_row(unit_stats, idx - 1, "reverse_probe", "decompose", &
+                                            run_contexts(idx)%hmc%reverse_probe_ws%decompose_ws%jac_cache)
+         call write_real_jacobian_cache_row(unit_stats, idx - 1, "reverse_probe", "newton", &
+                                            run_contexts(idx)%hmc%reverse_probe_ws%newton_ws%jac_cache)
+         call write_real_jacobian_cache_row(unit_stats, idx - 1, "warmup", "shared", &
+                                            run_contexts(idx)%hmc%warmup_ws%jac_cache)
+         call write_real_jacobian_cache_row(unit_stats, idx - 1, "warmup", "decompose", &
+                                            run_contexts(idx)%hmc%warmup_ws%decompose_ws%jac_cache)
+         call write_real_jacobian_cache_row(unit_stats, idx - 1, "warmup", "newton", &
+                                            run_contexts(idx)%hmc%warmup_ws%newton_ws%jac_cache)
+      end do
+      close (unit_stats)
+   end subroutine write_real_jacobian_cache_stats_if_enabled
+
+   subroutine write_real_jacobian_cache_row(unit_stats, slot_idx, workspace_name, cache_name, cache)
+      use hmc_kernels, only: real_jacobian_cache_t
+      integer, intent(in) :: unit_stats, slot_idx
+      character(len=*), intent(in) :: workspace_name, cache_name
+      type(real_jacobian_cache_t), intent(in) :: cache
+
+      integer(int64) :: hits, misses, factor_failures
+
+      call get_real_jacobian_cache_stats(cache, hits, misses, factor_failures)
+      write (unit_stats, '(I0,A,A,A,A,A,I0,A,I0,A,I0)') slot_idx, ",", trim(workspace_name), ",", trim(cache_name), ",", &
+         hits, ",", misses, ",", factor_failures
+   end subroutine write_real_jacobian_cache_row
 
    subroutine perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state, run_contexts, rng_stream_contract, base_seed)
       type(tltm_slot_t), intent(inout) :: slots(:)

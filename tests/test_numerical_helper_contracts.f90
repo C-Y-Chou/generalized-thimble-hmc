@@ -1,5 +1,8 @@
 program test_numerical_helper_contracts
-   use hmc_kernels, only: calculate_hamiltonian, decompose2, decompose_tangent_projection
+   use, intrinsic :: iso_fortran_env, only: int64
+   use hmc_kernels, only: calculate_hamiltonian, decompose2, decompose_tangent_projection, decompose2_workspace_t, &
+                          get_real_jacobian_cache_stats, real_jacobian_cache_t, release_decompose2_workspace, &
+                          release_real_jacobian_cache
    use param_mod, only: read_parameters
    use utils, only: complex_to_real, dp, log_determinant, map_to_complex, map_to_complex_mat, &
                     map_to_real, map_to_real_mat, real_to_complex
@@ -14,6 +17,7 @@ program test_numerical_helper_contracts
    call check_invalid_pack_outputs(failures)
    call check_log_determinant_contract(failures)
    call check_decompose2_contract(failures)
+   call check_decompose_cache_contract(failures)
    call check_hamiltonian_shape_guard(failures)
 
    if (failures /= 0) then
@@ -133,6 +137,51 @@ contains
       write (*, '(A,L1)') "[CHECK] helper_decompose2_contract ok=", ok
       if (.not. ok) failures = failures + 1
    end subroutine check_decompose2_contract
+
+   subroutine check_decompose_cache_contract(failures)
+      integer, intent(inout) :: failures
+      real(dp) :: b(4), b2(4), x_ref(4), au_ref(4), av_ref(4)
+      real(dp) :: x_cached(4), au_cached(4), av_cached(4)
+      complex(dp) :: jac(2, 2)
+      type(decompose2_workspace_t) :: ws_ref, ws_cached
+      type(real_jacobian_cache_t) :: shared_cache
+      integer(int64) :: hits, misses, factor_failures
+      logical :: ierr_ref, ierr_cached, ok
+
+      b = [1.0_dp, 2.0_dp, -3.0_dp, 4.0_dp]
+      b2 = [-0.25_dp, 1.5_dp, 2.25_dp, -3.5_dp]
+      jac = cmplx(0.0_dp, 0.0_dp, dp)
+      jac(1, 1) = cmplx(1.0_dp, 0.2_dp, dp)
+      jac(1, 2) = cmplx(0.1_dp, -0.3_dp, dp)
+      jac(2, 1) = cmplx(-0.4_dp, 0.05_dp, dp)
+      jac(2, 2) = cmplx(1.3_dp, -0.1_dp, dp)
+
+      call decompose_tangent_projection(b, x_ref, au_ref, av_ref, jac, ierr_ref, ws_ref)
+      call decompose_tangent_projection(b, x_cached, au_cached, av_cached, jac, ierr_cached, ws_cached, shared_cache)
+      call get_real_jacobian_cache_stats(shared_cache, hits, misses, factor_failures)
+      ok = (.not. ierr_ref) .and. (.not. ierr_cached) .and. hits == 0_int64 .and. misses == 1_int64 .and. &
+           factor_failures == 0_int64 .and. maxval(abs(x_ref - x_cached)) == 0.0_dp .and. &
+           maxval(abs(au_ref - au_cached)) == 0.0_dp .and. maxval(abs(av_ref - av_cached)) == 0.0_dp
+
+      call decompose_tangent_projection(b2, x_ref, au_ref, av_ref, jac, ierr_ref, ws_ref)
+      call decompose_tangent_projection(b2, x_cached, au_cached, av_cached, jac, ierr_cached, ws_cached, shared_cache)
+      call get_real_jacobian_cache_stats(shared_cache, hits, misses, factor_failures)
+      ok = ok .and. (.not. ierr_ref) .and. (.not. ierr_cached) .and. hits == 1_int64 .and. misses == 1_int64 .and. &
+           factor_failures == 0_int64 .and. maxval(abs(x_ref - x_cached)) == 0.0_dp .and. &
+           maxval(abs(au_ref - au_cached)) == 0.0_dp .and. maxval(abs(av_ref - av_cached)) == 0.0_dp
+
+      jac(1, 1) = jac(1, 1) + cmplx(0.125_dp, -0.0625_dp, dp)
+      call decompose_tangent_projection(b2, x_cached, au_cached, av_cached, jac, ierr_cached, ws_cached, shared_cache)
+      call get_real_jacobian_cache_stats(shared_cache, hits, misses, factor_failures)
+      ok = ok .and. (.not. ierr_cached) .and. hits == 1_int64 .and. misses == 2_int64 .and. factor_failures == 0_int64
+
+      write (*, '(A,L1,A,I0,A,I0,A,I0)') "[CHECK] helper_decompose_cache_contract ok=", ok, &
+         " hits=", hits, " misses=", misses, " factor_failures=", factor_failures
+      if (.not. ok) failures = failures + 1
+      call release_decompose2_workspace(ws_ref)
+      call release_decompose2_workspace(ws_cached)
+      call release_real_jacobian_cache(shared_cache)
+   end subroutine check_decompose_cache_contract
 
    subroutine check_hamiltonian_shape_guard(failures)
       integer, intent(inout) :: failures

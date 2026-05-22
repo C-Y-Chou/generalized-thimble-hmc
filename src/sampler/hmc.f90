@@ -222,9 +222,10 @@ contains
       end if
       if (present(context)) then
          call decompose_tangent_projection(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, &
-                                           context%proposal_ws%decompose_ws)
+                                           context%proposal_ws%decompose_ws, context%proposal_ws%jac_cache)
       else
-         call decompose_tangent_projection(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, ws%decompose_ws)
+         call decompose_tangent_projection(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, ws%decompose_ws, &
+                                           ws%jac_cache)
       end if
       if (has_error) then
          proposal_status = hmc_proposal_status_initial_projection_failed
@@ -268,9 +269,10 @@ contains
 
       if (present(context)) then
          call decompose_tangent_projection(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, &
-                                           context%proposal_ws%decompose_ws)
+                                           context%proposal_ws%decompose_ws, context%proposal_ws%jac_cache)
       else
-         call decompose_tangent_projection(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, ws%decompose_ws)
+         call decompose_tangent_projection(momentum, momentumuv, momentumu, momentumv, temp_jac, has_error, ws%decompose_ws, &
+                                           ws%jac_cache)
       end if
       if (has_error) then
          proposal_status = hmc_proposal_status_final_projection_failed
@@ -395,10 +397,10 @@ contains
 
          if (present(context)) then
             call decompose_tangent_projection(local_momentum, local_momentumuv, local_momentumu, local_momentumv, local_jac, &
-                                              local_error, context%reverse_probe_ws%decompose_ws)
+                                              local_error, context%reverse_probe_ws%decompose_ws, context%reverse_probe_ws%jac_cache)
          else
             call decompose_tangent_projection(local_momentum, local_momentumuv, local_momentumu, local_momentumv, local_jac, &
-                                              local_error, local_ws%decompose_ws)
+                                              local_error, local_ws%decompose_ws, local_ws%jac_cache)
          end if
          if (local_error) then
             local_proposal_status = hmc_proposal_status_final_projection_failed

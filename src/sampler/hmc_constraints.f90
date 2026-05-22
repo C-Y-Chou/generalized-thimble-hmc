@@ -1,5 +1,5 @@
 module hmc_constraints
-   use utils, only: dp, complex_to_real, map_to_real_mat, real_to_complex, real_vec
+   use utils, only: dp, complex_to_real, real_to_complex, real_vec
    use, intrinsic :: iso_fortran_env, only: int64
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use solve_flow, only: flowz, flow_workspace_t, intode_diagnostics_context_t, set_intode_stage_trace, set_intode_newton_iter_trace, &
@@ -7,6 +7,7 @@ module hmc_constraints
                          intode_status_unknown, intode_status_success, intode_status_success_zero_time, &
                          intode_status_success_stiff_rescue, intode_status_success_solver_assist, &
                          intode_status_failure_max_steps, intode_status_failure_invalid, intode_status_failure_h_min
+   use hmc_kernels, only: real_jacobian_cache_t, prepare_real_jacobian_cache, release_real_jacobian_cache
    use perf_profile, only: perf_tic, perf_toc, PERF_NEWTON, PERF_PROJECTED_STEP
    implicit none
 
@@ -24,11 +25,11 @@ module hmc_constraints
    type(newton_eval_flow_status_context_t), target, save :: module_newton_eval_flow_status_context
 
    type :: newton_constraint_workspace_t
-      real(dp), allocatable :: B(:), jacr(:, :), jacr_lu(:, :)
+      real(dp), allocatable :: B(:)
       real(dp), allocatable :: xtu(:), u(:), dxi(:), au(:), av(:)
       real(dp), allocatable :: u_seed(:), x_trial(:)
       complex(dp), allocatable :: ld(:), ld_seed(:)
-      integer, allocatable :: ipiv(:)
+      type(real_jacobian_cache_t) :: jac_cache
    end type newton_constraint_workspace_t
 
 contains
@@ -120,7 +121,7 @@ contains
    end subroutine reset_constraint_newton_warm_start
 
    subroutine solve_constraint_newton(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, x_seed, Jl_seed, workspace, &
-                                      flow_workspace, newton_flow_status, intode_diagnostics)
+                                      flow_workspace, newton_flow_status, intode_diagnostics, jac_cache)
       implicit none
 
       integer, intent(in)          :: max_iter
@@ -133,24 +134,28 @@ contains
       real(dp), intent(out) :: Jl(:)
       complex(dp), intent(in) :: jac(:, :)
       real(dp), intent(in), optional :: x_seed(:), Jl_seed(:)
-      type(newton_constraint_workspace_t), intent(inout), optional :: workspace
+      type(newton_constraint_workspace_t), intent(inout), optional, target :: workspace
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
       type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
       type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      type(real_jacobian_cache_t), intent(inout), optional, target :: jac_cache
 
-      type(newton_constraint_workspace_t) :: local_workspace
+      type(newton_constraint_workspace_t), target :: local_workspace
 
       if (present(workspace)) then
          call solve_constraint_newton_with_workspace(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, &
-                                                     x_seed, Jl_seed, workspace, flow_workspace, newton_flow_status, intode_diagnostics)
+                                                     x_seed, Jl_seed, workspace, flow_workspace, newton_flow_status, intode_diagnostics, &
+                                                     jac_cache)
       else
          call solve_constraint_newton_with_workspace(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, &
-                                                     x_seed, Jl_seed, local_workspace, flow_workspace, newton_flow_status, intode_diagnostics)
+                                                     x_seed, Jl_seed, local_workspace, flow_workspace, newton_flow_status, intode_diagnostics, &
+                                                     jac_cache)
       end if
    end subroutine solve_constraint_newton
 
    subroutine solve_constraint_newton_with_workspace(tol, max_iter, xt, z, del_z, step_size, ierr, Jl, x_new, jac, &
-                                                     x_seed, Jl_seed, workspace, flow_workspace, newton_flow_status, intode_diagnostics)
+                                                     x_seed, Jl_seed, workspace, flow_workspace, newton_flow_status, intode_diagnostics, &
+                                                     jac_cache)
       implicit none
 
       integer, intent(in)          :: max_iter
@@ -163,14 +168,15 @@ contains
       real(dp), intent(out) :: Jl(:)
       complex(dp), intent(in) :: jac(:, :)
       real(dp), intent(in), optional :: x_seed(:), Jl_seed(:)
-      type(newton_constraint_workspace_t), intent(inout) :: workspace
+      type(newton_constraint_workspace_t), intent(inout), target :: workspace
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
       type(newton_eval_flow_status_context_t), intent(inout), optional, target :: newton_flow_status
       type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      type(real_jacobian_cache_t), intent(inout), optional, target :: jac_cache
 
-      integer :: n, n2, info
+      integer :: n, n2
       logical :: attempt_ok
-      external :: dgetrf
+      type(real_jacobian_cache_t), pointer :: active_cache
       real(dp) :: t_prof
 
       call perf_tic(t_prof)
@@ -196,11 +202,12 @@ contains
          call perf_toc(PERF_NEWTON, t_prof)
          return
       end if
+      if (.not. ieee_is_finite(step_size)) then
+         call perf_toc(PERF_NEWTON, t_prof)
+         return
+      end if
 
       call ensure_real_vec(workspace%B, n2)
-      call ensure_real_mat(workspace%jacr, n2, n2)
-      call ensure_real_mat(workspace%jacr_lu, n2, n2)
-      call ensure_int_vec(workspace%ipiv, n2)
       call ensure_real_vec(workspace%xtu, 1 + n)
       call ensure_complex_vec(workspace%ld, n)
       call ensure_real_vec(workspace%u, n)
@@ -211,19 +218,17 @@ contains
       call ensure_complex_vec(workspace%ld_seed, n)
       call ensure_real_vec(workspace%x_trial, n + 1)
 
-      call map_to_real_mat(jac, workspace%jacr)
-      workspace%jacr_lu = workspace%jacr
-      call dgetrf(n2, n2, workspace%jacr_lu, n2, workspace%ipiv, info)
-      if (info /= 0) then
-         ierr = .true.
+      if (present(jac_cache)) then
+         active_cache => jac_cache
+      else
+         active_cache => workspace%jac_cache
+      end if
+      call prepare_real_jacobian_cache(jac, active_cache, ierr)
+      if (ierr) then
          call perf_toc(PERF_NEWTON, t_prof)
          return
       end if
 
-      if (.not. ieee_is_finite(step_size)) then
-         call perf_toc(PERF_NEWTON, t_prof)
-         return
-      end if
       workspace%u_seed = 0.0_dp
       workspace%ld_seed = cmplx(0.0_dp, 0.0_dp, dp)
       if (present(x_seed)) then
@@ -237,7 +242,7 @@ contains
             call real_to_complex(Jl_seed, workspace%ld_seed)
          end if
       end if
-      call solve_constraint_newton_seeded(tol, max_iter, xt, z, del_z, workspace%jacr, workspace%jacr_lu, workspace%ipiv, &
+      call solve_constraint_newton_seeded(tol, max_iter, xt, z, del_z, active_cache%jacr, active_cache%jacr_lu, active_cache%ipiv, &
                                           workspace%u_seed, workspace%ld_seed, workspace%B, workspace%xtu, workspace%u, &
                                           workspace%ld, workspace%dxi, workspace%au, workspace%av, attempt_ok, &
                                           workspace%x_trial, flow_workspace, newton_flow_status, intode_diagnostics)
@@ -505,8 +510,6 @@ contains
       type(newton_constraint_workspace_t), intent(inout) :: workspace
 
       if (allocated(workspace%B)) deallocate (workspace%B)
-      if (allocated(workspace%jacr)) deallocate (workspace%jacr)
-      if (allocated(workspace%jacr_lu)) deallocate (workspace%jacr_lu)
       if (allocated(workspace%xtu)) deallocate (workspace%xtu)
       if (allocated(workspace%u)) deallocate (workspace%u)
       if (allocated(workspace%dxi)) deallocate (workspace%dxi)
@@ -516,7 +519,7 @@ contains
       if (allocated(workspace%x_trial)) deallocate (workspace%x_trial)
       if (allocated(workspace%ld)) deallocate (workspace%ld)
       if (allocated(workspace%ld_seed)) deallocate (workspace%ld_seed)
-      if (allocated(workspace%ipiv)) deallocate (workspace%ipiv)
+      call release_real_jacobian_cache(workspace%jac_cache)
    end subroutine release_newton_constraint_workspace
 
 end module hmc_constraints
