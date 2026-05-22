@@ -22,7 +22,7 @@ module load mkl/2025.3
 
 : "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization}"
 : "${TLTM_EXPECTED_GIT_BRANCH:=codex/fortran-modernization}"
-: "${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
+: "${TLTM_EXPECTED_GIT_COMMIT:=}"
 : "${TLTM_RUN_NAME:=stephanov_n6_tltm_t003_dense17_8x40_cluster_20260522}"
 : "${TLTM_OUTPUT_ROOT:=output/stephanov_tltm_ladders}"
 : "${TLTM_LOG_ROOT:=output/logs/stephanov_tltm_ladders/${TLTM_RUN_NAME}}"
@@ -36,6 +36,10 @@ echo "HOSTNAME=$(hostname)"
 echo "PBS_JOBID=${PBS_JOBID:-manual}"
 echo "PBS_QUEUE=${PBS_QUEUE:-unknown}"
 echo "TLTM_WORKTREE=${TLTM_WORKTREE}"
+if [ -z "${TLTM_EXPECTED_GIT_COMMIT}" ]; then
+  echo "[ERROR] TLTM_EXPECTED_GIT_COMMIT is required. Submit with qsub -v TLTM_EXPECTED_GIT_COMMIT=<commit>." >&2
+  exit 2
+fi
 
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 CURRENT_COMMIT="$(git rev-parse HEAD)"
