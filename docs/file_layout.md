@@ -29,6 +29,8 @@ This document defines the intended responsibilities of top-level directories and
   - tiny local Stephanov smoke config for build/flow/observable-stream checks
 - `data/parameters_stephanov_n6_mu06_t0.dat`
   - selected Stephanov working-point preset (`n=6, m=0.004, mu=0.6, tau=0, t=0`)
+- `data/parameters_stephanov_n6_mu06_t1e6_eps008_nstep2.dat`
+  - selected local-development nofb protocol preset (`epsilon=0.08, nstep=2, L=0.16, t=1e-6`)
 - `model_specs/`
   - inert staging area for future model definitions and validation plans; not compiled
 
