@@ -170,11 +170,81 @@ combined chain-jackknife scale is about `0.01155`.  Runtime at `t=1e-6` is about
 `5.4x` the `t=0` baseline for this local run shape, and no primary observable
 shift is significant at the quoted errors.
 
-Conclusion for the bank-adaptive nofb protocol: keep `t=1e-6` as a weak
-candidate only if a later cluster run needs a single nonzero-flow check, but do
-not push nofb to higher flow time based on current local evidence.  The present
-data show severe sign problem at both `t=0` and `t=1e-6`, with no statistically
-clear flow-time gain.
+Conclusion for the bank-adaptive nofb protocol: fixed-flow nofb at very low
+flow does not show a statistically clear phase gain.  This is not evidence that
+larger flow times cannot improve the sign problem; it only says the useful
+improvement does not appear in the `t <= 3e-6` very-low-flow window.
+
+## Endpoint-Discovery Correction
+
+The next interpretation is endpoint discovery for TLTM:
+
+1. find a small flow time where fixed-flow nofb remains well behaved;
+2. find a larger flow time where the phase/sign problem is visibly improved,
+   even if fixed-flow nofb is no longer a usable standalone sampler;
+3. build a TLTM ladder between those anchors.
+
+Broad high-flow probe command:
+
+```bash
+python3 codex/workspaces/fortran_modernization/tasks/scripts/scan_stephanov_n6_flowtime_sign_problem.py \
+  --skip-build \
+  --flow-times 1e-5,3e-5,1e-4,3e-4,1e-3 \
+  --records 0,81,162,243 \
+  --cycles 200 \
+  --burn 20 \
+  --timeout-sec 420 \
+  --run-name stephanov_n6_endpoint_discovery_highflow_4x200_20260522 \
+  --force
+```
+
+Output:
+
+```text
+output/stephanov_flowtime_sign_problem/stephanov_n6_endpoint_discovery_highflow_4x200_20260522/flowtime_summary.csv
+```
+
+| flow time | phase coherence | phase JK err | proposal failure rate | accept rate | max runtime / chain | interpretation |
+|---:|---:|---:|---:|---:|---:|---|
+| `1e-5` | `0.04201` | `0.02710` | `0.00125` | `0.70625` | `7.3 s` | still low-flow/no clear gain |
+| `3e-5` | `0.04940` | `0.02638` | `0.00125` | `0.70875` | `9.9 s` | plausible low-end stable anchor |
+| `1e-4` | `0.05224` | `0.02893` | `0.01750` | `0.69625` | `10.5 s` | still no clear gain; failures begin |
+| `3e-4` | `0.02363` | `0.02114` | `0.06875` | `0.66500` | `12.4 s` | poor standalone nofb point |
+| `1e-3` | `0.08191` | `0.03100` | `0.21875` | `0.60250` | `19.7 s` | possible mid/high endpoint but nofb degraded |
+
+Very-high-flow probe command:
+
+```bash
+python3 codex/workspaces/fortran_modernization/tasks/scripts/scan_stephanov_n6_flowtime_sign_problem.py \
+  --skip-build \
+  --flow-times 0.003,0.01,0.03 \
+  --records 0,162 \
+  --cycles 50 \
+  --burn 5 \
+  --timeout-sec 300 \
+  --run-name stephanov_n6_endpoint_discovery_veryhighflow_2x50_20260522 \
+  --force
+```
+
+Output:
+
+```text
+output/stephanov_flowtime_sign_problem/stephanov_n6_endpoint_discovery_veryhighflow_2x50_20260522/flowtime_summary.csv
+```
+
+| flow time | phase coherence | proposal failure rate | accept rate | interpretation |
+|---:|---:|---:|---:|---|
+| `0.003` | `0.06380` | `0.36` | `0.53` | nofb already poor; phase not compelling |
+| `0.01` | `0.23941` | `0.77` | `0.20` | phase visibly improves; nofb unusable standalone |
+| `0.03` | `0.99811` | `1.00` | `0.00` | apparent phase is frozen samples; no HMC motion |
+
+Updated conclusion: it is plausible and expected that sufficiently large flow
+time improves the sign problem.  Current local evidence suggests `t ~= 0.01` is
+the first clearly phase-improved high-flow endpoint, but direct nofb at that
+flow is not well behaved.  A reasonable next TLTM test is therefore a ladder from
+a stable low endpoint around `3e-5` or `1e-4` toward a high endpoint around
+`1e-2`, with intermediate replicas chosen by swap acceptance and local failure
+diagnostics.
 
 ## Preliminary Conclusion
 
