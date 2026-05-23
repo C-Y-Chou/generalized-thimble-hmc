@@ -6,7 +6,9 @@ module solve_flow
    use odex_backend, only: build_nsteps, ensure_odex_workspace_object, ode_rhs, ode_rhs_context, &
                            odex_apply_backend_name, odex_apply_controller_policy_name, &
                            odex_backend_default_options => odex_default_options, &
+                           odex_backend_kind_dop853, &
                            odex_integrate_endpoint, odex_integrate_endpoint_context, &
+                           odex_integrate_dop853_dense_targets_context, &
                            odex_k_max, odex_k_min, odex_max_steps_default, &
                            odex_options, odex_reason_h_min, odex_reason_invalid, odex_reason_max_rhs_evals, &
                            odex_reason_max_rejects, odex_reason_max_steps, odex_reason_stiffness, &
@@ -1664,6 +1666,144 @@ contains
          call flow_at_with_workspace(flow_time, x_state, z, j, error, status, local_workspace, intode_diagnostics)
       end if
    end subroutine flow_at
+
+   subroutine flow_at_dense_targets(target_times, x_state, z_targets, j_targets, target_available, error, status, &
+                                    workspace, intode_diagnostics, result_state)
+      real(dp), intent(in) :: target_times(:)
+      real(dp), intent(in) :: x_state(:)
+      complex(dp), intent(inout) :: z_targets(:, :)
+      complex(dp), intent(inout) :: j_targets(:, :, :)
+      logical, intent(out) :: target_available(:)
+      logical, intent(out) :: error
+      integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout), optional :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      type(odex_result), intent(out), optional :: result_state
+
+      type(flow_workspace_t) :: local_workspace
+
+      if (present(workspace)) then
+         call flow_at_dense_targets_with_workspace(target_times, x_state, z_targets, j_targets, target_available, &
+                                                   error, status, workspace, intode_diagnostics, result_state)
+      else
+         call flow_at_dense_targets_with_workspace(target_times, x_state, z_targets, j_targets, target_available, &
+                                                   error, status, local_workspace, intode_diagnostics, result_state)
+      end if
+   end subroutine flow_at_dense_targets
+
+   subroutine flow_at_dense_targets_with_workspace(target_times, x_state, z_targets, j_targets, target_available, &
+                                                   error, status, workspace, intode_diagnostics, result_state)
+      real(dp), intent(in) :: target_times(:)
+      real(dp), intent(in) :: x_state(:)
+      complex(dp), intent(inout) :: z_targets(:, :)
+      complex(dp), intent(inout) :: j_targets(:, :, :)
+      logical, intent(out) :: target_available(:)
+      logical, intent(out) :: error
+      integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout) :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      type(odex_result), intent(out), optional :: result_state
+
+      integer :: n, m, n_complex, n_jac, total_n, n_targets, target_idx
+      integer :: flow_status_local
+      logical :: shape_ok
+      real(dp), allocatable :: dense_values(:, :)
+      type(odex_options) :: integration_options
+      type(odex_result) :: integration_result
+      type(intode_diagnostics_context_t), pointer :: active_diagnostics
+      real(dp) :: t_prof
+
+      call perf_tic(t_prof)
+      call set_intode_status(status, intode_status_unknown)
+      error = .true.
+      target_available = .false.
+      if (present(result_state)) call odex_result_reset(result_state)
+
+      n_targets = size(target_times)
+      shape_ok = size(target_available) == n_targets .and. size(z_targets, 2) == n_targets .and. &
+                 size(j_targets, 3) == n_targets
+      shape_ok = shape_ok .and. size(z_targets, 1) > 0 .and. size(j_targets, 1) == size(z_targets, 1) .and. &
+                 size(j_targets, 2) == size(z_targets, 1)
+      shape_ok = shape_ok .and. size(x_state) == size(z_targets, 1)
+      if (.not. shape_ok) then
+         call set_intode_status(status, intode_status_failure_invalid)
+         call perf_toc(PERF_FLOW, t_prof)
+         return
+      end if
+      if (n_targets <= 0) then
+         error = .false.
+         call set_intode_status(status, intode_status_success_zero_time)
+         call perf_toc(PERF_FLOW, t_prof)
+         return
+      end if
+      if ((.not. dense_target_times_valid(target_times)) .or. vector_has_invalid(x_state)) then
+         call set_intode_status(status, intode_status_failure_invalid)
+         call perf_toc(PERF_FLOW, t_prof)
+         return
+      end if
+
+      n_complex = size(z_targets, 1)
+      n = 2*n_complex
+      n_jac = n_complex
+      m = 2*n_jac*n_jac
+      total_n = n + m
+      call ensure_real_workspace(workspace%flow_jac_y, total_n)
+      call ensure_complex_workspace(workspace%flow_jac_z, n_complex)
+      call ensure_complex_workspace(workspace%flow_jac_ds, n_complex)
+      call ensure_complex_workspace_mat(workspace%flow_jac_j, n_jac, n_jac)
+      call ensure_complex_workspace_mat(workspace%flow_jac_jprod, n_jac, n_jac)
+      allocate (dense_values(total_n, n_targets))
+
+      workspace%flow_jac_y(1:n:2) = x_state
+      workspace%flow_jac_y(2:n:2) = 0.0_dp
+      call fill_identity_real_map(workspace%flow_jac_y(n + 1:total_n), n_jac)
+      call odex_default_options(integration_options)
+      integration_options%backend = odex_backend_kind_dop853
+      call resolve_intode_diagnostics_context(intode_diagnostics, active_diagnostics)
+      active_diagnostics%last_odex_result_available = .false.
+      call odex_result_reset(active_diagnostics%last_odex_result)
+      active_diagnostics%calls_total = active_diagnostics%calls_total + 1
+      if (maxval(abs(target_times)) > 0.0_dp) active_diagnostics%calls_integrating = active_diagnostics%calls_integrating + 1
+
+      workspace%intode_trace%current_context = intode_ctx_flow
+      call odex_integrate_dop853_dense_targets_context(rhs_flow_jac_context, workspace%flow_jac_y(1:total_n), &
+                                                       target_times, dense_values, target_available, error, &
+                                                       integration_result, workspace%intode_odex_workspace, &
+                                                       integration_options, workspace)
+      workspace%intode_trace%current_context = intode_ctx_unknown
+      call record_intode_odex_result(integration_result, active_diagnostics, intode_ctx_flow)
+      active_diagnostics%last_odex_result_available = .true.
+      active_diagnostics%last_odex_result = integration_result
+      flow_status_local = odex_result_to_intode_status(integration_result)
+      call set_intode_status(status, flow_status_local)
+      if (present(result_state)) result_state = integration_result
+
+      z_targets = cmplx(0.0_dp, 0.0_dp, dp)
+      j_targets = cmplx(0.0_dp, 0.0_dp, dp)
+      do target_idx = 1, n_targets
+         if (.not. target_available(target_idx)) cycle
+         call real_to_complex(dense_values(1:n, target_idx), z_targets(:, target_idx))
+         call map_to_complex(dense_values(n + 1:total_n, target_idx), j_targets(:, :, target_idx))
+      end do
+      call perf_toc(PERF_FLOW, t_prof)
+   end subroutine flow_at_dense_targets_with_workspace
+
+   pure logical function dense_target_times_valid(target_times) result(valid)
+      real(dp), intent(in) :: target_times(:)
+      integer :: i
+
+      valid = .true.
+      do i = 1, size(target_times)
+         if ((.not. ieee_is_finite(target_times(i))) .or. target_times(i) < 0.0_dp) then
+            valid = .false.
+            return
+         end if
+         if (i > 1 .and. target_times(i) < target_times(i - 1)) then
+            valid = .false.
+            return
+         end if
+      end do
+   end function dense_target_times_valid
 
    subroutine flowz_with_workspace(x, z, error, status, workspace, intode_diagnostics)
       real(dp), intent(in)::x(:)

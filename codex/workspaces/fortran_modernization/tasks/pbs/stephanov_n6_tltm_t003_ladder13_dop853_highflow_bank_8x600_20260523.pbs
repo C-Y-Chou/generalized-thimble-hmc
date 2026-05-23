@@ -1,0 +1,147 @@
+#!/bin/bash
+#PBS -N stn6bank
+#PBS -q C8
+#PBS -l select=1:ncpus=8:mpiprocs=8:mem=16gb
+#PBS -l walltime=05:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  # shellcheck source=/dev/null
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization}"
+: "${TLTM_EXPECTED_GIT_BRANCH:=codex/fortran-modernization}"
+: "${TLTM_EXPECTED_GIT_COMMIT:=}"
+: "${TLTM_RUN_NAME:=stephanov_n6_tltm_t003_ladder13_dop853_highflow_bank_8x600_20260523}"
+: "${TLTM_OUTPUT_ROOT:=output/stephanov_flow_bank_runs}"
+: "${TLTM_LOG_ROOT:=output/logs/stephanov_flow_bank_runs/${TLTM_RUN_NAME}}"
+: "${TLTM_RECORDS_SPEC:=0:40:81:121:162:202:243:283}"
+: "${TLTM_CYCLES:=600}"
+: "${TLTM_SEED_BASE:=9130000}"
+: "${TLTM_BANK_BURN_RECORDS:=100}"
+: "${TLTM_BANK_HISTORY_STRIDE:=5}"
+: "${TLTM_BANK_MAX_RECORDS_PER_CHAIN:=0}"
+: "${TLTM_BANK_OUTPUT_ROOT:=output/stephanov_flow_banks}"
+: "${TLTM_BANK_RUN_NAME:=${TLTM_RUN_NAME}_xhist_b${TLTM_BANK_BURN_RECORDS}_s${TLTM_BANK_HISTORY_STRIDE}}"
+
+cd "${TLTM_WORKTREE}"
+mkdir -p "${TLTM_LOG_ROOT}"
+exec > "${TLTM_LOG_ROOT}/pbs_boot_${PBS_JOBID:-manual}.log" 2>&1
+
+echo "RUN_DATE=$(date -Is)"
+echo "HOSTNAME=$(hostname)"
+echo "PBS_JOBID=${PBS_JOBID:-manual}"
+echo "PBS_QUEUE=${PBS_QUEUE:-unknown}"
+echo "TLTM_WORKTREE=${TLTM_WORKTREE}"
+echo "TLTM_RUN_NAME=${TLTM_RUN_NAME}"
+echo "TLTM_RECORDS_SPEC=${TLTM_RECORDS_SPEC}"
+echo "TLTM_CYCLES=${TLTM_CYCLES}"
+echo "TLTM_BANK_RUN_NAME=${TLTM_BANK_RUN_NAME}"
+
+if [ -z "${TLTM_EXPECTED_GIT_COMMIT}" ]; then
+  echo "[ERROR] TLTM_EXPECTED_GIT_COMMIT is required. Submit with qsub -v TLTM_EXPECTED_GIT_COMMIT=<commit>." >&2
+  exit 2
+fi
+
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+CURRENT_COMMIT="$(git rev-parse HEAD)"
+echo "GIT_BRANCH=${CURRENT_BRANCH}"
+echo "GIT_COMMIT=${CURRENT_COMMIT}"
+echo "EXPECTED_GIT_COMMIT=${TLTM_EXPECTED_GIT_COMMIT}"
+if [ "${CURRENT_BRANCH}" != "${TLTM_EXPECTED_GIT_BRANCH}" ]; then
+  echo "[ERROR] expected branch ${TLTM_EXPECTED_GIT_BRANCH}, got ${CURRENT_BRANCH}" >&2
+  exit 2
+fi
+if [ "${CURRENT_COMMIT}" != "${TLTM_EXPECTED_GIT_COMMIT}" ]; then
+  echo "[ERROR] expected commit ${TLTM_EXPECTED_GIT_COMMIT}, got ${CURRENT_COMMIT}" >&2
+  exit 2
+fi
+if [ -n "$(git status --porcelain)" ]; then
+  echo "[ERROR] working tree is dirty; refusing cluster bank run" >&2
+  git status --short >&2
+  exit 2
+fi
+
+if [ -x .venv-dfols/bin/python ]; then
+  DFOLS_SITE_PACKAGES="$(.venv-dfols/bin/python - <<'PY'
+import sysconfig
+print(sysconfig.get_paths()["purelib"])
+PY
+)"
+  export TLTM_OFFICIAL_DFOLS_PYTHONPATH="${DFOLS_SITE_PACKAGES}${TLTM_OFFICIAL_DFOLS_PYTHONPATH:+:${TLTM_OFFICIAL_DFOLS_PYTHONPATH}}"
+fi
+
+# Configure Python.h/libpython for the official DFO-LS C bridge on cluster02.
+# shellcheck source=/dev/null
+. codex/workspaces/fortran_modernization/tasks/scripts/python_embed_env.sh
+
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export OMP_PROC_BIND=false
+export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
+
+export TLTM_ODE_BACKEND=dop853
+export TLTM_DOP853_HINIT_ENABLED=1
+export TLTM_DOP853_STIFFNESS_CHECK_ENABLED=1
+export TLTM_DOP853_STIFFNESS_CHECK_INTERVAL=1000
+export TLTM_DOP853_STIFFNESS_MAX_HITS=15
+export TLTM_DOP853_STIFFNESS_THRESHOLD=6.1
+
+make -C build clean
+make -C build OMP=1 PYTHON="${PYTHON}" PYTHON_EMBED_CFLAGS="${PYTHON_EMBED_CFLAGS}" \
+  PYTHON_EMBED_LDFLAGS="${PYTHON_EMBED_LDFLAGS}" ../bin/run_tltm_stage2
+
+TLTM_RECORDS="${TLTM_RECORDS_SPEC//:/,}"
+
+/usr/bin/time -p python3 codex/workspaces/fortran_modernization/tasks/scripts/run_stephanov_n6_tltm_ladder.py \
+  --skip-build \
+  --records "${TLTM_RECORDS}" \
+  --cycles "${TLTM_CYCLES}" \
+  --jobs 8 \
+  --threads 1 \
+  --timeout-sec 15000 \
+  --seed-base "${TLTM_SEED_BASE}" \
+  --ladder 0,1e-3,3e-3,7e-3,1e-2,1.3e-2,1.6e-2,1.8e-2,2e-2,2.25e-2,2.5e-2,2.75e-2,3e-2 \
+  --parallel-local-updates 1 \
+  --parallel-swaps 1 \
+  --write-cold-x-history \
+  --write-final-snapshot \
+  --output-root "${TLTM_OUTPUT_ROOT}" \
+  --run-name "${TLTM_RUN_NAME}" \
+  --force
+
+RUN_ROOT="${TLTM_OUTPUT_ROOT}/${TLTM_RUN_NAME}"
+SUMMARY="${RUN_ROOT}/tltm_ladder_summary.csv"
+AGGREGATE="${RUN_ROOT}/tltm_ladder_aggregate.csv"
+echo "SUMMARY=${SUMMARY}"
+echo "AGGREGATE=${AGGREGATE}"
+cat "${AGGREGATE}"
+
+/usr/bin/time -p python3 codex/workspaces/fortran_modernization/tasks/scripts/extract_stage2_highflow_x_bank.py \
+  --run-root "${RUN_ROOT}" \
+  --records "${TLTM_RECORDS}" \
+  --source cold-x-history \
+  --state-size 72 \
+  --burn-records "${TLTM_BANK_BURN_RECORDS}" \
+  --history-stride "${TLTM_BANK_HISTORY_STRIDE}" \
+  --max-records-per-chain "${TLTM_BANK_MAX_RECORDS_PER_CHAIN}" \
+  --output-root "${TLTM_BANK_OUTPUT_ROOT}" \
+  --run-name "${TLTM_BANK_RUN_NAME}" \
+  --force
+
+BANK_ROOT="${TLTM_BANK_OUTPUT_ROOT}/${TLTM_BANK_RUN_NAME}/bank"
+echo "BANK_ROOT=${BANK_ROOT}"
+cat "${BANK_ROOT}/coverage_summary.json"

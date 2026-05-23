@@ -52,6 +52,7 @@ module odex_backend
    integer(c_int), parameter :: sundials_cvode_status_invalid = 2_c_int
    integer(c_int), parameter :: sundials_cvode_status_unavailable = 10_c_int
    integer, parameter :: dop853_stage_count = 12
+   integer, parameter :: dop853_dense_stage_count = 16
    integer, parameter :: dop853_order = 8
    real(dp), parameter :: dop853_c2 = 0.526001519587677318785587544488e-01_dp
    real(dp), parameter :: dop853_c3 = 0.789002279381515978178381316732e-01_dp
@@ -132,6 +133,81 @@ module odex_backend
    real(dp), parameter :: dop853_a129 = -8.87285693353062954433549289258_dp
    real(dp), parameter :: dop853_a1210 = 1.23605671757943030647266201528e+1_dp
    real(dp), parameter :: dop853_a1211 = 6.43392746015763530355970484046e-1_dp
+   real(dp), parameter :: dop853_c14 = 0.1_dp
+   real(dp), parameter :: dop853_c15 = 0.2_dp
+   real(dp), parameter :: dop853_c16 = 0.777777777777777777777777777778_dp
+   real(dp), parameter :: dop853_a141 = 5.61675022830479523392909219681e-2_dp
+   real(dp), parameter :: dop853_a147 = 2.53500210216624811088794765333e-1_dp
+   real(dp), parameter :: dop853_a148 = -2.46239037470802489917441475441e-1_dp
+   real(dp), parameter :: dop853_a149 = -1.24191423263816360469010140626e-1_dp
+   real(dp), parameter :: dop853_a1410 = 1.5329179827876569731206322685e-1_dp
+   real(dp), parameter :: dop853_a1411 = 8.20105229563468988491666602057e-3_dp
+   real(dp), parameter :: dop853_a1412 = 7.56789766054569976138603589584e-3_dp
+   real(dp), parameter :: dop853_a1413 = -8.298e-3_dp
+   real(dp), parameter :: dop853_a151 = 3.18346481635021405060768473261e-2_dp
+   real(dp), parameter :: dop853_a156 = 2.83009096723667755288322961402e-2_dp
+   real(dp), parameter :: dop853_a157 = 5.35419883074385676223797384372e-2_dp
+   real(dp), parameter :: dop853_a158 = -5.49237485713909884646569340306e-2_dp
+   real(dp), parameter :: dop853_a1511 = -1.08347328697249322858509316994e-4_dp
+   real(dp), parameter :: dop853_a1512 = 3.82571090835658412954920192323e-4_dp
+   real(dp), parameter :: dop853_a1513 = -3.40465008687404560802977114492e-4_dp
+   real(dp), parameter :: dop853_a1514 = 1.41312443674632500278074618366e-1_dp
+   real(dp), parameter :: dop853_a161 = -4.28896301583791923408573538692e-1_dp
+   real(dp), parameter :: dop853_a166 = -4.69762141536116384314449447206_dp
+   real(dp), parameter :: dop853_a167 = 7.68342119606259904184240953878_dp
+   real(dp), parameter :: dop853_a168 = 4.06898981839711007970213554331_dp
+   real(dp), parameter :: dop853_a169 = 3.56727187455281109270669543021e-1_dp
+   real(dp), parameter :: dop853_a1613 = -1.39902416515901462129418009734e-3_dp
+   real(dp), parameter :: dop853_a1614 = 2.9475147891527723389556272149_dp
+   real(dp), parameter :: dop853_a1615 = -9.15095847217987001081870187138_dp
+   real(dp), parameter :: dop853_d41 = -0.84289382761090128651353491142e+01_dp
+   real(dp), parameter :: dop853_d46 = 0.56671495351937776962531783590_dp
+   real(dp), parameter :: dop853_d47 = -0.30689499459498916912797304727e+01_dp
+   real(dp), parameter :: dop853_d48 = 0.23846676565120698287728149680e+01_dp
+   real(dp), parameter :: dop853_d49 = 0.21170345824450282767155149946e+01_dp
+   real(dp), parameter :: dop853_d410 = -0.87139158377797299206789907490_dp
+   real(dp), parameter :: dop853_d411 = 0.22404374302607882758541771650e+01_dp
+   real(dp), parameter :: dop853_d412 = 0.63157877876946881815570249290_dp
+   real(dp), parameter :: dop853_d413 = -0.88990336451333310820698117400e-01_dp
+   real(dp), parameter :: dop853_d414 = 0.18148505520854727256656404962e+02_dp
+   real(dp), parameter :: dop853_d415 = -0.91946323924783554000451984436e+01_dp
+   real(dp), parameter :: dop853_d416 = -0.44360363875948939664310572000e+01_dp
+   real(dp), parameter :: dop853_d51 = 0.10427508642579134603413151009e+02_dp
+   real(dp), parameter :: dop853_d56 = 0.24228349177525818288430175319e+03_dp
+   real(dp), parameter :: dop853_d57 = 0.16520045171727028198505394887e+03_dp
+   real(dp), parameter :: dop853_d58 = -0.37454675472269020279518312152e+03_dp
+   real(dp), parameter :: dop853_d59 = -0.22113666853125306036270938578e+02_dp
+   real(dp), parameter :: dop853_d510 = 0.77334326684722638389603898808e+01_dp
+   real(dp), parameter :: dop853_d511 = -0.30674084731089398182061213626e+02_dp
+   real(dp), parameter :: dop853_d512 = -0.93321305264302278729567221706e+01_dp
+   real(dp), parameter :: dop853_d513 = 0.15697238121770843886131091075e+02_dp
+   real(dp), parameter :: dop853_d514 = -0.31139403219565177677282850411e+02_dp
+   real(dp), parameter :: dop853_d515 = -0.93529243588444783865713862664e+01_dp
+   real(dp), parameter :: dop853_d516 = 0.35816841486394083752465898540e+02_dp
+   real(dp), parameter :: dop853_d61 = 0.19985053242002433820987653617e+02_dp
+   real(dp), parameter :: dop853_d66 = -0.38703730874935176555105901742e+03_dp
+   real(dp), parameter :: dop853_d67 = -0.18917813819516756882830838328e+03_dp
+   real(dp), parameter :: dop853_d68 = 0.52780815920542364900561016686e+03_dp
+   real(dp), parameter :: dop853_d69 = -0.11573902539959630126141871134e+02_dp
+   real(dp), parameter :: dop853_d610 = 0.68812326946963000169666922661e+01_dp
+   real(dp), parameter :: dop853_d611 = -0.10006050966910838403183860980e+01_dp
+   real(dp), parameter :: dop853_d612 = 0.77771377980534432092869265740_dp
+   real(dp), parameter :: dop853_d613 = -0.27782057523535084065932004339e+01_dp
+   real(dp), parameter :: dop853_d614 = -0.60196695231264120758267380846e+02_dp
+   real(dp), parameter :: dop853_d615 = 0.84320405506677161018159903784e+02_dp
+   real(dp), parameter :: dop853_d616 = 0.11992291136182789328035130030e+02_dp
+   real(dp), parameter :: dop853_d71 = -0.25693933462703749003312586129e+02_dp
+   real(dp), parameter :: dop853_d76 = -0.15418974869023643374053993627e+03_dp
+   real(dp), parameter :: dop853_d77 = -0.23152937917604549567536039109e+03_dp
+   real(dp), parameter :: dop853_d78 = 0.35763911791061412378285349910e+03_dp
+   real(dp), parameter :: dop853_d79 = 0.93405324183624310003907691704e+02_dp
+   real(dp), parameter :: dop853_d710 = -0.37458323136451633156875139351e+02_dp
+   real(dp), parameter :: dop853_d711 = 0.10409964950896230045147246184e+03_dp
+   real(dp), parameter :: dop853_d712 = 0.29840293426660503123344363579e+02_dp
+   real(dp), parameter :: dop853_d713 = -0.43533456590011143754432175058e+02_dp
+   real(dp), parameter :: dop853_d714 = 0.96324553959188282948394950600e+02_dp
+   real(dp), parameter :: dop853_d715 = -0.39177261675615439165231486172e+02_dp
+   real(dp), parameter :: dop853_d716 = -0.14972683625798562581422125276e+03_dp
 
    type, public :: odex_options
       real(dp) :: abs_tol = 0.0_dp
@@ -180,6 +256,7 @@ module odex_backend
    type, public :: odex_workspace
       real(dp), allocatable :: tableau(:, :, :)
       real(dp), allocatable :: ystate(:), yprev(:), ycurr(:), ynext(:), fval(:), fbase(:)
+      real(dp), allocatable :: dense_coeff(:, :)
       integer, allocatable :: nsteps(:)
       real(dp), allocatable :: ak(:), invexp(:), ratio(:, :)
       logical :: tables_ready = .false.
@@ -393,6 +470,8 @@ module odex_backend
    public :: ensure_odex_workspace_object
    public :: odex_integrate_endpoint
    public :: odex_integrate_endpoint_context
+   public :: odex_integrate_dop853_dense_targets
+   public :: odex_integrate_dop853_dense_targets_context
    public :: odex_observe_controller_estimate
    public :: odex_hairer_controller_decision_reset
    public :: odex_hairer_controller_state_reset
@@ -1436,6 +1515,818 @@ contains
       result_state%rejected_steps = rejected_steps
       call dop853_record_result(result_state, rhs_evals, step_attempts)
    end subroutine dop853_integrate_endpoint_context
+
+   subroutine odex_integrate_dop853_dense_targets(f, y, target_times, target_values, target_available, error_flag, &
+                                                  result_state, workspace, options)
+      procedure(ode_rhs) :: f
+      real(dp), intent(in) :: y(:), target_times(:)
+      real(dp), intent(out) :: target_values(:, :)
+      logical, intent(out) :: target_available(:)
+      logical, intent(out) :: error_flag
+      type(odex_result), intent(out) :: result_state
+      type(odex_workspace), intent(inout) :: workspace
+      type(odex_options), intent(in), optional :: options
+
+      type(odex_options) :: opts
+
+      call odex_default_options(opts)
+      opts%backend = odex_backend_kind_dop853
+      if (present(options)) opts = options
+      call odex_normalize_options(opts)
+      if (opts%backend /= odex_backend_kind_dop853) then
+         call dop853_dense_invalid_result(size(target_times), target_values, target_available, error_flag, result_state)
+         return
+      end if
+      call dop853_integrate_dense_targets(f, y, target_times, target_values, target_available, error_flag, &
+                                          result_state, workspace, opts)
+   end subroutine odex_integrate_dop853_dense_targets
+
+   subroutine odex_integrate_dop853_dense_targets_context(f, y, target_times, target_values, target_available, error_flag, &
+                                                          result_state, workspace, options, rhs_context)
+      procedure(ode_rhs_context) :: f
+      real(dp), intent(in) :: y(:), target_times(:)
+      real(dp), intent(out) :: target_values(:, :)
+      logical, intent(out) :: target_available(:)
+      logical, intent(out) :: error_flag
+      type(odex_result), intent(out) :: result_state
+      type(odex_workspace), intent(inout) :: workspace
+      type(odex_options), intent(in), optional :: options
+      class(*), intent(inout) :: rhs_context
+
+      type(odex_options) :: opts
+
+      call odex_default_options(opts)
+      opts%backend = odex_backend_kind_dop853
+      if (present(options)) opts = options
+      call odex_normalize_options(opts)
+      if (opts%backend /= odex_backend_kind_dop853) then
+         call dop853_dense_invalid_result(size(target_times), target_values, target_available, error_flag, result_state)
+         return
+      end if
+      call dop853_integrate_dense_targets_context(f, y, target_times, target_values, target_available, error_flag, &
+                                                  result_state, workspace, opts, rhs_context)
+   end subroutine odex_integrate_dop853_dense_targets_context
+
+   subroutine dop853_integrate_dense_targets(f, y, target_times, target_values, target_available, error_flag, &
+                                             result_state, workspace, opts)
+      procedure(ode_rhs) :: f
+      real(dp), intent(in) :: y(:), target_times(:)
+      real(dp), intent(out) :: target_values(:, :)
+      logical, intent(out) :: target_available(:)
+      logical, intent(out) :: error_flag
+      type(odex_result), intent(inout) :: result_state
+      type(odex_workspace), intent(inout) :: workspace
+      type(odex_options), intent(in) :: opts
+
+      integer :: state_size, n_targets, pending, step_attempts, accepted_steps, rejected_steps
+      integer :: rhs_evals, rhs_used, consecutive_rejects, stiffness_hits
+      logical :: invalid_rhs, is_last_step, rejected_last, stiffness_hit, need_dense
+      real(dp) :: tc, h, h_new, h_min, h_step, err, facold, t_new, h_abs_max, final_t
+
+      call odex_result_reset(result_state)
+      state_size = size(y)
+      n_targets = size(target_times)
+      error_flag = .true.
+      call dop853_dense_clear_outputs(target_values, target_available)
+      if (.not. dop853_dense_request_valid(y, target_times, target_values, target_available)) then
+         call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, 0.0_dp)
+         return
+      end if
+      if (opts%max_steps <= 0) then
+         call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, 0.0_dp)
+         return
+      end if
+
+      pending = 1
+      call dop853_store_zero_targets(y, target_times, target_values, target_available, pending)
+      if (pending > n_targets) then
+         error_flag = .false.
+         call odex_result_mark_success(result_state, odex_status_success_zero_time, 0, dop853_order, 0.0_dp)
+         return
+      end if
+
+      final_t = target_times(n_targets)
+      call ensure_odex_workspace_object(workspace, max(dop853_dense_stage_count, opts%k_max + 1), state_size)
+      call ensure_odex_workspace_dense_coeff(workspace, state_size)
+      workspace%ystate(1:state_size) = y(1:state_size)
+      tc = 0.0_dp
+      step_attempts = 0
+      accepted_steps = 0
+      rejected_steps = 0
+      consecutive_rejects = 0
+      stiffness_hits = 0
+      rhs_evals = 0
+      facold = 1.0e-4_dp
+      rejected_last = .false.
+      h_min = dop853_effective_h_min(opts, tc)
+      h_abs_max = dop853_step_abs_bound(opts, tc, final_t)
+      if (h_abs_max < h_min) then
+         call odex_result_mark_failure(result_state, odex_reason_h_min, 0, 0, dop853_order, &
+                                       sign(h_abs_max, final_t), final_t)
+         call dop853_record_result(result_state, rhs_evals, step_attempts)
+         return
+      end if
+      if (opts%dop853_hinit_enabled) then
+         if (opts%dop853_max_rhs_evals > 0 .and. 2 > opts%dop853_max_rhs_evals) then
+            call odex_result_mark_failure(result_state, odex_reason_max_rhs_evals, 0, 0, dop853_order, 0.0_dp, final_t)
+            call dop853_record_result(result_state, rhs_evals, step_attempts)
+            return
+         end if
+         call dop853_initial_step(f, y, final_t, h_abs_max, h_min, workspace, opts, h, invalid_rhs, rhs_used)
+         rhs_evals = rhs_evals + rhs_used
+         if (invalid_rhs) then
+            call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 0, dop853_order, 0.0_dp, final_t)
+            call dop853_record_result(result_state, rhs_evals, step_attempts)
+            return
+         end if
+      else
+         h = final_t*opts%initial_step_fraction
+         if (h == 0.0_dp) h = sign(h_min, final_t)
+         h = dop853_clamp_step(h, opts, tc, final_t)
+      end if
+      h_step = h
+
+      do
+         h_min = dop853_effective_h_min(opts, tc)
+         h = dop853_clamp_step(h, opts, tc, final_t)
+         if (step_attempts >= opts%max_steps) then
+            call odex_result_mark_failure(result_state, odex_reason_max_steps, accepted_steps, rejected_steps, &
+                                          dop853_order, h, final_t - tc)
+            call dop853_record_result(result_state, rhs_evals, step_attempts)
+            return
+         end if
+         if (opts%dop853_max_rhs_evals > 0 .and. rhs_evals + dop853_stage_count > opts%dop853_max_rhs_evals) then
+            call odex_result_mark_failure(result_state, odex_reason_max_rhs_evals, accepted_steps, rejected_steps, &
+                                          dop853_order, h, final_t - tc)
+            call dop853_record_result(result_state, rhs_evals, step_attempts)
+            return
+         end if
+         if (abs(h) < h_min) then
+            call odex_result_mark_failure(result_state, odex_reason_h_min, accepted_steps, rejected_steps, &
+                                          dop853_order, h, final_t - tc)
+            call dop853_record_result(result_state, rhs_evals, step_attempts)
+            return
+         end if
+
+         if ((tc + 1.01_dp*h - final_t)*sign(1.0_dp, final_t - tc) > 0.0_dp) then
+            h = final_t - tc
+            is_last_step = .true.
+         else
+            is_last_step = .false.
+         end if
+
+         h_step = h
+         call dop853_step(f, workspace%ystate(1:state_size), h, workspace%ynext(1:state_size), err, workspace, opts, &
+                          invalid_rhs, rhs_used)
+         step_attempts = step_attempts + 1
+         rhs_evals = rhs_evals + rhs_used
+         if (invalid_rhs) then
+            call odex_result_mark_failure(result_state, odex_reason_invalid, accepted_steps, rejected_steps, &
+                                          dop853_order, h, final_t - tc)
+            call dop853_record_result(result_state, rhs_evals, step_attempts)
+            return
+         end if
+
+         if (err <= 1.0_dp) then
+            t_new = tc + h
+            accepted_steps = accepted_steps + 1
+            if (.not. is_last_step) then
+               stiffness_hit = dop853_stiffness_hit(workspace%ystate(1:state_size), workspace%ynext(1:state_size), h, &
+                                                    workspace, opts, accepted_steps)
+               if (stiffness_hit) then
+                  stiffness_hits = stiffness_hits + 1
+               else
+                  stiffness_hits = 0
+               end if
+               if (opts%dop853_stiffness_check_enabled .and. &
+                   stiffness_hits >= opts%dop853_stiffness_max_hits) then
+                  workspace%ystate(1:state_size) = workspace%ynext(1:state_size)
+                  call odex_result_mark_failure(result_state, odex_reason_stiffness, accepted_steps, rejected_steps, &
+                                                dop853_order, h, final_t - t_new)
+                  call dop853_record_result(result_state, rhs_evals, step_attempts)
+                  return
+               end if
+            end if
+
+            need_dense = dop853_step_has_pending_target(target_times, pending, tc, t_new)
+            if (need_dense) then
+               if (opts%dop853_max_rhs_evals > 0 .and. rhs_evals + 4 > opts%dop853_max_rhs_evals) then
+                  call odex_result_mark_failure(result_state, odex_reason_max_rhs_evals, accepted_steps, rejected_steps, &
+                                                dop853_order, h, final_t - tc)
+                  call dop853_record_result(result_state, rhs_evals, step_attempts)
+                  return
+               end if
+               call dop853_prepare_dense_coefficients(f, workspace%ystate(1:state_size), h, workspace%ynext(1:state_size), &
+                                                     workspace, invalid_rhs, rhs_used)
+               rhs_evals = rhs_evals + rhs_used
+               if (invalid_rhs) then
+                  call odex_result_mark_failure(result_state, odex_reason_invalid, accepted_steps, rejected_steps, &
+                                                dop853_order, h, final_t - tc)
+                  call dop853_record_result(result_state, rhs_evals, step_attempts)
+                  return
+               end if
+               call dop853_store_step_targets(target_times, target_values, target_available, pending, tc, t_new, h, workspace)
+            end if
+
+            workspace%ystate(1:state_size) = workspace%ynext(1:state_size)
+            consecutive_rejects = 0
+            h_new = dop853_next_accepted_step(h, err, facold, opts)
+            facold = max(err, 1.0e-4_dp)
+            if (is_last_step) exit
+            if (rejected_last) h_new = sign(min(abs(h_new), abs(h)), h_new)
+            rejected_last = .false.
+            tc = t_new
+            h = dop853_clamp_step(h_new, opts, tc, final_t)
+         else
+            rejected_steps = rejected_steps + 1
+            consecutive_rejects = consecutive_rejects + 1
+            if (opts%dop853_max_reject > 0 .and. consecutive_rejects >= opts%dop853_max_reject) then
+               call odex_result_mark_failure(result_state, odex_reason_max_rejects, accepted_steps, rejected_steps, &
+                                             dop853_order, h, final_t - tc)
+               call dop853_record_result(result_state, rhs_evals, step_attempts)
+               return
+            end if
+            h = dop853_clamp_step(dop853_next_rejected_step(h, err, opts), opts, tc, final_t)
+            rejected_last = .true.
+         end if
+      end do
+
+      error_flag = .false.
+      call odex_result_mark_success(result_state, odex_status_success, accepted_steps, dop853_order, h_step)
+      result_state%rejected_steps = rejected_steps
+      call dop853_record_result(result_state, rhs_evals, step_attempts)
+   end subroutine dop853_integrate_dense_targets
+
+   subroutine dop853_integrate_dense_targets_context(f, y, target_times, target_values, target_available, error_flag, &
+                                                     result_state, workspace, opts, rhs_context)
+      procedure(ode_rhs_context) :: f
+      real(dp), intent(in) :: y(:), target_times(:)
+      real(dp), intent(out) :: target_values(:, :)
+      logical, intent(out) :: target_available(:)
+      logical, intent(out) :: error_flag
+      type(odex_result), intent(inout) :: result_state
+      type(odex_workspace), intent(inout) :: workspace
+      type(odex_options), intent(in) :: opts
+      class(*), intent(inout) :: rhs_context
+
+      integer :: state_size, n_targets, pending, step_attempts, accepted_steps, rejected_steps
+      integer :: rhs_evals, rhs_used, consecutive_rejects, stiffness_hits
+      logical :: invalid_rhs, is_last_step, rejected_last, stiffness_hit, need_dense
+      real(dp) :: tc, h, h_new, h_min, h_step, err, facold, t_new, h_abs_max, final_t
+
+      call odex_result_reset(result_state)
+      state_size = size(y)
+      n_targets = size(target_times)
+      error_flag = .true.
+      call dop853_dense_clear_outputs(target_values, target_available)
+      if (.not. dop853_dense_request_valid(y, target_times, target_values, target_available)) then
+         call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, 0.0_dp)
+         return
+      end if
+      if (opts%max_steps <= 0) then
+         call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 1, 0, 0.0_dp, 0.0_dp)
+         return
+      end if
+
+      pending = 1
+      call dop853_store_zero_targets(y, target_times, target_values, target_available, pending)
+      if (pending > n_targets) then
+         error_flag = .false.
+         call odex_result_mark_success(result_state, odex_status_success_zero_time, 0, dop853_order, 0.0_dp)
+         return
+      end if
+
+      final_t = target_times(n_targets)
+      call ensure_odex_workspace_object(workspace, max(dop853_dense_stage_count, opts%k_max + 1), state_size)
+      call ensure_odex_workspace_dense_coeff(workspace, state_size)
+      workspace%ystate(1:state_size) = y(1:state_size)
+      tc = 0.0_dp
+      step_attempts = 0
+      accepted_steps = 0
+      rejected_steps = 0
+      consecutive_rejects = 0
+      stiffness_hits = 0
+      rhs_evals = 0
+      facold = 1.0e-4_dp
+      rejected_last = .false.
+      h_min = dop853_effective_h_min(opts, tc)
+      h_abs_max = dop853_step_abs_bound(opts, tc, final_t)
+      if (h_abs_max < h_min) then
+         call odex_result_mark_failure(result_state, odex_reason_h_min, 0, 0, dop853_order, &
+                                       sign(h_abs_max, final_t), final_t)
+         call dop853_record_result(result_state, rhs_evals, step_attempts)
+         return
+      end if
+      if (opts%dop853_hinit_enabled) then
+         if (opts%dop853_max_rhs_evals > 0 .and. 2 > opts%dop853_max_rhs_evals) then
+            call odex_result_mark_failure(result_state, odex_reason_max_rhs_evals, 0, 0, dop853_order, 0.0_dp, final_t)
+            call dop853_record_result(result_state, rhs_evals, step_attempts)
+            return
+         end if
+         call dop853_initial_step_context(f, y, final_t, h_abs_max, h_min, workspace, opts, h, invalid_rhs, rhs_used, &
+                                          rhs_context)
+         rhs_evals = rhs_evals + rhs_used
+         if (invalid_rhs) then
+            call odex_result_mark_failure(result_state, odex_reason_invalid, 0, 0, dop853_order, 0.0_dp, final_t)
+            call dop853_record_result(result_state, rhs_evals, step_attempts)
+            return
+         end if
+      else
+         h = final_t*opts%initial_step_fraction
+         if (h == 0.0_dp) h = sign(h_min, final_t)
+         h = dop853_clamp_step(h, opts, tc, final_t)
+      end if
+      h_step = h
+
+      do
+         h_min = dop853_effective_h_min(opts, tc)
+         h = dop853_clamp_step(h, opts, tc, final_t)
+         if (step_attempts >= opts%max_steps) then
+            call odex_result_mark_failure(result_state, odex_reason_max_steps, accepted_steps, rejected_steps, &
+                                          dop853_order, h, final_t - tc)
+            call dop853_record_result(result_state, rhs_evals, step_attempts)
+            return
+         end if
+         if (opts%dop853_max_rhs_evals > 0 .and. rhs_evals + dop853_stage_count > opts%dop853_max_rhs_evals) then
+            call odex_result_mark_failure(result_state, odex_reason_max_rhs_evals, accepted_steps, rejected_steps, &
+                                          dop853_order, h, final_t - tc)
+            call dop853_record_result(result_state, rhs_evals, step_attempts)
+            return
+         end if
+         if (abs(h) < h_min) then
+            call odex_result_mark_failure(result_state, odex_reason_h_min, accepted_steps, rejected_steps, &
+                                          dop853_order, h, final_t - tc)
+            call dop853_record_result(result_state, rhs_evals, step_attempts)
+            return
+         end if
+
+         if ((tc + 1.01_dp*h - final_t)*sign(1.0_dp, final_t - tc) > 0.0_dp) then
+            h = final_t - tc
+            is_last_step = .true.
+         else
+            is_last_step = .false.
+         end if
+
+         h_step = h
+         call dop853_step_context(f, workspace%ystate(1:state_size), h, workspace%ynext(1:state_size), err, workspace, opts, &
+                                  invalid_rhs, rhs_used, rhs_context)
+         step_attempts = step_attempts + 1
+         rhs_evals = rhs_evals + rhs_used
+         if (invalid_rhs) then
+            call odex_result_mark_failure(result_state, odex_reason_invalid, accepted_steps, rejected_steps, &
+                                          dop853_order, h, final_t - tc)
+            call dop853_record_result(result_state, rhs_evals, step_attempts)
+            return
+         end if
+
+         if (err <= 1.0_dp) then
+            t_new = tc + h
+            accepted_steps = accepted_steps + 1
+            if (.not. is_last_step) then
+               stiffness_hit = dop853_stiffness_hit(workspace%ystate(1:state_size), workspace%ynext(1:state_size), h, &
+                                                    workspace, opts, accepted_steps)
+               if (stiffness_hit) then
+                  stiffness_hits = stiffness_hits + 1
+               else
+                  stiffness_hits = 0
+               end if
+               if (opts%dop853_stiffness_check_enabled .and. &
+                   stiffness_hits >= opts%dop853_stiffness_max_hits) then
+                  workspace%ystate(1:state_size) = workspace%ynext(1:state_size)
+                  call odex_result_mark_failure(result_state, odex_reason_stiffness, accepted_steps, rejected_steps, &
+                                                dop853_order, h, final_t - t_new)
+                  call dop853_record_result(result_state, rhs_evals, step_attempts)
+                  return
+               end if
+            end if
+
+            need_dense = dop853_step_has_pending_target(target_times, pending, tc, t_new)
+            if (need_dense) then
+               if (opts%dop853_max_rhs_evals > 0 .and. rhs_evals + 4 > opts%dop853_max_rhs_evals) then
+                  call odex_result_mark_failure(result_state, odex_reason_max_rhs_evals, accepted_steps, rejected_steps, &
+                                                dop853_order, h, final_t - tc)
+                  call dop853_record_result(result_state, rhs_evals, step_attempts)
+                  return
+               end if
+               call dop853_prepare_dense_coefficients_context(f, workspace%ystate(1:state_size), h, &
+                                                              workspace%ynext(1:state_size), workspace, invalid_rhs, rhs_used, &
+                                                              rhs_context)
+               rhs_evals = rhs_evals + rhs_used
+               if (invalid_rhs) then
+                  call odex_result_mark_failure(result_state, odex_reason_invalid, accepted_steps, rejected_steps, &
+                                                dop853_order, h, final_t - tc)
+                  call dop853_record_result(result_state, rhs_evals, step_attempts)
+                  return
+               end if
+               call dop853_store_step_targets(target_times, target_values, target_available, pending, tc, t_new, h, workspace)
+            end if
+
+            workspace%ystate(1:state_size) = workspace%ynext(1:state_size)
+            consecutive_rejects = 0
+            h_new = dop853_next_accepted_step(h, err, facold, opts)
+            facold = max(err, 1.0e-4_dp)
+            if (is_last_step) exit
+            if (rejected_last) h_new = sign(min(abs(h_new), abs(h)), h_new)
+            rejected_last = .false.
+            tc = t_new
+            h = dop853_clamp_step(h_new, opts, tc, final_t)
+         else
+            rejected_steps = rejected_steps + 1
+            consecutive_rejects = consecutive_rejects + 1
+            if (opts%dop853_max_reject > 0 .and. consecutive_rejects >= opts%dop853_max_reject) then
+               call odex_result_mark_failure(result_state, odex_reason_max_rejects, accepted_steps, rejected_steps, &
+                                             dop853_order, h, final_t - tc)
+               call dop853_record_result(result_state, rhs_evals, step_attempts)
+               return
+            end if
+            h = dop853_clamp_step(dop853_next_rejected_step(h, err, opts), opts, tc, final_t)
+            rejected_last = .true.
+         end if
+      end do
+
+      error_flag = .false.
+      call odex_result_mark_success(result_state, odex_status_success, accepted_steps, dop853_order, h_step)
+      result_state%rejected_steps = rejected_steps
+      call dop853_record_result(result_state, rhs_evals, step_attempts)
+   end subroutine dop853_integrate_dense_targets_context
+
+   subroutine dop853_dense_invalid_result(n_targets, target_values, target_available, error_flag, result_state)
+      integer, intent(in) :: n_targets
+      real(dp), intent(out) :: target_values(:, :)
+      logical, intent(out) :: target_available(:)
+      logical, intent(out) :: error_flag
+      type(odex_result), intent(out) :: result_state
+
+      call dop853_dense_clear_outputs(target_values, target_available)
+      error_flag = .true.
+      call odex_result_reset(result_state)
+      call odex_result_mark_failure(result_state, odex_reason_invalid, 0, max(1, n_targets), 0, 0.0_dp, 0.0_dp)
+   end subroutine dop853_dense_invalid_result
+
+   subroutine dop853_dense_clear_outputs(target_values, target_available)
+      real(dp), intent(out) :: target_values(:, :)
+      logical, intent(out) :: target_available(:)
+
+      target_values = 0.0_dp
+      target_available = .false.
+   end subroutine dop853_dense_clear_outputs
+
+   logical function dop853_dense_request_valid(y, target_times, target_values, target_available) result(valid)
+      real(dp), intent(in) :: y(:), target_times(:)
+      real(dp), intent(in) :: target_values(:, :)
+      logical, intent(in) :: target_available(:)
+
+      integer :: idx, n_targets
+      real(dp) :: final_t, posneg, order_tol
+
+      valid = .false.
+      n_targets = size(target_times)
+      if (size(y) <= 0 .or. n_targets <= 0) return
+      if (size(target_available) /= n_targets) return
+      if (size(target_values, 1) /= size(y) .or. size(target_values, 2) /= n_targets) return
+      if (any(.not. ieee_is_finite(target_times))) return
+      final_t = target_times(n_targets)
+      order_tol = 16.0_dp*epsilon(1.0_dp)*max(1.0_dp, abs(final_t))
+      if (final_t == 0.0_dp) then
+         valid = all(abs(target_times) <= order_tol)
+         return
+      end if
+      posneg = sign(1.0_dp, final_t)
+      do idx = 1, n_targets
+         if (target_times(idx)*posneg < -order_tol) return
+         if ((target_times(idx) - final_t)*posneg > order_tol) return
+         if (idx > 1) then
+            if ((target_times(idx) - target_times(idx - 1))*posneg < -order_tol) return
+         end if
+      end do
+      valid = .true.
+   end function dop853_dense_request_valid
+
+   subroutine dop853_store_zero_targets(y, target_times, target_values, target_available, pending)
+      real(dp), intent(in) :: y(:), target_times(:)
+      real(dp), intent(inout) :: target_values(:, :)
+      logical, intent(inout) :: target_available(:)
+      integer, intent(inout) :: pending
+
+      real(dp) :: zero_tol
+
+      zero_tol = 16.0_dp*epsilon(1.0_dp)
+      do while (pending <= size(target_times))
+         if (abs(target_times(pending)) > zero_tol) exit
+         target_values(1:size(y), pending) = y
+         target_available(pending) = .true.
+         pending = pending + 1
+      end do
+   end subroutine dop853_store_zero_targets
+
+   logical function dop853_step_has_pending_target(target_times, pending, t_left, t_right) result(has_target)
+      real(dp), intent(in) :: target_times(:), t_left, t_right
+      integer, intent(in) :: pending
+
+      has_target = .false.
+      if (pending < 1 .or. pending > size(target_times)) return
+      has_target = dop853_time_in_step(target_times(pending), t_left, t_right)
+   end function dop853_step_has_pending_target
+
+   logical function dop853_time_in_step(target_t, t_left, t_right) result(in_step)
+      real(dp), intent(in) :: target_t, t_left, t_right
+
+      real(dp) :: posneg, tol
+
+      if (t_right == t_left) then
+         in_step = (target_t == t_left)
+         return
+      end if
+      posneg = sign(1.0_dp, t_right - t_left)
+      tol = 64.0_dp*epsilon(1.0_dp)*max(1.0_dp, abs(t_left), abs(t_right), abs(target_t))
+      in_step = ((target_t - t_left)*posneg >= -tol) .and. ((target_t - t_right)*posneg <= tol)
+   end function dop853_time_in_step
+
+   subroutine dop853_store_step_targets(target_times, target_values, target_available, pending, t_left, t_right, h, workspace)
+      real(dp), intent(in) :: target_times(:), t_left, t_right, h
+      real(dp), intent(inout) :: target_values(:, :)
+      logical, intent(inout) :: target_available(:)
+      integer, intent(inout) :: pending
+      type(odex_workspace), intent(in) :: workspace
+
+      do while (pending <= size(target_times))
+         if (.not. dop853_time_in_step(target_times(pending), t_left, t_right)) exit
+         call dop853_evaluate_dense_target(target_times(pending), t_left, h, target_values(:, pending), workspace)
+         target_available(pending) = .true.
+         pending = pending + 1
+      end do
+   end subroutine dop853_store_step_targets
+
+   subroutine dop853_evaluate_dense_target(target_t, t_left, h, values, workspace)
+      real(dp), intent(in) :: target_t, t_left, h
+      real(dp), intent(out) :: values(:)
+      type(odex_workspace), intent(in) :: workspace
+
+      integer :: idx, n
+      real(dp) :: s, s1, conpar
+
+      n = size(values)
+      s = (target_t - t_left)/h
+      s1 = 1.0_dp - s
+      do idx = 1, n
+         conpar = workspace%dense_coeff(5, idx) + s*(workspace%dense_coeff(6, idx) + &
+                   s1*(workspace%dense_coeff(7, idx) + s*workspace%dense_coeff(8, idx)))
+         values(idx) = workspace%dense_coeff(1, idx) + s*(workspace%dense_coeff(2, idx) + &
+                       s1*(workspace%dense_coeff(3, idx) + s*(workspace%dense_coeff(4, idx) + s1*conpar)))
+      end do
+   end subroutine dop853_evaluate_dense_target
+
+   subroutine dop853_prepare_dense_coefficients(f, y, h, y_new, workspace, invalid_rhs, rhs_evals)
+      procedure(ode_rhs) :: f
+      real(dp), intent(in) :: y(:), h, y_new(:)
+      type(odex_workspace), intent(inout) :: workspace
+      logical, intent(out) :: invalid_rhs
+      integer, intent(out) :: rhs_evals
+
+      integer :: n
+
+      n = size(y)
+      rhs_evals = 0
+      invalid_rhs = .false.
+
+      workspace%tableau(13, 1, 1:n) = f(y_new)
+      rhs_evals = rhs_evals + 1
+      if (dop853_stage_invalid(workspace%tableau(13, 1, 1:n))) then
+         invalid_rhs = .true.
+         return
+      end if
+
+      call dop853_dense_base_coefficients(y, h, y_new, workspace)
+      call dop853_dense_extra_stages(f, y, h, workspace, invalid_rhs, rhs_evals)
+      if (invalid_rhs) return
+      call dop853_dense_finish_coefficients(h, workspace, n)
+   end subroutine dop853_prepare_dense_coefficients
+
+   subroutine dop853_prepare_dense_coefficients_context(f, y, h, y_new, workspace, invalid_rhs, rhs_evals, rhs_context)
+      procedure(ode_rhs_context) :: f
+      real(dp), intent(in) :: y(:), h, y_new(:)
+      type(odex_workspace), intent(inout) :: workspace
+      logical, intent(out) :: invalid_rhs
+      integer, intent(out) :: rhs_evals
+      class(*), intent(inout) :: rhs_context
+
+      integer :: n
+
+      n = size(y)
+      rhs_evals = 0
+      invalid_rhs = .false.
+
+      workspace%tableau(13, 1, 1:n) = f(y_new, rhs_context)
+      rhs_evals = rhs_evals + 1
+      if (dop853_stage_invalid(workspace%tableau(13, 1, 1:n))) then
+         invalid_rhs = .true.
+         return
+      end if
+
+      call dop853_dense_base_coefficients(y, h, y_new, workspace)
+      call dop853_dense_extra_stages_context(f, y, h, workspace, invalid_rhs, rhs_evals, rhs_context)
+      if (invalid_rhs) return
+      call dop853_dense_finish_coefficients(h, workspace, n)
+   end subroutine dop853_prepare_dense_coefficients_context
+
+   subroutine dop853_dense_base_coefficients(y, h, y_new, workspace)
+      real(dp), intent(in) :: y(:), h, y_new(:)
+      type(odex_workspace), intent(inout) :: workspace
+
+      integer :: idx, n
+      real(dp) :: ydiff, bspl
+
+      n = size(y)
+      do idx = 1, n
+         workspace%dense_coeff(1, idx) = y(idx)
+         ydiff = y_new(idx) - y(idx)
+         workspace%dense_coeff(2, idx) = ydiff
+         bspl = h*workspace%tableau(1, 1, idx) - ydiff
+         workspace%dense_coeff(3, idx) = bspl
+         workspace%dense_coeff(4, idx) = ydiff - h*workspace%tableau(13, 1, idx) - bspl
+         workspace%dense_coeff(5, idx) = dop853_d41*workspace%tableau(1, 1, idx) + &
+                                         dop853_d46*workspace%tableau(6, 1, idx) + &
+                                         dop853_d47*workspace%tableau(7, 1, idx) + &
+                                         dop853_d48*workspace%tableau(8, 1, idx) + &
+                                         dop853_d49*workspace%tableau(9, 1, idx) + &
+                                         dop853_d410*workspace%tableau(10, 1, idx) + &
+                                         dop853_d411*workspace%tableau(11, 1, idx) + &
+                                         dop853_d412*workspace%tableau(12, 1, idx)
+         workspace%dense_coeff(6, idx) = dop853_d51*workspace%tableau(1, 1, idx) + &
+                                         dop853_d56*workspace%tableau(6, 1, idx) + &
+                                         dop853_d57*workspace%tableau(7, 1, idx) + &
+                                         dop853_d58*workspace%tableau(8, 1, idx) + &
+                                         dop853_d59*workspace%tableau(9, 1, idx) + &
+                                         dop853_d510*workspace%tableau(10, 1, idx) + &
+                                         dop853_d511*workspace%tableau(11, 1, idx) + &
+                                         dop853_d512*workspace%tableau(12, 1, idx)
+         workspace%dense_coeff(7, idx) = dop853_d61*workspace%tableau(1, 1, idx) + &
+                                         dop853_d66*workspace%tableau(6, 1, idx) + &
+                                         dop853_d67*workspace%tableau(7, 1, idx) + &
+                                         dop853_d68*workspace%tableau(8, 1, idx) + &
+                                         dop853_d69*workspace%tableau(9, 1, idx) + &
+                                         dop853_d610*workspace%tableau(10, 1, idx) + &
+                                         dop853_d611*workspace%tableau(11, 1, idx) + &
+                                         dop853_d612*workspace%tableau(12, 1, idx)
+         workspace%dense_coeff(8, idx) = dop853_d71*workspace%tableau(1, 1, idx) + &
+                                         dop853_d76*workspace%tableau(6, 1, idx) + &
+                                         dop853_d77*workspace%tableau(7, 1, idx) + &
+                                         dop853_d78*workspace%tableau(8, 1, idx) + &
+                                         dop853_d79*workspace%tableau(9, 1, idx) + &
+                                         dop853_d710*workspace%tableau(10, 1, idx) + &
+                                         dop853_d711*workspace%tableau(11, 1, idx) + &
+                                         dop853_d712*workspace%tableau(12, 1, idx)
+      end do
+   end subroutine dop853_dense_base_coefficients
+
+   subroutine dop853_dense_extra_stages(f, y, h, workspace, invalid_rhs, rhs_evals)
+      procedure(ode_rhs) :: f
+      real(dp), intent(in) :: y(:), h
+      type(odex_workspace), intent(inout) :: workspace
+      logical, intent(out) :: invalid_rhs
+      integer, intent(inout) :: rhs_evals
+
+      integer :: n
+
+      n = size(y)
+      invalid_rhs = .false.
+      call dop853_dense_stage14_state(y, h, workspace)
+      workspace%tableau(14, 1, 1:n) = f(workspace%yprev(1:n))
+      rhs_evals = rhs_evals + 1
+      if (dop853_stage_invalid(workspace%tableau(14, 1, 1:n))) then
+         invalid_rhs = .true.
+         return
+      end if
+
+      call dop853_dense_stage15_state(y, h, workspace)
+      workspace%tableau(15, 1, 1:n) = f(workspace%yprev(1:n))
+      rhs_evals = rhs_evals + 1
+      if (dop853_stage_invalid(workspace%tableau(15, 1, 1:n))) then
+         invalid_rhs = .true.
+         return
+      end if
+
+      call dop853_dense_stage16_state(y, h, workspace)
+      workspace%tableau(16, 1, 1:n) = f(workspace%yprev(1:n))
+      rhs_evals = rhs_evals + 1
+      if (dop853_stage_invalid(workspace%tableau(16, 1, 1:n))) invalid_rhs = .true.
+   end subroutine dop853_dense_extra_stages
+
+   subroutine dop853_dense_extra_stages_context(f, y, h, workspace, invalid_rhs, rhs_evals, rhs_context)
+      procedure(ode_rhs_context) :: f
+      real(dp), intent(in) :: y(:), h
+      type(odex_workspace), intent(inout) :: workspace
+      logical, intent(out) :: invalid_rhs
+      integer, intent(inout) :: rhs_evals
+      class(*), intent(inout) :: rhs_context
+
+      integer :: n
+
+      n = size(y)
+      invalid_rhs = .false.
+      call dop853_dense_stage14_state(y, h, workspace)
+      workspace%tableau(14, 1, 1:n) = f(workspace%yprev(1:n), rhs_context)
+      rhs_evals = rhs_evals + 1
+      if (dop853_stage_invalid(workspace%tableau(14, 1, 1:n))) then
+         invalid_rhs = .true.
+         return
+      end if
+
+      call dop853_dense_stage15_state(y, h, workspace)
+      workspace%tableau(15, 1, 1:n) = f(workspace%yprev(1:n), rhs_context)
+      rhs_evals = rhs_evals + 1
+      if (dop853_stage_invalid(workspace%tableau(15, 1, 1:n))) then
+         invalid_rhs = .true.
+         return
+      end if
+
+      call dop853_dense_stage16_state(y, h, workspace)
+      workspace%tableau(16, 1, 1:n) = f(workspace%yprev(1:n), rhs_context)
+      rhs_evals = rhs_evals + 1
+      if (dop853_stage_invalid(workspace%tableau(16, 1, 1:n))) invalid_rhs = .true.
+   end subroutine dop853_dense_extra_stages_context
+
+   subroutine dop853_dense_stage14_state(y, h, workspace)
+      real(dp), intent(in) :: y(:), h
+      type(odex_workspace), intent(inout) :: workspace
+
+      integer :: n
+
+      n = size(y)
+      workspace%yprev(1:n) = y(1:n) + h*(dop853_a141*workspace%tableau(1, 1, 1:n) + &
+                              dop853_a147*workspace%tableau(7, 1, 1:n) + &
+                              dop853_a148*workspace%tableau(8, 1, 1:n) + &
+                              dop853_a149*workspace%tableau(9, 1, 1:n) + &
+                              dop853_a1410*workspace%tableau(10, 1, 1:n) + &
+                              dop853_a1411*workspace%tableau(11, 1, 1:n) + &
+                              dop853_a1412*workspace%tableau(12, 1, 1:n) + &
+                              dop853_a1413*workspace%tableau(13, 1, 1:n))
+   end subroutine dop853_dense_stage14_state
+
+   subroutine dop853_dense_stage15_state(y, h, workspace)
+      real(dp), intent(in) :: y(:), h
+      type(odex_workspace), intent(inout) :: workspace
+
+      integer :: n
+
+      n = size(y)
+      workspace%yprev(1:n) = y(1:n) + h*(dop853_a151*workspace%tableau(1, 1, 1:n) + &
+                              dop853_a156*workspace%tableau(6, 1, 1:n) + &
+                              dop853_a157*workspace%tableau(7, 1, 1:n) + &
+                              dop853_a158*workspace%tableau(8, 1, 1:n) + &
+                              dop853_a1511*workspace%tableau(11, 1, 1:n) + &
+                              dop853_a1512*workspace%tableau(12, 1, 1:n) + &
+                              dop853_a1513*workspace%tableau(13, 1, 1:n) + &
+                              dop853_a1514*workspace%tableau(14, 1, 1:n))
+   end subroutine dop853_dense_stage15_state
+
+   subroutine dop853_dense_stage16_state(y, h, workspace)
+      real(dp), intent(in) :: y(:), h
+      type(odex_workspace), intent(inout) :: workspace
+
+      integer :: n
+
+      n = size(y)
+      workspace%yprev(1:n) = y(1:n) + h*(dop853_a161*workspace%tableau(1, 1, 1:n) + &
+                              dop853_a166*workspace%tableau(6, 1, 1:n) + &
+                              dop853_a167*workspace%tableau(7, 1, 1:n) + &
+                              dop853_a168*workspace%tableau(8, 1, 1:n) + &
+                              dop853_a169*workspace%tableau(9, 1, 1:n) + &
+                              dop853_a1613*workspace%tableau(13, 1, 1:n) + &
+                              dop853_a1614*workspace%tableau(14, 1, 1:n) + &
+                              dop853_a1615*workspace%tableau(15, 1, 1:n))
+   end subroutine dop853_dense_stage16_state
+
+   subroutine dop853_dense_finish_coefficients(h, workspace, n)
+      real(dp), intent(in) :: h
+      type(odex_workspace), intent(inout) :: workspace
+      integer, intent(in) :: n
+
+      integer :: idx
+
+      do idx = 1, n
+         workspace%dense_coeff(5, idx) = h*(workspace%dense_coeff(5, idx) + &
+                                           dop853_d413*workspace%tableau(13, 1, idx) + &
+                                           dop853_d414*workspace%tableau(14, 1, idx) + &
+                                           dop853_d415*workspace%tableau(15, 1, idx) + &
+                                           dop853_d416*workspace%tableau(16, 1, idx))
+         workspace%dense_coeff(6, idx) = h*(workspace%dense_coeff(6, idx) + &
+                                           dop853_d513*workspace%tableau(13, 1, idx) + &
+                                           dop853_d514*workspace%tableau(14, 1, idx) + &
+                                           dop853_d515*workspace%tableau(15, 1, idx) + &
+                                           dop853_d516*workspace%tableau(16, 1, idx))
+         workspace%dense_coeff(7, idx) = h*(workspace%dense_coeff(7, idx) + &
+                                           dop853_d613*workspace%tableau(13, 1, idx) + &
+                                           dop853_d614*workspace%tableau(14, 1, idx) + &
+                                           dop853_d615*workspace%tableau(15, 1, idx) + &
+                                           dop853_d616*workspace%tableau(16, 1, idx))
+         workspace%dense_coeff(8, idx) = h*(workspace%dense_coeff(8, idx) + &
+                                           dop853_d713*workspace%tableau(13, 1, idx) + &
+                                           dop853_d714*workspace%tableau(14, 1, idx) + &
+                                           dop853_d715*workspace%tableau(15, 1, idx) + &
+                                           dop853_d716*workspace%tableau(16, 1, idx))
+      end do
+   end subroutine dop853_dense_finish_coefficients
 
    subroutine dop853_initial_step(f, y, t, h_abs_max, h_min, workspace, opts, h, invalid_rhs, rhs_evals)
       procedure(ode_rhs) :: f
@@ -4100,6 +4991,19 @@ contains
       call ensure_odex_workspace_vector(workspace%fbase, n_safe)
       call ensure_odex_tables(workspace, k_safe)
    end subroutine ensure_odex_workspace_object
+
+   subroutine ensure_odex_workspace_dense_coeff(workspace, n_need)
+      type(odex_workspace), intent(inout) :: workspace
+      integer, intent(in) :: n_need
+      integer :: n_safe
+
+      n_safe = max(1, n_need)
+      if (.not. allocated(workspace%dense_coeff) .or. size(workspace%dense_coeff, 1) < 8 .or. &
+          size(workspace%dense_coeff, 2) < n_safe) then
+         if (allocated(workspace%dense_coeff)) deallocate(workspace%dense_coeff)
+         allocate (workspace%dense_coeff(8, n_safe))
+      end if
+   end subroutine ensure_odex_workspace_dense_coeff
 
    subroutine ensure_odex_workspace_vector(vec, n_need)
       real(dp), allocatable, intent(inout) :: vec(:)

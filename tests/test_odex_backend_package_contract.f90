@@ -54,7 +54,9 @@ end module test_odex_backend_package_rhs
 
 program test_odex_backend_package_contract
    use odex_backend, only: build_nsteps, odex_backend_kind_dop853, odex_controller_policy_hairer_experimental, &
-                           odex_default_options, odex_integrate_endpoint, odex_integrate_endpoint_context, &
+                           odex_default_options, odex_integrate_dop853_dense_targets, &
+                           odex_integrate_dop853_dense_targets_context, odex_integrate_endpoint, &
+                           odex_integrate_endpoint_context, &
                            odex_options, odex_reason_h_min, odex_reason_max_rhs_evals, odex_reason_max_rejects, &
                            odex_reason_stiffness, odex_result, odex_status_failure_h_min, &
                            odex_status_failure_invalid, odex_status_failure_max_rhs_evals, &
@@ -75,6 +77,7 @@ program test_odex_backend_package_contract
    call check_iwork3_sequence(failures)
    call check_endpoint_accuracy(failures)
    call check_dop853_backend_contract(failures)
+   call check_dop853_dense_output_contract(failures)
    call check_hairer_experimental_endpoint_accuracy(failures)
    call check_hairer_experimental_analytic_gates(failures)
    call check_forward_backward(failures)
@@ -273,6 +276,86 @@ contains
             " attempts=", stiff_result%odex_error_estimates
       end if
    end subroutine check_dop853_backend_contract
+
+   subroutine check_dop853_dense_output_contract(failures)
+      integer, intent(inout) :: failures
+      type(odex_options) :: options, direct_options, fail_options
+      type(odex_workspace) :: workspace, workspace_context, workspace_direct
+      type(odex_result) :: dense_result, dense_context_result, direct_result, zero_result, fail_result
+      type(dummy_context_t) :: rhs_context
+      real(dp) :: y0(1), targets(4), dense_values(1, 4), dense_context_values(1, 4)
+      real(dp) :: direct_value(1), exact_value, dense_err, direct_err, context_err
+      real(dp) :: zero_targets(2), zero_values(1, 2), fail_targets(1), fail_values(1, 1)
+      logical :: available(4), context_available(4), zero_available(2), fail_available(1)
+      logical :: failed, failed_context, failed_direct, failed_zero, failed_budget
+      logical :: ok, ok_context, zero_ok, budget_ok
+      integer :: idx
+
+      call odex_default_options(options, 1.0e-11_dp, 1.0e-11_dp)
+      options%backend = odex_backend_kind_dop853
+      options%dop853_hinit_enabled = .false.
+      options%initial_step_fraction = 1.0_dp
+      options%dop853_stiffness_check_enabled = .false.
+      exp_lambda = -0.75_dp
+      y0(1) = 1.25_dp
+      targets = [0.0_dp, 0.17_dp, 0.61_dp, 1.0_dp]
+
+      call odex_integrate_dop853_dense_targets(rhs_exp, y0, targets, dense_values, available, failed, dense_result, &
+                                               workspace, options)
+      dense_err = 0.0_dp
+      direct_err = 0.0_dp
+      direct_options = options
+      do idx = 1, size(targets)
+         exact_value = y0(1)*exp(exp_lambda*targets(idx))
+         dense_err = max(dense_err, abs(dense_values(1, idx) - exact_value))
+         call odex_integrate_endpoint(rhs_exp, y0, targets(idx), direct_value, failed_direct, direct_result, &
+                                      workspace_direct, direct_options)
+         if (.not. failed_direct) direct_err = max(direct_err, abs(dense_values(1, idx) - direct_value(1)))
+      end do
+      ok = (.not. failed) .and. dense_result%status == odex_status_success .and. &
+           dense_result%endpoint_available .and. all(available) .and. &
+           dense_result%final_order == 8 .and. dense_result%accepted_steps > 0 .and. &
+           dense_result%odex_rhs_evals >= 16 .and. dense_err <= 5.0e-10_dp .and. direct_err <= 5.0e-10_dp
+
+      call odex_integrate_dop853_dense_targets_context(rhs_exp_context, y0, targets, dense_context_values, &
+                                                       context_available, failed_context, dense_context_result, &
+                                                       workspace_context, options, rhs_context)
+      context_err = maxval(abs(dense_context_values - dense_values))
+      ok_context = (.not. failed_context) .and. dense_context_result%status == odex_status_success .and. &
+                   all(context_available) .and. context_err <= 5.0e-12_dp
+
+      zero_targets = [0.0_dp, 0.0_dp]
+      call odex_integrate_dop853_dense_targets(rhs_exp, y0, zero_targets, zero_values, zero_available, failed_zero, &
+                                               zero_result, workspace, options)
+      zero_ok = (.not. failed_zero) .and. zero_result%status == odex_status_success_zero_time .and. &
+                all(zero_available) .and. all(abs(zero_values - y0(1)) <= 0.0_dp)
+
+      call odex_default_options(fail_options, 1.0e-3_dp, 1.0e-3_dp)
+      fail_options%backend = odex_backend_kind_dop853
+      fail_options%dop853_hinit_enabled = .false.
+      fail_options%initial_step_fraction = 1.0_dp
+      fail_options%dop853_stiffness_check_enabled = .false.
+      fail_options%dop853_max_rhs_evals = 12
+      exp_lambda = -0.1_dp
+      fail_targets = [1.0_dp]
+      call odex_integrate_dop853_dense_targets(rhs_exp, y0, fail_targets, fail_values, fail_available, failed_budget, &
+                                               fail_result, workspace, fail_options)
+      budget_ok = failed_budget .and. fail_result%status == odex_status_failure_max_rhs_evals .and. &
+                  fail_result%failure_reason == odex_reason_max_rhs_evals .and. .not. any(fail_available)
+
+      write (*, '(A,L1,A,L1,A,L1,A,L1,A,ES12.4,A,ES12.4,A,I0)') "[CHECK] dop853_dense_output ok=", ok, &
+         " context=", ok_context, " zero=", zero_ok, " budget=", budget_ok, " dense_err=", dense_err, &
+         " direct_err=", direct_err, " rhs=", dense_result%odex_rhs_evals
+      if (.not. (ok .and. ok_context .and. zero_ok .and. budget_ok)) then
+         failures = failures + 1
+         write (*, '(A)') "[FAIL] DOP853 dense output contract changed."
+         write (*, '(A,I0,A,I0,A,I0,A,I0,A,ES12.4,A,ES12.4)') "[DETAIL] dense status=", dense_result%status, &
+            " accepted=", dense_result%accepted_steps, " rejected=", dense_result%rejected_steps, &
+            " rhs=", dense_result%odex_rhs_evals, " dense_err=", dense_err, " direct_err=", direct_err
+         write (*, '(A,I0,A,I0,A,L1)') "[DETAIL] budget status=", fail_result%status, &
+            " reason=", fail_result%failure_reason, " available=", any(fail_available)
+      end if
+   end subroutine check_dop853_dense_output_contract
 
    subroutine check_hairer_experimental_endpoint_accuracy(failures)
       integer, intent(inout) :: failures

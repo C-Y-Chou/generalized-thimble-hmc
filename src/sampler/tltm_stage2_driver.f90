@@ -59,6 +59,11 @@ module tltm_stage2_driver
    character(len=*), parameter :: stage2_rng_legacy_global_v0 = "legacy_global_v0"
    character(len=*), parameter :: stage2_rng_per_replica_v1 = "per_replica_rng_v1"
    character(len=*), parameter :: stage2_rng_kernel_v2 = "stage2_kernel_rng_v2"
+   integer, parameter :: stage2_snapshot_magic = 23170523
+   integer, parameter :: stage2_snapshot_version = 1
+   integer, parameter :: stage2_snapshot_rng_kernel_v2_code = 3
+   integer, parameter :: stage2_flow_bank_magic = 23170524
+   integer, parameter :: stage2_flow_bank_version = 1
    integer(int64) :: phase_cache_hit_count = 0_int64
    integer(int64) :: phase_cache_miss_count = 0_int64
    integer(int64) :: effective_energy_cache_hit_count = 0_int64
@@ -165,16 +170,22 @@ contains
       character(len=512) :: summary_file, label_trace_file
       character(len=512) :: cold_x_history_file, cold_z_history_file, cold_phi_history_file, cold_observable_file
       character(len=512) :: initial_x_file
+      character(len=512) :: snapshot_file, init_snapshot_file
+      character(len=512) :: flow_bank_dir
       character(len=512) :: all_history_dir, all_observable_dir
       character(len=512) :: v1_output_dir, v1_manifest_file, v1_protocol_file
       character(len=32) :: init_mode, rng_stream_contract
       integer :: n_slots, base_seed, swap_rng_seed, cycle_count, local_updates, physical_state_size
-      integer :: initial_x_record
+      integer :: cycle_offset, absolute_cycle_idx, final_cycle_idx
+      integer :: initial_x_record, flow_bank_record
       integer :: init_preflow_integration_steps
       real(dp) :: max_flow_time, init_sigma, init_preflow_trajectory_length
       logical :: swap_enabled, fixed_flow_mode, ok
       logical :: parallel_local_updates, parallel_swap_pairs
       logical :: use_initial_x
+      logical :: write_snapshot, init_from_snapshot, snapshot_ok
+      logical :: init_from_flow_bank
+      logical :: write_initial_sample
       integer :: i, cycle_idx, hot_slot, history_slot_index
       real(dp) :: run_t0, elapsed, slot_t0
       integer, parameter :: unit_trace = 78
@@ -237,6 +248,9 @@ contains
                                                 init_preflow_trajectory_length, init_preflow_integration_steps)
       call resolve_stage2_output_paths(summary_file, label_trace_file)
       call resolve_stage2_initial_x_source(initial_x_file, initial_x_record, use_initial_x)
+      call resolve_stage2_snapshot_paths(snapshot_file, write_snapshot, init_snapshot_file, init_from_snapshot, cycle_offset)
+      call resolve_stage2_flow_bank_source(flow_bank_dir, flow_bank_record, init_from_flow_bank)
+      call resolve_stage2_restart_boundary_policy(init_from_snapshot, write_initial_sample)
       call resolve_stage2_cold_history_paths(cold_z_history_file, cold_phi_history_file, write_cold_history)
       call resolve_stage2_cold_x_history_path(cold_x_history_file, write_cold_x_history)
       call resolve_stage2_all_history_dir(all_history_dir, write_all_history)
@@ -253,6 +267,32 @@ contains
       call resolve_stage2_v1_sidecar_paths(v1_output_dir, v1_manifest_file, v1_protocol_file, &
                                            write_v1_manifest, write_v1_protocol, write_v1_package)
       call resolve_stage2_rng_stream_contract(rng_stream_contract)
+      if (init_from_snapshot) init_mode = "snapshot"
+      if (init_from_flow_bank) init_mode = "flow_bank"
+      if (trim(init_mode) == "snapshot" .and. .not. init_from_snapshot) then
+         write (*, '(A)') "[ERROR][TLTM-S2] TLTM_STAGE2_INIT_MODE=snapshot requires TLTM_STAGE2_INIT_SNAPSHOT_FILE."
+         error stop 1
+      end if
+      if (trim(init_mode) == "flow_bank" .and. .not. init_from_flow_bank) then
+         write (*, '(A)') "[ERROR][TLTM-S2] TLTM_STAGE2_INIT_MODE=flow_bank requires TLTM_STAGE2_INITIAL_FLOW_BANK_DIR."
+         error stop 1
+      end if
+      if (init_from_snapshot .and. init_from_flow_bank) then
+         write (*, '(A)') "[ERROR][TLTM-S2] Snapshot and flow-bank initialization are mutually exclusive."
+         error stop 1
+      end if
+      if ((write_snapshot .or. init_from_snapshot) .and. trim(rng_stream_contract) /= stage2_rng_kernel_v2) then
+         write (*, '(A)') "[ERROR][TLTM-S2] Stage2 snapshots currently require stage2_kernel_rng_v2 for exact restart."
+         error stop 1
+      end if
+      if (init_from_snapshot .and. use_initial_x) then
+         write (*, '(A)') "[TLTM-S2] Snapshot initialization overrides TLTM_STAGE2_INITIAL_X_FILE."
+         use_initial_x = .false.
+      end if
+      if (init_from_flow_bank .and. use_initial_x) then
+         write (*, '(A)') "[TLTM-S2] Flow-bank initialization overrides TLTM_STAGE2_INITIAL_X_FILE."
+         use_initial_x = .false.
+      end if
       fixed_flow_mode = (n_slots == 1)
       if (fixed_flow_mode) swap_enabled = .false.
       swap_rng_seed = derive_swap_seed(base_seed)
@@ -269,6 +309,13 @@ contains
       write (*, '(A,F8.4,A,I0,A,F8.4)') "[TLTM-S2] local params: L=", config%integrator%trajectory_length, &
          " nstep=", config%integrator%integration_steps, " max_flow(test)=", max_flow_time
       write (*, '(A,A,A,I0)') "[TLTM-S2] rng_stream_contract=", trim(rng_stream_contract), " swap_rng_seed=", swap_rng_seed
+      if (init_from_snapshot) write (*, '(A,1X,A)') "[TLTM-S2] init_snapshot_file=", trim(init_snapshot_file)
+      if (init_from_flow_bank) write (*, '(A,1X,A,A,I0)') "[TLTM-S2] init_flow_bank_dir=", trim(flow_bank_dir), &
+         " record=", flow_bank_record
+      if (write_snapshot) write (*, '(A,1X,A)') "[TLTM-S2] final_snapshot_file=", trim(snapshot_file)
+      if (cycle_offset /= 0) write (*, '(A,I0)') "[TLTM-S2] cycle_offset=", cycle_offset
+      if (init_from_snapshot) write (*, '(A,A)') "[TLTM-S2] restart_boundary_policy=", &
+         merge("write", "skip ", write_initial_sample)
 
       hot_slot = n_slots - 1
 
@@ -292,6 +339,8 @@ contains
       else
          allocate (pair_stats(0))
       end if
+      call initialize_pair_stats(pair_stats)
+      if (.not. fixed_flow_mode) call initialize_label_tracks(label_tracks, n_slots)
 
       do i = 1, n_slots
          slots(i)%slot_id = i - 1
@@ -299,13 +348,13 @@ contains
          slots(i)%flow_time = flow_ladder(i)
          slots(i)%rng_seed = derive_seed(base_seed, i)
          call allocate_tltm_slot(slots(i), physical_state_size)
-         call initialize_slot(slots(i), init_sigma, stage2_init_attempts_default, init_mode, rng_stream_contract, base_seed, &
-                              init_preflow_trajectory_length, init_preflow_integration_steps, &
-                              use_initial_x, initial_x_file, initial_x_record + i - 1, ok, run_contexts(i), &
-                              newton_flow_status_context)
+      end do
+
+      if (init_from_snapshot) then
+         call load_stage2_snapshot(init_snapshot_file, slots, pair_stats, label_tracks, physical_state_size, &
+                                   base_seed, swap_rng_seed, rng_stream_contract, flow_ladder, cycle_offset, ok)
          if (.not. ok) then
-            write (*, '(A,I0,A,F8.4,A)') "[ERROR][TLTM-S2] Slot ", slots(i)%slot_id, &
-               " initialization failed at flow_time=", slots(i)%flow_time, "."
+            write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Snapshot initialization failed:", trim(init_snapshot_file)
             call release_all_run_contexts(run_contexts)
             call release_all_slots(slots)
             if (allocated(flow_ladder)) deallocate (flow_ladder)
@@ -315,7 +364,40 @@ contains
             call release_model_context(model_context)
             error stop 1
          end if
-      end do
+      else if (init_from_flow_bank) then
+         call load_stage2_flow_bank(flow_bank_dir, flow_bank_record, slots, flow_ladder, physical_state_size, ok)
+         if (.not. ok) then
+            write (*, '(A,1X,A,A,I0)') "[ERROR][TLTM-S2] Flow-bank initialization failed:", trim(flow_bank_dir), &
+               " record=", flow_bank_record
+            call release_all_run_contexts(run_contexts)
+            call release_all_slots(slots)
+            if (allocated(flow_ladder)) deallocate (flow_ladder)
+            if (allocated(pair_stats)) deallocate (pair_stats)
+            if (allocated(label_tracks)) deallocate (label_tracks)
+            call release_constraint_solver_stats_context(constraint_stats_context)
+            call release_model_context(model_context)
+            error stop 1
+         end if
+      else
+         do i = 1, n_slots
+            call initialize_slot(slots(i), init_sigma, stage2_init_attempts_default, init_mode, rng_stream_contract, base_seed, &
+                                 init_preflow_trajectory_length, init_preflow_integration_steps, &
+                                 use_initial_x, initial_x_file, initial_x_record + i - 1, ok, run_contexts(i), &
+                                 newton_flow_status_context)
+            if (.not. ok) then
+               write (*, '(A,I0,A,F8.4,A)') "[ERROR][TLTM-S2] Slot ", slots(i)%slot_id, &
+                  " initialization failed at flow_time=", slots(i)%flow_time, "."
+               call release_all_run_contexts(run_contexts)
+               call release_all_slots(slots)
+               if (allocated(flow_ladder)) deallocate (flow_ladder)
+               if (allocated(pair_stats)) deallocate (pair_stats)
+               if (allocated(label_tracks)) deallocate (label_tracks)
+               call release_constraint_solver_stats_context(constraint_stats_context)
+               call release_model_context(model_context)
+               error stop 1
+            end if
+         end do
+      end if
 
       if (trim(rng_stream_contract) == stage2_rng_legacy_global_v0) call sgrnd(base_seed)
       call load_qn_backend_policy(qn_policy_context)
@@ -329,9 +411,6 @@ contains
       parallel_swap_pairs = stage2_swap_pairs_parallel_enabled(audit_context)
       write (*, '(A,L1)') "[TLTM-S2] parallel_local_updates=", parallel_local_updates
       write (*, '(A,L1)') "[TLTM-S2] parallel_swap_pairs=", parallel_swap_pairs
-
-      call initialize_pair_stats(pair_stats)
-      if (.not. fixed_flow_mode) call initialize_label_tracks(label_tracks, n_slots)
 
       if (write_cold_history) then
          history_slot_index = find_max_flow_slot_index(slots)
@@ -376,16 +455,18 @@ contains
             if (allocated(label_tracks)) deallocate (label_tracks)
             error stop 1
          end if
-         call write_cold_history_sample_if_enabled(slots(history_slot_index), unit_cold_z, unit_cold_phi, 0, &
-                                                   cold_history_stride, cold_history_max_samples, cold_history_written, cold_sample_ok)
-         if (.not. cold_sample_ok) then
-            close (unit=unit_cold_z)
-            close (unit=unit_cold_phi)
-            call release_all_slots(slots)
-            if (allocated(flow_ladder)) deallocate (flow_ladder)
-            if (allocated(pair_stats)) deallocate (pair_stats)
-            if (allocated(label_tracks)) deallocate (label_tracks)
-            error stop 1
+         if (write_initial_sample) then
+            call write_cold_history_sample_if_enabled(slots(history_slot_index), unit_cold_z, unit_cold_phi, cycle_offset, &
+                                                      cold_history_stride, cold_history_max_samples, cold_history_written, cold_sample_ok)
+            if (.not. cold_sample_ok) then
+               close (unit=unit_cold_z)
+               close (unit=unit_cold_phi)
+               call release_all_slots(slots)
+               if (allocated(flow_ladder)) deallocate (flow_ladder)
+               if (allocated(pair_stats)) deallocate (pair_stats)
+               if (allocated(label_tracks)) deallocate (label_tracks)
+               error stop 1
+            end if
          end if
       end if
 
@@ -423,20 +504,22 @@ contains
             if (allocated(label_tracks)) deallocate (label_tracks)
             error stop 1
          end if
-         call write_cold_x_history_sample_if_enabled(slots(history_slot_index), unit_cold_x, 0, &
-                                                     cold_history_stride, cold_history_max_samples, &
-                                                     cold_x_history_written, cold_x_sample_ok)
-         if (.not. cold_x_sample_ok) then
-            close (unit=unit_cold_x)
-            if (write_cold_history) then
-               close (unit=unit_cold_z)
-               close (unit=unit_cold_phi)
+         if (write_initial_sample) then
+            call write_cold_x_history_sample_if_enabled(slots(history_slot_index), unit_cold_x, cycle_offset, &
+                                                        cold_history_stride, cold_history_max_samples, &
+                                                        cold_x_history_written, cold_x_sample_ok)
+            if (.not. cold_x_sample_ok) then
+               close (unit=unit_cold_x)
+               if (write_cold_history) then
+                  close (unit=unit_cold_z)
+                  close (unit=unit_cold_phi)
+               end if
+               call release_all_slots(slots)
+               if (allocated(flow_ladder)) deallocate (flow_ladder)
+               if (allocated(pair_stats)) deallocate (pair_stats)
+               if (allocated(label_tracks)) deallocate (label_tracks)
+               error stop 1
             end if
-            call release_all_slots(slots)
-            if (allocated(flow_ladder)) deallocate (flow_ladder)
-            if (allocated(pair_stats)) deallocate (pair_stats)
-            if (allocated(label_tracks)) deallocate (label_tracks)
-            error stop 1
          end if
       end if
 
@@ -473,21 +556,23 @@ contains
             if (allocated(label_tracks)) deallocate (label_tracks)
             error stop 1
          end if
-         call write_observable_sample_if_enabled(slots(history_slot_index), unit_cold_obs, 0, &
-                                                 cold_observable_stride, cold_observable_max_samples, &
-                                                 cold_observable_written, "cold-slot", cold_observable_values, cold_observable_ok)
-         if (.not. cold_observable_ok) then
-            close (unit=unit_cold_obs)
-            if (write_cold_history) then
-               close (unit=unit_cold_z)
-               close (unit=unit_cold_phi)
+         if (write_initial_sample) then
+            call write_observable_sample_if_enabled(slots(history_slot_index), unit_cold_obs, cycle_offset, &
+                                                    cold_observable_stride, cold_observable_max_samples, &
+                                                    cold_observable_written, "cold-slot", cold_observable_values, cold_observable_ok)
+            if (.not. cold_observable_ok) then
+               close (unit=unit_cold_obs)
+               if (write_cold_history) then
+                  close (unit=unit_cold_z)
+                  close (unit=unit_cold_phi)
+               end if
+               if (write_cold_x_history) close (unit=unit_cold_x)
+               call release_all_slots(slots)
+               if (allocated(flow_ladder)) deallocate (flow_ladder)
+               if (allocated(pair_stats)) deallocate (pair_stats)
+               if (allocated(label_tracks)) deallocate (label_tracks)
+               error stop 1
             end if
-            if (write_cold_x_history) close (unit=unit_cold_x)
-            call release_all_slots(slots)
-            if (allocated(flow_ladder)) deallocate (flow_ladder)
-            if (allocated(pair_stats)) deallocate (pair_stats)
-            if (allocated(label_tracks)) deallocate (label_tracks)
-            error stop 1
          end if
       end if
 
@@ -505,20 +590,22 @@ contains
             if (allocated(label_tracks)) deallocate (label_tracks)
             error stop 1
          end if
-         call write_all_replica_history_samples_if_enabled(slots, all_z_units, all_phi_units, 0, &
-                                                           all_history_stride, all_history_max_samples, all_history_written, all_sample_ok)
-         if (.not. all_sample_ok) then
-            call close_all_replica_history_files(all_z_units, all_phi_units)
-            if (write_cold_history) then
-               close (unit_cold_z)
-               close (unit_cold_phi)
+         if (write_initial_sample) then
+            call write_all_replica_history_samples_if_enabled(slots, all_z_units, all_phi_units, cycle_offset, &
+                                                              all_history_stride, all_history_max_samples, all_history_written, all_sample_ok)
+            if (.not. all_sample_ok) then
+               call close_all_replica_history_files(all_z_units, all_phi_units)
+               if (write_cold_history) then
+                  close (unit_cold_z)
+                  close (unit_cold_phi)
+               end if
+               if (write_cold_observable) close (unit_cold_obs)
+               call release_all_slots(slots)
+               if (allocated(flow_ladder)) deallocate (flow_ladder)
+               if (allocated(pair_stats)) deallocate (pair_stats)
+               if (allocated(label_tracks)) deallocate (label_tracks)
+               error stop 1
             end if
-            if (write_cold_observable) close (unit_cold_obs)
-            call release_all_slots(slots)
-            if (allocated(flow_ladder)) deallocate (flow_ladder)
-            if (allocated(pair_stats)) deallocate (pair_stats)
-            if (allocated(label_tracks)) deallocate (label_tracks)
-            error stop 1
          end if
       end if
 
@@ -538,23 +625,25 @@ contains
             if (allocated(label_tracks)) deallocate (label_tracks)
             error stop 1
          end if
-         call write_all_replica_observable_samples_if_enabled(slots, all_obs_units, 0, &
-                                                              all_observable_values, &
-                                                              all_observable_stride, all_observable_max_samples, &
-                                                              all_observable_written, all_observable_ok)
-         if (.not. all_observable_ok) then
-            call close_all_replica_observable_files(all_obs_units)
-            if (write_cold_history) then
-               close (unit_cold_z)
-               close (unit_cold_phi)
+         if (write_initial_sample) then
+            call write_all_replica_observable_samples_if_enabled(slots, all_obs_units, cycle_offset, &
+                                                                 all_observable_values, &
+                                                                 all_observable_stride, all_observable_max_samples, &
+                                                                 all_observable_written, all_observable_ok)
+            if (.not. all_observable_ok) then
+               call close_all_replica_observable_files(all_obs_units)
+               if (write_cold_history) then
+                  close (unit_cold_z)
+                  close (unit_cold_phi)
+               end if
+               if (write_cold_observable) close (unit_cold_obs)
+               if (write_all_history) call close_all_replica_history_files(all_z_units, all_phi_units)
+               call release_all_slots(slots)
+               if (allocated(flow_ladder)) deallocate (flow_ladder)
+               if (allocated(pair_stats)) deallocate (pair_stats)
+               if (allocated(label_tracks)) deallocate (label_tracks)
+               error stop 1
             end if
-            if (write_cold_observable) close (unit_cold_obs)
-            if (write_all_history) call close_all_replica_history_files(all_z_units, all_phi_units)
-            call release_all_slots(slots)
-            if (allocated(flow_ladder)) deallocate (flow_ladder)
-            if (allocated(pair_stats)) deallocate (pair_stats)
-            if (allocated(label_tracks)) deallocate (label_tracks)
-            error stop 1
          end if
       end if
 
@@ -575,16 +664,17 @@ contains
          error stop 1
       end if
       write (unit_trace, '(A)') "# cycle label_id slot_id round_trip_count"
-      if (.not. fixed_flow_mode) then
+      if ((.not. fixed_flow_mode) .and. write_initial_sample) then
          call refresh_label_positions(slots, label_tracks)
-         call update_round_trip_bookkeeping(label_tracks, 0, hot_slot)
-         call write_label_trace(unit_trace, 0, label_tracks)
+         if (.not. init_from_snapshot) call update_round_trip_bookkeeping(label_tracks, cycle_offset, hot_slot)
+         call write_label_trace(unit_trace, cycle_offset, label_tracks)
       end if
 
       run_t0 = wall_time_seconds()
       do cycle_idx = 1, cycle_count
+         absolute_cycle_idx = cycle_offset + cycle_idx
          slot_t0 = wall_time_seconds()
-         call run_local_update_sweep(slots, local_updates, local_accept_census, cycle_idx, run_contexts, audit_context, &
+         call run_local_update_sweep(slots, local_updates, local_accept_census, absolute_cycle_idx, run_contexts, audit_context, &
                                      qn_diagnostics_context, qn_policy_context, hmc_policy_context, &
                                      hmc_replay_diagnostics_context, newton_flow_status_context, constraint_stats_context, &
                                      qn_diagnostics_contexts, qn_policy_contexts, &
@@ -594,14 +684,15 @@ contains
 
          if (swap_enabled .and. n_slots > 1) then
             slot_t0 = wall_time_seconds()
-            call perform_swap_sweep(slots, pair_stats, cycle_idx, swap_rng_state, run_contexts, rng_stream_contract, base_seed, parallel_swap_pairs)
+            call perform_swap_sweep(slots, pair_stats, absolute_cycle_idx, swap_rng_state, run_contexts, rng_stream_contract, base_seed, &
+                                    parallel_swap_pairs)
             stage2_timing%swap_sweep_sec = stage2_timing%swap_sweep_sec + (wall_time_seconds() - slot_t0)
          end if
 
          if (.not. fixed_flow_mode) then
             slot_t0 = wall_time_seconds()
             call refresh_label_positions(slots, label_tracks)
-            call update_round_trip_bookkeeping(label_tracks, cycle_idx, hot_slot)
+            call update_round_trip_bookkeeping(label_tracks, absolute_cycle_idx, hot_slot)
             stage2_timing%label_bookkeeping_sec = stage2_timing%label_bookkeeping_sec + (wall_time_seconds() - slot_t0)
          end if
 
@@ -612,7 +703,7 @@ contains
          stage2_timing%measure_slots_sec = stage2_timing%measure_slots_sec + (wall_time_seconds() - slot_t0)
          slot_t0 = wall_time_seconds()
          if (write_cold_history) then
-            call write_cold_history_sample_if_enabled(slots(history_slot_index), unit_cold_z, unit_cold_phi, cycle_idx, &
+            call write_cold_history_sample_if_enabled(slots(history_slot_index), unit_cold_z, unit_cold_phi, absolute_cycle_idx, &
                                                       cold_history_stride, cold_history_max_samples, cold_history_written, cold_sample_ok)
             if (.not. cold_sample_ok) then
                close (unit_trace)
@@ -634,7 +725,7 @@ contains
             end if
          end if
          if (write_cold_x_history) then
-            call write_cold_x_history_sample_if_enabled(slots(history_slot_index), unit_cold_x, cycle_idx, &
+            call write_cold_x_history_sample_if_enabled(slots(history_slot_index), unit_cold_x, absolute_cycle_idx, &
                                                         cold_history_stride, cold_history_max_samples, &
                                                         cold_x_history_written, cold_x_sample_ok)
             if (.not. cold_x_sample_ok) then
@@ -659,7 +750,7 @@ contains
             end if
          end if
          if (write_cold_observable) then
-            call write_observable_sample_if_enabled(slots(history_slot_index), unit_cold_obs, cycle_idx, &
+            call write_observable_sample_if_enabled(slots(history_slot_index), unit_cold_obs, absolute_cycle_idx, &
                                                     cold_observable_stride, cold_observable_max_samples, &
                                                     cold_observable_written, "cold-slot", cold_observable_values, cold_observable_ok)
             if (.not. cold_observable_ok) then
@@ -684,7 +775,7 @@ contains
             end if
          end if
          if (write_all_history) then
-            call write_all_replica_history_samples_if_enabled(slots, all_z_units, all_phi_units, cycle_idx, &
+            call write_all_replica_history_samples_if_enabled(slots, all_z_units, all_phi_units, absolute_cycle_idx, &
                                                               all_history_stride, all_history_max_samples, all_history_written, all_sample_ok)
             if (.not. all_sample_ok) then
                close (unit_trace)
@@ -707,7 +798,7 @@ contains
             end if
          end if
          if (write_all_observable) then
-            call write_all_replica_observable_samples_if_enabled(slots, all_obs_units, cycle_idx, &
+            call write_all_replica_observable_samples_if_enabled(slots, all_obs_units, absolute_cycle_idx, &
                                                                  all_observable_values, &
                                                                  all_observable_stride, all_observable_max_samples, &
                                                                  all_observable_written, all_observable_ok)
@@ -734,17 +825,18 @@ contains
          stage2_timing%history_io_sec = stage2_timing%history_io_sec + (wall_time_seconds() - slot_t0)
          if (.not. fixed_flow_mode) then
             slot_t0 = wall_time_seconds()
-            call write_label_trace(unit_trace, cycle_idx, label_tracks)
+            call write_label_trace(unit_trace, absolute_cycle_idx, label_tracks)
             stage2_timing%label_trace_sec = stage2_timing%label_trace_sec + (wall_time_seconds() - slot_t0)
          end if
 
          if (cycle_idx == 1 .or. mod(cycle_idx, 10) == 0 .or. cycle_idx == cycle_count) then
             slot_t0 = wall_time_seconds()
-            write (*, '(A,I0,A,I0)') "[TLTM-S2] cycle ", cycle_idx, "/", cycle_count
+            write (*, '(A,I0,A,I0,A,I0)') "[TLTM-S2] cycle ", cycle_idx, "/", cycle_count, " absolute=", absolute_cycle_idx
             stage2_timing%progress_log_sec = stage2_timing%progress_log_sec + (wall_time_seconds() - slot_t0)
          end if
       end do
       elapsed = wall_time_seconds() - run_t0
+      final_cycle_idx = cycle_offset + cycle_count
 
       close (unit_trace)
       if (write_cold_history) then
@@ -819,6 +911,34 @@ contains
                                     local_updates, init_sigma, init_preflow_trajectory_length, init_preflow_integration_steps, &
                                     init_mode, rng_stream_contract, swap_enabled, fixed_flow_mode, &
                                     elapsed, slots, pair_stats, label_tracks)
+      if (write_snapshot) then
+         call write_stage2_snapshot(snapshot_file, final_cycle_idx, slots, pair_stats, label_tracks, physical_state_size, &
+                                    base_seed, swap_rng_seed, rng_stream_contract, snapshot_ok)
+         if (.not. snapshot_ok) then
+            call close_stage2_audit_context(audit_context)
+            call release_all_qn_policy_contexts(qn_policy_contexts)
+            call release_all_qn_diagnostics_contexts(qn_diagnostics_contexts)
+            call release_all_constraint_stats_contexts(constraint_stats_contexts)
+            call release_qn_diagnostics_context(qn_diagnostics_context)
+            call release_qn_policy_context(qn_policy_context)
+            call release_all_run_contexts(run_contexts)
+            call release_all_slots(slots)
+            call release_constraint_solver_stats_context(constraint_stats_context)
+            call release_model_context(model_context)
+            if (allocated(flow_ladder)) deallocate (flow_ladder)
+            if (allocated(pair_stats)) deallocate (pair_stats)
+            if (allocated(label_tracks)) deallocate (label_tracks)
+            if (allocated(local_accept_census)) deallocate (local_accept_census)
+            if (allocated(qn_policy_contexts)) deallocate (qn_policy_contexts)
+            if (allocated(qn_diagnostics_contexts)) deallocate (qn_diagnostics_contexts)
+            if (allocated(hmc_replay_diagnostics_contexts)) deallocate (hmc_replay_diagnostics_contexts)
+            if (allocated(newton_flow_status_contexts)) deallocate (newton_flow_status_contexts)
+            if (allocated(constraint_stats_contexts)) deallocate (constraint_stats_contexts)
+            if (allocated(cold_observable_values)) deallocate (cold_observable_values)
+            if (allocated(all_observable_values)) deallocate (all_observable_values)
+            error stop 1
+         end if
+      end if
       call write_phase_cache_stats_if_enabled()
       call write_real_jacobian_cache_stats_if_enabled(run_contexts)
       call release_all_qn_policy_contexts(qn_policy_contexts)
@@ -871,6 +991,10 @@ contains
       end if
       if (write_v1_package) then
          write (*, '(A,1X,A)') "[DONE][TLTM-S2] v1alpha diagnostics package written under", trim(v1_output_dir)
+      end if
+      if (write_snapshot) then
+         write (*, '(A,1X,A,A,I0)') "[DONE][TLTM-S2] Final snapshot written to", trim(snapshot_file), &
+            " cycle=", final_cycle_idx
       end if
       call close_stage2_audit_context(audit_context)
    end subroutine execute_tltm_stage2
@@ -1027,6 +1151,478 @@ contains
 
       ok = .true.
    end subroutine load_initial_x_record
+
+   integer function stage2_rng_contract_code(rng_stream_contract) result(code)
+      character(len=*), intent(in) :: rng_stream_contract
+
+      select case (trim(rng_stream_contract))
+      case (stage2_rng_kernel_v2)
+         code = stage2_snapshot_rng_kernel_v2_code
+      case default
+         code = -1
+      end select
+   end function stage2_rng_contract_code
+
+   subroutine write_stage2_snapshot(snapshot_file, cycle_index, slots, pair_stats, label_tracks, physical_state_size, &
+                                    base_seed, swap_rng_seed, rng_stream_contract, ok)
+      character(len=*), intent(in) :: snapshot_file
+      integer, intent(in) :: cycle_index, physical_state_size, base_seed, swap_rng_seed
+      type(tltm_slot_t), intent(in) :: slots(:)
+      type(tltm_pair_stats_t), intent(in) :: pair_stats(:)
+      type(tltm_label_track_t), intent(in) :: label_tracks(:)
+      character(len=*), intent(in) :: rng_stream_contract
+      logical, intent(out) :: ok
+
+      integer :: unit_snapshot, ios, i, rng_code
+      logical :: path_ok
+
+      ok = .false.
+      rng_code = stage2_rng_contract_code(rng_stream_contract)
+      if (rng_code /= stage2_snapshot_rng_kernel_v2_code) then
+         write (*, '(A)') "[ERROR][TLTM-S2] Snapshot writing requires stage2_kernel_rng_v2."
+         return
+      end if
+      if (cycle_index < 0) then
+         write (*, '(A)') "[ERROR][TLTM-S2] Snapshot cycle index must be >= 0."
+         return
+      end if
+      do i = 1, size(slots)
+         if (.not. slot_snapshot_state_is_finite(slots(i))) then
+            write (*, '(A,I0)') "[ERROR][TLTM-S2] Refusing to write snapshot with nonfinite slot state: slot=", i - 1
+            return
+         end if
+      end do
+
+      call ensure_parent_directory_exists(snapshot_file, path_ok)
+      if (.not. path_ok) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot prepare directory for snapshot file:", trim(snapshot_file)
+         return
+      end if
+
+      open (newunit=unit_snapshot, file=trim(snapshot_file), status='replace', access='stream', &
+            form='unformatted', action='write', iostat=ios)
+      if (ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot open snapshot file:", trim(snapshot_file)
+         return
+      end if
+
+      write (unit_snapshot, iostat=ios) stage2_snapshot_magic, stage2_snapshot_version, physical_state_size, &
+         size(slots), size(pair_stats), size(label_tracks), cycle_index, base_seed, swap_rng_seed, rng_code
+      if (ios == 0) then
+         do i = 1, size(slots)
+            call write_stage2_snapshot_slot(unit_snapshot, slots(i), ios)
+            if (ios /= 0) exit
+         end do
+      end if
+      if (ios == 0) then
+         do i = 1, size(pair_stats)
+            write (unit_snapshot, iostat=ios) pair_stats(i)%pair_id, pair_stats(i)%slot_a, pair_stats(i)%slot_b, &
+               pair_stats(i)%proposal_count, pair_stats(i)%accept_count, pair_stats(i)%reject_count, &
+               pair_stats(i)%last_accept_probability
+            if (ios /= 0) exit
+         end do
+      end if
+      if (ios == 0) then
+         do i = 1, size(label_tracks)
+            call write_stage2_snapshot_label(unit_snapshot, label_tracks(i), ios)
+            if (ios /= 0) exit
+         end do
+      end if
+      close (unit_snapshot)
+      if (ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Failed while writing snapshot file:", trim(snapshot_file)
+         return
+      end if
+
+      call write_stage2_snapshot_manifest(snapshot_file, cycle_index, physical_state_size, size(slots), &
+                                          size(pair_stats), size(label_tracks), base_seed, swap_rng_seed, rng_stream_contract)
+      ok = .true.
+   end subroutine write_stage2_snapshot
+
+   subroutine load_stage2_snapshot(snapshot_file, slots, pair_stats, label_tracks, physical_state_size, &
+                                   base_seed, swap_rng_seed, rng_stream_contract, flow_ladder, cycle_offset, ok)
+      character(len=*), intent(in) :: snapshot_file
+      type(tltm_slot_t), intent(inout) :: slots(:)
+      type(tltm_pair_stats_t), intent(inout) :: pair_stats(:)
+      type(tltm_label_track_t), intent(inout) :: label_tracks(:)
+      integer, intent(in) :: physical_state_size
+      integer, intent(inout) :: base_seed, swap_rng_seed
+      character(len=*), intent(in) :: rng_stream_contract
+      real(dp), intent(in) :: flow_ladder(:)
+      integer, intent(out) :: cycle_offset
+      logical, intent(out) :: ok
+
+      integer :: unit_snapshot, ios, i
+      integer :: magic, version, snapshot_state_size, snapshot_slots, snapshot_pairs, snapshot_labels
+      integer :: snapshot_cycle, snapshot_base_seed, snapshot_swap_seed, snapshot_rng_code
+
+      ok = .false.
+      cycle_offset = 0
+      if (stage2_rng_contract_code(rng_stream_contract) /= stage2_snapshot_rng_kernel_v2_code) then
+         write (*, '(A)') "[ERROR][TLTM-S2] Snapshot initialization requires stage2_kernel_rng_v2."
+         return
+      end if
+
+      open (newunit=unit_snapshot, file=trim(snapshot_file), status='old', access='stream', &
+            form='unformatted', action='read', iostat=ios)
+      if (ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot open init snapshot file:", trim(snapshot_file)
+         return
+      end if
+
+      read (unit_snapshot, iostat=ios) magic, version, snapshot_state_size, snapshot_slots, snapshot_pairs, snapshot_labels, &
+         snapshot_cycle, snapshot_base_seed, snapshot_swap_seed, snapshot_rng_code
+      if (ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot read snapshot header:", trim(snapshot_file)
+         close (unit_snapshot)
+         return
+      end if
+      if (magic /= stage2_snapshot_magic .or. version /= stage2_snapshot_version) then
+         write (*, '(A,I0,A,I0)') "[ERROR][TLTM-S2] Unsupported snapshot magic/version: ", magic, "/", version
+         close (unit_snapshot)
+         return
+      end if
+      if (snapshot_state_size /= physical_state_size .or. snapshot_slots /= size(slots) .or. &
+          snapshot_pairs /= size(pair_stats) .or. snapshot_labels /= size(label_tracks)) then
+         write (*, '(A)') "[ERROR][TLTM-S2] Snapshot shape does not match current Stage2 setup."
+         close (unit_snapshot)
+         return
+      end if
+      if (snapshot_rng_code /= stage2_snapshot_rng_kernel_v2_code) then
+         write (*, '(A)') "[ERROR][TLTM-S2] Snapshot RNG contract is not stage2_kernel_rng_v2."
+         close (unit_snapshot)
+         return
+      end if
+      if (snapshot_cycle < 0) then
+         write (*, '(A)') "[ERROR][TLTM-S2] Snapshot cycle index is invalid."
+         close (unit_snapshot)
+         return
+      end if
+
+      do i = 1, size(slots)
+         call read_stage2_snapshot_slot(unit_snapshot, slots(i), ios)
+         if (ios /= 0) exit
+      end do
+      if (ios == 0) then
+         do i = 1, size(pair_stats)
+            read (unit_snapshot, iostat=ios) pair_stats(i)%pair_id, pair_stats(i)%slot_a, pair_stats(i)%slot_b, &
+               pair_stats(i)%proposal_count, pair_stats(i)%accept_count, pair_stats(i)%reject_count, &
+               pair_stats(i)%last_accept_probability
+            if (ios /= 0) exit
+         end do
+      end if
+      if (ios == 0) then
+         do i = 1, size(label_tracks)
+            call read_stage2_snapshot_label(unit_snapshot, label_tracks(i), ios)
+            if (ios /= 0) exit
+         end do
+      end if
+      close (unit_snapshot)
+      if (ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Failed while reading snapshot file:", trim(snapshot_file)
+         return
+      end if
+
+      call validate_loaded_stage2_snapshot(slots, pair_stats, label_tracks, flow_ladder, ok)
+      if (.not. ok) return
+      base_seed = snapshot_base_seed
+      swap_rng_seed = snapshot_swap_seed
+      cycle_offset = snapshot_cycle
+      write (*, '(A,I0,A,I0,A,I0)') "[TLTM-S2] Loaded snapshot cycle=", cycle_offset, &
+         " base_seed=", base_seed, " swap_rng_seed=", swap_rng_seed
+      ok = .true.
+   end subroutine load_stage2_snapshot
+
+   subroutine load_stage2_flow_bank(flow_bank_dir, flow_bank_record, slots, flow_ladder, physical_state_size, ok)
+      character(len=*), intent(in) :: flow_bank_dir
+      integer, intent(in) :: flow_bank_record, physical_state_size
+      type(tltm_slot_t), intent(inout) :: slots(:)
+      real(dp), intent(in) :: flow_ladder(:)
+      logical, intent(out) :: ok
+
+      integer :: i
+
+      ok = .false.
+      if (size(slots) /= size(flow_ladder)) then
+         write (*, '(A)') "[ERROR][TLTM-S2] Flow-bank validation failed: ladder size mismatch."
+         return
+      end if
+      do i = 1, size(slots)
+         call load_stage2_flow_bank_slot(flow_bank_dir, flow_bank_record, i - 1, flow_ladder(i), physical_state_size, &
+                                         slots(i), ok)
+         if (.not. ok) return
+         call mark_tltm_slot_state_changed(slots(i))
+         call invalidate_loaded_snapshot_caches(slots(i))
+         call measure_slot(slots(i))
+      end do
+      write (*, '(A,I0,A,I0)') "[TLTM-S2] Loaded flow-bank record=", flow_bank_record, " slots=", size(slots)
+      ok = .true.
+   end subroutine load_stage2_flow_bank
+
+   subroutine load_stage2_flow_bank_slot(flow_bank_dir, flow_bank_record, slot_id_expected, target_flow_time, &
+                                         physical_state_size, slot, ok)
+      character(len=*), intent(in) :: flow_bank_dir
+      integer, intent(in) :: flow_bank_record, slot_id_expected, physical_state_size
+      real(dp), intent(in) :: target_flow_time
+      type(tltm_slot_t), intent(inout) :: slot
+      logical, intent(out) :: ok
+
+      character(len=512) :: slot_file
+      integer :: unit_slot, ios
+      integer :: magic, version, bank_state_size, slot_id, source_record, dense_status, available_int
+      integer :: accepted_steps, rejected_steps, rhs_evals, failure_reason
+      real(dp) :: bank_flow_time
+
+      ok = .false.
+      call stage2_flow_bank_slot_file(flow_bank_dir, flow_bank_record, slot_id_expected, slot_file)
+      open (newunit=unit_slot, file=trim(slot_file), status='old', access='stream', form='unformatted', &
+            action='read', iostat=ios)
+      if (ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot open flow-bank slot file:", trim(slot_file)
+         return
+      end if
+      read (unit_slot, iostat=ios) magic, version, bank_state_size, slot_id, source_record, dense_status, &
+         available_int, accepted_steps, rejected_steps, rhs_evals, failure_reason, bank_flow_time
+      if (ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Cannot read flow-bank slot header:", trim(slot_file)
+         close (unit_slot)
+         return
+      end if
+      if (magic /= stage2_flow_bank_magic .or. version /= stage2_flow_bank_version) then
+         write (*, '(A,I0,A,I0)') "[ERROR][TLTM-S2] Unsupported flow-bank magic/version: ", magic, "/", version
+         close (unit_slot)
+         return
+      end if
+      if (bank_state_size /= physical_state_size .or. slot_id /= slot_id_expected .or. source_record /= flow_bank_record) then
+         write (*, '(A)') "[ERROR][TLTM-S2] Flow-bank slot shape/index does not match current Stage2 setup."
+         close (unit_slot)
+         return
+      end if
+      if (.not. same_flow_time(bank_flow_time, target_flow_time)) then
+         write (*, '(A,I0,A,2(1X,ES24.16E3))') "[ERROR][TLTM-S2] Flow-bank target-time mismatch at slot=", &
+            slot_id_expected, " bank/current=", bank_flow_time, target_flow_time
+         close (unit_slot)
+         return
+      end if
+      if (available_int /= 1) then
+         write (*, '(A,I0,A,I0,A,I0,A,I0)') "[ERROR][TLTM-S2] Flow-bank target unavailable: slot=", &
+            slot_id_expected, " status=", dense_status, " reason=", failure_reason, " rhs=", rhs_evals
+         close (unit_slot)
+         return
+      end if
+      read (unit_slot, iostat=ios) slot%x
+      if (ios == 0) read (unit_slot, iostat=ios) slot%z
+      if (ios == 0) read (unit_slot, iostat=ios) slot%jac
+      close (unit_slot)
+      if (ios /= 0) then
+         write (*, '(A,1X,A)') "[ERROR][TLTM-S2] Failed while reading flow-bank slot file:", trim(slot_file)
+         return
+      end if
+      if (.not. slot_snapshot_state_is_finite(slot)) then
+         write (*, '(A,I0)') "[ERROR][TLTM-S2] Flow-bank slot has nonfinite state: slot=", slot_id_expected
+         return
+      end if
+      ok = .true.
+   end subroutine load_stage2_flow_bank_slot
+
+   subroutine stage2_flow_bank_slot_file(flow_bank_dir, flow_bank_record, slot_id, slot_file)
+      character(len=*), intent(in) :: flow_bank_dir
+      integer, intent(in) :: flow_bank_record, slot_id
+      character(len=*), intent(out) :: slot_file
+      character(len=64) :: record_dir, slot_name
+      logical :: exists
+
+      write (record_dir, '("record_",I6.6)') flow_bank_record
+      write (slot_name, '("slot_",I6.6,".bin")') slot_id
+      slot_file = trim(flow_bank_dir)//"/records/"//trim(record_dir)//"/"//trim(slot_name)
+      inquire (file=trim(slot_file), exist=exists)
+      if (exists) return
+
+      write (record_dir, '("record_",I4.4)') flow_bank_record
+      write (slot_name, '("slot_",I4.4,".bin")') slot_id
+      slot_file = trim(flow_bank_dir)//"/records/"//trim(record_dir)//"/"//trim(slot_name)
+   end subroutine stage2_flow_bank_slot_file
+
+   subroutine write_stage2_snapshot_slot(unit_snapshot, slot, ios)
+      integer, intent(in) :: unit_snapshot
+      type(tltm_slot_t), intent(in) :: slot
+      integer, intent(out) :: ios
+
+      write (unit_snapshot, iostat=ios) slot%slot_id, slot%label_id, slot%rng_seed, slot%flow_time, slot%local_runtime, &
+         slot%local_accept_count, slot%local_reject_count, slot%projection_failure_count, slot%metropolis_reject_count, &
+         slot%reverse_gate_reject_count, slot%proposal_failure_count, slot%hamiltonian_invalid_count, &
+         slot%delta_h_invalid_count, slot%output_size_mismatch_count, slot%observable_samples, slot%phi_sum, &
+         slot%state_version
+      if (ios /= 0) return
+      write (unit_snapshot, iostat=ios) slot%x
+      if (ios /= 0) return
+      write (unit_snapshot, iostat=ios) slot%z
+      if (ios /= 0) return
+      write (unit_snapshot, iostat=ios) slot%jac
+   end subroutine write_stage2_snapshot_slot
+
+   subroutine read_stage2_snapshot_slot(unit_snapshot, slot, ios)
+      integer, intent(in) :: unit_snapshot
+      type(tltm_slot_t), intent(inout) :: slot
+      integer, intent(out) :: ios
+
+      read (unit_snapshot, iostat=ios) slot%slot_id, slot%label_id, slot%rng_seed, slot%flow_time, slot%local_runtime, &
+         slot%local_accept_count, slot%local_reject_count, slot%projection_failure_count, slot%metropolis_reject_count, &
+         slot%reverse_gate_reject_count, slot%proposal_failure_count, slot%hamiltonian_invalid_count, &
+         slot%delta_h_invalid_count, slot%output_size_mismatch_count, slot%observable_samples, slot%phi_sum, &
+         slot%state_version
+      if (ios /= 0) return
+      read (unit_snapshot, iostat=ios) slot%x
+      if (ios /= 0) return
+      read (unit_snapshot, iostat=ios) slot%z
+      if (ios /= 0) return
+      read (unit_snapshot, iostat=ios) slot%jac
+      if (ios == 0) call invalidate_loaded_snapshot_caches(slot)
+   end subroutine read_stage2_snapshot_slot
+
+   subroutine write_stage2_snapshot_label(unit_snapshot, label_track, ios)
+      integer, intent(in) :: unit_snapshot
+      type(tltm_label_track_t), intent(in) :: label_track
+      integer, intent(out) :: ios
+      integer :: hot_reached_int
+
+      hot_reached_int = merge(1, 0, label_track%hot_reached_after_cold)
+      write (unit_snapshot, iostat=ios) label_track%label_id, label_track%current_slot, &
+         label_track%farthest_slot_reached, label_track%last_extreme_visited, label_track%round_trip_count, &
+         label_track%last_round_trip_start_cycle, label_track%round_trip_time_sum, hot_reached_int
+   end subroutine write_stage2_snapshot_label
+
+   subroutine read_stage2_snapshot_label(unit_snapshot, label_track, ios)
+      integer, intent(in) :: unit_snapshot
+      type(tltm_label_track_t), intent(inout) :: label_track
+      integer, intent(out) :: ios
+      integer :: hot_reached_int
+
+      read (unit_snapshot, iostat=ios) label_track%label_id, label_track%current_slot, &
+         label_track%farthest_slot_reached, label_track%last_extreme_visited, label_track%round_trip_count, &
+         label_track%last_round_trip_start_cycle, label_track%round_trip_time_sum, hot_reached_int
+      if (ios == 0) label_track%hot_reached_after_cold = (hot_reached_int /= 0)
+   end subroutine read_stage2_snapshot_label
+
+   subroutine invalidate_loaded_snapshot_caches(slot)
+      type(tltm_slot_t), intent(inout) :: slot
+
+      slot%phase_cache_valid = .false.
+      slot%phase_cache_version = -1_int64
+      slot%phase_cache_fingerprint = -1.0_dp
+      slot%cached_phase_factor = cmplx(1.0_dp, 0.0_dp, dp)
+      slot%cached_action = cmplx(0.0_dp, 0.0_dp, dp)
+      slot%cached_log_det_j = cmplx(0.0_dp, 0.0_dp, dp)
+      slot%reflow_cache_version = -1_int64
+      slot%reflow_cache_target_time = 0.0_dp
+      slot%reflow_cache_source_fingerprint = -1.0_dp
+      slot%reflow_cache_valid = .false.
+      slot%reflow_cache_next_entry = 1
+   end subroutine invalidate_loaded_snapshot_caches
+
+   logical function slot_snapshot_state_is_finite(slot) result(finite)
+      type(tltm_slot_t), intent(in) :: slot
+
+      finite = allocated(slot%x) .and. allocated(slot%z) .and. allocated(slot%jac)
+      if (.not. finite) return
+      finite = all(ieee_is_finite(slot%x)) .and. &
+               all(ieee_is_finite(real(slot%z, dp))) .and. all(ieee_is_finite(aimag(slot%z))) .and. &
+               all(ieee_is_finite(real(slot%jac, dp))) .and. all(ieee_is_finite(aimag(slot%jac)))
+   end function slot_snapshot_state_is_finite
+
+   subroutine validate_loaded_stage2_snapshot(slots, pair_stats, label_tracks, flow_ladder, ok)
+      type(tltm_slot_t), intent(in) :: slots(:)
+      type(tltm_pair_stats_t), intent(in) :: pair_stats(:)
+      type(tltm_label_track_t), intent(in) :: label_tracks(:)
+      real(dp), intent(in) :: flow_ladder(:)
+      logical, intent(out) :: ok
+
+      logical, allocatable :: seen_labels(:)
+      integer :: i, label_idx
+
+      ok = .false.
+      if (size(slots) /= size(flow_ladder)) then
+         write (*, '(A)') "[ERROR][TLTM-S2] Snapshot validation failed: ladder size mismatch."
+         return
+      end if
+      allocate (seen_labels(size(slots)))
+      seen_labels = .false.
+      do i = 1, size(slots)
+         if (slots(i)%slot_id /= i - 1) then
+            write (*, '(A,I0)') "[ERROR][TLTM-S2] Snapshot validation failed: unexpected slot_id at index=", i
+            deallocate (seen_labels)
+            return
+         end if
+         if (.not. same_flow_time(slots(i)%flow_time, flow_ladder(i))) then
+            write (*, '(A,I0)') "[ERROR][TLTM-S2] Snapshot validation failed: flow ladder mismatch at slot=", i - 1
+            deallocate (seen_labels)
+            return
+         end if
+         if (.not. slot_snapshot_state_is_finite(slots(i))) then
+            write (*, '(A,I0)') "[ERROR][TLTM-S2] Snapshot validation failed: nonfinite slot state=", i - 1
+            deallocate (seen_labels)
+            return
+         end if
+         label_idx = slots(i)%label_id + 1
+         if (label_idx < 1 .or. label_idx > size(slots)) then
+            write (*, '(A,I0)') "[ERROR][TLTM-S2] Snapshot validation failed: invalid label in slot=", i - 1
+            deallocate (seen_labels)
+            return
+         end if
+         if (seen_labels(label_idx)) then
+            write (*, '(A,I0)') "[ERROR][TLTM-S2] Snapshot validation failed: duplicate label=", slots(i)%label_id
+            deallocate (seen_labels)
+            return
+         end if
+         seen_labels(label_idx) = .true.
+      end do
+      do i = 1, size(pair_stats)
+         if (pair_stats(i)%pair_id /= i - 1 .or. pair_stats(i)%slot_a /= i - 1 .or. pair_stats(i)%slot_b /= i) then
+            write (*, '(A,I0)') "[ERROR][TLTM-S2] Snapshot validation failed: invalid pair row=", i - 1
+            deallocate (seen_labels)
+            return
+         end if
+      end do
+      do i = 1, size(label_tracks)
+         if (label_tracks(i)%label_id /= i - 1) then
+            write (*, '(A,I0)') "[ERROR][TLTM-S2] Snapshot validation failed: invalid label row=", i - 1
+            deallocate (seen_labels)
+            return
+         end if
+         if (label_tracks(i)%current_slot < 0 .or. label_tracks(i)%current_slot >= size(slots)) then
+            write (*, '(A,I0)') "[ERROR][TLTM-S2] Snapshot validation failed: invalid label current_slot=", i - 1
+            deallocate (seen_labels)
+            return
+         end if
+      end do
+      deallocate (seen_labels)
+      ok = .true.
+   end subroutine validate_loaded_stage2_snapshot
+
+   subroutine write_stage2_snapshot_manifest(snapshot_file, cycle_index, physical_state_size, n_slots, n_pairs, n_labels, &
+                                             base_seed, swap_rng_seed, rng_stream_contract)
+      character(len=*), intent(in) :: snapshot_file, rng_stream_contract
+      integer, intent(in) :: cycle_index, physical_state_size, n_slots, n_pairs, n_labels, base_seed, swap_rng_seed
+
+      character(len=512) :: manifest_file
+      integer :: unit_manifest, ios
+
+      manifest_file = trim(snapshot_file)//".manifest.txt"
+      open (newunit=unit_manifest, file=trim(manifest_file), status='replace', action='write', iostat=ios)
+      if (ios /= 0) return
+      write (unit_manifest, '(A)') "schema=tltm_stage2_snapshot"
+      write (unit_manifest, '(A,I0)') "version=", stage2_snapshot_version
+      write (unit_manifest, '(A,I0)') "cycle_index=", cycle_index
+      write (unit_manifest, '(A,I0)') "physical_state_size=", physical_state_size
+      write (unit_manifest, '(A,I0)') "slots=", n_slots
+      write (unit_manifest, '(A,I0)') "pairs=", n_pairs
+      write (unit_manifest, '(A,I0)') "labels=", n_labels
+      write (unit_manifest, '(A,I0)') "base_seed=", base_seed
+      write (unit_manifest, '(A,I0)') "swap_rng_seed=", swap_rng_seed
+      write (unit_manifest, '(A,A)') "rng_stream_contract=", trim(rng_stream_contract)
+      write (unit_manifest, '(A)') "binary_format=fortran_unformatted_stream_local"
+      close (unit_manifest)
+   end subroutine write_stage2_snapshot_manifest
 
    subroutine run_local_update_sweep(slots, local_updates, local_accept_census, cycle_idx, run_contexts, audit_context, &
                                      qn_diagnostics_context, qn_policy_context, hmc_policy_context, &
@@ -3136,9 +3732,13 @@ contains
          init_mode = "adaptive"
       case ("direct", "legacy")
          init_mode = "direct"
+      case ("snapshot")
+         init_mode = "snapshot"
+      case ("flow_bank", "flow-bank", "flowbank")
+         init_mode = "flow_bank"
       case default
          write (*, '(A,A,A)') "[ERROR][TLTM-S2] Unsupported TLTM_STAGE2_INIT_MODE='", trim(init_mode), "'."
-         write (*, '(A)') "[ERROR][TLTM-S2] Use adaptive/preflow or direct/legacy."
+         write (*, '(A)') "[ERROR][TLTM-S2] Use adaptive/preflow, direct/legacy, snapshot, or flow_bank."
          error stop 1
       end select
 
@@ -3191,6 +3791,68 @@ contains
          error stop 1
       end if
    end subroutine resolve_stage2_initial_x_source
+
+   subroutine resolve_stage2_snapshot_paths(snapshot_file, write_snapshot, init_snapshot_file, init_from_snapshot, cycle_offset)
+      character(len=*), intent(out) :: snapshot_file, init_snapshot_file
+      logical, intent(out) :: write_snapshot, init_from_snapshot
+      integer, intent(out) :: cycle_offset
+
+      snapshot_file = ""
+      init_snapshot_file = ""
+      cycle_offset = 0
+      call read_string_env("TLTM_STAGE2_SNAPSHOT_FILE", snapshot_file, write_snapshot)
+      call read_string_env("TLTM_STAGE2_INIT_SNAPSHOT_FILE", init_snapshot_file, init_from_snapshot)
+      call parse_int_env("TLTM_STAGE2_CYCLE_OFFSET", cycle_offset)
+      if (cycle_offset < 0) then
+         write (*, '(A)') "[ERROR][TLTM-S2] TLTM_STAGE2_CYCLE_OFFSET must be >= 0."
+         error stop 1
+      end if
+   end subroutine resolve_stage2_snapshot_paths
+
+   subroutine resolve_stage2_flow_bank_source(flow_bank_dir, flow_bank_record, init_from_flow_bank)
+      character(len=*), intent(out) :: flow_bank_dir
+      integer, intent(out) :: flow_bank_record
+      logical, intent(out) :: init_from_flow_bank
+
+      flow_bank_dir = ""
+      flow_bank_record = 0
+      call read_string_env("TLTM_STAGE2_INITIAL_FLOW_BANK_DIR", flow_bank_dir, init_from_flow_bank)
+      call parse_int_env("TLTM_STAGE2_INITIAL_FLOW_BANK_RECORD", flow_bank_record)
+      if (flow_bank_record < 0) then
+         write (*, '(A)') "[ERROR][TLTM-S2] TLTM_STAGE2_INITIAL_FLOW_BANK_RECORD must be >= 0."
+         error stop 1
+      end if
+   end subroutine resolve_stage2_flow_bank_source
+
+   subroutine resolve_stage2_restart_boundary_policy(init_from_snapshot, write_initial_sample)
+      logical, intent(in) :: init_from_snapshot
+      logical, intent(out) :: write_initial_sample
+      character(len=64) :: policy
+      logical :: has_policy
+
+      write_initial_sample = .true.
+      if (init_from_snapshot) write_initial_sample = .false.
+
+      policy = ""
+      call read_string_env("TLTM_STAGE2_RESTART_BOUNDARY_POLICY", policy, has_policy)
+      if (.not. has_policy) return
+      policy = trim(to_lower_ascii(adjustl(policy)))
+      select case (trim(policy))
+      case ("skip", "skip_duplicate", "skip-duplicate")
+         if (.not. init_from_snapshot) then
+            write (*, '(A)') "[ERROR][TLTM-S2] restart boundary policy skip requires snapshot initialization."
+            error stop 1
+         end if
+         write_initial_sample = .false.
+      case ("write", "include", "include_boundary", "include-boundary")
+         write_initial_sample = .true.
+      case default
+         write (*, '(A,A,A)') "[ERROR][TLTM-S2] Unsupported TLTM_STAGE2_RESTART_BOUNDARY_POLICY='", &
+            trim(policy), "'."
+         write (*, '(A)') "[ERROR][TLTM-S2] Use skip or write."
+         error stop 1
+      end select
+   end subroutine resolve_stage2_restart_boundary_policy
 
    subroutine resolve_stage2_rng_stream_contract(rng_stream_contract)
       character(len=*), intent(out) :: rng_stream_contract
@@ -3626,6 +4288,12 @@ contains
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_INIT_PREFLOW_MAX_SHRINKS", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_INITIAL_X_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_INITIAL_X_RECORD", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_INITIAL_FLOW_BANK_DIR", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_INITIAL_FLOW_BANK_RECORD", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_INIT_SNAPSHOT_FILE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_SNAPSHOT_FILE", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_RESTART_BOUNDARY_POLICY", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_CYCLE_OFFSET", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_RNG_STREAM_CONTRACT", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_SUMMARY_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_LABEL_TRACE_FILE", .true., 4)

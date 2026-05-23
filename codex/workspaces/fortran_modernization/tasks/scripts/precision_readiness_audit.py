@@ -44,7 +44,14 @@ REQUIRED_CHECKS = (
     {
         "id": "hmc_lapack_calls",
         "path": "src/sampler/hmc_kernels.f90",
-        "patterns": (r"external\s*::\s*dgetrf,\s*dgetrs,\s*dgemv", r"call\s+dgetrf", r"call\s+dgetrs", r"call\s+dgemv"),
+        "patterns": (
+            r"external\s*::[^\n]*\bdgetrf\b",
+            r"external\s*::[^\n]*\bdgetrs\b",
+            r"external\s*::[^\n]*\bdgemv\b",
+            r"call\s+dgetrf",
+            r"call\s+dgetrs",
+            r"call\s+dgemv",
+        ),
         "boundary": "RATTLE projection helper calls double LAPACK routines",
     },
     {

@@ -43,9 +43,32 @@ def parse_args():
     parser.add_argument("--parallel-swaps", choices=("0", "1"), default="1")
     parser.add_argument("--write-cold-observables", action="store_true")
     parser.add_argument("--write-all-replica-observables", action="store_true")
+    parser.add_argument("--write-cold-x-history", action="store_true")
     parser.add_argument("--observable-stride", type=int, default=1)
     parser.add_argument("--cold-observable-max-samples", type=int, default=-1)
     parser.add_argument("--all-replica-observable-max-samples", type=int, default=-1)
+    parser.add_argument("--write-final-snapshot", action="store_true")
+    parser.add_argument(
+        "--init-snapshot-root",
+        default="",
+        help="Run root containing records/record_XXXX/final_snapshot.bin files for continuation.",
+    )
+    parser.add_argument(
+        "--init-snapshot-file",
+        default="",
+        help="Single snapshot file for continuation; valid only when --records contains one record.",
+    )
+    parser.add_argument(
+        "--restart-boundary-policy",
+        choices=("skip", "write"),
+        default="skip",
+        help="For snapshot continuation, skip avoids double-counting the restored boundary cycle.",
+    )
+    parser.add_argument(
+        "--init-flow-bank-root",
+        default="",
+        help="Flow-bank cache root containing records/record_NNNNNN/slot_NNNNNN.bin files.",
+    )
     parser.add_argument("--max-preflow-stages", type=int, default=512)
     parser.add_argument("--max-preflow-shrinks", type=int, default=4096)
     parser.add_argument("--skip-build", action="store_true")
@@ -76,6 +99,28 @@ def validate_bank_records(bank_file, bank_index_file, records):
                 ",".join(str(record) for record in bad), count - 1, index_path
             )
         )
+
+
+def resolve_repo_path(repo_root, value):
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    return repo_root / path
+
+
+def resolve_init_snapshot_file(repo_root, args, record_idx):
+    if args.init_snapshot_file:
+        return resolve_repo_path(repo_root, args.init_snapshot_file).resolve()
+    if args.init_snapshot_root:
+        root = resolve_repo_path(repo_root, args.init_snapshot_root).resolve()
+        return root / "records" / "record_{0:04d}".format(record_idx) / "final_snapshot.bin"
+    return None
+
+
+def resolve_init_flow_bank_root(repo_root, args):
+    if not args.init_flow_bank_root:
+        return None
+    return resolve_repo_path(repo_root, args.init_flow_bank_root).resolve()
 
 
 def set_param(lines, key, value):
@@ -199,6 +244,13 @@ def mean_pair_accept_rates(rows):
 def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, chain_idx, args, hmc_l):
     chain_dir = run_dir / "records" / "record_{0:04d}".format(record_idx)
     chain_dir.mkdir(parents=True, exist_ok=True)
+    init_snapshot_file = resolve_init_snapshot_file(repo_root, args, record_idx)
+    init_flow_bank_root = resolve_init_flow_bank_root(repo_root, args)
+    final_snapshot_file = chain_dir / "final_snapshot.bin"
+    if init_snapshot_file is not None and not init_snapshot_file.exists():
+        raise RuntimeError("Init snapshot file does not exist: {0}".format(init_snapshot_file))
+    if init_flow_bank_root is not None and not init_flow_bank_root.exists():
+        raise RuntimeError("Init flow-bank root does not exist: {0}".format(init_flow_bank_root))
     env = os.environ.copy()
     thread_text = str(max(1, args.threads))
     env.update(
@@ -212,13 +264,6 @@ def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, c
             "QN_REVERSE_GATE_ENABLED": "1",
             "TLTM_STAGE2_PARALLEL_LOCAL_UPDATES": args.parallel_local_updates,
             "TLTM_STAGE2_PARALLEL_SWAPS": args.parallel_swaps,
-            "TLTM_STAGE2_INITIAL_X_FILE": str(bank_file),
-            "TLTM_STAGE2_INITIAL_X_RECORD": str(record_idx),
-            "TLTM_STAGE2_INIT_MODE": "adaptive",
-            "TLTM_STAGE2_INIT_PREFLOW_TRAJECTORY_LENGTH": "{0:g}".format(args.preflow_L),
-            "TLTM_STAGE2_INIT_PREFLOW_INTEGRATION_STEPS": str(args.preflow_nstep),
-            "TLTM_STAGE2_INIT_PREFLOW_MAX_STAGES": str(args.max_preflow_stages),
-            "TLTM_STAGE2_INIT_PREFLOW_MAX_SHRINKS": str(args.max_preflow_shrinks),
             "TLTM_STAGE2_FLOW_TIME_LADDER": ",".join("{0:g}".format(value) for value in ladder),
             "TLTM_STAGE2_MAX_FLOW_TIME": "{0:g}".format(max(ladder)),
             "TLTM_STAGE2_NUM_REPLICAS": str(len(ladder)),
@@ -234,6 +279,38 @@ def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, c
             "CONSTRAINT_FAIL_CAPTURE_START_SAMPLE": "2147483647",
         }
     )
+    if init_snapshot_file is not None:
+        env.update(
+            {
+                "TLTM_STAGE2_INIT_SNAPSHOT_FILE": str(init_snapshot_file),
+                "TLTM_STAGE2_INIT_MODE": "snapshot",
+                "TLTM_STAGE2_RESTART_BOUNDARY_POLICY": args.restart_boundary_policy,
+            }
+        )
+    elif init_flow_bank_root is not None:
+        env.update(
+            {
+                "TLTM_STAGE2_INITIAL_FLOW_BANK_DIR": str(init_flow_bank_root),
+                "TLTM_STAGE2_INITIAL_FLOW_BANK_RECORD": str(record_idx),
+                "TLTM_STAGE2_INIT_MODE": "flow_bank",
+            }
+        )
+    else:
+        env.update(
+            {
+                "TLTM_STAGE2_INITIAL_X_FILE": str(bank_file),
+                "TLTM_STAGE2_INITIAL_X_RECORD": str(record_idx),
+                "TLTM_STAGE2_INIT_MODE": "adaptive",
+                "TLTM_STAGE2_INIT_PREFLOW_TRAJECTORY_LENGTH": "{0:g}".format(args.preflow_L),
+                "TLTM_STAGE2_INIT_PREFLOW_INTEGRATION_STEPS": str(args.preflow_nstep),
+                "TLTM_STAGE2_INIT_PREFLOW_MAX_STAGES": str(args.max_preflow_stages),
+                "TLTM_STAGE2_INIT_PREFLOW_MAX_SHRINKS": str(args.max_preflow_shrinks),
+            }
+        )
+    if args.write_final_snapshot:
+        env["TLTM_STAGE2_SNAPSHOT_FILE"] = str(final_snapshot_file)
+    if args.write_cold_x_history:
+        env["TLTM_STAGE2_COLD_X_HISTORY_FILE"] = str(chain_dir / "x_history.dat")
     if args.write_cold_observables:
         env.update(
             {
@@ -286,6 +363,11 @@ def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, c
         "preflow_L": args.preflow_L,
         "preflow_nstep": args.preflow_nstep,
         **metrics,
+        "init_snapshot_file": str(init_snapshot_file) if init_snapshot_file is not None else "",
+        "init_flow_bank_root": str(init_flow_bank_root) if init_flow_bank_root is not None else "",
+        "init_flow_bank_record": record_idx if init_flow_bank_root is not None else "",
+        "final_snapshot_file": str(final_snapshot_file) if args.write_final_snapshot else "",
+        "restart_boundary_policy": args.restart_boundary_policy if init_snapshot_file is not None else "",
         "summary_file": str(chain_dir / "summary.dat"),
         "log_file": str(log_file),
     }
@@ -321,7 +403,14 @@ def main():
     ladder = parse_float_list(args.ladder)
     if len(ladder) < 2:
         raise RuntimeError("TLTM ladder needs at least two replicas.")
-    validate_bank_records(bank_file, args.bank_index_file, records)
+    if args.init_snapshot_file and len(records) != 1:
+        raise RuntimeError("--init-snapshot-file is only valid for a single record.")
+    if args.init_snapshot_file and args.init_snapshot_root:
+        raise RuntimeError("Use either --init-snapshot-file or --init-snapshot-root, not both.")
+    if args.init_flow_bank_root and (args.init_snapshot_file or args.init_snapshot_root):
+        raise RuntimeError("Use either snapshot initialization or flow-bank initialization, not both.")
+    if not (args.init_snapshot_file or args.init_snapshot_root or args.init_flow_bank_root):
+        validate_bank_records(bank_file, args.bank_index_file, records)
     run_build(repo_root, args.skip_build)
     params_out = run_dir / "parameters.dat"
     hmc_l = write_parameters(params_file.read_text(encoding="utf-8"), params_out, ladder, args)

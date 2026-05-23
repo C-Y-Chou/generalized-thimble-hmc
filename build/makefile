@@ -209,6 +209,7 @@ APP_TLTM_STAGE1 = apps/run_tltm_stage1
 APP_TLTM_STAGE2 = apps/run_tltm_stage2
 APP_BTN_RESIDUAL = apps/evaluate_btn_residual_case
 APP_FLOWZ_REPLAY = apps/replay_flowz_cases
+APP_FLOW_BANK_DENSE = apps/build_flow_bank_dense
 
 COMMON_SRC   = $(CORE_SRC) $(CONFIG_SRC) $(PHYSICS_SRC) $(SAMPLER_SRC)
 
@@ -224,6 +225,7 @@ SOURCES_STEP9  := $(SOURCES_COMMON) $(call mk_src,$(APP_TLTM_STAGE1))
 SOURCES_STEP10 := $(SOURCES_COMMON) $(call mk_src,$(APP_TLTM_STAGE2))
 SOURCES_BTN_RESIDUAL := $(SOURCES_COMMON) $(call mk_src,$(APP_BTN_RESIDUAL))
 SOURCES_FLOWZ_REPLAY := $(call mk_src,$(CORE_SRC) $(CONFIG_SRC) $(PHYSICS_SRC) $(APP_FLOWZ_REPLAY))
+SOURCES_FLOW_BANK_DENSE := $(call mk_src,$(CORE_SRC) $(CONFIG_SRC) $(PHYSICS_SRC) $(APP_FLOW_BANK_DENSE))
 SOURCES_TEST1  := $(SOURCES_COMMON) $(TEST_DIR)/test_hamiltonian_conservation.f90
 SOURCES_TEST2  := $(SOURCES_COMMON) $(TEST_DIR)/test_action_derivatives.f90
 SOURCES_TEST_ODEX := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_solver.f90
@@ -242,7 +244,7 @@ SOURCES_TEST_TLTM_RNG := $(call mk_src,core/mtdefs core/mt95 core/tltm_rng) $(TE
 SOURCES_TEST_PERF_PROFILE := $(call mk_src,$(LINALG_FALLBACK_SRC) core/utils config/runtime_env_mod core/perf_profile) $(TEST_DIR)/test_perf_profile_context_contract.f90
 SOURCES_TEST_NUMERICAL_HELPERS := $(SOURCES_COMMON) $(TEST_DIR)/test_numerical_helper_contracts.f90
 SOURCES_TEST_HMC_REVERSIBILITY := $(call mk_src,$(LINALG_FALLBACK_SRC) core/utils config/runtime_env_mod sampler/hmc_reversibility_checks) $(TEST_DIR)/test_hmc_reversibility_context_contract.f90
-SOURCES_TEST_NEWTON_FLOW_STATUS := $(call mk_src,core/mtdefs core/mt95 core/tltm_rng $(LINALG_FALLBACK_SRC) core/utils core/perf_profile config/runtime_env_mod config/param_mod physics/model_stephanov physics/model physics/odex_backend physics/solve_flow sampler/hmc_constraints) $(TEST_DIR)/test_newton_eval_flow_status_context_contract.f90
+SOURCES_TEST_NEWTON_FLOW_STATUS := $(call mk_src,core/mtdefs core/mt95 core/tltm_rng $(LINALG_FALLBACK_SRC) core/utils core/perf_profile config/runtime_env_mod config/param_mod physics/model_stephanov physics/model physics/odex_backend physics/solve_flow sampler/hmc_kernels sampler/hmc_constraints) $(TEST_DIR)/test_newton_eval_flow_status_context_contract.f90
 SOURCES_TEST_RETAINED_NEWTON := $(SOURCES_COMMON) $(TEST_DIR)/test_retained_core_newton_contract.f90
 SOURCES_TEST_RETAINED_RATTLE_RG := $(SOURCES_COMMON) $(TEST_DIR)/test_retained_core_rattle_rg_contract.f90
 SOURCES_TEST_RETAINED_QN_ROUTE := $(SOURCES_COMMON) $(TEST_DIR)/test_retained_core_qn_route_contract.f90
@@ -265,6 +267,7 @@ OBJECTS_STEP9 := $(call src_to_obj,$(SOURCES_STEP9)) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_STEP10 := $(call src_to_obj,$(SOURCES_STEP10)) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_BTN_RESIDUAL := $(call src_to_obj,$(SOURCES_BTN_RESIDUAL)) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_FLOWZ_REPLAY := $(call src_to_obj,$(SOURCES_FLOWZ_REPLAY))
+OBJECTS_FLOW_BANK_DENSE := $(call src_to_obj,$(SOURCES_FLOW_BANK_DENSE))
 OBJECTS_TEST1 := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST1))) \
                  $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST1))) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_TEST2 := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST2))) \
@@ -318,6 +321,7 @@ OBJECTS_STEP9 += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_STEP10 += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_BTN_RESIDUAL += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_FLOWZ_REPLAY += $(SUNDIALS_CVODE_C_OBJECT)
+OBJECTS_FLOW_BANK_DENSE += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST1 += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST2 += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST_ODEX += $(SUNDIALS_CVODE_C_OBJECT)
@@ -348,6 +352,7 @@ OBJECTS_STEP9 += $(LINALG_MODE_STAMP)
 OBJECTS_STEP10 += $(LINALG_MODE_STAMP)
 OBJECTS_BTN_RESIDUAL += $(LINALG_MODE_STAMP)
 OBJECTS_FLOWZ_REPLAY += $(LINALG_MODE_STAMP)
+OBJECTS_FLOW_BANK_DENSE += $(LINALG_MODE_STAMP)
 OBJECTS_TEST1 += $(LINALG_MODE_STAMP)
 OBJECTS_TEST2 += $(LINALG_MODE_STAMP)
 OBJECTS_TEST_ODEX += $(LINALG_MODE_STAMP)
@@ -373,6 +378,7 @@ OBJECTS_TEST_RETAINED_QN_ROUTE += $(LINALG_MODE_STAMP)
 OBJECTS_TEST_RETAINED_RG_REJECT += $(LINALG_MODE_STAMP)
 
 SOURCES_DEP := $(sort $(SOURCES_STEP2) $(SOURCES_STEP3) $(SOURCES_STEP9) $(SOURCES_BTN_RESIDUAL) $(SOURCES_FLOWZ_REPLAY) \
+                $(SOURCES_FLOW_BANK_DENSE) \
                 $(SOURCES_STEP10) $(SOURCES_TEST1) $(SOURCES_TEST2) $(SOURCES_TEST_ODEX) \
                 $(SOURCES_TEST_ODEX_FOUNDATION) $(SOURCES_TEST_ODEX_ASSIST_POLICY) \
                 $(SOURCES_TEST_ODEX_RESULT) $(SOURCES_TEST_ODEX_FLOW_JAC) \
@@ -399,7 +405,7 @@ endif
 # executables
 BINARIES     = generate_markov_chain evaluate_expectations \
                run_tltm_stage1 run_tltm_stage2 \
-               evaluate_btn_residual_case replay_flowz_cases \
+               evaluate_btn_residual_case replay_flowz_cases build_flow_bank_dense \
                test_program test_program2 test_odex_solver test_odex_foundation_contract \
                test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract \
                test_odex_backend_package_contract test_odex_controller_observation_contract \
@@ -420,7 +426,7 @@ EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 .DEFAULT_GOAL := all
 override FFLAGS := $(FFLAGS_OPT) $(FFLAGS_INC)
 
-.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_odex_controller_observation_contract test_odex_controller_alignment_spec test_sundials_cvode_backend_contract test_official_dfols_preset_contract evaluate_btn_residual_case replay_flowz_cases test_tltm_swap_kernel_contract test_mt95_state_contract test_tltm_rng_contract test_perf_profile_context_contract test_numerical_helper_contracts test_hmc_reversibility_context_contract test_newton_eval_flow_status_context_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails f14_pre_redo_complete_gate official_line_kernel_correctness_gate post_b_rng_reference_anchor stage2_rng_v2_anchor script_evidence_audit_gate precision_readiness_audit FORCE \
+.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_odex_controller_observation_contract test_odex_controller_alignment_spec test_sundials_cvode_backend_contract test_official_dfols_preset_contract evaluate_btn_residual_case replay_flowz_cases build_flow_bank_dense test_tltm_swap_kernel_contract test_mt95_state_contract test_tltm_rng_contract test_perf_profile_context_contract test_numerical_helper_contracts test_hmc_reversibility_context_contract test_newton_eval_flow_status_context_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails f14_pre_redo_complete_gate official_line_kernel_correctness_gate post_b_rng_reference_anchor stage2_rng_v2_anchor script_evidence_audit_gate precision_readiness_audit FORCE \
         test1_fb_on test1_fb_off test2_fb_on test2_fb_off test_fb_matrix \
         prepare_outputs clean_outputs clean veryclean
 all: $(EXECUTABLES)
@@ -483,6 +489,9 @@ $(BIN_DIR)/evaluate_btn_residual_case: $(OBJECTS_BTN_RESIDUAL) $(OFFICIAL_DFOLS_
 	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
 
 $(BIN_DIR)/replay_flowz_cases: $(OBJECTS_FLOWZ_REPLAY) | $(BIN_DIR)
+	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
+
+$(BIN_DIR)/build_flow_bank_dense: $(OBJECTS_FLOW_BANK_DENSE) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
 
 $(BIN_DIR)/test_program: $(OBJECTS_TEST1) $(OFFICIAL_DFOLS_MODE_STAMP) | $(BIN_DIR)
@@ -632,6 +641,9 @@ evaluate_btn_residual_case: $(BIN_DIR)/evaluate_btn_residual_case
 
 replay_flowz_cases: $(BIN_DIR)/replay_flowz_cases
 	@echo "[DONE] Built $(BIN_DIR)/replay_flowz_cases"
+
+build_flow_bank_dense: $(BIN_DIR)/build_flow_bank_dense
+	@echo "[DONE] Built $(BIN_DIR)/build_flow_bank_dense"
 
 TLTM_STAGE1_NUM_REPLICAS ?= 2
 TLTM_STAGE1_CYCLES ?= 20
