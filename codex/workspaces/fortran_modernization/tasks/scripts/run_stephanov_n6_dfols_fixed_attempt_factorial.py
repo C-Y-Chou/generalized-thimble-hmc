@@ -3,7 +3,9 @@
 
 This is an offline tuning tool.  It deliberately reuses the same captured QN
 attempts for every DFO-LS policy so parameter effects are paired by attempt and
-can expose interactions.  It is not a production HMC trajectory runner.
+can expose interactions.  Ranking is tolerance-gated: residual values below
+the requested tolerance are diagnostics, not improvements.  It is not a
+production HMC trajectory runner.
 """
 
 import argparse
@@ -45,6 +47,7 @@ def parse_args():
     parser.add_argument("--python", default="")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--summarize-only", action="store_true", help="Reuse existing per-record replay CSVs and rewrite summaries.")
     return parser.parse_args()
 
 
@@ -165,6 +168,19 @@ def finite_values(rows, key):
     return values
 
 
+def is_success(row):
+    return to_int(row, "residual_success", 0) == 1 and not row.get("error", "").strip()
+
+
+def is_maxfun_exhausted(row, maxfun_limit):
+    message = row.get("dfols_message", "")
+    if "MAXFUN" in message.upper():
+        return True
+    flag = to_int(row, "dfols_flag", 0)
+    nf = to_float(row, "dfols_nf")
+    return flag == 1 or (math.isfinite(nf) and nf >= float(maxfun_limit) and not is_success(row))
+
+
 def percentile(values, q):
     if not values:
         return float("nan")
@@ -267,8 +283,11 @@ def summarize_attempts(combos, run_root):
         n = len(combo_rows)
         success = sum(to_int(row, "residual_success", 0) for row in combo_rows)
         errors = sum(1 for row in combo_rows if row.get("error", "").strip())
+        maxfun_limit = int(float(combo["maxfun"]))
+        maxfun_exhausted = sum(1 for row in combo_rows if is_maxfun_exhausted(row, maxfun_limit))
         final_res = finite_values(combo_rows, "final_residual_norm")
         nf = finite_values(combo_rows, "dfols_nf")
+        success_nf = [to_float(row, "dfols_nf") for row in combo_rows if is_success(row) and math.isfinite(to_float(row, "dfols_nf"))]
         log_res = [math.log10(max(value, 1.0e-300)) for value in final_res if value >= 0.0]
         float64_ok = sum(to_int(row, "float64_contract", 0) for row in combo_rows)
         summary = dict(combo)
@@ -276,9 +295,15 @@ def summarize_attempts(combos, run_root):
             {
                 "attempt_count": str(n),
                 "success_count": str(success),
+                "failure_count": str(n - success),
                 "success_fraction": fmt_float(float(success) / float(n)) if n else "",
+                "maxfun_exhausted_count": str(maxfun_exhausted),
+                "maxfun_exhausted_fraction": fmt_float(float(maxfun_exhausted) / float(n)) if n else "",
                 "error_count": str(errors),
                 "float64_contract_count": str(float64_ok),
+                "success_nf_median": fmt_float(percentile(success_nf, 0.50)),
+                "success_nf_p90": fmt_float(percentile(success_nf, 0.90)),
+                "success_nf_mean": fmt_float(sum(success_nf) / float(len(success_nf)) if success_nf else float("nan")),
                 "final_res_median": fmt_float(percentile(final_res, 0.50)),
                 "final_res_p90": fmt_float(percentile(final_res, 0.90)),
                 "final_res_max": fmt_float(max(final_res) if final_res else float("nan")),
@@ -301,7 +326,7 @@ def metric_value(row, metric):
 
 
 def interaction_rows(summary_rows, factors):
-    metrics = ["success_fraction", "log10_final_res_mean", "dfols_nf_mean"]
+    metrics = ["success_fraction", "maxfun_exhausted_fraction", "success_nf_mean", "dfols_nf_mean"]
     rows = []
     for metric in metrics:
         valid = [row for row in summary_rows if math.isfinite(metric_value(row, metric))]
@@ -366,13 +391,24 @@ def main():
     run_group = args.run_group or datetime.now(tz=timezone.utc).strftime("stephanov_n6_dfols_fixed_attempt_factorial_%Y%m%dT%H%M%SZ")
     run_root = output_root / run_group
 
-    if run_root.exists() and not args.force and not args.dry_run:
+    if run_root.exists() and not args.force and not args.dry_run and not args.summarize_only:
         raise RuntimeError("Output root exists; use --force: {0}".format(run_root))
     run_root.mkdir(parents=True, exist_ok=True)
 
     combos = build_grid(args)
     records = record_dirs(capture_root, args.records)
     tasks = [(combo, record_dir) for combo in combos for record_dir in records]
+    if args.summarize_only:
+        summary_rows, attempt_rows = summarize_attempts(combos, run_root)
+        write_csv(run_root / "fixed_attempt_factorial_summary.csv", summary_rows)
+        write_csv(run_root / "fixed_attempt_factorial_attempts.csv", attempt_rows)
+        factors = ["npt", "rhobeg", "rhoend", "model_abs_tol", "model_rel_tol", "objfun_has_noise"]
+        write_csv(run_root / "fixed_attempt_factorial_effects.csv", interaction_rows(summary_rows, factors))
+        print(run_root / "fixed_attempt_factorial_summary.csv")
+        print(run_root / "fixed_attempt_factorial_effects.csv")
+        print(run_root / "fixed_attempt_factorial_attempts.csv")
+        return 0
+
     plan_rows = []
     for combo, record_dir in tasks:
         row = dict(combo)
