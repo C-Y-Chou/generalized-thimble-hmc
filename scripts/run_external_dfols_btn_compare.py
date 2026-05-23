@@ -18,6 +18,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+for thread_env_name in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+    os.environ.setdefault(thread_env_name, "1")
+
 import numpy as np
 
 
@@ -56,6 +59,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--case-dir", type=Path, required=True)
     parser.add_argument("--bridge-bin", type=Path, default=Path("bin/evaluate_btn_residual_case"))
+    parser.add_argument(
+        "--parameters-file",
+        type=Path,
+        default=None,
+        help="Optional TLTM parameter file passed to the bridge residual oracle.",
+    )
     parser.add_argument("--capture-prefix", default="constraint_solver_fail")
     parser.add_argument(
         "--seed-source",
@@ -183,6 +192,7 @@ def run_bridge(
     bridge_bin: Path,
     case_dir: Path,
     capture_prefix: str,
+    parameters_file: Path | None,
     mode: str,
     sample_idx: int,
     xi: np.ndarray | None = None,
@@ -195,6 +205,8 @@ def run_bridge(
 
     env = os.environ.copy()
     env["BTN_CAPTURE_PREFIX"] = capture_prefix
+    if parameters_file is not None:
+        env["TLTM_PARAMETERS_FILE"] = str(parameters_file)
     proc = subprocess.run(cmd, cwd=repo_root, text=True, capture_output=True, check=False, env=env)
     lines = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
     result_lines = [line for line in lines if line.startswith("OK ") or line.startswith("ERROR ")]
@@ -209,8 +221,15 @@ def run_bridge(
     return result_lines[-1].split()
 
 
-def bridge_seed(repo_root: Path, bridge_bin: Path, case_dir: Path, capture_prefix: str, sample_idx: int) -> BridgeSeed:
-    parts = run_bridge(repo_root, bridge_bin, case_dir, capture_prefix, "seed", sample_idx)
+def bridge_seed(
+    repo_root: Path,
+    bridge_bin: Path,
+    case_dir: Path,
+    capture_prefix: str,
+    parameters_file: Path | None,
+    sample_idx: int,
+) -> BridgeSeed:
+    parts = run_bridge(repo_root, bridge_bin, case_dir, capture_prefix, parameters_file, "seed", sample_idx)
     if len(parts) < 6 or parts[1] != "seed":
         raise BridgeError(f"Unexpected seed output: {' '.join(parts)}")
     n = int(parts[3])
@@ -231,11 +250,12 @@ def bridge_residual(
     bridge_bin: Path,
     case_dir: Path,
     capture_prefix: str,
+    parameters_file: Path | None,
     sample_idx: int,
     xi: np.ndarray,
 ) -> BridgeResidual:
     xi = np.asarray(xi, dtype=np.float64)
-    parts = run_bridge(repo_root, bridge_bin, case_dir, capture_prefix, "residual", sample_idx, xi)
+    parts = run_bridge(repo_root, bridge_bin, case_dir, capture_prefix, parameters_file, "residual", sample_idx, xi)
     if len(parts) < 9 or parts[1] != "residual":
         raise BridgeError(f"Unexpected residual output: {' '.join(parts)}")
     n = int(parts[3])
@@ -278,10 +298,11 @@ def resolve_seed(
     bridge_bin: Path,
     case_dir: Path,
     capture_prefix: str,
+    parameters_file: Path | None,
     seed_source: str,
     sample_idx: int,
 ) -> BridgeSeed:
-    bridge = bridge_seed(repo_root, bridge_bin, case_dir, capture_prefix, sample_idx)
+    bridge = bridge_seed(repo_root, bridge_bin, case_dir, capture_prefix, parameters_file, sample_idx)
     xi0_path = case_dir / f"{capture_prefix}_xi0.dat"
     use_capture = seed_source == "capture" or (seed_source == "auto" and xi0_path.exists())
     if not use_capture:
@@ -353,6 +374,7 @@ def main() -> int:
     repo_root = args.repo_root.resolve()
     case_dir = resolve_repo_path(repo_root, args.case_dir).resolve()
     bridge_bin = resolve_repo_path(repo_root, args.bridge_bin).resolve()
+    parameters_file = resolve_repo_path(repo_root, args.parameters_file).resolve() if args.parameters_file else None
     out_csv = resolve_repo_path(repo_root, args.out_csv)
     diagnostic_dir = resolve_repo_path(repo_root, args.diagnostic_dir) if args.diagnostic_dir else None
 
@@ -368,8 +390,16 @@ def main() -> int:
         }
         call_dtypes: list[np.dtype] = []
         try:
-            seed = resolve_seed(repo_root, bridge_bin, case_dir, args.capture_prefix, args.seed_source, sample_idx)
-            initial = bridge_residual(repo_root, bridge_bin, case_dir, args.capture_prefix, sample_idx, seed.xi0)
+            seed = resolve_seed(
+                repo_root,
+                bridge_bin,
+                case_dir,
+                args.capture_prefix,
+                parameters_file,
+                args.seed_source,
+                sample_idx,
+            )
+            initial = bridge_residual(repo_root, bridge_bin, case_dir, args.capture_prefix, parameters_file, sample_idx, seed.xi0)
             if seed.xi0.dtype != np.float64 or initial.fq.dtype != np.float64:
                 raise TypeError("Bridge seed/residual dtype is not float64.")
 
@@ -377,7 +407,7 @@ def main() -> int:
                 if x.dtype != np.float64:
                     raise TypeError(f"DFO-LS passed non-float64 x dtype: {x.dtype}")
                 call_dtypes.append(x.dtype)
-                residual = bridge_residual(repo_root, bridge_bin, case_dir, args.capture_prefix, sample_idx, x).fq
+                residual = bridge_residual(repo_root, bridge_bin, case_dir, args.capture_prefix, parameters_file, sample_idx, x).fq
                 if residual.dtype != np.float64:
                     raise TypeError(f"Bridge returned non-float64 residual dtype: {residual.dtype}")
                 return residual
@@ -404,7 +434,7 @@ def main() -> int:
 
             soln = dfols.solve(objfun, seed.xi0, **solve_kwargs)
             solution = np.asarray(soln.x, dtype=np.float64)
-            final = bridge_residual(repo_root, bridge_bin, case_dir, args.capture_prefix, sample_idx, solution)
+            final = bridge_residual(repo_root, bridge_bin, case_dir, args.capture_prefix, parameters_file, sample_idx, solution)
             float64_contract = (
                 seed.xi0.dtype == np.float64
                 and all(dtype == np.float64 for dtype in call_dtypes)
