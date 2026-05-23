@@ -638,6 +638,7 @@ TLTM_RUN_GROUP=stephanov_n6_tltm_t003_ladder13_flowbank_smoke_20260523
 TLTM_CHUNK_NAME=smoke
 TLTM_RECORDS_SPEC=0
 TLTM_CYCLES=1
+TLTM_BUILD_IN_JOB=1
 ```
 
 4. Submit the four production chunks above when the smoke confirms:
@@ -648,6 +649,11 @@ swap_reflow_backend=direct
 local_reflow_cache_mode=none
 all requested cache slots exist before execution
 ```
+
+The build smoke is the first-use binary refresh for the remote worktree after a
+new commit.  After it passes, production chunks can leave `TLTM_BUILD_IN_JOB=0`
+and reuse the refreshed `bin/run_tltm_stage2`; do not submit multiple chunk jobs
+that all run `make clean` in the shared build directory.
 
 ## Notes For The Next Agent
 
