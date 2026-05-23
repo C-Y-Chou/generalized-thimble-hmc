@@ -54,6 +54,13 @@ def parse_args():
     parser.add_argument("--all-replica-observable-max-samples", type=int, default=-1)
     parser.add_argument("--write-final-snapshot", action="store_true")
     parser.add_argument(
+        "--qn-attempt-capture-root",
+        default="",
+        help="Optional root for per-record QN attempt capture directories.",
+    )
+    parser.add_argument("--qn-attempt-capture-limit", type=int, default=0)
+    parser.add_argument("--qn-attempt-capture-stride", type=int, default=1)
+    parser.add_argument(
         "--init-snapshot-root",
         default="",
         help="Run root containing records/record_XXXX/final_snapshot.bin files for continuation.",
@@ -126,6 +133,13 @@ def resolve_init_flow_bank_root(repo_root, args):
     if not args.init_flow_bank_root:
         return None
     return resolve_repo_path(repo_root, args.init_flow_bank_root).resolve()
+
+
+def resolve_qn_capture_dir(repo_root, run_dir, args, record_idx):
+    if not args.qn_attempt_capture_root:
+        return None
+    root = resolve_repo_path(repo_root, args.qn_attempt_capture_root).resolve()
+    return root / "record_{0:04d}".format(record_idx)
 
 
 def set_param(lines, key, value):
@@ -252,6 +266,7 @@ def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, c
     init_snapshot_file = resolve_init_snapshot_file(repo_root, args, record_idx)
     init_flow_bank_root = resolve_init_flow_bank_root(repo_root, args)
     final_snapshot_file = chain_dir / "final_snapshot.bin"
+    qn_capture_dir = resolve_qn_capture_dir(repo_root, run_dir, args, record_idx)
     if init_snapshot_file is not None and not init_snapshot_file.exists():
         raise RuntimeError("Init snapshot file does not exist: {0}".format(init_snapshot_file))
     if init_flow_bank_root is not None and not init_flow_bank_root.exists():
@@ -314,6 +329,11 @@ def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, c
         )
     if args.write_final_snapshot:
         env["TLTM_STAGE2_SNAPSHOT_FILE"] = str(final_snapshot_file)
+    if qn_capture_dir is not None:
+        qn_capture_dir.mkdir(parents=True, exist_ok=True)
+        env["QN_ATTEMPT_CAPTURE_DIR"] = str(qn_capture_dir)
+        env["QN_ATTEMPT_CAPTURE_LIMIT"] = str(args.qn_attempt_capture_limit)
+        env["QN_ATTEMPT_CAPTURE_STRIDE"] = str(max(1, args.qn_attempt_capture_stride))
     if args.write_cold_x_history:
         env["TLTM_STAGE2_COLD_X_HISTORY_FILE"] = str(chain_dir / "x_history.dat")
     if args.write_cold_observables:
@@ -373,6 +393,8 @@ def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, c
         "init_flow_bank_root": str(init_flow_bank_root) if init_flow_bank_root is not None else "",
         "init_flow_bank_record": record_idx if init_flow_bank_root is not None else "",
         "final_snapshot_file": str(final_snapshot_file) if args.write_final_snapshot else "",
+        "qn_attempt_capture_dir": str(qn_capture_dir) if qn_capture_dir is not None else "",
+        "qn_attempt_capture_meta_file": str(qn_capture_dir / "qn_attempt_meta.csv") if qn_capture_dir is not None else "",
         "restart_boundary_policy": args.restart_boundary_policy if init_snapshot_file is not None else "",
         "summary_file": str(chain_dir / "summary.dat"),
         "log_file": str(log_file),
