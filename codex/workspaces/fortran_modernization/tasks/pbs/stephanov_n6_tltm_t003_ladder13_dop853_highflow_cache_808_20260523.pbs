@@ -1,0 +1,159 @@
+#!/bin/bash
+#PBS -N stn6cache
+#PBS -q C8
+#PBS -l select=1:ncpus=8:mpiprocs=8:mem=16gb
+#PBS -l walltime=02:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  # shellcheck source=/dev/null
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization}"
+: "${TLTM_EXPECTED_GIT_BRANCH:=codex/fortran-modernization}"
+: "${TLTM_EXPECTED_GIT_COMMIT:=}"
+: "${TLTM_BANK_PACKAGE:=stephanov_n6_tltm_t003_ladder13_dop853_highflow_bank_8x600_20260523_xhist_b100_s5}"
+: "${TLTM_BANK_ROOT:=output/stephanov_flow_banks/${TLTM_BANK_PACKAGE}/bank}"
+: "${TLTM_CACHE_NAME:=flow_bank_ladder13_dop853_dense_cache}"
+: "${TLTM_CACHE_ROOT:=output/stephanov_flow_banks/${TLTM_BANK_PACKAGE}/${TLTM_CACHE_NAME}}"
+: "${TLTM_LOG_ROOT:=output/logs/stephanov_flow_bank_caches/${TLTM_BANK_PACKAGE}/${TLTM_CACHE_NAME}}"
+: "${TLTM_RECORD_START:=0}"
+: "${TLTM_RECORD_COUNT:=auto}"
+: "${TLTM_RECORD_STRIDE:=1}"
+: "${TLTM_TARGET_TIMES:=0,0.001,0.003,0.007,0.010,0.013,0.016,0.018,0.020,0.0225,0.025,0.0275,0.030}"
+
+cd "${TLTM_WORKTREE}"
+mkdir -p "${TLTM_LOG_ROOT}"
+exec > "${TLTM_LOG_ROOT}/pbs_boot_${PBS_JOBID:-manual}.log" 2>&1
+
+echo "RUN_DATE=$(date -Is)"
+echo "HOSTNAME=$(hostname)"
+echo "PBS_JOBID=${PBS_JOBID:-manual}"
+echo "PBS_QUEUE=${PBS_QUEUE:-unknown}"
+echo "TLTM_WORKTREE=${TLTM_WORKTREE}"
+echo "TLTM_BANK_ROOT=${TLTM_BANK_ROOT}"
+echo "TLTM_CACHE_ROOT=${TLTM_CACHE_ROOT}"
+echo "TLTM_TARGET_TIMES=${TLTM_TARGET_TIMES}"
+
+if [ -z "${TLTM_EXPECTED_GIT_COMMIT}" ]; then
+  echo "[ERROR] TLTM_EXPECTED_GIT_COMMIT is required. Submit with qsub -v TLTM_EXPECTED_GIT_COMMIT=<commit>." >&2
+  exit 2
+fi
+
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+CURRENT_COMMIT="$(git rev-parse HEAD)"
+echo "GIT_BRANCH=${CURRENT_BRANCH}"
+echo "GIT_COMMIT=${CURRENT_COMMIT}"
+echo "EXPECTED_GIT_COMMIT=${TLTM_EXPECTED_GIT_COMMIT}"
+if [ "${CURRENT_BRANCH}" != "${TLTM_EXPECTED_GIT_BRANCH}" ]; then
+  echo "[ERROR] expected branch ${TLTM_EXPECTED_GIT_BRANCH}, got ${CURRENT_BRANCH}" >&2
+  exit 2
+fi
+if [ "${CURRENT_COMMIT}" != "${TLTM_EXPECTED_GIT_COMMIT}" ]; then
+  echo "[ERROR] expected commit ${TLTM_EXPECTED_GIT_COMMIT}, got ${CURRENT_COMMIT}" >&2
+  exit 2
+fi
+if [ -n "$(git status --porcelain)" ]; then
+  echo "[ERROR] working tree is dirty; refusing flow-bank cache build" >&2
+  git status --short >&2
+  exit 2
+fi
+
+# Configure Python.h/libpython for the official DFO-LS C bridge on cluster02.
+# shellcheck source=/dev/null
+. codex/workspaces/fortran_modernization/tasks/scripts/python_embed_env.sh
+
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export OMP_PROC_BIND=false
+
+export TLTM_PARAMETERS_FILE=data/parameters_stephanov_n6_mu06_t1e6_eps010_nstep6.dat
+export TLTM_ODE_BACKEND=dop853
+export TLTM_DOP853_HINIT_ENABLED=1
+export TLTM_DOP853_STIFFNESS_CHECK_ENABLED=1
+export TLTM_DOP853_STIFFNESS_CHECK_INTERVAL=1000
+export TLTM_DOP853_STIFFNESS_MAX_HITS=15
+export TLTM_DOP853_STIFFNESS_THRESHOLD=6.1
+
+if [ ! -f "${TLTM_BANK_ROOT}/x_bank.dat" ] || [ ! -f "${TLTM_BANK_ROOT}/x_bank_index.csv" ]; then
+  echo "[ERROR] high-flow x bank is missing under ${TLTM_BANK_ROOT}" >&2
+  exit 2
+fi
+
+if [ "${TLTM_RECORD_COUNT}" = "auto" ]; then
+  TLTM_RECORD_COUNT="$(tail -n +2 "${TLTM_BANK_ROOT}/x_bank_index.csv" | wc -l | tr -d ' ')"
+fi
+echo "TLTM_RECORD_START=${TLTM_RECORD_START}"
+echo "TLTM_RECORD_COUNT=${TLTM_RECORD_COUNT}"
+echo "TLTM_RECORD_STRIDE=${TLTM_RECORD_STRIDE}"
+TLTM_TARGET_COUNT="$(python3 - "${TLTM_TARGET_TIMES}" <<'PY'
+import sys
+print(len([item for item in sys.argv[1].split(",") if item.strip()]))
+PY
+)"
+echo "TLTM_TARGET_COUNT=${TLTM_TARGET_COUNT}"
+
+make -C build OMP=1 PYTHON="${PYTHON}" PYTHON_EMBED_CFLAGS="${PYTHON_EMBED_CFLAGS}" \
+  PYTHON_EMBED_LDFLAGS="${PYTHON_EMBED_LDFLAGS}" ../bin/build_flow_bank_dense
+
+rm -rf "${TLTM_CACHE_ROOT}"
+/usr/bin/time -p bin/build_flow_bank_dense \
+  "${TLTM_BANK_ROOT}/x_bank.dat" \
+  "${TLTM_CACHE_ROOT}" \
+  "${TLTM_TARGET_TIMES}" \
+  "${TLTM_RECORD_START}" \
+  "${TLTM_RECORD_COUNT}" \
+  "${TLTM_RECORD_STRIDE}"
+
+python3 - "${TLTM_CACHE_ROOT}/diagnostics.csv" "${TLTM_RECORD_COUNT}" "${TLTM_TARGET_COUNT}" <<'PY'
+import csv
+import sys
+
+diagnostics = sys.argv[1]
+record_count = int(sys.argv[2])
+target_count = int(sys.argv[3])
+rows = 0
+bad = []
+with open(diagnostics, newline="", encoding="utf-8") as handle:
+    for row in csv.DictReader(handle):
+        rows += 1
+        if int(row["available"]) != 1 or int(row["status"]) != 0:
+            bad.append((row["source_record"], row["slot_id"], row["available"], row["status"], row["failure_reason"]))
+expected = record_count * target_count
+if rows != expected:
+    raise SystemExit(f"[ERROR] diagnostics rows={rows}, expected={expected}")
+if bad:
+    preview = bad[:10]
+    raise SystemExit(f"[ERROR] unavailable cache rows: {preview}")
+print(f"CACHE_VALIDATION rows={rows} records={record_count} targets={target_count} all_available=1")
+PY
+
+cat > "${TLTM_CACHE_ROOT}/integration_manifest.env" <<EOF
+schema=stephanov_n6_ladder13_dense_cache_v1
+created_at=$(date -Is)
+source_bank_root=${TLTM_BANK_ROOT}
+cache_root=${TLTM_CACHE_ROOT}
+target_times=${TLTM_TARGET_TIMES}
+record_start=${TLTM_RECORD_START}
+record_count=${TLTM_RECORD_COUNT}
+record_stride=${TLTM_RECORD_STRIDE}
+git_commit=${CURRENT_COMMIT}
+swap_reflow_backend_default=direct
+local_reflow_cache_mode_default=none
+EOF
+
+echo "CACHE_ROOT=${TLTM_CACHE_ROOT}"
+cat "${TLTM_CACHE_ROOT}/integration_manifest.env"

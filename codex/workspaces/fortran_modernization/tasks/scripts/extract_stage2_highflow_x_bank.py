@@ -217,7 +217,7 @@ def extract_from_x_history(run_root, records, state_size, burn_records, max_reco
                 "source_record": record,
                 "slot_id": "max",
                 "flow_time": "",
-                "cycle": raw_idx * history_stride,
+                "cycle": raw_idx,
                 "local_x_index": raw_idx,
                 "snapshot_file": "",
                 "x_history_file": str(x_file),

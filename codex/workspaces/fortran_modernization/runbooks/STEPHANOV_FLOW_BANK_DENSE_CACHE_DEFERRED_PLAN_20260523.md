@@ -567,6 +567,88 @@ Decision:
   restart banks, not assumed to work for arbitrary t0-bank states at
   `t_high=0.03`.
 
+## Integrated Stephanov `n=6` Flow-Bank Setup
+
+Status: active production setup after the high-flow bank rebuild.
+
+Completed source run:
+
+```text
+run_root=output/stephanov_flow_bank_runs/stephanov_n6_tltm_t003_ladder13_dop853_highflow_bank_8x600_20260523
+source_records=0,40,81,121,162,202,243,283
+cycles_per_source_record=600
+max_flow_time=0.03
+ladder=0,0.001,0.003,0.007,0.010,0.013,0.016,0.018,0.020,0.0225,0.025,0.0275,0.030
+```
+
+Official high-flow physical-`x` bank package:
+
+```text
+package=stephanov_n6_tltm_t003_ladder13_dop853_highflow_bank_8x600_20260523_xhist_b100_s5
+bank_root=output/stephanov_flow_banks/stephanov_n6_tltm_t003_ladder13_dop853_highflow_bank_8x600_20260523_xhist_b100_s5/bank
+selected_checkpoints=808
+state_size=72
+burn_records=100
+history_stride=5
+```
+
+Extraction note: for `x_history.dat`, `x_bank_index.csv` records the physical
+sample index as `cycle=local_x_index`.  It is not multiplied by
+`history_stride`; the stride is only the selection interval used while
+subsampling the history stream.
+
+Dense cache package:
+
+```text
+cache_root=output/stephanov_flow_banks/stephanov_n6_tltm_t003_ladder13_dop853_highflow_bank_8x600_20260523_xhist_b100_s5/flow_bank_ladder13_dop853_dense_cache
+builder_pbs=codex/workspaces/fortran_modernization/tasks/pbs/stephanov_n6_tltm_t003_ladder13_dop853_highflow_cache_808_20260523.pbs
+```
+
+Canonical production controls:
+
+```text
+init_mode=flow_bank
+init_flow_bank_root=output/stephanov_flow_banks/stephanov_n6_tltm_t003_ladder13_dop853_highflow_bank_8x600_20260523_xhist_b100_s5/flow_bank_ladder13_dop853_dense_cache
+swap_reflow_backend=direct
+local_reflow_cache_mode=none
+production_pbs=codex/workspaces/fortran_modernization/tasks/pbs/stephanov_n6_tltm_t003_ladder13_dop853_flowbank_production_8x3000_20260523.pbs
+```
+
+Default 32-seed production is four independent 8-core chunks.  The bank was
+extracted in source-record order, 101 selected checkpoints from each source
+chain, so the chunk mapping takes one checkpoint from each source chain at a
+fixed intra-chain offset:
+
+```text
+chunk00 TLTM_RECORDS_SPEC=0:101:202:303:404:505:606:707
+chunk01 TLTM_RECORDS_SPEC=25:126:227:328:429:530:631:732
+chunk02 TLTM_RECORDS_SPEC=50:151:252:353:454:555:656:757
+chunk03 TLTM_RECORDS_SPEC=75:176:277:378:479:580:681:782
+```
+
+Operational sequence:
+
+1. Regenerate the high-flow bank package after extraction-code changes, so
+   `x_bank_index.csv` and `coverage_summary.json` match the current schema.
+2. Build and validate the dense cache through the scheduler-gated cache PBS.
+3. Run a scheduler-gated one-cycle flow-bank production smoke:
+
+```text
+TLTM_RUN_GROUP=stephanov_n6_tltm_t003_ladder13_flowbank_smoke_20260523
+TLTM_CHUNK_NAME=smoke
+TLTM_RECORDS_SPEC=0
+TLTM_CYCLES=1
+```
+
+4. Submit the four production chunks above when the smoke confirms:
+
+```text
+init_flow_bank_root is recorded in tltm_ladder_summary.csv
+swap_reflow_backend=direct
+local_reflow_cache_mode=none
+all requested cache slots exist before execution
+```
+
 ## Notes For The Next Agent
 
 - DOP853 dense output is available for flow-bank generation and optional swap
