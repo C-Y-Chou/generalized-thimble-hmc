@@ -43,8 +43,9 @@ The acceleration target is initialization/restart only:
 
 ## Non-Goals
 
-- Do not use cached dense-output values inside production swap Metropolis
-  decisions until a separate endpoint-equivalence gate certifies them.
+- Do not make cached, dense-output, or continuation reflow the production
+  default until endpoint-equivalence and walltime gates certify the selected
+  ladder.
 - Do not treat a high-flow bank as an independent physics estimator.
 - Do not add Stephanov-only logic to canonical Stage2 code paths.
 - Do not replace the `t=0` bank as the canonical sampling source.
@@ -203,10 +204,36 @@ record id, matching flow time, finite `x/z/jac`, and an available target.
 Current boundary:
 
 - dense output is wired into cache generation and Stage2 initialization;
-- dense output is not used inside production swap Metropolis decisions;
+- dense single-target and continuation/cache swap reflow are opt-in production
+  diagnostics, not the default;
 - endpoint DOP853 behavior and existing `odex_integrate_endpoint*` APIs are
   unchanged;
 - Stage2 flow-bank init does not silently fall back to adaptive preflow.
+
+Optional swap reflow backends:
+
+```text
+TLTM_STAGE2_SWAP_REFLOW_BACKEND=direct
+TLTM_STAGE2_SWAP_REFLOW_BACKEND=dop853_dense
+TLTM_STAGE2_SWAP_REFLOW_BACKEND=continue_cache
+```
+
+`continue_cache` has two pieces:
+
+- low-to-high adjacent reflow continues the already-known `(z(t_low), J(t_low))`
+  endpoint forward to `t_high`, instead of restarting from physical `x` at
+  `t=0`;
+- high-to-low adjacent reflow first checks endpoint cache/history for the same
+  physical state.  Flow-bank initialization seeds all same-record ladder
+  endpoints into each slot cache, snapshots and initialization seed each slot's
+  current endpoint, and accepted swaps seed the opposite endpoint history for
+  the newly received state.  If no valid same-state history exists, the backend
+  falls back to ordinary direct endpoint reflow.
+
+Important limitation: an accepted local HMC move changes the physical state and
+invalidates prior endpoint history.  Therefore high-to-low cache hits are
+expected mainly from flow-bank initialized states, rejected local moves, and
+states that have just crossed a swap boundary.
 
 ## Operational Workflow
 
@@ -381,10 +408,13 @@ Current status:
 - snapshot continuation supports an explicit restart-boundary policy;
 - swap reflow has an optional experimental backend
   `TLTM_STAGE2_SWAP_REFLOW_BACKEND=dop853_dense`.
+- swap reflow also has an optional experimental backend
+  `TLTM_STAGE2_SWAP_REFLOW_BACKEND=continue_cache`.
 
 The canonical production default remains `TLTM_STAGE2_SWAP_REFLOW_BACKEND=direct`.
-The dense swap path must stay opt-in until it passes larger decision-equivalence
-and walltime benchmarks on the selected Stephanov ladder.
+The dense and continuation/cache swap paths must stay opt-in until they pass
+larger decision-equivalence and walltime benchmarks on the selected Stephanov
+ladder.
 
 Initial replacement test result:
 
@@ -403,6 +433,46 @@ diagnostic backend, but it should not replace direct endpoint reflow for
 production adjacent swaps.  Its performance value is in multi-target bank/cache
 construction, where one integration of a physical `x` can populate many ladder
 targets.
+
+Continuation/cache implementation result:
+
+- `solve_flow` exposes `flow_continue(t_source, t_target, z_source, J_source, ...)`.
+  It integrates the same holomorphic flow/Jacobian variational equations from
+  the known source endpoint and requires `t_target >= t_source`.
+- Stage2 `continue_cache` uses `flow_continue` for low-to-high adjacent reflow.
+  High-to-low uses the same-state endpoint cache first and direct reflow only on
+  cache miss.
+- The reflow cache capacity is now 16 endpoints per slot, enough for the current
+  pruned 13-point ladder with margin.
+- `compare_swap_reflow_backends` now reports adjacent continuation agreement
+  against direct endpoint integration.
+
+Local verification on Stephanov `n=6`, t0-bank records `0` and `40`, ladder
+`0,0.001,0.003,0.007,0.01,0.013,0.016,0.018,0.02,0.0225,0.025,0.0275,0.03`:
+
+```text
+continue_adjacent attempts=5 successes=3
+continue_adjacent_status_mismatches=0
+continue_adjacent_max_abs z jac energy=
+  2.239944E-016  5.258886E-015  2.131628E-014
+wall_sec continue_adjacent_all=1.537461
+```
+
+Additional gates run locally:
+
+```text
+make -C build FC=gfortran LDFLAGS= ../bin/run_tltm_stage2 ../bin/compare_swap_reflow_backends test_tltm_swap_kernel_contract test_tltm_swap_kernel_contract_dense
+TLTM_STAGE2_SWAP_REFLOW_BACKEND=continue_cache bin/test_tltm_swap_kernel_contract
+TLTM_STAGE2_SWAP_REFLOW_BACKEND=continue_cache ... bin/run_tltm_stage2
+git diff --check
+```
+
+The swap-kernel contract now explicitly checks both directions:
+
+- high-to-low cache lookup returns the stored endpoint exactly within the test
+  tolerance;
+- `continue_cache` preserves the swap acceptance probability and accepted state
+  movement contract.
 
 ## Notes For The Next Agent
 

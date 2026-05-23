@@ -1,7 +1,7 @@
 module solve_flow
    use param_mod, only: at, rt
    use runtime_env_mod, only: parse_int_env, parse_real_env, parse_logical_env, read_string_env
-   use utils, only: dp, complex_to_real, map_to_complex, pack_legacy_x, real_to_complex
+   use utils, only: dp, complex_to_real, map_to_complex, map_to_real, pack_legacy_x, real_to_complex
    use model, only: batched_ds_hessian_vec_available, ds, ds_hessian_vec_batch, hessian_vec
    use odex_backend, only: build_nsteps, ensure_odex_workspace_object, ode_rhs, ode_rhs_context, &
                            odex_apply_backend_name, odex_apply_controller_policy_name, &
@@ -1515,6 +1515,23 @@ contains
       end do
    end function complex_vector_has_invalid
 
+   function complex_matrix_has_invalid(values) result(has_invalid)
+      implicit none
+      complex(dp), intent(in) :: values(:, :)
+      logical :: has_invalid
+      integer :: i, j
+
+      has_invalid = .false.
+      do j = 1, size(values, 2)
+         do i = 1, size(values, 1)
+            if (.not. ieee_is_finite(real(values(i, j), dp)) .or. .not. ieee_is_finite(aimag(values(i, j)))) then
+               has_invalid = .true.
+               return
+            end if
+         end do
+      end do
+   end function complex_matrix_has_invalid
+
    logical function flow_x_z_shape_ok(x, z) result(ok)
       implicit none
       real(dp), intent(in) :: x(:)
@@ -1666,6 +1683,102 @@ contains
          call flow_at_with_workspace(flow_time, x_state, z, j, error, status, local_workspace, intode_diagnostics)
       end if
    end subroutine flow_at
+
+   subroutine flow_continue(source_flow_time, target_flow_time, z_source, j_source, z, j, error, status, &
+                            workspace, intode_diagnostics)
+      real(dp), intent(in) :: source_flow_time, target_flow_time
+      complex(dp), intent(in) :: z_source(:)
+      complex(dp), intent(in) :: j_source(:, :)
+      complex(dp), intent(inout) :: z(:)
+      complex(dp), intent(inout) :: j(:, :)
+      logical, intent(out) :: error
+      integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout), optional :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+
+      type(flow_workspace_t) :: local_workspace
+
+      if (present(workspace)) then
+         call flow_continue_with_workspace(source_flow_time, target_flow_time, z_source, j_source, z, j, error, status, &
+                                           workspace, intode_diagnostics)
+      else
+         call flow_continue_with_workspace(source_flow_time, target_flow_time, z_source, j_source, z, j, error, status, &
+                                           local_workspace, intode_diagnostics)
+      end if
+   end subroutine flow_continue
+
+   subroutine flow_continue_with_workspace(source_flow_time, target_flow_time, z_source, j_source, z, j, error, status, &
+                                           workspace, intode_diagnostics)
+      real(dp), intent(in) :: source_flow_time, target_flow_time
+      complex(dp), intent(in) :: z_source(:)
+      complex(dp), intent(in) :: j_source(:, :)
+      complex(dp), intent(inout) :: z(:)
+      complex(dp), intent(inout) :: j(:, :)
+      logical, intent(out) :: error
+      integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout) :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+
+      integer :: n, m, n_complex, n_jac, total_n
+      integer :: flow_status_local
+      real(dp) :: delta_flow_time
+      real(dp) :: t_prof
+
+      call perf_tic(t_prof)
+      call set_intode_status(status, intode_status_unknown)
+      error = .true.
+      if (size(z_source) <= 0 .or. size(z) /= size(z_source) .or. size(j_source, 1) /= size(z_source) .or. &
+          size(j_source, 2) /= size(z_source) .or. size(j, 1) /= size(z_source) .or. size(j, 2) /= size(z_source)) then
+         call set_intode_status(status, intode_status_failure_invalid)
+         call perf_toc(PERF_FLOW, t_prof)
+         return
+      end if
+      if ((.not. ieee_is_finite(source_flow_time)) .or. (.not. ieee_is_finite(target_flow_time)) .or. &
+          target_flow_time < source_flow_time .or. complex_vector_has_invalid(z_source) .or. &
+          complex_matrix_has_invalid(j_source)) then
+         call set_intode_status(status, intode_status_failure_invalid)
+         call perf_toc(PERF_FLOW, t_prof)
+         return
+      end if
+
+      delta_flow_time = target_flow_time - source_flow_time
+      if (delta_flow_time <= 10.0_dp*epsilon(1.0_dp)*max(1.0_dp, abs(source_flow_time), abs(target_flow_time))) then
+         z = z_source
+         j = j_source
+         error = .false.
+         call set_intode_status(status, intode_status_success_zero_time)
+         call perf_toc(PERF_FLOW, t_prof)
+         return
+      end if
+
+      n_complex = size(z_source)
+      n = 2*n_complex
+      n_jac = n_complex
+      m = 2*n_jac*n_jac
+      total_n = n + m
+      call ensure_real_workspace(workspace%flow_jac_y, total_n)
+      call ensure_real_workspace(workspace%flow_jac_yf, total_n)
+      call ensure_complex_workspace(workspace%flow_jac_z, n_complex)
+      call ensure_complex_workspace(workspace%flow_jac_ds, n_complex)
+      call ensure_complex_workspace_mat(workspace%flow_jac_j, n_jac, n_jac)
+      call ensure_complex_workspace_mat(workspace%flow_jac_jprod, n_jac, n_jac)
+
+      call complex_to_real(z_source, workspace%flow_jac_y(1:n))
+      call map_to_real(j_source, workspace%flow_jac_y(n + 1:total_n))
+      workspace%intode_trace%current_context = intode_ctx_flow
+      call intode_with_context(rhs_flow_jac_context, workspace%flow_jac_y(1:total_n), delta_flow_time, &
+                               workspace%flow_jac_yf(1:total_n), error, flow_status_local, workspace, intode_diagnostics)
+      workspace%intode_trace%current_context = intode_ctx_unknown
+      call set_intode_status(status, flow_status_local)
+      if (error) then
+         call perf_toc(PERF_FLOW, t_prof)
+         return
+      end if
+
+      call real_to_complex(workspace%flow_jac_yf(1:n), z)
+      call map_to_complex(workspace%flow_jac_yf(n + 1:total_n), j)
+      call perf_toc(PERF_FLOW, t_prof)
+   end subroutine flow_continue_with_workspace
 
    subroutine flow_at_dense_targets(target_times, x_state, z_targets, j_targets, target_available, error, status, &
                                     workspace, intode_diagnostics, result_state)

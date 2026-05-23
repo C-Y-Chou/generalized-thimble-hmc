@@ -3,7 +3,8 @@ program test_tltm_swap_kernel_contract
    use mt95, only: mt95_seed_state, mt95_state_t
    use markovchain_phase, only: compute_phase_factor
    use solve_flow, only: flow_at, intode_status_is_strict_success, intode_status_unknown
-   use tltm_stage2_driver, only: attempt_adjacent_swap, compute_effective_energy, reset_stage2_production_instrumentation
+   use tltm_stage2_driver, only: attempt_adjacent_swap, compute_effective_energy, reflow_slot_to_time, &
+                                 reset_stage2_production_instrumentation, store_slot_reflow_cache
    use tltm_run_context_mod, only: release_tltm_run_context, tltm_run_context_t
    use tltm_types_mod, only: allocate_tltm_slot, release_tltm_slot, tltm_pair_stats_t, tltm_slot_t
    use utils, only: dp
@@ -21,12 +22,13 @@ program test_tltm_swap_kernel_contract
    type(tltm_run_context_t) :: run_context_a, run_context_b
    integer :: i, n_seed, x_size
    real(dp), allocatable :: seed_a(:), seed_b(:)
-   real(dp), allocatable :: x_a0(:), x_b0(:), x_ap(:), x_bp(:)
+   real(dp), allocatable :: x_a0(:), x_b0(:), x_ap(:), x_bp(:), x_cache(:)
    complex(dp), allocatable :: z_a0(:), z_b0(:), z_ap(:), z_bp(:), z_bad_energy(:)
-   complex(dp), allocatable :: j_a0(:, :), j_b0(:, :), j_ap(:, :), j_bp(:, :), j_bad(:, :), j_wrong_square(:, :)
+   complex(dp), allocatable :: z_cache(:), j_a0(:, :), j_b0(:, :), j_ap(:, :), j_bp(:, :)
+   complex(dp), allocatable :: j_cache(:, :), j_bad(:, :), j_wrong_square(:, :)
    complex(dp) :: phase_value
    real(dp) :: e_a, e_b, e_ap, e_bp, e_bad, delta, expected_probability
-   logical :: ok_a, ok_b, ok_ap, ok_bp, ok_bad, phase_error
+   logical :: ok_a, ok_b, ok_ap, ok_bp, ok_bad, ok_cache, phase_error
 
    call read_parameters()
    call reset_stage2_production_instrumentation()
@@ -34,9 +36,10 @@ program test_tltm_swap_kernel_contract
    x_size = n_seed
 
    allocate (seed_a(n_seed), seed_b(n_seed))
-   allocate (x_a0(x_size), x_b0(x_size), x_ap(x_size), x_bp(x_size))
-   allocate (z_a0(n_seed), z_b0(n_seed), z_ap(n_seed), z_bp(n_seed), z_bad_energy(n_seed))
+   allocate (x_a0(x_size), x_b0(x_size), x_ap(x_size), x_bp(x_size), x_cache(x_size))
+   allocate (z_a0(n_seed), z_b0(n_seed), z_ap(n_seed), z_bp(n_seed), z_cache(n_seed), z_bad_energy(n_seed))
    allocate (j_a0(n_seed, n_seed), j_b0(n_seed, n_seed), j_ap(n_seed, n_seed), j_bp(n_seed, n_seed))
+   allocate (j_cache(n_seed, n_seed))
    allocate (j_bad(n_seed + 1, n_seed))
    allocate (j_wrong_square(n_seed + 1, n_seed + 1))
 
@@ -77,6 +80,12 @@ program test_tltm_swap_kernel_contract
    call strict_flow(slot_a%flow_time, x_ap, z_ap, j_ap, ok_ap, "proposed a<-b reflow")
    call compute_effective_energy(z_ap, j_ap, e_ap, ok_ap)
    call assert_true(ok_ap, "proposed a<-b energy is computable")
+   call store_slot_reflow_cache(slot_b, slot_a%flow_time, z_ap, j_ap, .false.)
+   call reflow_slot_to_time(slot_b, slot_a%flow_time, x_cache, z_cache, j_cache, ok_cache, run_context_a)
+   call assert_true(ok_cache, "high-to-low reflow cache lookup succeeds")
+   call assert_close_vec(x_cache, slot_b%x, tol, "cached high-to-low reflow keeps source x")
+   call assert_close_cvec(z_cache, z_ap, tol, "cached high-to-low z matches stored endpoint")
+   call assert_close_cmat(j_cache, j_ap, tol, "cached high-to-low jac matches stored endpoint")
 
    x_bp = slot_a%x
    call strict_flow(slot_b%flow_time, x_bp, z_bp, j_bp, ok_bp, "proposed b<-a reflow")
@@ -150,9 +159,9 @@ program test_tltm_swap_kernel_contract
    call release_tltm_run_context(run_context_a)
    call release_tltm_run_context(run_context_b)
    deallocate (seed_a, seed_b)
-   deallocate (x_a0, x_b0, x_ap, x_bp)
-   deallocate (z_a0, z_b0, z_ap, z_bp, z_bad_energy)
-   deallocate (j_a0, j_b0, j_ap, j_bp, j_bad, j_wrong_square)
+   deallocate (x_a0, x_b0, x_ap, x_bp, x_cache)
+   deallocate (z_a0, z_b0, z_ap, z_bp, z_cache, z_bad_energy)
+   deallocate (j_a0, j_b0, j_ap, j_bp, j_cache, j_bad, j_wrong_square)
 
    write (*, '(A)') "[PASS] TLTM swap kernel contract"
 

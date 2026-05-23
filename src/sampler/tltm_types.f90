@@ -14,7 +14,7 @@ module tltm_types_mod
    integer, parameter :: tltm_diag_schema_version_local_transition = 1
    integer, parameter :: tltm_event_context_local_transition = 1
    integer, parameter :: tltm_counter_denominator_local_transition = 1
-   integer, parameter :: tltm_reflow_cache_entries = 2
+   integer, parameter :: tltm_reflow_cache_entries = 16
 
    type :: tltm_local_transition_event_t
       integer :: schema_version = tltm_diag_schema_version_local_transition

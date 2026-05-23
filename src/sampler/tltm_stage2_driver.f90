@@ -4,7 +4,7 @@ module tltm_stage2_driver
    use param_mod, only: config, read_parameters
    use runtime_env_mod, only: parse_int_env, parse_real_env, parse_logical_env, read_string_env, parse_real_list, to_lower_ascii
    use utils, only: dp, log_determinant, wall_time_seconds
-   use solve_flow, only: flow_at, flow_at_dense_targets, reset_intode_fallback_stats, get_intode_fallback_stats, &
+   use solve_flow, only: flow_at, flow_at_dense_targets, flow_continue, reset_intode_fallback_stats, get_intode_fallback_stats, &
                          intode_diagnostics_context_t, get_intode_cvode_stats, get_intode_cvode_context_stats, &
                          get_intode_odex_stats, get_intode_odex_context_stats, &
                          intode_ctx_unknown, intode_ctx_flowz, intode_ctx_flowzr, intode_ctx_flow, &
@@ -66,6 +66,7 @@ module tltm_stage2_driver
    integer, parameter :: stage2_flow_bank_version = 1
    integer, parameter :: stage2_swap_reflow_backend_direct = 1
    integer, parameter :: stage2_swap_reflow_backend_dop853_dense = 2
+   integer, parameter :: stage2_swap_reflow_backend_continue_cache = 3
    integer(int64) :: phase_cache_hit_count = 0_int64
    integer(int64) :: phase_cache_miss_count = 0_int64
    integer(int64) :: effective_energy_cache_hit_count = 0_int64
@@ -1064,6 +1065,7 @@ contains
          if ((.not. flow_failed) .and. intode_status_is_strict_success(flow_status)) then
             ok = .true.
             call mark_tltm_slot_state_changed(slot)
+            call seed_slot_current_reflow_cache(slot)
             if (trim(init_mode) == "direct" .or. trim(init_mode) == "legacy") then
                write (*, '(A,I0,A,I0,A,F10.6)') "[TLTM-S2][INIT] slot=", slot%slot_id, &
                   " initial-x direct record=", initial_x_record, " ready at t=", slot%flow_time
@@ -1099,6 +1101,7 @@ contains
          if ((.not. flow_failed) .and. intode_status_is_strict_success(flow_status)) then
             ok = .true.
             call mark_tltm_slot_state_changed(slot)
+            call seed_slot_current_reflow_cache(slot)
             if (trim(init_mode) == "direct" .or. trim(init_mode) == "legacy") then
                write (*, '(A,I0,A,F10.6,A,I0)') "[TLTM-S2][INIT] slot=", slot%slot_id, &
                   " direct flow ready at t=", slot%flow_time, " attempt=", attempt
@@ -1328,6 +1331,9 @@ contains
 
       call validate_loaded_stage2_snapshot(slots, pair_stats, label_tracks, flow_ladder, ok)
       if (.not. ok) return
+      do i = 1, size(slots)
+         call seed_slot_current_reflow_cache(slots(i))
+      end do
       base_seed = snapshot_base_seed
       swap_rng_seed = snapshot_swap_seed
       cycle_offset = snapshot_cycle
@@ -1356,8 +1362,10 @@ contains
          if (.not. ok) return
          call mark_tltm_slot_state_changed(slots(i))
          call invalidate_loaded_snapshot_caches(slots(i))
+         call seed_slot_current_reflow_cache(slots(i))
          call measure_slot(slots(i))
       end do
+      call seed_cross_slot_endpoint_caches(slots)
       write (*, '(A,I0,A,I0)') "[TLTM-S2] Loaded flow-bank record=", flow_bank_record, " slots=", size(slots)
       ok = .true.
    end subroutine load_stage2_flow_bank
@@ -1780,6 +1788,7 @@ contains
             slot%z = z_new
             slot%jac = j_new
             call mark_tltm_slot_state_changed(slot)
+            call seed_slot_current_reflow_cache(slot)
             call accumulate_accepted_local_census(accept_census, solver_before, solver_after)
          end if
          call record_tltm_local_transition(slot, accepted, proposal_failed, transition_status)
@@ -2175,10 +2184,12 @@ contains
             stage2_swap_reflow_backend = stage2_swap_reflow_backend_direct
          case ("dop853_dense", "dop853-dense", "dense", "dense_output", "dense-output")
             stage2_swap_reflow_backend = stage2_swap_reflow_backend_dop853_dense
+         case ("continue_cache", "continue-cache", "continue", "hybrid", "hybrid_cache", "hybrid-cache")
+            stage2_swap_reflow_backend = stage2_swap_reflow_backend_continue_cache
          case default
             write (*, '(A,A,A)') "[ERROR][TLTM-S2] Unsupported TLTM_STAGE2_SWAP_REFLOW_BACKEND='", &
                trim(backend_text), "'."
-            write (*, '(A)') "[ERROR][TLTM-S2] Use direct or dop853_dense."
+            write (*, '(A)') "[ERROR][TLTM-S2] Use direct, dop853_dense, or continue_cache."
             error stop 1
          end select
       end if
@@ -2190,6 +2201,8 @@ contains
       select case (stage2_swap_reflow_backend)
       case (stage2_swap_reflow_backend_dop853_dense)
          name = "dop853_dense"
+      case (stage2_swap_reflow_backend_continue_cache)
+         name = "continue_cache"
       case default
          name = "direct"
       end select
@@ -2458,6 +2471,7 @@ contains
       complex(dp), allocatable :: s_ap(:), s_bp(:), logj_ap(:), logj_bp(:)
       complex(dp), allocatable :: z_ap(:, :), z_bp(:, :)
       complex(dp), allocatable :: j_ap(:, :, :), j_bp(:, :, :)
+      complex(dp), allocatable :: old_z_a(:), old_z_b(:), old_j_a(:, :), old_j_b(:, :)
 
       n_pairs = size(pair_indices)
       if (n_pairs <= 0) return
@@ -2469,6 +2483,7 @@ contains
       allocate (s_ap(n_pairs), s_bp(n_pairs), logj_ap(n_pairs), logj_bp(n_pairs))
       allocate (z_ap(n_z, n_pairs), z_bp(n_z, n_pairs))
       allocate (j_ap(n_z, n_z, n_pairs), j_bp(n_z, n_z, n_pairs))
+      allocate (old_z_a(n_z), old_z_b(n_z), old_j_a(n_z, n_z), old_j_b(n_z, n_z))
 
       ok_base = .false.
       ok_ap = .false.
@@ -2530,11 +2545,18 @@ contains
          pair_stats(idx)%last_accept_probability = acc_prob
          accept = (accept_uniforms(pair_idx) <= acc_prob)
          if (accept) then
+            old_z_a = slots(idx)%z
+            old_j_a = slots(idx)%jac
+            old_z_b = slots(idx + 1)%z
+            old_j_b = slots(idx + 1)%jac
+
             label_tmp = slots(idx)%label_id
             slots(idx)%x = x_ap(:, pair_idx)
             slots(idx)%z = z_ap(:, pair_idx)
             slots(idx)%jac = j_ap(:, :, pair_idx)
             call mark_tltm_slot_state_changed(slots(idx))
+            call store_slot_reflow_cache(slots(idx), slots(idx)%flow_time, slots(idx)%z, slots(idx)%jac, .false.)
+            call store_slot_reflow_cache(slots(idx), slots(idx + 1)%flow_time, old_z_b, old_j_b, .false.)
             call set_slot_phase_cache_from_action_logdet(slots(idx), s_ap(pair_idx), logj_ap(pair_idx))
             slots(idx)%label_id = slots(idx + 1)%label_id
 
@@ -2542,6 +2564,8 @@ contains
             slots(idx + 1)%z = z_bp(:, pair_idx)
             slots(idx + 1)%jac = j_bp(:, :, pair_idx)
             call mark_tltm_slot_state_changed(slots(idx + 1))
+            call store_slot_reflow_cache(slots(idx + 1), slots(idx + 1)%flow_time, slots(idx + 1)%z, slots(idx + 1)%jac, .false.)
+            call store_slot_reflow_cache(slots(idx + 1), slots(idx)%flow_time, old_z_a, old_j_a, .false.)
             call set_slot_phase_cache_from_action_logdet(slots(idx + 1), s_bp(pair_idx), logj_bp(pair_idx))
             slots(idx + 1)%label_id = label_tmp
             pair_stats(idx)%accept_count = pair_stats(idx)%accept_count + 1
@@ -2550,7 +2574,8 @@ contains
          end if
       end do
 
-      deallocate (ok_base, ok_ap, ok_bp, e_a, e_b, e_ap, e_bp, x_ap, x_bp, s_ap, s_bp, logj_ap, logj_bp, z_ap, z_bp, j_ap, j_bp)
+      deallocate (ok_base, ok_ap, ok_bp, e_a, e_b, e_ap, e_bp, x_ap, x_bp, s_ap, s_bp, logj_ap, logj_bp, z_ap, z_bp, &
+                  j_ap, j_bp, old_z_a, old_z_b, old_j_a, old_j_b)
    end subroutine attempt_parallel_adjacent_swaps
 
    subroutine attempt_adjacent_swap(slot_a, slot_b, stats, swap_rng_state, run_context_a, run_context_b, &
@@ -2570,6 +2595,7 @@ contains
       real(dp), allocatable :: x_ap(:), x_bp(:)
       complex(dp) :: s_ap, s_bp, logj_ap, logj_bp
       complex(dp), allocatable :: z_ap(:), z_bp(:), j_ap(:, :), j_bp(:, :)
+      complex(dp), allocatable :: old_z_a(:), old_z_b(:), old_j_a(:, :), old_j_b(:, :)
 
       rng_contract_local = stage2_rng_per_replica_v1
       if (present(rng_stream_contract)) rng_contract_local = trim(rng_stream_contract)
@@ -2588,6 +2614,9 @@ contains
       allocate (z_ap(size(slot_a%z)), z_bp(size(slot_b%z)))
       allocate (j_ap(size(slot_a%jac, 1), size(slot_a%jac, 2)))
       allocate (j_bp(size(slot_b%jac, 1), size(slot_b%jac, 2)))
+      allocate (old_z_a(size(slot_a%z)), old_z_b(size(slot_b%z)))
+      allocate (old_j_a(size(slot_a%jac, 1), size(slot_a%jac, 2)))
+      allocate (old_j_b(size(slot_b%jac, 1), size(slot_b%jac, 2)))
 
       call reflow_slot_to_time(slot_b, slot_a%flow_time, x_ap, z_ap, j_ap, ok_ap, run_context_a)
       if (ok_ap) call compute_effective_energy(z_ap, j_ap, e_ap, ok_ap, s_ap, logj_ap)
@@ -2599,6 +2628,10 @@ contains
          stats%last_accept_probability = 0.0_dp
          stats%reject_count = stats%reject_count + 1
          call free_swap_buffers(x_ap, x_bp, z_ap, z_bp, j_ap, j_bp)
+         if (allocated(old_z_a)) deallocate (old_z_a)
+         if (allocated(old_z_b)) deallocate (old_z_b)
+         if (allocated(old_j_a)) deallocate (old_j_a)
+         if (allocated(old_j_b)) deallocate (old_j_b)
          return
       end if
 
@@ -2616,11 +2649,18 @@ contains
          accept = (draw_swap_accept_uniform(stats, swap_rng_state, rng_contract_local, base_seed, cycle_idx) <= acc_prob)
       end if
       if (accept) then
+         old_z_a = slot_a%z
+         old_j_a = slot_a%jac
+         old_z_b = slot_b%z
+         old_j_b = slot_b%jac
+
          label_tmp = slot_a%label_id
          slot_a%x = x_ap
          slot_a%z = z_ap
          slot_a%jac = j_ap
          call mark_tltm_slot_state_changed(slot_a)
+         call store_slot_reflow_cache(slot_a, slot_a%flow_time, slot_a%z, slot_a%jac, .false.)
+         call store_slot_reflow_cache(slot_a, slot_b%flow_time, old_z_b, old_j_b, .false.)
          call set_slot_phase_cache_from_action_logdet(slot_a, s_ap, logj_ap)
          slot_a%label_id = slot_b%label_id
 
@@ -2628,6 +2668,8 @@ contains
          slot_b%z = z_bp
          slot_b%jac = j_bp
          call mark_tltm_slot_state_changed(slot_b)
+         call store_slot_reflow_cache(slot_b, slot_b%flow_time, slot_b%z, slot_b%jac, .false.)
+         call store_slot_reflow_cache(slot_b, slot_a%flow_time, old_z_a, old_j_a, .false.)
          call set_slot_phase_cache_from_action_logdet(slot_b, s_bp, logj_bp)
          slot_b%label_id = label_tmp
          stats%accept_count = stats%accept_count + 1
@@ -2636,6 +2678,10 @@ contains
       end if
 
       call free_swap_buffers(x_ap, x_bp, z_ap, z_bp, j_ap, j_bp)
+      if (allocated(old_z_a)) deallocate (old_z_a)
+      if (allocated(old_z_b)) deallocate (old_z_b)
+      if (allocated(old_j_a)) deallocate (old_j_a)
+      if (allocated(old_j_b)) deallocate (old_j_b)
    end subroutine attempt_adjacent_swap
 
    real(dp) function draw_swap_accept_uniform(stats, swap_rng_state, rng_stream_contract, base_seed, cycle_idx) result(value)
@@ -2669,7 +2715,7 @@ contains
       logical, intent(out) :: ok
       type(tltm_run_context_t), intent(inout) :: run_context
 
-      integer :: entry, store_entry, flow_status
+      integer :: entry, flow_status
       logical :: flow_failed
       real(dp) :: t0, source_fingerprint
       real(dp) :: dense_target_times(1)
@@ -2682,6 +2728,14 @@ contains
           size(jac_out, 1) /= size(source_slot%jac, 1) .or. size(jac_out, 2) /= size(source_slot%jac, 2)) return
 
       x_out = source_slot%x
+      if (same_flow_time(source_slot%flow_time, target_flow_time)) then
+         z_out = source_slot%z
+         jac_out = source_slot%jac
+         ok = .true.
+         call store_slot_reflow_cache(source_slot, target_flow_time, z_out, jac_out, .false.)
+         return
+      end if
+
       source_fingerprint = slot_state_fingerprint(source_slot)
       if (stage2_swap_reflow_cache_enabled .and. allocated(source_slot%reflow_cache_z) .and. allocated(source_slot%reflow_cache_jac)) then
          do entry = 1, tltm_reflow_cache_entries
@@ -2700,6 +2754,8 @@ contains
       end if
 
       flow_status = intode_status_unknown
+      flow_failed = .true.
+      dense_target_available(1) = .true.
       call record_swap_reflow_flow_call()
       t0 = wall_time_seconds()
       select case (stage2_swap_reflow_backend)
@@ -2714,6 +2770,20 @@ contains
             jac_out = dense_jac(:, :, 1)
          end if
          deallocate (dense_z, dense_jac)
+      case (stage2_swap_reflow_backend_continue_cache)
+         if (target_flow_time > source_slot%flow_time .and. .not. same_flow_time(target_flow_time, source_slot%flow_time)) then
+            call flow_continue(source_slot%flow_time, target_flow_time, source_slot%z, source_slot%jac, z_out, jac_out, &
+                               flow_failed, flow_status, run_context%flow%workspace, run_context%diagnostics%intode)
+            if (flow_failed .or. (.not. intode_status_is_strict_success(flow_status))) then
+               flow_status = intode_status_unknown
+               call record_swap_reflow_flow_call()
+               call flow_at(target_flow_time, x_out, z_out, jac_out, flow_failed, flow_status, &
+                            run_context%flow%workspace, run_context%diagnostics%intode)
+            end if
+         else
+            call flow_at(target_flow_time, x_out, z_out, jac_out, flow_failed, flow_status, &
+                         run_context%flow%workspace, run_context%diagnostics%intode)
+         end if
       case default
          call flow_at(target_flow_time, x_out, z_out, jac_out, flow_failed, flow_status, &
                       run_context%flow%workspace, run_context%diagnostics%intode)
@@ -2726,23 +2796,67 @@ contains
          return
       end if
 
+      call store_slot_reflow_cache(source_slot, target_flow_time, z_out, jac_out, .true.)
+   end subroutine reflow_slot_to_time
+
+   subroutine store_slot_reflow_cache(slot, target_flow_time, z_in, jac_in, count_store)
+      type(tltm_slot_t), intent(inout) :: slot
+      real(dp), intent(in) :: target_flow_time
+      complex(dp), intent(in) :: z_in(:)
+      complex(dp), intent(in) :: jac_in(:, :)
+      logical, intent(in), optional :: count_store
+
+      integer :: store_entry
+      logical :: count_store_local
+      real(dp) :: source_fingerprint
+
       if (.not. stage2_swap_reflow_cache_enabled) return
-      if (.not. allocated(source_slot%reflow_cache_z) .or. .not. allocated(source_slot%reflow_cache_jac)) return
-      store_entry = first_invalid_reflow_cache_entry(source_slot)
+      if (.not. allocated(slot%reflow_cache_z) .or. .not. allocated(slot%reflow_cache_jac)) return
+      if (size(z_in) /= size(slot%z) .or. size(jac_in, 1) /= size(slot%jac, 1) .or. size(jac_in, 2) /= size(slot%jac, 2)) return
+      if (.not. ieee_is_finite(target_flow_time)) return
+
+      count_store_local = .true.
+      if (present(count_store)) count_store_local = count_store
+      source_fingerprint = slot_state_fingerprint(slot)
+
+      store_entry = first_invalid_reflow_cache_entry(slot)
       if (store_entry <= 0) then
-         store_entry = source_slot%reflow_cache_next_entry
+         store_entry = slot%reflow_cache_next_entry
          if (store_entry < 1 .or. store_entry > tltm_reflow_cache_entries) store_entry = 1
       end if
-      source_slot%reflow_cache_z(:, store_entry) = z_out
-      source_slot%reflow_cache_jac(:, :, store_entry) = jac_out
-      source_slot%reflow_cache_version(store_entry) = source_slot%state_version
-      source_slot%reflow_cache_target_time(store_entry) = target_flow_time
-      source_slot%reflow_cache_source_fingerprint(store_entry) = source_fingerprint
-      source_slot%reflow_cache_valid(store_entry) = .true.
-      source_slot%reflow_cache_next_entry = store_entry + 1
-      if (source_slot%reflow_cache_next_entry > tltm_reflow_cache_entries) source_slot%reflow_cache_next_entry = 1
-      call record_swap_reflow_cache_store()
-   end subroutine reflow_slot_to_time
+      slot%reflow_cache_z(:, store_entry) = z_in
+      slot%reflow_cache_jac(:, :, store_entry) = jac_in
+      slot%reflow_cache_version(store_entry) = slot%state_version
+      slot%reflow_cache_target_time(store_entry) = target_flow_time
+      slot%reflow_cache_source_fingerprint(store_entry) = source_fingerprint
+      slot%reflow_cache_valid(store_entry) = .true.
+      slot%reflow_cache_next_entry = store_entry + 1
+      if (slot%reflow_cache_next_entry > tltm_reflow_cache_entries) slot%reflow_cache_next_entry = 1
+      if (count_store_local) call record_swap_reflow_cache_store()
+   end subroutine store_slot_reflow_cache
+
+   subroutine seed_slot_current_reflow_cache(slot)
+      type(tltm_slot_t), intent(inout) :: slot
+
+      call store_slot_reflow_cache(slot, slot%flow_time, slot%z, slot%jac, .false.)
+   end subroutine seed_slot_current_reflow_cache
+
+   subroutine seed_cross_slot_endpoint_caches(slots)
+      type(tltm_slot_t), intent(inout) :: slots(:)
+
+      integer :: source_idx, target_idx
+
+      if (.not. stage2_swap_reflow_cache_enabled) return
+      do source_idx = 1, size(slots)
+         do target_idx = 1, size(slots)
+            if (target_idx == source_idx) cycle
+            if (same_physical_state(slots(source_idx)%x, slots(target_idx)%x)) then
+               call store_slot_reflow_cache(slots(source_idx), slots(target_idx)%flow_time, &
+                                            slots(target_idx)%z, slots(target_idx)%jac, .false.)
+            end if
+         end do
+      end do
+   end subroutine seed_cross_slot_endpoint_caches
 
    integer function first_invalid_reflow_cache_entry(slot) result(entry_idx)
       type(tltm_slot_t), intent(in) :: slot
@@ -2768,6 +2882,16 @@ contains
 
       same = abs(a - b) <= 100.0_dp*epsilon(1.0_dp)*max(1.0_dp, abs(a), abs(b))
    end function same_cache_fingerprint
+
+   pure logical function same_physical_state(a, b) result(same)
+      real(dp), intent(in) :: a(:), b(:)
+      real(dp) :: scale
+
+      same = .false.
+      if (size(a) /= size(b) .or. size(a) <= 0) return
+      scale = max(1.0_dp, max(maxval(abs(a)), maxval(abs(b))))
+      same = maxval(abs(a - b)) <= 100.0_dp*epsilon(1.0_dp)*scale
+   end function same_physical_state
 
    pure real(dp) function slot_state_fingerprint(slot) result(fingerprint)
       type(tltm_slot_t), intent(in) :: slot

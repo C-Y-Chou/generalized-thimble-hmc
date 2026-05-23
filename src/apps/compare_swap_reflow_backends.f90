@@ -4,7 +4,7 @@ program compare_swap_reflow_backends
    use model, only: calculate_action
    use param_mod, only: config, read_parameters
    use runtime_env_mod, only: parse_real_list
-   use solve_flow, only: flow_at, flow_at_dense_targets, flow_workspace_t, intode_status_is_strict_success, &
+   use solve_flow, only: flow_at, flow_at_dense_targets, flow_continue, flow_workspace_t, intode_status_is_strict_success, &
                          intode_status_unknown
    use utils, only: dp, log_determinant, wall_time_seconds
    implicit none
@@ -85,29 +85,32 @@ contains
       integer, intent(in) :: start_record, n_records, stride, n
 
       integer :: unit_x, ios, rec_idx, target_idx, source_record, n_targets
-      integer :: direct_status, dense_status, multi_status
+      integer :: direct_status, dense_status, multi_status, continue_status
       integer(int64) :: pos_bytes, record_bytes
-      real(dp) :: t0, direct_sec, dense_single_sec, dense_multi_sec
+      real(dp) :: t0, direct_sec, dense_single_sec, dense_multi_sec, continue_sec
       real(dp) :: max_z_single, max_j_single, max_e_single, max_z_multi, max_j_multi, max_e_multi
+      real(dp) :: max_z_continue, max_j_continue, max_e_continue, continue_energy_value
       real(dp) :: max_acc_single, max_acc_multi
-      integer :: success_direct, success_dense_single, success_dense_multi
-      integer :: status_mismatch_single, status_mismatch_multi, unavailable_single, unavailable_multi
+      integer :: success_direct, success_dense_single, success_dense_multi, success_continue, continue_attempts
+      integer :: status_mismatch_single, status_mismatch_multi, status_mismatch_continue, unavailable_single, unavailable_multi
       integer :: pair_count, decision_mismatch_single, decision_mismatch_multi
       real(dp), allocatable :: x_state(:), z_direct(:, :), z_single(:, :), z_multi(:, :)
-      complex(dp), allocatable :: cz_direct(:), cz_single(:, :), cz_multi(:, :)
-      complex(dp), allocatable :: cj_direct(:, :), cj_single(:, :, :), cj_multi(:, :, :)
+      complex(dp), allocatable :: cz_direct(:), cz_continue(:), cz_single(:, :), cz_multi(:, :)
+      complex(dp), allocatable :: cj_direct(:, :), cj_continue(:, :), cj_single(:, :, :), cj_multi(:, :, :)
+      complex(dp), allocatable :: cz_direct_all(:, :), cj_direct_all(:, :, :)
       real(dp), allocatable :: direct_energy(:, :), single_energy(:, :), multi_energy(:, :)
       logical, allocatable :: direct_ok(:, :), single_ok(:, :), multi_ok(:, :)
       real(dp) :: single_times(1)
-      logical :: direct_failed, dense_failed, multi_failed, single_available(1)
+      logical :: direct_failed, dense_failed, multi_failed, continue_failed, continue_ok, continue_energy_ok, single_available(1)
       logical, allocatable :: multi_available(:)
-      type(flow_workspace_t) :: direct_workspace, single_workspace, multi_workspace
+      type(flow_workspace_t) :: direct_workspace, single_workspace, multi_workspace, continue_workspace
 
       n_targets = size(times)
       allocate (x_state(n))
       allocate (z_direct(n, n_targets), z_single(n, n_targets), z_multi(n, n_targets))
-      allocate (cz_direct(n), cz_single(n, n_targets), cz_multi(n, n_targets))
-      allocate (cj_direct(n, n), cj_single(n, n, n_targets), cj_multi(n, n, n_targets))
+      allocate (cz_direct(n), cz_continue(n), cz_single(n, n_targets), cz_multi(n, n_targets))
+      allocate (cj_direct(n, n), cj_continue(n, n), cj_single(n, n, n_targets), cj_multi(n, n, n_targets))
+      allocate (cz_direct_all(n, n_targets), cj_direct_all(n, n, n_targets))
       allocate (direct_energy(n_records, n_targets), single_energy(n_records, n_targets), multi_energy(n_records, n_targets))
       allocate (direct_ok(n_records, n_targets), single_ok(n_records, n_targets), multi_ok(n_records, n_targets))
       allocate (multi_available(n_targets))
@@ -115,17 +118,24 @@ contains
       direct_sec = 0.0_dp
       dense_single_sec = 0.0_dp
       dense_multi_sec = 0.0_dp
+      continue_sec = 0.0_dp
       max_z_single = 0.0_dp
       max_j_single = 0.0_dp
       max_e_single = 0.0_dp
       max_z_multi = 0.0_dp
       max_j_multi = 0.0_dp
       max_e_multi = 0.0_dp
+      max_z_continue = 0.0_dp
+      max_j_continue = 0.0_dp
+      max_e_continue = 0.0_dp
       success_direct = 0
       success_dense_single = 0
       success_dense_multi = 0
+      success_continue = 0
+      continue_attempts = 0
       status_mismatch_single = 0
       status_mismatch_multi = 0
+      status_mismatch_continue = 0
       unavailable_single = 0
       unavailable_multi = 0
       direct_ok = .false.
@@ -169,6 +179,8 @@ contains
             direct_ok(rec_idx, target_idx) = (.not. direct_failed) .and. intode_status_is_strict_success(direct_status)
             if (direct_ok(rec_idx, target_idx)) then
                z_direct(:, target_idx) = real(cz_direct, dp)
+               cz_direct_all(:, target_idx) = cz_direct
+               cj_direct_all(:, :, target_idx) = cj_direct
                success_direct = success_direct + 1
                call effective_energy(cz_direct, cj_direct, direct_energy(rec_idx, target_idx), direct_ok(rec_idx, target_idx))
             end if
@@ -214,6 +226,32 @@ contains
                max_e_multi = max(max_e_multi, abs(direct_energy(rec_idx, target_idx) - multi_energy(rec_idx, target_idx)))
             end if
          end do
+
+         do target_idx = 1, n_targets - 1
+            if (.not. direct_ok(rec_idx, target_idx)) cycle
+            continue_attempts = continue_attempts + 1
+            continue_status = intode_status_unknown
+            t0 = wall_time_seconds()
+            call flow_continue(times(target_idx), times(target_idx + 1), cz_direct_all(:, target_idx), &
+                               cj_direct_all(:, :, target_idx), cz_continue, cj_continue, continue_failed, &
+                               continue_status, continue_workspace)
+            continue_sec = continue_sec + (wall_time_seconds() - t0)
+            continue_ok = (.not. continue_failed) .and. intode_status_is_strict_success(continue_status)
+            if (continue_ok) then
+               success_continue = success_continue + 1
+               call effective_energy(cz_continue, cj_continue, continue_energy_value, continue_energy_ok)
+            else
+               continue_energy_ok = .false.
+            end if
+            if (direct_ok(rec_idx, target_idx + 1) .neqv. continue_ok) status_mismatch_continue = status_mismatch_continue + 1
+            if (direct_ok(rec_idx, target_idx + 1) .and. continue_ok) then
+               max_z_continue = max(max_z_continue, maxval(abs(cz_direct_all(:, target_idx + 1) - cz_continue)))
+               max_j_continue = max(max_j_continue, maxval(abs(cj_direct_all(:, :, target_idx + 1) - cj_continue)))
+               if (continue_energy_ok) then
+                  max_e_continue = max(max_e_continue, abs(direct_energy(rec_idx, target_idx + 1) - continue_energy_value))
+               end if
+            end if
+         end do
       end do
       close (unit_x)
 
@@ -226,17 +264,23 @@ contains
          " record_count=", n_records, " record_stride=", stride, " target_count=", n_targets
       write (*, '(A,I0,A,I0,A,I0)') "[SWAP-REFLOW-CMP] successes direct=", success_direct, &
          " dense_single=", success_dense_single, " dense_multi=", success_dense_multi
+      write (*, '(A,I0,A,I0)') "[SWAP-REFLOW-CMP] continue_adjacent attempts=", continue_attempts, &
+         " successes=", success_continue
       write (*, '(A,I0,A,I0,A,I0,A,I0)') "[SWAP-REFLOW-CMP] mismatches single=", status_mismatch_single, &
          " multi=", status_mismatch_multi, " unavailable_single=", unavailable_single, " unavailable_multi=", unavailable_multi
+      write (*, '(A,I0)') "[SWAP-REFLOW-CMP] continue_adjacent_status_mismatches=", status_mismatch_continue
       write (*, '(A,3(1X,ES14.6E3))') "[SWAP-REFLOW-CMP] single_max_abs z jac energy=", &
          max_z_single, max_j_single, max_e_single
       write (*, '(A,3(1X,ES14.6E3))') "[SWAP-REFLOW-CMP] multi_max_abs z jac energy=", &
          max_z_multi, max_j_multi, max_e_multi
+      write (*, '(A,3(1X,ES14.6E3))') "[SWAP-REFLOW-CMP] continue_adjacent_max_abs z jac energy=", &
+         max_z_continue, max_j_continue, max_e_continue
       write (*, '(A,I0,A,ES14.6E3,A,ES14.6E3,A,I0,A,I0)') "[SWAP-REFLOW-CMP] adjacent_accept pairs=", pair_count, &
          " max_abs_single=", max_acc_single, " max_abs_multi=", max_acc_multi, &
          " decision_mismatch_single=", decision_mismatch_single, " decision_mismatch_multi=", decision_mismatch_multi
       write (*, '(A,3(1X,F12.6))') "[SWAP-REFLOW-CMP] wall_sec direct_all dense_single_all dense_multi_all=", &
          direct_sec, dense_single_sec, dense_multi_sec
+      write (*, '(A,1X,F12.6)') "[SWAP-REFLOW-CMP] wall_sec continue_adjacent_all=", continue_sec
       if (direct_sec > 0.0_dp) then
          write (*, '(A,2(1X,F12.6))') "[SWAP-REFLOW-CMP] speed_ratio direct_over_dense_single direct_over_dense_multi=", &
             direct_sec/dense_single_sec, direct_sec/dense_multi_sec
