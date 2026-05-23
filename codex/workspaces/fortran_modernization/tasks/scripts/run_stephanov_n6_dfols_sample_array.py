@@ -37,7 +37,7 @@ def parse_args():
     parser.add_argument("--task-index", type=int, default=0, help="1-based task index. 0 means no single-task run.")
     parser.add_argument("--maxfun", type=int, default=1200)
     parser.add_argument("--npts", default="0")
-    parser.add_argument("--rhobegs", default="0.25,0.35")
+    parser.add_argument("--rhobegs", default="0.20,0.25,0.30,0.35")
     parser.add_argument("--rhoends", default="1e-13")
     parser.add_argument("--model-abs-tols", default="1e-26")
     parser.add_argument("--model-rel-tols", default="0")
