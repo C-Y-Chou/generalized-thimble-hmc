@@ -44,18 +44,25 @@ def parse_records(text, run_root):
     if text.strip():
         return [int(item.strip()) for item in text.split(",") if item.strip()]
     records = []
-    for path in sorted((run_root / "records").glob("record_*")):
-        suffix = path.name.split("_", 1)[1]
-        if suffix.isdigit():
-            records.append(int(suffix))
+    for parent in (run_root / "records", run_root):
+        if not parent.exists():
+            continue
+        for path in sorted(parent.glob("record_*")):
+            suffix = path.name.split("_", 1)[1]
+            if suffix.isdigit():
+                records.append(int(suffix))
     if not records:
-        raise RuntimeError("No record dirs found under {0}".format(run_root / "records"))
-    return records
+        raise RuntimeError("No record dirs found under {0} or {1}".format(run_root / "records", run_root))
+    return sorted(set(records))
 
 
 def record_dir(run_root, record):
     for width in (4, 6):
         path = run_root / "records" / ("record_{0:0{1}d}".format(record, width))
+        if path.exists():
+            return path
+    for width in (4, 6):
+        path = run_root / ("record_{0:0{1}d}".format(record, width))
         if path.exists():
             return path
     return run_root / "records" / ("record_{0:04d}".format(record))

@@ -510,6 +510,63 @@ local_reflow_cache_seed attempts=0 targets=0 stores=0 failures=0
 swap_reflow_cache hits=0 misses=2 stores=2 flow_calls=2 flow_failures=0
 ```
 
+## Swap Reflow Cache Benchmark Closeout
+
+Status: closed for the current Stephanov `n=6`, `t_high=0.03`, 13-point
+ladder engineering decision.
+
+The first attempt to benchmark from the canonical `t=0` development bank was
+not a valid production-reflow comparison.  Full-ladder dense cache construction
+from t0-bank records `0` and `40` reached only `2/13` and `3/13` targets,
+respectively, so Stage2 correctly failed closed on flow-bank initialization.
+That is a reachability/init-bank issue, not evidence about swap reflow backend
+performance.
+
+The valid benchmark used high-flow physical `x` states extracted from the
+existing Stephanov `t=0.03` high-flow run:
+
+```text
+source_run=output/stephanov_flowtime_sign_problem/stephanov_n6_endpoint_upscan_eps004_nstep4_4x250_20260522/t_0p03
+source_records=0,81,162,243
+source_x_history_index=200
+bank=output/stephanov_flow_banks/stephanov_n6_t003_highflow_tail4_for_reflow_bench_20260523/bank/x_bank.dat
+```
+
+Those four high-flow-tail records built a complete ladder cache:
+
+```text
+records 0,1,2,3: targets=13/13, status=0
+ladder=0,0.001,0.003,0.007,0.010,0.013,0.016,0.018,0.020,0.0225,0.025,0.0275,0.030
+```
+
+Controlled four-seed, five-cycle production gate:
+
+```text
+output/tests/swap_reflow_cache_modes_n6_ladder13_highflow_tail4_c5_20260523
+```
+
+Aggregate readback:
+
+```text
+case             wall_sec   swap_reflow_sec   local_seed_sec   combined_sec   hits   misses   flow_calls   flow_failures
+direct             77.90             53.78             0.00          53.78     21      219          219              27
+continue_none     114.75            104.06             0.00         104.06     21      219          246              27
+continue_lower    144.78            139.03             9.03         148.06    106      134          161              27
+```
+
+Decision:
+
+- Keep `TLTM_STAGE2_SWAP_REFLOW_BACKEND=direct` as the production default.
+- Keep `continue_cache` as an opt-in diagnostic/backend experiment only.
+- Do not enable `TLTM_STAGE2_LOCAL_REFLOW_CACHE_MODE=lower_neighbor` by default.
+  It substantially increased high-to-low cache hits in this gate, but the local
+  dense-target seeding cost and remaining continuation cost made wall time much
+  worse.
+- Dense multi-target cache generation remains useful for initialization and bank
+  construction.  It should be applied to high-flow-reachable banks or TLTM
+  restart banks, not assumed to work for arbitrary t0-bank states at
+  `t_high=0.03`.
+
 ## Notes For The Next Agent
 
 - DOP853 dense output is available for flow-bank generation and optional swap
