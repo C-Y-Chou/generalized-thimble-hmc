@@ -1,0 +1,97 @@
+#!/bin/bash
+#PBS -N stn6slow
+#PBS -q C8
+#PBS -l select=1:ncpus=8:mpiprocs=8:mem=16gb
+#PBS -l walltime=02:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  # shellcheck source=/dev/null
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization}"
+: "${TLTM_EXPECTED_GIT_BRANCH:=codex/fortran-modernization}"
+: "${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
+: "${TLTM_DFOLS_SLOW_GROUP:=stephanov_n6_dfols_slow_param_probe_20260524}"
+: "${TLTM_DFOLS_SLOW_WORKERS:=8}"
+: "${TLTM_DFOLS_SLOW_MAXFUN:=1200}"
+: "${TLTM_DFOLS_SLOW_RHOBEGS:=0.25,0.35}"
+: "${TLTM_DFOLS_SLOW_RHOEND:=1e-13}"
+: "${TLTM_DFOLS_SLOW_SAMPLE_IDS:=1,2,3,4,5,7,8,9,15,16,19,21}"
+
+cd "${TLTM_WORKTREE}"
+LOG_ROOT="output/logs/stephanov_dfols_tuning/${TLTM_DFOLS_SLOW_GROUP}"
+mkdir -p "${LOG_ROOT}"
+exec > "${LOG_ROOT}/pbs_boot_${PBS_JOBID:-manual}.log" 2>&1
+
+echo "RUN_DATE=$(date -Is)"
+echo "HOSTNAME=$(hostname)"
+echo "PBS_JOBID=${PBS_JOBID:-manual}"
+echo "TLTM_WORKTREE=${TLTM_WORKTREE}"
+echo "TLTM_DFOLS_SLOW_GROUP=${TLTM_DFOLS_SLOW_GROUP}"
+echo "TLTM_DFOLS_SLOW_WORKERS=${TLTM_DFOLS_SLOW_WORKERS}"
+echo "TLTM_DFOLS_SLOW_MAXFUN=${TLTM_DFOLS_SLOW_MAXFUN}"
+echo "TLTM_DFOLS_SLOW_RHOBEGS=${TLTM_DFOLS_SLOW_RHOBEGS}"
+echo "TLTM_DFOLS_SLOW_RHOEND=${TLTM_DFOLS_SLOW_RHOEND}"
+echo "TLTM_DFOLS_SLOW_SAMPLE_IDS=${TLTM_DFOLS_SLOW_SAMPLE_IDS}"
+
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+CURRENT_COMMIT="$(git rev-parse HEAD)"
+echo "GIT_BRANCH=${CURRENT_BRANCH}"
+echo "GIT_COMMIT=${CURRENT_COMMIT}"
+echo "EXPECTED_GIT_COMMIT=${TLTM_EXPECTED_GIT_COMMIT}"
+if [ "${CURRENT_BRANCH}" != "${TLTM_EXPECTED_GIT_BRANCH}" ]; then
+  echo "[ERROR] expected branch ${TLTM_EXPECTED_GIT_BRANCH}, got ${CURRENT_BRANCH}" >&2
+  exit 2
+fi
+if [ "${CURRENT_COMMIT}" != "${TLTM_EXPECTED_GIT_COMMIT}" ]; then
+  echo "[ERROR] expected commit ${TLTM_EXPECTED_GIT_COMMIT}, got ${CURRENT_COMMIT}" >&2
+  exit 2
+fi
+if [ -n "$(git status --porcelain)" ]; then
+  echo "[ERROR] working tree is dirty; refusing slow-param probe" >&2
+  git status --short >&2
+  exit 2
+fi
+if [ ! -x .venv-dfols/bin/python ]; then
+  echo "[ERROR] missing .venv-dfols/bin/python" >&2
+  exit 4
+fi
+if [ ! -x bin/evaluate_btn_residual_case ]; then
+  echo "[ERROR] missing bin/evaluate_btn_residual_case" >&2
+  exit 4
+fi
+
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export OMP_PROC_BIND=false
+
+/usr/bin/time -p .venv-dfols/bin/python \
+  codex/workspaces/fortran_modernization/tasks/scripts/run_stephanov_n6_dfols_slow_param_probe.py \
+  --repo-root "${TLTM_WORKTREE}" \
+  --run-group "${TLTM_DFOLS_SLOW_GROUP}" \
+  --workers "${TLTM_DFOLS_SLOW_WORKERS}" \
+  --maxfun "${TLTM_DFOLS_SLOW_MAXFUN}" \
+  --rhobegs "${TLTM_DFOLS_SLOW_RHOBEGS}" \
+  --rhoend "${TLTM_DFOLS_SLOW_RHOEND}" \
+  --sample-ids "${TLTM_DFOLS_SLOW_SAMPLE_IDS}" \
+  --force
+
+SUMMARY="output/stephanov_dfols_tuning/${TLTM_DFOLS_SLOW_GROUP}/slow_param_probe_summary.csv"
+ATTEMPTS="output/stephanov_dfols_tuning/${TLTM_DFOLS_SLOW_GROUP}/slow_param_probe_attempts.csv"
+echo "SUMMARY=${SUMMARY}"
+echo "ATTEMPTS=${ATTEMPTS}"
+cat "${SUMMARY}"
