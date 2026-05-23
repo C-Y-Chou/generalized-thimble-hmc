@@ -24,9 +24,11 @@ module load mkl/2025.3
 : "${TLTM_EXPECTED_GIT_BRANCH:=codex/fortran-modernization}"
 : "${TLTM_EXPECTED_GIT_COMMIT:=}"
 : "${TLTM_DFOLS_SCAN_GROUP:=stephanov_n6_dfols_policy_scan_noisefixed0_20260524}"
-: "${TLTM_RECORDS:=0,101,202,303}"
+: "${TLTM_DFOLS_SCAN_CANDIDATE:=all}"
+: "${TLTM_DFOLS_SCAN_SIDECAR_ONLY:=0}"
+: "${TLTM_RECORDS:=0,101,202,303,404,505,606,707}"
 : "${TLTM_CYCLES:=5}"
-: "${TLTM_JOBS:=4}"
+: "${TLTM_JOBS:=8}"
 : "${TLTM_THREADS:=1}"
 : "${TLTM_TIMEOUT_SEC:=7200}"
 : "${TLTM_MAXFUN_BUDGET:=1200}"
@@ -46,6 +48,8 @@ echo "PBS_JOBID=${PBS_JOBID:-manual}"
 echo "PBS_QUEUE=${PBS_QUEUE:-unknown}"
 echo "TLTM_WORKTREE=${TLTM_WORKTREE}"
 echo "TLTM_DFOLS_SCAN_GROUP=${TLTM_DFOLS_SCAN_GROUP}"
+echo "TLTM_DFOLS_SCAN_CANDIDATE=${TLTM_DFOLS_SCAN_CANDIDATE}"
+echo "TLTM_DFOLS_SCAN_SIDECAR_ONLY=${TLTM_DFOLS_SCAN_SIDECAR_ONLY}"
 echo "TLTM_RECORDS=${TLTM_RECORDS}"
 echo "TLTM_CYCLES=${TLTM_CYCLES}"
 echo "TLTM_MAXFUN_BUDGET=${TLTM_MAXFUN_BUDGET}"
@@ -114,22 +118,34 @@ if [ ! -x bin/run_tltm_stage2 ]; then
   exit 2
 fi
 
-/usr/bin/time -p python3 codex/workspaces/fortran_modernization/tasks/scripts/run_stephanov_n6_dfols_policy_scan.py \
-  --repo-root "${TLTM_WORKTREE}" \
-  --output-root "${TLTM_OUTPUT_ROOT}" \
-  --run-group "${TLTM_DFOLS_SCAN_GROUP}" \
-  --records "${TLTM_RECORDS}" \
-  --cycles "${TLTM_CYCLES}" \
-  --jobs "${TLTM_JOBS}" \
-  --threads "${TLTM_THREADS}" \
-  --timeout-sec "${TLTM_TIMEOUT_SEC}" \
-  --maxfun-budget "${TLTM_MAXFUN_BUDGET}" \
-  --objfun-has-noise "${TLTM_OBJFUN_HAS_NOISE}" \
-  --init-flow-bank-root "${TLTM_INIT_FLOW_BANK_ROOT}" \
+SCAN_ARGS=(
+  codex/workspaces/fortran_modernization/tasks/scripts/run_stephanov_n6_dfols_policy_scan.py
+  --repo-root "${TLTM_WORKTREE}"
+  --output-root "${TLTM_OUTPUT_ROOT}"
+  --run-group "${TLTM_DFOLS_SCAN_GROUP}"
+  --candidate "${TLTM_DFOLS_SCAN_CANDIDATE}"
+  --records "${TLTM_RECORDS}"
+  --cycles "${TLTM_CYCLES}"
+  --jobs "${TLTM_JOBS}"
+  --threads "${TLTM_THREADS}"
+  --timeout-sec "${TLTM_TIMEOUT_SEC}"
+  --maxfun-budget "${TLTM_MAXFUN_BUDGET}"
+  --objfun-has-noise "${TLTM_OBJFUN_HAS_NOISE}"
+  --init-flow-bank-root "${TLTM_INIT_FLOW_BANK_ROOT}"
   --force
+)
+if [ "${TLTM_DFOLS_SCAN_SIDECAR_ONLY}" = "1" ]; then
+  SCAN_ARGS+=(--sidecar-only)
+fi
+
+/usr/bin/time -p python3 "${SCAN_ARGS[@]}"
 
 SUMMARY="${TLTM_OUTPUT_ROOT}/${TLTM_DFOLS_SCAN_GROUP}/dfols_scan_summary.csv"
 ATTEMPTS="${TLTM_OUTPUT_ROOT}/${TLTM_DFOLS_SCAN_GROUP}/dfols_scan_attempts.csv"
 echo "SUMMARY=${SUMMARY}"
 echo "ATTEMPTS=${ATTEMPTS}"
-cat "${SUMMARY}"
+if [ -f "${SUMMARY}" ]; then
+  cat "${SUMMARY}"
+else
+  echo "SUMMARY_PENDING_SIDECAR_MERGE=1"
+fi

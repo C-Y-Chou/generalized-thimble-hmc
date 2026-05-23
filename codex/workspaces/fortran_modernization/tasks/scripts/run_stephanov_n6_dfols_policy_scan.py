@@ -23,9 +23,9 @@ def parse_args():
     parser.add_argument("--repo-root", default=str(repo_root))
     parser.add_argument("--output-root", default="output/stephanov_dfols_tuning")
     parser.add_argument("--run-group", default="")
-    parser.add_argument("--records", default="0,101,202,303")
+    parser.add_argument("--records", default="0,101,202,303,404,505,606,707")
     parser.add_argument("--cycles", type=int, default=5)
-    parser.add_argument("--jobs", type=int, default=4)
+    parser.add_argument("--jobs", type=int, default=8)
     parser.add_argument("--threads", type=int, default=1)
     parser.add_argument("--timeout-sec", type=int, default=7200)
     parser.add_argument("--seed-base", type=int, default=8930000)
@@ -37,6 +37,9 @@ def parse_args():
     parser.add_argument("--init-flow-bank-root", default="output/stephanov_flow_banks/stephanov_n6_tltm_t003_ladder13_dop853_highflow_bank_8x600_20260523_xhist_b100_s5/flow_bank_ladder13_dop853_dense_cache")
     parser.add_argument("--base-parameters", default="data/parameters_stephanov_n6_mu06_t1e6_eps010_nstep6.dat")
     parser.add_argument("--runner", default="codex/workspaces/fortran_modernization/tasks/scripts/run_stephanov_n6_tltm_ladder.py")
+    parser.add_argument("--candidate", default="all", help="Candidate label, comma list, or all.")
+    parser.add_argument("--sidecar-only", action="store_true", help="Write per-candidate sidecars only; avoids shared-file races.")
+    parser.add_argument("--merge-only", action="store_true", help="Merge per-candidate sidecars under run-group and exit.")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
@@ -74,6 +77,18 @@ def candidates(maxfun_budget):
     add("model_abs_1e30", model_abs_tol="1e-30")
     add("npt_289", npt="289")
     return rows
+
+
+def select_candidates(all_candidates, selection):
+    text = selection.strip()
+    if not text or text == "all":
+        return all_candidates
+    wanted = set(item.strip() for item in text.split(",") if item.strip())
+    selected = [row for row in all_candidates if row["candidate"] in wanted]
+    missing = wanted.difference(row["candidate"] for row in selected)
+    if missing:
+        raise RuntimeError("Unknown DFO-LS scan candidate(s): {0}".format(",".join(sorted(missing))))
+    return selected
 
 
 def read_csv_rows(path):
@@ -185,6 +200,7 @@ def summarize_candidate(candidate, candidate_dir, elapsed_sec, returncode):
 def write_csv(path, rows):
     if not rows:
         return
+    path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = []
     for row in rows:
         for key in row:
@@ -270,13 +286,40 @@ def run_candidate(args, repo_root, scan_root, candidate):
     return proc.returncode, time.monotonic() - start
 
 
+def sidecar_summary_path(scan_root, candidate_label):
+    return scan_root / "summaries" / "{0}_summary.csv".format(candidate_label)
+
+
+def sidecar_attempts_path(scan_root, candidate_label):
+    return scan_root / "attempts" / "{0}_attempts.csv".format(candidate_label)
+
+
+def merge_sidecars(scan_root):
+    summary_rows = []
+    attempt_rows = []
+    for path in sorted((scan_root / "summaries").glob("*_summary.csv")):
+        summary_rows.extend(read_csv_rows(path))
+    for path in sorted((scan_root / "attempts").glob("*_attempts.csv")):
+        attempt_rows.extend(read_csv_rows(path))
+    write_csv(scan_root / "dfols_scan_summary.csv", summary_rows)
+    write_csv(scan_root / "dfols_scan_attempts.csv", attempt_rows)
+    print(scan_root / "dfols_scan_summary.csv")
+    print(scan_root / "dfols_scan_attempts.csv")
+    print("merged_summary_rows={0}".format(len(summary_rows)))
+    print("merged_attempt_rows={0}".format(len(attempt_rows)))
+
+
 def main():
     args = parse_args()
     repo_root = Path(args.repo_root).resolve()
     output_root = resolve_repo_path(repo_root, args.output_root)
     run_group = args.run_group or datetime.now(tz=timezone.utc).strftime("stephanov_n6_dfols_policy_scan_%Y%m%dT%H%M%SZ")
     scan_root = output_root / run_group
-    if scan_root.exists():
+    if args.merge_only:
+        merge_sidecars(scan_root)
+        return
+
+    if scan_root.exists() and not args.sidecar_only:
         if not args.force:
             raise RuntimeError("Scan root exists; use --force: {0}".format(scan_root))
         shutil.rmtree(scan_root)
@@ -284,7 +327,7 @@ def main():
 
     all_attempt_rows = []
     scan_rows = []
-    for candidate in candidates(args.maxfun_budget):
+    for candidate in select_candidates(candidates(args.maxfun_budget), args.candidate):
         candidate["objfun_has_noise"] = args.objfun_has_noise
         print("[DFOLS_SCAN] start {0}".format(candidate["candidate"]), flush=True)
         returncode, elapsed = run_candidate(args, repo_root, scan_root, candidate)
@@ -292,8 +335,11 @@ def main():
         summary, attempt_rows = summarize_candidate(candidate, candidate_dir, elapsed, returncode)
         scan_rows.append(summary)
         all_attempt_rows.extend(attempt_rows)
-        write_csv(scan_root / "dfols_scan_summary.csv", scan_rows)
-        write_csv(scan_root / "dfols_scan_attempts.csv", all_attempt_rows)
+        write_csv(sidecar_summary_path(scan_root, candidate["candidate"]), [summary])
+        write_csv(sidecar_attempts_path(scan_root, candidate["candidate"]), attempt_rows)
+        if not args.sidecar_only:
+            write_csv(scan_root / "dfols_scan_summary.csv", scan_rows)
+            write_csv(scan_root / "dfols_scan_attempts.csv", all_attempt_rows)
         print(
             "[DFOLS_SCAN] done {0} rc={1} wall={2:.1f}s attempts={3} converged={4}".format(
                 candidate["candidate"],
@@ -307,8 +353,12 @@ def main():
         if returncode != 0:
             raise RuntimeError("Candidate failed: {0}".format(candidate["candidate"]))
 
-    print(scan_root / "dfols_scan_summary.csv")
-    print(scan_root / "dfols_scan_attempts.csv")
+    if not args.sidecar_only:
+        print(scan_root / "dfols_scan_summary.csv")
+        print(scan_root / "dfols_scan_attempts.csv")
+    else:
+        print(scan_root / "summaries")
+        print(scan_root / "attempts")
 
 
 if __name__ == "__main__":
