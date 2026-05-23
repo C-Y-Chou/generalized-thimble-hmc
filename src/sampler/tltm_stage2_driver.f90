@@ -2212,9 +2212,6 @@ contains
             error stop 1
          end select
       end if
-      if (stage2_swap_reflow_backend == stage2_swap_reflow_backend_continue_cache) then
-         stage2_local_reflow_cache_mode = stage2_local_reflow_cache_mode_lower_neighbor
-      end if
       mode_text = ""
       call read_string_env("TLTM_STAGE2_LOCAL_REFLOW_CACHE_MODE", mode_text, has_mode)
       if (has_mode) then

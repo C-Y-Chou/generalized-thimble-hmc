@@ -238,14 +238,14 @@ invalidates prior endpoint history.  Therefore high-to-low cache hits are
 expected mainly from flow-bank initialized states, rejected local moves, and
 states that have just crossed a swap boundary.
 
-As a lossless production optimization, `continue_cache` defaults
-`TLTM_STAGE2_LOCAL_REFLOW_CACHE_MODE` to `lower_neighbor`.  After an accepted
-local HMC update, Stage2 keeps the accepted `z/J` returned by the HMC kernel
-unchanged, then seeds the same new physical state at the nearest lower ladder
-time with one DOP853 dense-target call.  This changes cache availability and
-timing only; it does not alter the local proposal trajectory or Metropolis
-decision.  Set the mode to `none` to disable the extra seed, or `all_lower` to
-populate every lower ladder endpoint reachable before the nearest lower maximum.
+The production default is `direct` with `TLTM_STAGE2_LOCAL_REFLOW_CACHE_MODE=none`.
+Local lower-neighbor seeding is no longer enabled implicitly by `continue_cache`.
+If explicitly requested, Stage2 keeps the accepted `z/J` returned by the HMC
+kernel unchanged, then seeds the same new physical state at the nearest lower
+ladder time with one DOP853 dense-target call.  This changes cache availability
+and timing only; it does not alter the local proposal trajectory or Metropolis
+decision.  Use `lower_neighbor` or `all_lower` only for explicit diagnostic
+experiments.
 
 ## Operational Workflow
 
@@ -423,10 +423,10 @@ Current status:
 - swap reflow also has an optional experimental backend
   `TLTM_STAGE2_SWAP_REFLOW_BACKEND=continue_cache`.
 
-The canonical production default remains `TLTM_STAGE2_SWAP_REFLOW_BACKEND=direct`.
-The dense and continuation/cache swap paths must stay opt-in until they pass
-larger decision-equivalence and walltime benchmarks on the selected Stephanov
-ladder.
+The canonical production default remains `TLTM_STAGE2_SWAP_REFLOW_BACKEND=direct`
+with `TLTM_STAGE2_LOCAL_REFLOW_CACHE_MODE=none`.  The dense and
+continuation/cache swap paths must stay opt-in diagnostics unless a new
+selected-ladder benchmark overturns the current closeout.
 
 Initial replacement test result:
 
