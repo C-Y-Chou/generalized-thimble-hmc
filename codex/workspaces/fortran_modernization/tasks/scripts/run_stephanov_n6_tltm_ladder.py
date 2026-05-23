@@ -41,6 +41,11 @@ def parse_args():
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--parallel-local-updates", choices=("0", "1"), default="1")
     parser.add_argument("--parallel-swaps", choices=("0", "1"), default="1")
+    parser.add_argument("--write-cold-observables", action="store_true")
+    parser.add_argument("--write-all-replica-observables", action="store_true")
+    parser.add_argument("--observable-stride", type=int, default=1)
+    parser.add_argument("--cold-observable-max-samples", type=int, default=-1)
+    parser.add_argument("--all-replica-observable-max-samples", type=int, default=-1)
     parser.add_argument("--max-preflow-stages", type=int, default=512)
     parser.add_argument("--max-preflow-shrinks", type=int, default=4096)
     parser.add_argument("--skip-build", action="store_true")
@@ -229,6 +234,22 @@ def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, c
             "CONSTRAINT_FAIL_CAPTURE_START_SAMPLE": "2147483647",
         }
     )
+    if args.write_cold_observables:
+        env.update(
+            {
+                "TLTM_STAGE2_COLD_OBSERVABLE_FILE": str(chain_dir / "observable_history.dat"),
+                "TLTM_STAGE2_COLD_OBSERVABLE_STRIDE": str(args.observable_stride),
+                "TLTM_STAGE2_COLD_OBSERVABLE_MAX_SAMPLES": str(args.cold_observable_max_samples),
+            }
+        )
+    if args.write_all_replica_observables:
+        env.update(
+            {
+                "TLTM_STAGE2_ALL_REPLICA_OBSERVABLE_DIR": str(chain_dir / "all_replica_observables"),
+                "TLTM_STAGE2_ALL_REPLICA_OBSERVABLE_STRIDE": str(args.observable_stride),
+                "TLTM_STAGE2_ALL_REPLICA_OBSERVABLE_MAX_SAMPLES": str(args.all_replica_observable_max_samples),
+            }
+        )
     start = time.monotonic()
     status = "done"
     log_file = chain_dir / "run.log"
