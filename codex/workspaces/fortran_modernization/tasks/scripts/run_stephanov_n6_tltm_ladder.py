@@ -41,6 +41,11 @@ def parse_args():
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--parallel-local-updates", choices=("0", "1"), default="1")
     parser.add_argument("--parallel-swaps", choices=("0", "1"), default="1")
+    parser.add_argument(
+        "--enable-quasi-fallback",
+        action="store_true",
+        help="Enable the quasi-Newton fallback path for withfb runs.",
+    )
     parser.add_argument("--write-cold-observables", action="store_true")
     parser.add_argument("--write-all-replica-observables", action="store_true")
     parser.add_argument("--write-cold-x-history", action="store_true")
@@ -145,7 +150,7 @@ def write_parameters(base_text, out_path, ladder, args):
     lines = set_param(lines, "trajectory_length", "{0:g}".format(hmc_l))
     lines = set_param(lines, "integration_steps", str(args.hmc_nstep))
     lines = set_param(lines, "initial_flow_time", "{0:g}".format(max(ladder)))
-    lines = set_param(lines, "enable_quasi_fallback", "false")
+    lines = set_param(lines, "enable_quasi_fallback", "true" if args.enable_quasi_fallback else "false")
     out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return hmc_l
 
@@ -360,6 +365,7 @@ def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, c
         "hmc_epsilon": args.hmc_epsilon,
         "hmc_nstep": args.hmc_nstep,
         "hmc_L": hmc_l,
+        "enable_quasi_fallback": int(args.enable_quasi_fallback),
         "preflow_L": args.preflow_L,
         "preflow_nstep": args.preflow_nstep,
         **metrics,
