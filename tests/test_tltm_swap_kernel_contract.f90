@@ -3,7 +3,7 @@ program test_tltm_swap_kernel_contract
    use mt95, only: mt95_seed_state, mt95_state_t
    use markovchain_phase, only: compute_phase_factor
    use solve_flow, only: flow_at, intode_status_is_strict_success, intode_status_unknown
-   use tltm_stage2_driver, only: attempt_adjacent_swap, compute_effective_energy
+   use tltm_stage2_driver, only: attempt_adjacent_swap, compute_effective_energy, reset_stage2_production_instrumentation
    use tltm_run_context_mod, only: release_tltm_run_context, tltm_run_context_t
    use tltm_types_mod, only: allocate_tltm_slot, release_tltm_slot, tltm_pair_stats_t, tltm_slot_t
    use utils, only: dp
@@ -29,6 +29,7 @@ program test_tltm_swap_kernel_contract
    logical :: ok_a, ok_b, ok_ap, ok_bp, ok_bad, phase_error
 
    call read_parameters()
+   call reset_stage2_production_instrumentation()
    n_seed = state_seed_size_cfg()
    x_size = n_seed
 

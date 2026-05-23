@@ -426,7 +426,7 @@ EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 .DEFAULT_GOAL := all
 override FFLAGS := $(FFLAGS_OPT) $(FFLAGS_INC)
 
-.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_odex_controller_observation_contract test_odex_controller_alignment_spec test_sundials_cvode_backend_contract test_official_dfols_preset_contract evaluate_btn_residual_case replay_flowz_cases build_flow_bank_dense test_tltm_swap_kernel_contract test_mt95_state_contract test_tltm_rng_contract test_perf_profile_context_contract test_numerical_helper_contracts test_hmc_reversibility_context_contract test_newton_eval_flow_status_context_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails f14_pre_redo_complete_gate official_line_kernel_correctness_gate post_b_rng_reference_anchor stage2_rng_v2_anchor script_evidence_audit_gate precision_readiness_audit FORCE \
+.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_odex_controller_observation_contract test_odex_controller_alignment_spec test_sundials_cvode_backend_contract test_official_dfols_preset_contract evaluate_btn_residual_case replay_flowz_cases build_flow_bank_dense test_tltm_swap_kernel_contract test_tltm_swap_kernel_contract_dense test_mt95_state_contract test_tltm_rng_contract test_perf_profile_context_contract test_numerical_helper_contracts test_hmc_reversibility_context_contract test_newton_eval_flow_status_context_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails f14_pre_redo_complete_gate official_line_kernel_correctness_gate post_b_rng_reference_anchor stage2_rng_v2_anchor script_evidence_audit_gate precision_readiness_audit FORCE \
         test1_fb_on test1_fb_off test2_fb_on test2_fb_off test_fb_matrix \
         prepare_outputs clean_outputs clean veryclean
 all: $(EXECUTABLES)
@@ -608,6 +608,7 @@ help:
 	@echo "  make evaluate_btn_residual_case - build offline BTN residual bridge for external DFO-LS comparison"
 	@echo "  make replay_flowz_cases - build fixed-input flowz ODEX replay diagnostic"
 	@echo "  make test_tltm_swap_kernel_contract - run TLTM swap-kernel contract test (log -> $(OUT_LOG_DIR))"
+	@echo "  make test_tltm_swap_kernel_contract_dense - rerun swap contract with DOP853 dense-output reflow"
 	@echo "  make test_mt95_state_contract - run explicit mt95 RNG-state contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_tltm_rng_contract - run counter-based TLTM RNG v2 contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_perf_profile_context_contract - run explicit profiler-context contract test (log -> $(OUT_LOG_DIR))"
@@ -810,6 +811,9 @@ test_official_dfols_preset_contract: $(BIN_DIR)/test_official_dfols_preset_contr
 
 test_tltm_swap_kernel_contract: $(BIN_DIR)/test_tltm_swap_kernel_contract prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_tltm_swap_kernel_contract 2>&1 | tee $(OUT_LOG_DIR)/test_tltm_swap_kernel_contract.log
+
+test_tltm_swap_kernel_contract_dense: $(BIN_DIR)/test_tltm_swap_kernel_contract prepare_outputs
+	@set -o pipefail; TLTM_STAGE2_SWAP_REFLOW_BACKEND=dop853_dense $(BIN_DIR)/test_tltm_swap_kernel_contract 2>&1 | tee $(OUT_LOG_DIR)/test_tltm_swap_kernel_contract_dense.log
 
 test_mt95_state_contract: $(BIN_DIR)/test_mt95_state_contract prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_mt95_state_contract 2>&1 | tee $(OUT_LOG_DIR)/test_mt95_state_contract.log

@@ -4,7 +4,7 @@ module tltm_stage2_driver
    use param_mod, only: config, read_parameters
    use runtime_env_mod, only: parse_int_env, parse_real_env, parse_logical_env, read_string_env, parse_real_list, to_lower_ascii
    use utils, only: dp, log_determinant, wall_time_seconds
-   use solve_flow, only: flow_at, reset_intode_fallback_stats, get_intode_fallback_stats, &
+   use solve_flow, only: flow_at, flow_at_dense_targets, reset_intode_fallback_stats, get_intode_fallback_stats, &
                          intode_diagnostics_context_t, get_intode_cvode_stats, get_intode_cvode_context_stats, &
                          get_intode_odex_stats, get_intode_odex_context_stats, &
                          intode_ctx_unknown, intode_ctx_flowz, intode_ctx_flowzr, intode_ctx_flow, &
@@ -64,6 +64,8 @@ module tltm_stage2_driver
    integer, parameter :: stage2_snapshot_rng_kernel_v2_code = 3
    integer, parameter :: stage2_flow_bank_magic = 23170524
    integer, parameter :: stage2_flow_bank_version = 1
+   integer, parameter :: stage2_swap_reflow_backend_direct = 1
+   integer, parameter :: stage2_swap_reflow_backend_dop853_dense = 2
    integer(int64) :: phase_cache_hit_count = 0_int64
    integer(int64) :: phase_cache_miss_count = 0_int64
    integer(int64) :: effective_energy_cache_hit_count = 0_int64
@@ -77,6 +79,7 @@ module tltm_stage2_driver
    logical :: stage2_cache_config_loaded = .false.
    logical :: stage2_effective_energy_cache_enabled = .true.
    logical :: stage2_swap_reflow_cache_enabled = .true.
+   integer :: stage2_swap_reflow_backend = stage2_swap_reflow_backend_direct
 
    type :: stage2_timing_t
       real(dp) :: local_update_sweep_sec = 0.0_dp
@@ -2153,13 +2156,44 @@ contains
    end subroutine reset_stage2_production_instrumentation
 
    subroutine load_stage2_cache_config()
+      character(len=64) :: backend_text
+      logical :: has_backend
+
       if (stage2_cache_config_loaded) return
       stage2_cache_config_loaded = .true.
       stage2_effective_energy_cache_enabled = .true.
       stage2_swap_reflow_cache_enabled = .true.
+      stage2_swap_reflow_backend = stage2_swap_reflow_backend_direct
       call parse_logical_env("TLTM_STAGE2_EFFECTIVE_ENERGY_CACHE_ENABLED", stage2_effective_energy_cache_enabled)
       call parse_logical_env("TLTM_STAGE2_SWAP_REFLOW_CACHE_ENABLED", stage2_swap_reflow_cache_enabled)
+      backend_text = ""
+      call read_string_env("TLTM_STAGE2_SWAP_REFLOW_BACKEND", backend_text, has_backend)
+      if (has_backend) then
+         backend_text = trim(to_lower_ascii(adjustl(backend_text)))
+         select case (trim(backend_text))
+         case ("direct", "endpoint", "flow_at", "flow-at")
+            stage2_swap_reflow_backend = stage2_swap_reflow_backend_direct
+         case ("dop853_dense", "dop853-dense", "dense", "dense_output", "dense-output")
+            stage2_swap_reflow_backend = stage2_swap_reflow_backend_dop853_dense
+         case default
+            write (*, '(A,A,A)') "[ERROR][TLTM-S2] Unsupported TLTM_STAGE2_SWAP_REFLOW_BACKEND='", &
+               trim(backend_text), "'."
+            write (*, '(A)') "[ERROR][TLTM-S2] Use direct or dop853_dense."
+            error stop 1
+         end select
+      end if
    end subroutine load_stage2_cache_config
+
+   pure function stage2_swap_reflow_backend_name() result(name)
+      character(len=32) :: name
+
+      select case (stage2_swap_reflow_backend)
+      case (stage2_swap_reflow_backend_dop853_dense)
+         name = "dop853_dense"
+      case default
+         name = "direct"
+      end select
+   end function stage2_swap_reflow_backend_name
 
    subroutine add_effective_energy_compute_time(delta)
       real(dp), intent(in) :: delta
@@ -2638,6 +2672,10 @@ contains
       integer :: entry, store_entry, flow_status
       logical :: flow_failed
       real(dp) :: t0, source_fingerprint
+      real(dp) :: dense_target_times(1)
+      logical :: dense_target_available(1)
+      complex(dp), allocatable :: dense_z(:, :)
+      complex(dp), allocatable :: dense_jac(:, :, :)
 
       ok = .false.
       if (size(x_out) /= size(source_slot%x) .or. size(z_out) /= size(source_slot%z) .or. &
@@ -2664,10 +2702,25 @@ contains
       flow_status = intode_status_unknown
       call record_swap_reflow_flow_call()
       t0 = wall_time_seconds()
-      call flow_at(target_flow_time, x_out, z_out, jac_out, flow_failed, flow_status, &
-                   run_context%flow%workspace, run_context%diagnostics%intode)
+      select case (stage2_swap_reflow_backend)
+      case (stage2_swap_reflow_backend_dop853_dense)
+         dense_target_times(1) = target_flow_time
+         allocate (dense_z(size(z_out), 1), dense_jac(size(jac_out, 1), size(jac_out, 2), 1))
+         call flow_at_dense_targets(dense_target_times, x_out, dense_z, dense_jac, dense_target_available, &
+                                    flow_failed, status=flow_status, workspace=run_context%flow%workspace, &
+                                    intode_diagnostics=run_context%diagnostics%intode)
+         if ((.not. flow_failed) .and. dense_target_available(1)) then
+            z_out = dense_z(:, 1)
+            jac_out = dense_jac(:, :, 1)
+         end if
+         deallocate (dense_z, dense_jac)
+      case default
+         call flow_at(target_flow_time, x_out, z_out, jac_out, flow_failed, flow_status, &
+                      run_context%flow%workspace, run_context%diagnostics%intode)
+         dense_target_available(1) = .true.
+      end select
       call add_swap_reflow_time(wall_time_seconds() - t0)
-      ok = (.not. flow_failed) .and. intode_status_is_strict_success(flow_status)
+      ok = (.not. flow_failed) .and. dense_target_available(1) .and. intode_status_is_strict_success(flow_status)
       if (.not. ok) then
          call record_swap_reflow_flow_failure()
          return
@@ -3348,9 +3401,10 @@ contains
       write (unit_summary, '(A,I0)') "# base_seed=", base_seed
       write (unit_summary, '(A,I0)') "# swap_rng_seed=", swap_rng_seed
       write (unit_summary, '(A,F12.6)') "# elapsed_sec=", elapsed
-      write (unit_summary, '(A,L1,A,L1)') &
+      write (unit_summary, '(A,L1,A,L1,A,A)') &
          "# production_cache_controls effective_energy_cache_enabled=", stage2_effective_energy_cache_enabled, &
-         " swap_reflow_cache_enabled=", stage2_swap_reflow_cache_enabled
+         " swap_reflow_cache_enabled=", stage2_swap_reflow_cache_enabled, &
+         " swap_reflow_backend=", trim(stage2_swap_reflow_backend_name())
       production_timed_sec = stage2_timing%local_update_sweep_sec + stage2_timing%swap_sweep_sec + &
                              stage2_timing%label_bookkeeping_sec + stage2_timing%measure_slots_sec + &
                              stage2_timing%history_io_sec + stage2_timing%label_trace_sec + stage2_timing%progress_log_sec
@@ -4317,6 +4371,7 @@ contains
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_ALL_REPLICA_OBSERVABLE_MAX_SAMPLES", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_EFFECTIVE_ENERGY_CACHE_ENABLED", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_SWAP_REFLOW_CACHE_ENABLED", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_SWAP_REFLOW_BACKEND", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_OUTPUT_DIR", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_MANIFEST_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_PROTOCOL_FILE", .true., 4)
@@ -4736,6 +4791,7 @@ contains
       write (unit_protocol, '(A)') '  "swap_kernel": {'
       call write_json_string_field(unit_protocol, "proposal", "exchange base configurations between adjacent fixed flow-time slots", .true., 4)
       call write_json_string_field(unit_protocol, "acceptance_probability", "min(1, exp(-[(E_a(y)+E_b(x))-(E_a(x)+E_b(y))]))", .true., 4)
+      call write_json_string_field(unit_protocol, "reflow_backend", trim(stage2_swap_reflow_backend_name()), .true., 4)
       call write_json_string_field(unit_protocol, "invalid_reflow_semantics", "reject swap; live slot states and labels unchanged", .true., 4)
       call write_json_string_field(unit_protocol, "rng_stream", "contract-selected; stage2_kernel_rng_v2 uses counter-based swap_accept keys", .true., 4)
       call write_json_string_field(unit_protocol, "rng_draw_boundary", "draw from swap stream only after finite current and proposed swap energies are available", .true., 4)

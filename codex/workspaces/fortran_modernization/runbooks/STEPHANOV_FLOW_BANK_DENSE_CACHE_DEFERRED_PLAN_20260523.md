@@ -373,18 +373,23 @@ Return to this plan only after:
 - the production output path and manifest provide a stable target for cache
   validation.
 
-When reactivated, implement in this order:
+Current status:
 
-1. Write the model-general bank/cache schema.
-2. Build a fixed target-time flow-lift cache generator.
-3. Add Stage2 `flow_bank` init mode.
-4. Verify cache-vs-endpoint equivalence.
-5. Verify adaptive-preflow-vs-flow-bank initialization behavior.
-6. Only then consider DOP853 dense-output polynomial support.
+- model-general dense flow-bank generation exists through `bin/build_flow_bank_dense`;
+- Stage2 can initialize from `TLTM_STAGE2_INIT_MODE=flow_bank`;
+- Stage2 can write `x_history.dat` and `final_snapshot.bin` for high-flow bank extraction;
+- snapshot continuation supports an explicit restart-boundary policy;
+- swap reflow has an optional experimental backend
+  `TLTM_STAGE2_SWAP_REFLOW_BACKEND=dop853_dense`.
+
+The canonical production default remains `TLTM_STAGE2_SWAP_REFLOW_BACKEND=direct`.
+The dense swap path must stay opt-in until it passes larger decision-equivalence
+and walltime benchmarks on the selected Stephanov ladder.
 
 ## Notes For The Next Agent
 
-- Current DOP853 is endpoint-only.
+- DOP853 dense output is available for flow-bank generation and optional swap
+  reflow.  The swap path is not the production default.
 - Current `t=0` Stephanov development bank is documented in
   `STEPHANOV_T0_CHECKPOINT_BANK_20260522.md`.
 - Preflow reverse gate must remain off; production reverse gate must remain on.
