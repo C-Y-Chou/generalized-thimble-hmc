@@ -216,6 +216,9 @@ Optional swap reflow backends:
 TLTM_STAGE2_SWAP_REFLOW_BACKEND=direct
 TLTM_STAGE2_SWAP_REFLOW_BACKEND=dop853_dense
 TLTM_STAGE2_SWAP_REFLOW_BACKEND=continue_cache
+TLTM_STAGE2_LOCAL_REFLOW_CACHE_MODE=none
+TLTM_STAGE2_LOCAL_REFLOW_CACHE_MODE=lower_neighbor
+TLTM_STAGE2_LOCAL_REFLOW_CACHE_MODE=all_lower
 ```
 
 `continue_cache` has two pieces:
@@ -234,6 +237,15 @@ Important limitation: an accepted local HMC move changes the physical state and
 invalidates prior endpoint history.  Therefore high-to-low cache hits are
 expected mainly from flow-bank initialized states, rejected local moves, and
 states that have just crossed a swap boundary.
+
+As a lossless production optimization, `continue_cache` defaults
+`TLTM_STAGE2_LOCAL_REFLOW_CACHE_MODE` to `lower_neighbor`.  After an accepted
+local HMC update, Stage2 keeps the accepted `z/J` returned by the HMC kernel
+unchanged, then seeds the same new physical state at the nearest lower ladder
+time with one DOP853 dense-target call.  This changes cache availability and
+timing only; it does not alter the local proposal trajectory or Metropolis
+decision.  Set the mode to `none` to disable the extra seed, or `all_lower` to
+populate every lower ladder endpoint reachable before the nearest lower maximum.
 
 ## Operational Workflow
 
@@ -442,6 +454,9 @@ Continuation/cache implementation result:
 - Stage2 `continue_cache` uses `flow_continue` for low-to-high adjacent reflow.
   High-to-low uses the same-state endpoint cache first and direct reflow only on
   cache miss.
+- Accepted local HMC updates can now seed same-state lower-neighbor reflow cache
+  immediately; this turns the next high-to-low adjacent swap for that new state
+  into a cache hit when the seed succeeds.
 - The reflow cache capacity is now 16 endpoints per slot, enough for the current
   pruned 13-point ladder with margin.
 - `compare_swap_reflow_backends` now reports adjacent continuation agreement
@@ -473,6 +488,27 @@ The swap-kernel contract now explicitly checks both directions:
   tolerance;
 - `continue_cache` preserves the swap acceptance probability and accepted state
   movement contract.
+
+Local lower-neighbor seed smoke:
+
+```text
+TLTM_STAGE2_SWAP_REFLOW_BACKEND=continue_cache
+TLTM_STAGE2_LOCAL_REFLOW_CACHE_MODE=lower_neighbor
+```
+
+On the two-replica Stephanov `n=2` smoke this produced:
+
+```text
+local_reflow_cache_seed attempts=2 targets=2 stores=2 failures=0
+swap_reflow_cache hits=1 misses=1 stores=1 flow_calls=1 flow_failures=0
+```
+
+With `TLTM_STAGE2_LOCAL_REFLOW_CACHE_MODE=none` on the same smoke:
+
+```text
+local_reflow_cache_seed attempts=0 targets=0 stores=0 failures=0
+swap_reflow_cache hits=0 misses=2 stores=2 flow_calls=2 flow_failures=0
+```
 
 ## Notes For The Next Agent
 

@@ -67,6 +67,9 @@ module tltm_stage2_driver
    integer, parameter :: stage2_swap_reflow_backend_direct = 1
    integer, parameter :: stage2_swap_reflow_backend_dop853_dense = 2
    integer, parameter :: stage2_swap_reflow_backend_continue_cache = 3
+   integer, parameter :: stage2_local_reflow_cache_mode_none = 0
+   integer, parameter :: stage2_local_reflow_cache_mode_lower_neighbor = 1
+   integer, parameter :: stage2_local_reflow_cache_mode_all_lower = 2
    integer(int64) :: phase_cache_hit_count = 0_int64
    integer(int64) :: phase_cache_miss_count = 0_int64
    integer(int64) :: effective_energy_cache_hit_count = 0_int64
@@ -77,15 +80,21 @@ module tltm_stage2_driver
    integer(int64) :: swap_reflow_cache_store_count = 0_int64
    integer(int64) :: swap_reflow_flow_call_count = 0_int64
    integer(int64) :: swap_reflow_flow_failure_count = 0_int64
+   integer(int64) :: local_reflow_cache_seed_attempt_count = 0_int64
+   integer(int64) :: local_reflow_cache_seed_target_count = 0_int64
+   integer(int64) :: local_reflow_cache_seed_store_count = 0_int64
+   integer(int64) :: local_reflow_cache_seed_failure_count = 0_int64
    logical :: stage2_cache_config_loaded = .false.
    logical :: stage2_effective_energy_cache_enabled = .true.
    logical :: stage2_swap_reflow_cache_enabled = .true.
    integer :: stage2_swap_reflow_backend = stage2_swap_reflow_backend_direct
+   integer :: stage2_local_reflow_cache_mode = stage2_local_reflow_cache_mode_none
 
    type :: stage2_timing_t
       real(dp) :: local_update_sweep_sec = 0.0_dp
       real(dp) :: swap_sweep_sec = 0.0_dp
       real(dp) :: swap_reflow_sec = 0.0_dp
+      real(dp) :: local_reflow_cache_seed_sec = 0.0_dp
       real(dp) :: effective_energy_sec = 0.0_dp
       real(dp) :: label_bookkeeping_sec = 0.0_dp
       real(dp) :: measure_slots_sec = 0.0_dp
@@ -683,7 +692,7 @@ contains
                                      hmc_replay_diagnostics_context, newton_flow_status_context, constraint_stats_context, &
                                      qn_diagnostics_contexts, qn_policy_contexts, &
                                      hmc_replay_diagnostics_contexts, newton_flow_status_contexts, constraint_stats_contexts, &
-                                     rng_stream_contract, base_seed, parallel_local_updates)
+                                     rng_stream_contract, base_seed, parallel_local_updates, flow_ladder)
          stage2_timing%local_update_sweep_sec = stage2_timing%local_update_sweep_sec + (wall_time_seconds() - slot_t0)
 
          if (swap_enabled .and. n_slots > 1) then
@@ -1640,7 +1649,7 @@ contains
                                      hmc_replay_diagnostics_context, newton_flow_status_context, constraint_stats_context, &
                                      qn_diagnostics_contexts, qn_policy_contexts, &
                                      hmc_replay_diagnostics_contexts, newton_flow_status_contexts, constraint_stats_contexts, &
-                                     rng_stream_contract, base_seed, parallel_local_updates)
+                                     rng_stream_contract, base_seed, parallel_local_updates, flow_ladder)
       type(tltm_slot_t), intent(inout) :: slots(:)
       integer, intent(in) :: local_updates
       type(local_accept_census_t), intent(inout) :: local_accept_census(:)
@@ -1661,6 +1670,7 @@ contains
       character(len=*), intent(in) :: rng_stream_contract
       integer, intent(in) :: base_seed
       logical, intent(in) :: parallel_local_updates
+      real(dp), intent(in) :: flow_ladder(:)
 
       integer :: i
       real(dp) :: slot_t0
@@ -1673,7 +1683,7 @@ contains
             call run_local_updates(slots(i), local_updates, local_accept_census(i), cycle_idx, run_contexts(i), audit_context, &
                                    qn_diagnostics_contexts(i), qn_policy_contexts(i), hmc_policy_context, &
                                    hmc_replay_diagnostics_contexts(i), newton_flow_status_contexts(i), &
-                                   rng_stream_contract, base_seed)
+                                   rng_stream_contract, base_seed, flow_ladder)
             slots(i)%local_runtime = slots(i)%local_runtime + (wall_time_seconds() - slot_t0)
          end do
 !$omp end parallel do
@@ -1685,7 +1695,7 @@ contains
             call run_local_updates(slots(i), local_updates, local_accept_census(i), cycle_idx, run_contexts(i), audit_context, &
                                    qn_diagnostics_context, qn_policy_context, hmc_policy_context, &
                                    hmc_replay_diagnostics_context, newton_flow_status_context, &
-                                   rng_stream_contract, base_seed)
+                                   rng_stream_contract, base_seed, flow_ladder)
             slots(i)%local_runtime = slots(i)%local_runtime + (wall_time_seconds() - slot_t0)
          end do
       end if
@@ -1693,7 +1703,7 @@ contains
 
    subroutine run_local_updates(slot, local_updates, accept_census, cycle_idx, run_context, audit_context, qn_diagnostics_context, &
                                 qn_policy_context, hmc_policy_context, hmc_replay_diagnostics_context, newton_flow_status_context, &
-                                rng_stream_contract, base_seed)
+                                rng_stream_contract, base_seed, flow_ladder)
       type(tltm_slot_t), intent(inout) :: slot
       integer, intent(in) :: local_updates
       type(local_accept_census_t), intent(inout) :: accept_census
@@ -1707,6 +1717,7 @@ contains
       type(newton_eval_flow_status_context_t), intent(inout), target :: newton_flow_status_context
       character(len=*), intent(in) :: rng_stream_contract
       integer, intent(in) :: base_seed
+      real(dp), intent(in) :: flow_ladder(:)
 
       integer :: update_idx, z_size
       integer :: integration_steps
@@ -1789,6 +1800,7 @@ contains
             slot%jac = j_new
             call mark_tltm_slot_state_changed(slot)
             call seed_slot_current_reflow_cache(slot)
+            call seed_slot_lower_reflow_cache(slot, flow_ladder, run_context)
             call accumulate_accepted_local_census(accept_census, solver_before, solver_after)
          end if
          call record_tltm_local_transition(slot, accepted, proposal_failed, transition_status)
@@ -2161,18 +2173,25 @@ contains
       swap_reflow_cache_store_count = 0_int64
       swap_reflow_flow_call_count = 0_int64
       swap_reflow_flow_failure_count = 0_int64
+      local_reflow_cache_seed_attempt_count = 0_int64
+      local_reflow_cache_seed_target_count = 0_int64
+      local_reflow_cache_seed_store_count = 0_int64
+      local_reflow_cache_seed_failure_count = 0_int64
       stage2_timing = stage2_timing_t()
    end subroutine reset_stage2_production_instrumentation
 
    subroutine load_stage2_cache_config()
       character(len=64) :: backend_text
+      character(len=64) :: mode_text
       logical :: has_backend
+      logical :: has_mode
 
       if (stage2_cache_config_loaded) return
       stage2_cache_config_loaded = .true.
       stage2_effective_energy_cache_enabled = .true.
       stage2_swap_reflow_cache_enabled = .true.
       stage2_swap_reflow_backend = stage2_swap_reflow_backend_direct
+      stage2_local_reflow_cache_mode = stage2_local_reflow_cache_mode_none
       call parse_logical_env("TLTM_STAGE2_EFFECTIVE_ENERGY_CACHE_ENABLED", stage2_effective_energy_cache_enabled)
       call parse_logical_env("TLTM_STAGE2_SWAP_REFLOW_CACHE_ENABLED", stage2_swap_reflow_cache_enabled)
       backend_text = ""
@@ -2193,6 +2212,27 @@ contains
             error stop 1
          end select
       end if
+      if (stage2_swap_reflow_backend == stage2_swap_reflow_backend_continue_cache) then
+         stage2_local_reflow_cache_mode = stage2_local_reflow_cache_mode_lower_neighbor
+      end if
+      mode_text = ""
+      call read_string_env("TLTM_STAGE2_LOCAL_REFLOW_CACHE_MODE", mode_text, has_mode)
+      if (has_mode) then
+         mode_text = trim(to_lower_ascii(adjustl(mode_text)))
+         select case (trim(mode_text))
+         case ("none", "off", "false", "0", "current", "current_only", "current-only")
+            stage2_local_reflow_cache_mode = stage2_local_reflow_cache_mode_none
+         case ("lower", "lower_neighbor", "lower-neighbor", "nearest_lower", "nearest-lower", "adjacent_lower", "adjacent-lower")
+            stage2_local_reflow_cache_mode = stage2_local_reflow_cache_mode_lower_neighbor
+         case ("all_lower", "all-lower", "all", "full_lower", "full-lower")
+            stage2_local_reflow_cache_mode = stage2_local_reflow_cache_mode_all_lower
+         case default
+            write (*, '(A,A,A)') "[ERROR][TLTM-S2] Unsupported TLTM_STAGE2_LOCAL_REFLOW_CACHE_MODE='", &
+               trim(mode_text), "'."
+            write (*, '(A)') "[ERROR][TLTM-S2] Use none, lower_neighbor, or all_lower."
+            error stop 1
+         end select
+      end if
    end subroutine load_stage2_cache_config
 
    pure function stage2_swap_reflow_backend_name() result(name)
@@ -2207,6 +2247,19 @@ contains
          name = "direct"
       end select
    end function stage2_swap_reflow_backend_name
+
+   pure function stage2_local_reflow_cache_mode_name() result(name)
+      character(len=32) :: name
+
+      select case (stage2_local_reflow_cache_mode)
+      case (stage2_local_reflow_cache_mode_lower_neighbor)
+         name = "lower_neighbor"
+      case (stage2_local_reflow_cache_mode_all_lower)
+         name = "all_lower"
+      case default
+         name = "none"
+      end select
+   end function stage2_local_reflow_cache_mode_name
 
    subroutine add_effective_energy_compute_time(delta)
       real(dp), intent(in) :: delta
@@ -2223,6 +2276,13 @@ contains
 !$omp atomic update
       stage2_timing%swap_reflow_sec = stage2_timing%swap_reflow_sec + delta
    end subroutine add_swap_reflow_time
+
+   subroutine add_local_reflow_cache_seed_time(delta)
+      real(dp), intent(in) :: delta
+
+!$omp atomic update
+      stage2_timing%local_reflow_cache_seed_sec = stage2_timing%local_reflow_cache_seed_sec + delta
+   end subroutine add_local_reflow_cache_seed_time
 
    subroutine record_effective_energy_cache_hit()
 !$omp atomic update
@@ -2258,6 +2318,25 @@ contains
 !$omp atomic update
       swap_reflow_flow_failure_count = swap_reflow_flow_failure_count + 1_int64
    end subroutine record_swap_reflow_flow_failure
+
+   subroutine record_local_reflow_cache_seed_attempt(target_count)
+      integer, intent(in) :: target_count
+
+!$omp atomic update
+      local_reflow_cache_seed_attempt_count = local_reflow_cache_seed_attempt_count + 1_int64
+!$omp atomic update
+      local_reflow_cache_seed_target_count = local_reflow_cache_seed_target_count + int(max(0, target_count), int64)
+   end subroutine record_local_reflow_cache_seed_attempt
+
+   subroutine record_local_reflow_cache_seed_store()
+!$omp atomic update
+      local_reflow_cache_seed_store_count = local_reflow_cache_seed_store_count + 1_int64
+   end subroutine record_local_reflow_cache_seed_store
+
+   subroutine record_local_reflow_cache_seed_failure()
+!$omp atomic update
+      local_reflow_cache_seed_failure_count = local_reflow_cache_seed_failure_count + 1_int64
+   end subroutine record_local_reflow_cache_seed_failure
 
    subroutine slot_phase_factor(slot, phi, error)
       type(tltm_slot_t), intent(inout) :: slot
@@ -2840,6 +2919,76 @@ contains
 
       call store_slot_reflow_cache(slot, slot%flow_time, slot%z, slot%jac, .false.)
    end subroutine seed_slot_current_reflow_cache
+
+   subroutine seed_slot_lower_reflow_cache(slot, flow_ladder, run_context)
+      type(tltm_slot_t), intent(inout) :: slot
+      real(dp), intent(in) :: flow_ladder(:)
+      type(tltm_run_context_t), intent(inout) :: run_context
+
+      integer :: target_count, target_idx, ladder_idx, lower_idx
+      integer :: flow_status
+      real(dp) :: t0
+      real(dp), allocatable :: target_times(:)
+      logical :: flow_failed
+      logical, allocatable :: target_available(:)
+      complex(dp), allocatable :: target_z(:, :)
+      complex(dp), allocatable :: target_jac(:, :, :)
+
+      if (.not. stage2_swap_reflow_cache_enabled) return
+      if (stage2_local_reflow_cache_mode == stage2_local_reflow_cache_mode_none) return
+      if (.not. allocated(slot%x) .or. .not. allocated(slot%z) .or. .not. allocated(slot%jac)) return
+      if (size(flow_ladder) <= 0) return
+
+      target_count = 0
+      lower_idx = 0
+      do ladder_idx = 1, size(flow_ladder)
+         if (flow_ladder(ladder_idx) < slot%flow_time .and. .not. same_flow_time(flow_ladder(ladder_idx), slot%flow_time)) then
+            target_count = target_count + 1
+            lower_idx = ladder_idx
+         end if
+      end do
+      if (target_count <= 0) return
+
+      select case (stage2_local_reflow_cache_mode)
+      case (stage2_local_reflow_cache_mode_lower_neighbor)
+         allocate (target_times(1))
+         target_times(1) = flow_ladder(lower_idx)
+      case (stage2_local_reflow_cache_mode_all_lower)
+         allocate (target_times(target_count))
+         target_idx = 0
+         do ladder_idx = 1, size(flow_ladder)
+            if (flow_ladder(ladder_idx) < slot%flow_time .and. .not. same_flow_time(flow_ladder(ladder_idx), slot%flow_time)) then
+               target_idx = target_idx + 1
+               target_times(target_idx) = flow_ladder(ladder_idx)
+            end if
+         end do
+      case default
+         return
+      end select
+
+      call record_local_reflow_cache_seed_attempt(size(target_times))
+      allocate (target_available(size(target_times)))
+      allocate (target_z(size(slot%z), size(target_times)))
+      allocate (target_jac(size(slot%jac, 1), size(slot%jac, 2), size(target_times)))
+      flow_status = intode_status_unknown
+      t0 = wall_time_seconds()
+      call flow_at_dense_targets(target_times, slot%x, target_z, target_jac, target_available, flow_failed, &
+                                 flow_status, run_context%flow%workspace, run_context%diagnostics%intode)
+      call add_local_reflow_cache_seed_time(wall_time_seconds() - t0)
+      if (flow_failed .or. (.not. intode_status_is_strict_success(flow_status))) then
+         call record_local_reflow_cache_seed_failure()
+      end if
+      do target_idx = 1, size(target_times)
+         if (.not. target_available(target_idx)) cycle
+         call store_slot_reflow_cache(slot, target_times(target_idx), target_z(:, target_idx), target_jac(:, :, target_idx), .false.)
+         call record_local_reflow_cache_seed_store()
+      end do
+
+      if (allocated(target_times)) deallocate (target_times)
+      if (allocated(target_available)) deallocate (target_available)
+      if (allocated(target_z)) deallocate (target_z)
+      if (allocated(target_jac)) deallocate (target_jac)
+   end subroutine seed_slot_lower_reflow_cache
 
    subroutine seed_cross_slot_endpoint_caches(slots)
       type(tltm_slot_t), intent(inout) :: slots(:)
@@ -3525,10 +3674,11 @@ contains
       write (unit_summary, '(A,I0)') "# base_seed=", base_seed
       write (unit_summary, '(A,I0)') "# swap_rng_seed=", swap_rng_seed
       write (unit_summary, '(A,F12.6)') "# elapsed_sec=", elapsed
-      write (unit_summary, '(A,L1,A,L1,A,A)') &
+      write (unit_summary, '(A,L1,A,L1,A,A,A,A)') &
          "# production_cache_controls effective_energy_cache_enabled=", stage2_effective_energy_cache_enabled, &
          " swap_reflow_cache_enabled=", stage2_swap_reflow_cache_enabled, &
-         " swap_reflow_backend=", trim(stage2_swap_reflow_backend_name())
+         " swap_reflow_backend=", trim(stage2_swap_reflow_backend_name()), &
+         " local_reflow_cache_mode=", trim(stage2_local_reflow_cache_mode_name())
       production_timed_sec = stage2_timing%local_update_sweep_sec + stage2_timing%swap_sweep_sec + &
                              stage2_timing%label_bookkeeping_sec + stage2_timing%measure_slots_sec + &
                              stage2_timing%history_io_sec + stage2_timing%label_trace_sec + stage2_timing%progress_log_sec
@@ -3545,6 +3695,12 @@ contains
          "# production_subtiming swap_reflow_sec=", stage2_timing%swap_reflow_sec, &
          " action_logdet_sec=", stage2_timing%effective_energy_sec, &
          " action_logdet_compute_count=", effective_energy_compute_count
+      write (unit_summary, '(A,F12.6,A,I0,A,I0,A,I0,A,I0)') &
+         "# local_reflow_cache_seed sec=", stage2_timing%local_reflow_cache_seed_sec, &
+         " attempts=", local_reflow_cache_seed_attempt_count, &
+         " targets=", local_reflow_cache_seed_target_count, &
+         " stores=", local_reflow_cache_seed_store_count, &
+         " failures=", local_reflow_cache_seed_failure_count
       write (unit_summary, '(A,I0,A,I0,A,I0)') &
          "# effective_energy_cache hits=", effective_energy_cache_hit_count, &
          " misses=", effective_energy_cache_miss_count, " action_logdet_computes=", effective_energy_compute_count
@@ -4496,6 +4652,7 @@ contains
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_EFFECTIVE_ENERGY_CACHE_ENABLED", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_SWAP_REFLOW_CACHE_ENABLED", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_SWAP_REFLOW_BACKEND", .true., 4)
+      call write_json_env_field(unit_manifest, "TLTM_STAGE2_LOCAL_REFLOW_CACHE_MODE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_OUTPUT_DIR", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_MANIFEST_FILE", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_STAGE2_V1_PROTOCOL_FILE", .true., 4)
@@ -4667,7 +4824,9 @@ contains
       call write_json_logical_field(unit_config, "swap_enabled", swap_enabled, .true., 4)
       call write_json_logical_field(unit_config, "fixed_flow_mode", fixed_flow_mode, .true., 4)
       call write_json_logical_field(unit_config, "replica_exchange_active", swap_enabled .and. size(flow_ladder) > 1 .and. (.not. fixed_flow_mode), &
-                                    .false., 4)
+                                    .true., 4)
+      call write_json_string_field(unit_config, "swap_reflow_backend", trim(stage2_swap_reflow_backend_name()), .true., 4)
+      call write_json_string_field(unit_config, "local_reflow_cache_mode", trim(stage2_local_reflow_cache_mode_name()), .false., 4)
       write (unit_config, '(A)') '  },'
 
       write (unit_config, '(A)') '  "precision": {'
@@ -4916,6 +5075,7 @@ contains
       call write_json_string_field(unit_protocol, "proposal", "exchange base configurations between adjacent fixed flow-time slots", .true., 4)
       call write_json_string_field(unit_protocol, "acceptance_probability", "min(1, exp(-[(E_a(y)+E_b(x))-(E_a(x)+E_b(y))]))", .true., 4)
       call write_json_string_field(unit_protocol, "reflow_backend", trim(stage2_swap_reflow_backend_name()), .true., 4)
+      call write_json_string_field(unit_protocol, "local_reflow_cache_mode", trim(stage2_local_reflow_cache_mode_name()), .true., 4)
       call write_json_string_field(unit_protocol, "invalid_reflow_semantics", "reject swap; live slot states and labels unchanged", .true., 4)
       call write_json_string_field(unit_protocol, "rng_stream", "contract-selected; stage2_kernel_rng_v2 uses counter-based swap_accept keys", .true., 4)
       call write_json_string_field(unit_protocol, "rng_draw_boundary", "draw from swap stream only after finite current and proposed swap energies are available", .true., 4)
