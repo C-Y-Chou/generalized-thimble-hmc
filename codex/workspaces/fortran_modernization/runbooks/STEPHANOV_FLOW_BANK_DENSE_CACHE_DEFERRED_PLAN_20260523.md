@@ -386,6 +386,24 @@ The canonical production default remains `TLTM_STAGE2_SWAP_REFLOW_BACKEND=direct
 The dense swap path must stay opt-in until it passes larger decision-equivalence
 and walltime benchmarks on the selected Stephanov ladder.
 
+Initial replacement test result:
+
+- `bin/compare_swap_reflow_backends` compares direct endpoint, dense single-target,
+  and dense multi-target reflows on the same physical-x bank records and target
+  flow times.
+- On Stephanov `n=6` t0-bank records with the `t_high=0.03` ladder, dense
+  single-target matched direct success/failure status, effective energies, and
+  swap accept probabilities for all comparable endpoints, but was slower than
+  direct endpoint reflow.
+- On a low-flow all-success subset, dense single-target again matched direct to
+  roundoff but remained slower.
+
+Conclusion: dense output can be used as a correctness-equivalent opt-in swap
+diagnostic backend, but it should not replace direct endpoint reflow for
+production adjacent swaps.  Its performance value is in multi-target bank/cache
+construction, where one integration of a physical `x` can populate many ladder
+targets.
+
 ## Notes For The Next Agent
 
 - DOP853 dense output is available for flow-bank generation and optional swap
