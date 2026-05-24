@@ -47,6 +47,16 @@ def parse_args():
         help="Comma-separated DFO-LS tr_radius.gamma_dec levels. Use 'default' for the package default.",
     )
     parser.add_argument(
+        "--tr-alpha1s",
+        default="default",
+        help="Comma-separated DFO-LS tr_radius.alpha1 levels. Use 'default' for the package default.",
+    )
+    parser.add_argument(
+        "--tr-alpha2s",
+        default="default",
+        help="Comma-separated DFO-LS tr_radius.alpha2 levels. Use 'default' for the package default.",
+    )
+    parser.add_argument(
         "--safety-step-threshes",
         default="default",
         help="Comma-separated DFO-LS general.safety_step_thresh levels. Use 'default' for the package default.",
@@ -125,6 +135,10 @@ def combo_label(combo):
         combo["objfun_has_noise"],
     )
     suffixes = []
+    if combo.get("tr_alpha1", "default") != "default":
+        suffixes.append("a1{0}".format(float_token(combo["tr_alpha1"])))
+    if combo.get("tr_alpha2", "default") != "default":
+        suffixes.append("a2{0}".format(float_token(combo["tr_alpha2"])))
     if combo.get("safety_step_thresh", "default") != "default":
         suffixes.append("sst{0}".format(float_token(combo["safety_step_thresh"])))
     if combo.get("growing_safety_do_safety_step", "default") != "default":
@@ -147,6 +161,8 @@ def build_grid(args):
         model_abs_tol,
         model_rel_tol,
         gamma_dec,
+        tr_alpha1,
+        tr_alpha2,
         safety_step_thresh,
         growing_safety_do_safety_step,
         growing_safety_reduce_delta,
@@ -158,6 +174,8 @@ def build_grid(args):
         split_csv(args.model_abs_tols),
         split_csv(args.model_rel_tols),
         split_csv(args.gamma_decs),
+        split_csv(args.tr_alpha1s),
+        split_csv(args.tr_alpha2s),
         split_csv(args.safety_step_threshes),
         split_csv(args.growing_safety_do_safety_steps),
         split_csv(args.growing_safety_reduce_deltas),
@@ -178,6 +196,8 @@ def build_grid(args):
             "model_abs_tol": model_abs_tol,
             "model_rel_tol": model_rel_tol,
             "gamma_dec": gamma_dec,
+            "tr_alpha1": tr_alpha1,
+            "tr_alpha2": tr_alpha2,
             "safety_step_thresh": safety_step_thresh,
             "growing_safety_do_safety_step": growing_safety_do_safety_step,
             "growing_safety_reduce_delta": growing_safety_reduce_delta,
@@ -247,6 +267,10 @@ def combo_dfols_params(combo, extra_params):
     params = list(extra_params)
     if combo.get("gamma_dec", "default") != "default":
         params.append("tr_radius.gamma_dec={0}".format(combo["gamma_dec"]))
+    if combo.get("tr_alpha1", "default") != "default":
+        params.append("tr_radius.alpha1={0}".format(combo["tr_alpha1"]))
+    if combo.get("tr_alpha2", "default") != "default":
+        params.append("tr_radius.alpha2={0}".format(combo["tr_alpha2"]))
     if combo.get("safety_step_thresh", "default") != "default":
         params.append("general.safety_step_thresh={0}".format(combo["safety_step_thresh"]))
     if combo.get("growing_safety_do_safety_step", "default") != "default":
