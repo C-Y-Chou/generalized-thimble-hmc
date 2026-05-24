@@ -53,11 +53,21 @@ Tuning may only use official DFO-LS controls exposed by the package:
 - `objfun_has_noise`
 - `user_params["model.abs_tol"]`
 - `user_params["model.rel_tol"]`
+- diagnostic replay only, when recorded with per-attempt evidence:
+  `user_params["tr_radius.alpha1"]`,
+  `user_params["tr_radius.alpha2"]`,
+  `user_params["general.safety_step_thresh"]`, and
+  `user_params["growing.safety.*"]`
 
 Do not add external multistart, escape steps, line search, backtracking,
 best-rescue selection, or post-package polishing around official DFO-LS. Those
 would create a new TLTM-side optimizer rather than evaluating the official
 solver alone.
+
+The extra `user_params` above are package-native DFO-LS controls, not TLTM-side
+optimizer logic. They must be promoted from replay to production only with a
+runbook entry that records the captured attempts, ODE backend, success set,
+failure set, NF tails, and the selected `maxfun` cap.
 
 ## Acceptance Hierarchy
 

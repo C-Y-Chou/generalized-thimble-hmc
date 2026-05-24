@@ -2194,3 +2194,23 @@
   `t=0.5` test for failure turning into bias/support obstruction; then test
   whether TLTM flow-time tempering and/or withfb repairs that obstruction
   before promoting the claim to higher-dimensional sign-problem settings.
+
+## 2026-05-24 JST - Stephanov n=6 DFO-LS diagnostic tuning
+
+- Added DOP853-pinned DFO-LS replay diagnostics and scanned official package
+  controls on the captured Stephanov n=6 attempts in `record_0505`.
+- The safety/growing scan showed that `growing.safety.*` is not the active
+  bottleneck for this captured set; the observed safety tail is in the main
+  finished-growing phase.
+- The rho-schedule scan identified `tr_radius.alpha1=0.05` as the useful knob.
+  `tr_radius.alpha2` did not help and should stay at the package default.
+- Selected the next with-fallback smoke preset:
+  `rhobeg=0.20`, `rhoend=1e-13`, `model.abs_tol=1e-26`,
+  `model.rel_tol=0`, `tr_radius.alpha1=0.05`,
+  `general.safety_step_thresh=0.35`, and `maxfun=700`.
+- Validation job `16758[].anode01` preserved the replay success set
+  (`17/21`; failures `8,16,19,21`) with `success_nf_p90=537.4`,
+  `success_nf_max=615`, `wall_sec_p90=110.625`, and
+  `wall_sec_max=147.364`.
+- Full readback is in
+  `runbooks/STEPHANOV_N6_DFOLS_TUNING_20260524.md`.
