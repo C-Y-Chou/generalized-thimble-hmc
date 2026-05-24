@@ -4661,6 +4661,9 @@ contains
       call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_RHOEND", .true., 4)
       call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_MODEL_ABS_TOL", .true., 4)
       call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_MODEL_REL_TOL", .true., 4)
+      call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_TR_ALPHA1", .true., 4)
+      call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_TR_ALPHA2", .true., 4)
+      call write_json_env_field(unit_manifest, "QN_OFFICIAL_DFOLS_SAFETY_STEP_THRESH", .true., 4)
       call write_json_env_field(unit_manifest, "TLTM_OFFICIAL_DFOLS_PYTHONPATH", .false., 4)
       write (unit_manifest, '(A)') '  },'
 

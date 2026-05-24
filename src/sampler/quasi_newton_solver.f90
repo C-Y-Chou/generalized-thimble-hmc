@@ -77,6 +77,9 @@ module quasi_newton_solver_mod
       real(dp) :: qn_official_dfols_rhoend = 1.0e-16_dp
       real(dp) :: qn_official_dfols_model_abs_tol = 1.0e-26_dp
       real(dp) :: qn_official_dfols_model_rel_tol = 0.0_dp
+      real(dp) :: qn_official_dfols_tr_alpha1 = -1.0_dp
+      real(dp) :: qn_official_dfols_tr_alpha2 = -1.0_dp
+      real(dp) :: qn_official_dfols_safety_step_thresh = -1.0_dp
    end type qn_policy_context_t
 
    type(qn_policy_context_t), target, save :: module_qn_policy_context
@@ -107,7 +110,8 @@ module quasi_newton_solver_mod
    interface
       integer(c_int) function tltm_official_dfols_solve_c(n, x0, x_out, package_residual_norm, nf, flag, npt, rhobeg, &
                                                           rhoend, maxfun, objfun_has_noise, model_abs_tol, model_rel_tol, &
-                                                          ctx, objfun) bind(C, name="tltm_official_dfols_solve")
+                                                          tr_alpha1, tr_alpha2, safety_step_thresh, ctx, objfun) &
+                                                          bind(C, name="tltm_official_dfols_solve")
          import :: c_double, c_funptr, c_int, c_ptr
          integer(c_int), value :: n, npt, maxfun, objfun_has_noise
          real(c_double), intent(in) :: x0(*)
@@ -115,6 +119,7 @@ module quasi_newton_solver_mod
          real(c_double), intent(out) :: package_residual_norm
          integer(c_int), intent(out) :: nf, flag
          real(c_double), value :: rhobeg, rhoend, model_abs_tol, model_rel_tol
+         real(c_double), value :: tr_alpha1, tr_alpha2, safety_step_thresh
          type(c_ptr), value :: ctx
          type(c_funptr), value :: objfun
       end function tltm_official_dfols_solve_c
@@ -237,6 +242,9 @@ contains
       context%qn_official_dfols_rhoend = 1.0e-16_dp
       context%qn_official_dfols_model_abs_tol = 1.0e-26_dp
       context%qn_official_dfols_model_rel_tol = 0.0_dp
+      context%qn_official_dfols_tr_alpha1 = -1.0_dp
+      context%qn_official_dfols_tr_alpha2 = -1.0_dp
+      context%qn_official_dfols_safety_step_thresh = -1.0_dp
    end subroutine release_qn_policy_context
 
    subroutine solve_constraint_quasi_newton(f, tol, max_iter, xt, z, del_z, ierr, Jl, x_new, jac, x_seed_override, x_best_solution, &
@@ -487,8 +495,10 @@ contains
                                              int(qn_policy%qn_official_dfols_npt, c_int), qn_policy%qn_official_dfols_rhobeg, &
                                              qn_policy%qn_official_dfols_rhoend, int(qn_policy%qn_official_dfols_maxfun, c_int), &
                                              c_objfun_has_noise, qn_policy%qn_official_dfols_model_abs_tol, &
-                                             qn_policy%qn_official_dfols_model_rel_tol, c_loc(callback_context), &
-                                             c_funloc(qn_official_dfols_eval_callback))
+                                             qn_policy%qn_official_dfols_model_rel_tol, qn_policy%qn_official_dfols_tr_alpha1, &
+                                             qn_policy%qn_official_dfols_tr_alpha2, &
+                                             qn_policy%qn_official_dfols_safety_step_thresh, &
+                                             c_loc(callback_context), c_funloc(qn_official_dfols_eval_callback))
       call clear_qn_official_callback_context(callback_context)
 
       if (c_status /= 0_c_int) then
@@ -1318,6 +1328,9 @@ contains
       call parse_real_env("QN_OFFICIAL_DFOLS_RHOEND", qn_policy%qn_official_dfols_rhoend)
       call parse_real_env("QN_OFFICIAL_DFOLS_MODEL_ABS_TOL", qn_policy%qn_official_dfols_model_abs_tol)
       call parse_real_env("QN_OFFICIAL_DFOLS_MODEL_REL_TOL", qn_policy%qn_official_dfols_model_rel_tol)
+      call parse_real_env("QN_OFFICIAL_DFOLS_TR_ALPHA1", qn_policy%qn_official_dfols_tr_alpha1)
+      call parse_real_env("QN_OFFICIAL_DFOLS_TR_ALPHA2", qn_policy%qn_official_dfols_tr_alpha2)
+      call parse_real_env("QN_OFFICIAL_DFOLS_SAFETY_STEP_THRESH", qn_policy%qn_official_dfols_safety_step_thresh)
 
       qn_policy%qn_official_dfols_npt = max(0, qn_policy%qn_official_dfols_npt)
       qn_policy%qn_official_dfols_maxfun = max(1, qn_policy%qn_official_dfols_maxfun)
@@ -1332,6 +1345,18 @@ contains
       if (.not. ieee_is_finite(qn_policy%qn_official_dfols_model_rel_tol) .or. &
           qn_policy%qn_official_dfols_model_rel_tol < 0.0_dp) then
          qn_policy%qn_official_dfols_model_rel_tol = 0.0_dp
+      end if
+      if (.not. ieee_is_finite(qn_policy%qn_official_dfols_tr_alpha1) .or. &
+          qn_policy%qn_official_dfols_tr_alpha1 < 0.0_dp .or. qn_policy%qn_official_dfols_tr_alpha1 > 1.0_dp) then
+         qn_policy%qn_official_dfols_tr_alpha1 = -1.0_dp
+      end if
+      if (.not. ieee_is_finite(qn_policy%qn_official_dfols_tr_alpha2) .or. &
+          qn_policy%qn_official_dfols_tr_alpha2 < 0.0_dp .or. qn_policy%qn_official_dfols_tr_alpha2 > 1.0_dp) then
+         qn_policy%qn_official_dfols_tr_alpha2 = -1.0_dp
+      end if
+      if (.not. ieee_is_finite(qn_policy%qn_official_dfols_safety_step_thresh) .or. &
+          qn_policy%qn_official_dfols_safety_step_thresh < 0.0_dp) then
+         qn_policy%qn_official_dfols_safety_step_thresh = -1.0_dp
       end if
 
       call print_qn_backend_policy_once(qn_policy)
@@ -1356,6 +1381,9 @@ contains
          active_policy%qn_official_dfols_rhoend = 1.0e-16_dp
          active_policy%qn_official_dfols_model_abs_tol = 1.0e-26_dp
          active_policy%qn_official_dfols_model_rel_tol = 0.0_dp
+         active_policy%qn_official_dfols_tr_alpha1 = -1.0_dp
+         active_policy%qn_official_dfols_tr_alpha2 = -1.0_dp
+         active_policy%qn_official_dfols_safety_step_thresh = -1.0_dp
       case ("legacy", "legacy69", "r005", "gate69")
          active_policy%qn_official_dfols_npt = 0
          active_policy%qn_official_dfols_maxfun = 250
@@ -1364,6 +1392,9 @@ contains
          active_policy%qn_official_dfols_rhoend = 1.0e-16_dp
          active_policy%qn_official_dfols_model_abs_tol = 1.0e-30_dp
          active_policy%qn_official_dfols_model_rel_tol = 0.0_dp
+         active_policy%qn_official_dfols_tr_alpha1 = -1.0_dp
+         active_policy%qn_official_dfols_tr_alpha2 = -1.0_dp
+         active_policy%qn_official_dfols_safety_step_thresh = -1.0_dp
       case default
          write (*, '(A,A,A)') "[WARN] Unknown QN_OFFICIAL_DFOLS_PRESET='", trim(preset_name), "'; using stable_gate77."
          active_policy%qn_official_dfols_npt = 4
@@ -1373,6 +1404,9 @@ contains
          active_policy%qn_official_dfols_rhoend = 1.0e-16_dp
          active_policy%qn_official_dfols_model_abs_tol = 1.0e-26_dp
          active_policy%qn_official_dfols_model_rel_tol = 0.0_dp
+         active_policy%qn_official_dfols_tr_alpha1 = -1.0_dp
+         active_policy%qn_official_dfols_tr_alpha2 = -1.0_dp
+         active_policy%qn_official_dfols_safety_step_thresh = -1.0_dp
       end select
    end subroutine apply_qn_official_dfols_preset
 
@@ -1412,6 +1446,13 @@ contains
       write (*, '(A,ES10.3,1X,A,ES10.3)') &
          "[INFO] official DFO-LS model.abs_tol=", qn_policy%qn_official_dfols_model_abs_tol, &
          "model.rel_tol=", qn_policy%qn_official_dfols_model_rel_tol
+      if (qn_policy%qn_official_dfols_tr_alpha1 >= 0.0_dp .or. qn_policy%qn_official_dfols_tr_alpha2 >= 0.0_dp .or. &
+          qn_policy%qn_official_dfols_safety_step_thresh >= 0.0_dp) then
+         write (*, '(A,ES10.3,1X,A,ES10.3,1X,A,ES10.3)') &
+            "[INFO] official DFO-LS user_params tr_radius.alpha1=", qn_policy%qn_official_dfols_tr_alpha1, &
+            "tr_radius.alpha2=", qn_policy%qn_official_dfols_tr_alpha2, &
+            "general.safety_step_thresh=", qn_policy%qn_official_dfols_safety_step_thresh
+      end if
    end subroutine print_qn_backend_policy_once
 
    subroutine get_quasi_global_filter_stats(candidate_count, pass_count, reject_count, qn_diagnostics)

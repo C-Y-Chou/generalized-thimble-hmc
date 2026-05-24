@@ -27,6 +27,9 @@ int tltm_official_dfols_solve(
     int objfun_has_noise,
     double model_abs_tol,
     double model_rel_tol,
+    double tr_alpha1,
+    double tr_alpha2,
+    double safety_step_thresh,
     void *ctx,
     tltm_dfols_objfun_cb objfun)
 {
@@ -38,6 +41,9 @@ int tltm_official_dfols_solve(
     (void)objfun_has_noise;
     (void)model_abs_tol;
     (void)model_rel_tol;
+    (void)tr_alpha1;
+    (void)tr_alpha2;
+    (void)safety_step_thresh;
     (void)ctx;
     (void)objfun;
     if (package_residual_norm) *package_residual_norm = HUGE_VAL;
@@ -334,6 +340,9 @@ int tltm_official_dfols_solve(
     int objfun_has_noise,
     double model_abs_tol,
     double model_rel_tol,
+    double tr_alpha1,
+    double tr_alpha2,
+    double safety_step_thresh,
     void *ctx,
     tltm_dfols_objfun_cb objfun)
 {
@@ -406,6 +415,15 @@ int tltm_official_dfols_solve(
     }
     if (model_rel_tol >= 0.0) {
         if (dict_set_double(user_params, "model.rel_tol", model_rel_tol) != 0) { status = 31; goto cleanup; }
+    }
+    if (tr_alpha1 >= 0.0) {
+        if (dict_set_double(user_params, "tr_radius.alpha1", tr_alpha1) != 0) { status = 33; goto cleanup; }
+    }
+    if (tr_alpha2 >= 0.0) {
+        if (dict_set_double(user_params, "tr_radius.alpha2", tr_alpha2) != 0) { status = 34; goto cleanup; }
+    }
+    if (safety_step_thresh >= 0.0) {
+        if (dict_set_double(user_params, "general.safety_step_thresh", safety_step_thresh) != 0) { status = 35; goto cleanup; }
     }
     if (PyDict_Size(user_params) > 0) {
         if (PyDict_SetItemString(kwargs, "user_params", user_params) != 0) { status = 32; goto cleanup; }

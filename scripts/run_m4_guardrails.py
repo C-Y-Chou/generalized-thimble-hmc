@@ -630,6 +630,9 @@ def run_guardrails(args):
             "QN_OFFICIAL_DFOLS_RHOEND",
             "QN_OFFICIAL_DFOLS_MODEL_ABS_TOL",
             "QN_OFFICIAL_DFOLS_MODEL_REL_TOL",
+            "QN_OFFICIAL_DFOLS_TR_ALPHA1",
+            "QN_OFFICIAL_DFOLS_TR_ALPHA2",
+            "QN_OFFICIAL_DFOLS_SAFETY_STEP_THRESH",
             "TLTM_OFFICIAL_DFOLS_PYTHONPATH",
         ]
         missing_official_env = [key for key in required_official_env if key not in env_overrides]
