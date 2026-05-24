@@ -256,6 +256,12 @@ def run_task(args, repo_root, run_root, combo, record_dir):
     env = os.environ.copy()
     for thread_env_name in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
         env.setdefault(thread_env_name, "1")
+    env.setdefault("TLTM_ODE_BACKEND", "dop853")
+    env.setdefault("TLTM_DOP853_HINIT_ENABLED", "1")
+    env.setdefault("TLTM_DOP853_STIFFNESS_CHECK_ENABLED", "1")
+    env.setdefault("TLTM_DOP853_STIFFNESS_CHECK_INTERVAL", "1000")
+    env.setdefault("TLTM_DOP853_STIFFNESS_MAX_HITS", "15")
+    env.setdefault("TLTM_DOP853_STIFFNESS_THRESHOLD", "6.1")
     combo_dir.mkdir(parents=True, exist_ok=True)
     start = time.monotonic()
     with log_path.open("w", encoding="utf-8") as log:
