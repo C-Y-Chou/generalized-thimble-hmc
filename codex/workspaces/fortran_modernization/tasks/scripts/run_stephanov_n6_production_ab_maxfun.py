@@ -254,16 +254,31 @@ def is_true_token(value):
 def collect_local_transition_audit_stats(candidate_dir):
     rows = []
     for audit_file in sorted(candidate_dir.glob("local_transition_audit/record_*/local_transition_audit.csv")):
+        record_name = audit_file.parent.name
+        meta_rows_by_sample = {}
+        meta_file = candidate_dir / "qn_attempt_capture" / record_name / "qn_attempt_meta.csv"
+        for meta_row in read_csv_rows(meta_file):
+            meta_rows_by_sample[to_int(meta_row, "sample_idx", 0)] = meta_row
         for row in read_csv_rows(audit_file):
+            row["_meta_rows_by_sample"] = meta_rows_by_sample
             rows.append(row)
     stats = {
         "audit_transition_count": len(rows),
         "audit_qn_probe_attempt_transition_count": 0,
         "audit_qn_probe_success_transition_count": 0,
         "audit_qn_rg_pass_transition_count": 0,
+        "audit_qn_capture_attempt_count_sum": 0,
+        "audit_qn_residual_eval_sum": 0,
+        "audit_qn_cpu_sec_sum": 0.0,
         "audit_qn_actual_accept_count": 0,
         "audit_qn_expected_accept_sum": 0.0,
         "audit_qn_expected_accept_probe_success_sum": 0.0,
+        "audit_qn_long_ge600_transition_count": 0,
+        "audit_qn_long_ge600_expected_accept_sum": 0.0,
+        "audit_qn_long_ge600_actual_accept_count": 0,
+        "audit_qn_long_ge700_transition_count": 0,
+        "audit_qn_long_ge700_expected_accept_sum": 0.0,
+        "audit_qn_long_ge700_actual_accept_count": 0,
         "audit_qn_accept_probability_median": float("nan"),
         "audit_qn_accept_probability_p90": float("nan"),
     }
@@ -273,13 +288,24 @@ def collect_local_transition_audit_stats(candidate_dir):
         probe_success = to_int(row, "probe_success_delta", 0)
         quasi_delta = to_int(row, "quasi_delta", 0)
         rg_pass = to_int(row, "rg_pass_delta", 0)
-        used_qn = probe_attempt > 0 or probe_success > 0 or quasi_delta > 0
+        qn_capture_delta = to_int(row, "qn_capture_delta", 0)
+        used_qn = probe_attempt > 0 or probe_success > 0 or quasi_delta > 0 or qn_capture_delta > 0
         if not used_qn:
             continue
+        meta_rows = row.get("_meta_rows_by_sample", {})
+        qn_capture_before = to_int(row, "qn_capture_before", 0)
+        qn_capture_after = to_int(row, "qn_capture_after", qn_capture_before)
+        chunk = [meta_rows[idx] for idx in range(qn_capture_before + 1, qn_capture_after + 1) if idx in meta_rows]
+        eval_sum = sum(to_int(meta_row, "residual_eval_count", 0) for meta_row in chunk)
+        cpu_sum = sum(to_float(meta_row, "cpu_seconds", 0.0) for meta_row in chunk)
+        max_eval = max([to_int(meta_row, "residual_eval_count", 0) for meta_row in chunk] or [0])
         accept_probability = to_float(row, "accept_probability", 0.0)
         if not math.isfinite(accept_probability):
             accept_probability = 0.0
         stats["audit_qn_probe_attempt_transition_count"] += 1
+        stats["audit_qn_capture_attempt_count_sum"] += qn_capture_delta
+        stats["audit_qn_residual_eval_sum"] += eval_sum
+        stats["audit_qn_cpu_sec_sum"] += cpu_sum
         stats["audit_qn_expected_accept_sum"] += accept_probability
         qn_probs.append(accept_probability)
         if probe_success > 0 or quasi_delta > 0:
@@ -287,8 +313,19 @@ def collect_local_transition_audit_stats(candidate_dir):
             stats["audit_qn_expected_accept_probe_success_sum"] += accept_probability
         if rg_pass > 0:
             stats["audit_qn_rg_pass_transition_count"] += 1
-        if is_true_token(row.get("accepted", "")):
+        accepted = is_true_token(row.get("accepted", ""))
+        if accepted:
             stats["audit_qn_actual_accept_count"] += 1
+        if max_eval >= 600:
+            stats["audit_qn_long_ge600_transition_count"] += 1
+            stats["audit_qn_long_ge600_expected_accept_sum"] += accept_probability
+            if accepted:
+                stats["audit_qn_long_ge600_actual_accept_count"] += 1
+        if max_eval >= 700:
+            stats["audit_qn_long_ge700_transition_count"] += 1
+            stats["audit_qn_long_ge700_expected_accept_sum"] += accept_probability
+            if accepted:
+                stats["audit_qn_long_ge700_actual_accept_count"] += 1
     attempts = stats["audit_qn_probe_attempt_transition_count"]
     successes = stats["audit_qn_probe_success_transition_count"]
     stats["audit_qn_expected_accept_per_probe_attempt"] = stats["audit_qn_expected_accept_sum"] / float(attempts) if attempts else ""
@@ -296,6 +333,20 @@ def collect_local_transition_audit_stats(candidate_dir):
         stats["audit_qn_expected_accept_probe_success_sum"] / float(successes) if successes else ""
     )
     stats["audit_qn_actual_accept_per_probe_attempt"] = stats["audit_qn_actual_accept_count"] / float(attempts) if attempts else ""
+    cpu_sum = stats["audit_qn_cpu_sec_sum"]
+    eval_sum = stats["audit_qn_residual_eval_sum"]
+    stats["audit_qn_expected_accept_per_cpu_sec"] = stats["audit_qn_expected_accept_sum"] / cpu_sum if cpu_sum > 0.0 else ""
+    stats["audit_qn_expected_accept_per_1000_residual_eval"] = (
+        1000.0 * stats["audit_qn_expected_accept_sum"] / float(eval_sum) if eval_sum > 0 else ""
+    )
+    ge600 = stats["audit_qn_long_ge600_transition_count"]
+    ge700 = stats["audit_qn_long_ge700_transition_count"]
+    stats["audit_qn_long_ge600_expected_accept_per_transition"] = (
+        stats["audit_qn_long_ge600_expected_accept_sum"] / float(ge600) if ge600 else ""
+    )
+    stats["audit_qn_long_ge700_expected_accept_per_transition"] = (
+        stats["audit_qn_long_ge700_expected_accept_sum"] / float(ge700) if ge700 else ""
+    )
     stats["audit_qn_accept_probability_median"] = percentile(qn_probs, 0.50)
     stats["audit_qn_accept_probability_p90"] = percentile(qn_probs, 0.90)
     return stats

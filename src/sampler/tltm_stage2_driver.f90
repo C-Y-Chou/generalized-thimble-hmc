@@ -123,6 +123,7 @@ module tltm_stage2_driver
       integer(int64) :: reverse_gate_candidate_total = 0_int64
       integer(int64) :: reverse_gate_pass_total = 0_int64
       integer(int64) :: reverse_gate_reject_total = 0_int64
+      integer(int64) :: qn_attempt_capture_count = 0_int64
    end type solver_counter_snapshot_t
 
    type :: stage2_audit_context_t
@@ -1744,7 +1745,7 @@ contains
          x_before = slot%x
          z_before = slot%z
          j_before = slot%jac
-         call snapshot_solver_counters(solver_before)
+         call snapshot_solver_counters(solver_before, qn_diagnostics_context)
          if (trim(rng_stream_contract) == stage2_rng_kernel_v2) then
             call tltm_rng_fill_normal(kernel_momentum, tltm_rng_domain_stage2_local_momentum, &
                                       base_seed, cycle_idx, slot%slot_id, update_idx)
@@ -1793,7 +1794,7 @@ contains
 	                                    newton_flow_status=newton_flow_status_context, intode_diagnostics=run_context%diagnostics%intode)
             end if
          end if
-         call snapshot_solver_counters(solver_after)
+         call snapshot_solver_counters(solver_after, qn_diagnostics_context)
          if (accepted) then
             slot%x = x_new
             slot%z = z_new
@@ -1956,7 +1957,7 @@ contains
 
       audit_context%local_transition_audit_rows = audit_context%local_transition_audit_rows + 1_int64
       write (audit_context%local_transition_audit_unit, &
-             '(I0,",",I0,",",I0,",",L1,",",L1,",",I0,9(",",ES24.16),18(",",I0))') &
+             '(I0,",",I0,",",I0,",",L1,",",L1,",",I0,9(",",ES24.16),21(",",I0))') &
          cycle_idx, slot_id, update_idx, accepted, proposal_failed, transition_status, &
          h_initial, h_final, delta_h, accept_probability, q_initial, c_initial, q_proposal, c_proposal, q_after, &
          solver_after%newton_count - solver_before%newton_count, &
@@ -1976,6 +1977,9 @@ contains
          solver_after%reverse_gate_candidate_total - solver_before%reverse_gate_candidate_total, &
          solver_after%reverse_gate_pass_total - solver_before%reverse_gate_pass_total, &
          solver_after%reverse_gate_reject_total - solver_before%reverse_gate_reject_total, &
+         solver_before%qn_attempt_capture_count, &
+         solver_after%qn_attempt_capture_count, &
+         solver_after%qn_attempt_capture_count - solver_before%qn_attempt_capture_count, &
          audit_context%local_transition_audit_rows
       flush (audit_context%local_transition_audit_unit)
    end subroutine record_local_transition_audit
@@ -2010,7 +2014,8 @@ contains
          "q_initial,c_initial,q_proposal,c_proposal,q_after,"// &
          "newton_delta,quasi_delta,probe_attempt_delta,probe_success_delta,full_attempt_delta,full_success_delta,"// &
          "class_local_delta,class_mid_delta,class_global_delta,far_skip_delta,far_light_delta,far_anchor_delta,"// &
-         "near_attempt_delta,near_success_delta,rg_candidate_delta,rg_pass_delta,rg_reject_delta,row_index"
+         "near_attempt_delta,near_success_delta,rg_candidate_delta,rg_pass_delta,rg_reject_delta,"// &
+         "qn_capture_before,qn_capture_after,qn_capture_delta,row_index"
       flush (audit_context%local_transition_audit_unit)
       write (*, '(A,1X,A,A,I0)') "[INFO][TLTM-S2] Local transition audit file:", trim(audit_context%local_transition_audit_file), &
          " max_rows=", audit_context%local_transition_audit_max_rows
@@ -2084,8 +2089,9 @@ contains
       end if
    end function maxabs_complex_mat_stage2
 
-   subroutine snapshot_solver_counters(snapshot)
+   subroutine snapshot_solver_counters(snapshot, qn_diagnostics)
       type(solver_counter_snapshot_t), intent(out) :: snapshot
+      type(qn_diagnostics_context_t), intent(in), optional :: qn_diagnostics
 
       integer(int64) :: total_count, failed_count
       integer(int64) :: near_candidate_count, far_count, near_unusable_count
@@ -2108,6 +2114,7 @@ contains
       snapshot%reverse_gate_candidate_total = rg_candidate_counts(constraint_reverse_gate_path_total)
       snapshot%reverse_gate_pass_total = rg_pass_counts(constraint_reverse_gate_path_total)
       snapshot%reverse_gate_reject_total = rg_reject_counts(constraint_reverse_gate_path_total)
+      if (present(qn_diagnostics)) snapshot%qn_attempt_capture_count = int(qn_diagnostics%attempt_capture_count, int64)
    end subroutine snapshot_solver_counters
 
    subroutine accumulate_accepted_local_census(census, before, after)
