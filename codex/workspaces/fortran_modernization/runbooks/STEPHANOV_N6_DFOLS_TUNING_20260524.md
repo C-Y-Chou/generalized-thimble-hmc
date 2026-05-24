@@ -102,3 +102,47 @@ smoke.  If production loses attempts that the replay succeeded on, raise the
 cap to `maxfun=800` before changing any other package parameter.  Do not resume
 blind scans of `growing.safety.*`; the diagnostic evidence says it is the wrong
 control surface for this case.
+
+## Production AB Check
+
+The replay knobs were wired into the production C bridge in commit
+`416e0ae2acbd9865484c0cc6656c432930103107`, then checked with a short
+production-path AB test:
+
+```text
+PBS job: 16759[].anode01
+output: output/stephanov_dfols_tuning/stephanov_n6_prod_ab_maxfun_8cand_8x5_20260524a
+records: 0,101,202,303,404,505,606,707
+cycles: 5
+ladder: 0,1e-3,3e-3,7e-3,1e-2,1.3e-2,1.6e-2,1.8e-2,2e-2,2.25e-2,2.5e-2,2.75e-2,3e-2
+flow bank: output/stephanov_flow_banks/stephanov_n6_tltm_t003_ladder13_dop853_highflow_bank_8x600_20260523_xhist_b100_s5/flow_bank_ladder13_dop853_dense_cache
+summary: production_ab_summary.csv
+attempts: production_ab_attempts.csv
+```
+
+Merged production summary:
+
+```text
+candidate      wall_s  wall/nofb  attempts  converged  conv_frac  maxfun_hits
+nofb            53.1      1.00          0          0        n/a            0
+default_mf800  341.0      6.42        350        268      0.766           82
+tuned_mf400    147.8      2.78        219         65      0.297          154
+tuned_mf500    226.8      4.27        282        173      0.613          109
+tuned_mf600    240.7      4.53        300        198      0.660          102
+tuned_mf650    268.5      5.05        332        233      0.702           99
+tuned_mf700    269.2      5.07        329        236      0.717           93
+tuned_mf800    297.5      5.60        343        259      0.755           84
+```
+
+Production conclusions:
+
+- The useful with-fallback path is not merely 3x slower than nofb for this
+  short-cycle test.  `maxfun=400` is 2.78x but clips too many attempts, while
+  practical tuned settings are 4.3x-5.6x nofb.
+- The default package `maxfun=800` path is worse than the tuned path:
+  6.42x nofb versus 5.60x for tuned `maxfun=800`, with comparable convergence.
+- The practical production elbow is around `maxfun=650-700`.  `maxfun=700`
+  gains only three more converged attempts than `650` in this short run, but it
+  has essentially the same walltime and fewer maxfun hits.  Keep `maxfun=700`
+  as the default with-fallback smoke setting unless a longer run changes the
+  success/cost curve.
