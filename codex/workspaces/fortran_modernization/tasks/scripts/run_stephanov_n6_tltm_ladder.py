@@ -61,6 +61,12 @@ def parse_args():
     parser.add_argument("--qn-attempt-capture-limit", type=int, default=0)
     parser.add_argument("--qn-attempt-capture-stride", type=int, default=1)
     parser.add_argument(
+        "--local-transition-audit-root",
+        default="",
+        help="Optional root for per-record local transition audit CSV files.",
+    )
+    parser.add_argument("--local-transition-audit-max-rows", type=int, default=200000)
+    parser.add_argument(
         "--init-snapshot-root",
         default="",
         help="Run root containing records/record_XXXX/final_snapshot.bin files for continuation.",
@@ -140,6 +146,13 @@ def resolve_qn_capture_dir(repo_root, run_dir, args, record_idx):
         return None
     root = resolve_repo_path(repo_root, args.qn_attempt_capture_root).resolve()
     return root / "record_{0:04d}".format(record_idx)
+
+
+def resolve_local_transition_audit_file(repo_root, args, record_idx):
+    if not args.local_transition_audit_root:
+        return None
+    root = resolve_repo_path(repo_root, args.local_transition_audit_root).resolve()
+    return root / "record_{0:04d}".format(record_idx) / "local_transition_audit.csv"
 
 
 def set_param(lines, key, value):
@@ -267,6 +280,7 @@ def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, c
     init_flow_bank_root = resolve_init_flow_bank_root(repo_root, args)
     final_snapshot_file = chain_dir / "final_snapshot.bin"
     qn_capture_dir = resolve_qn_capture_dir(repo_root, run_dir, args, record_idx)
+    local_transition_audit_file = resolve_local_transition_audit_file(repo_root, args, record_idx)
     if init_snapshot_file is not None and not init_snapshot_file.exists():
         raise RuntimeError("Init snapshot file does not exist: {0}".format(init_snapshot_file))
     if init_flow_bank_root is not None and not init_flow_bank_root.exists():
@@ -334,6 +348,10 @@ def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, c
         env["QN_ATTEMPT_CAPTURE_DIR"] = str(qn_capture_dir)
         env["QN_ATTEMPT_CAPTURE_LIMIT"] = str(args.qn_attempt_capture_limit)
         env["QN_ATTEMPT_CAPTURE_STRIDE"] = str(max(1, args.qn_attempt_capture_stride))
+    if local_transition_audit_file is not None:
+        local_transition_audit_file.parent.mkdir(parents=True, exist_ok=True)
+        env["TLTM_LOCAL_TRANSITION_AUDIT_FILE"] = str(local_transition_audit_file)
+        env["TLTM_LOCAL_TRANSITION_AUDIT_MAX_ROWS"] = str(args.local_transition_audit_max_rows)
     if args.write_cold_x_history:
         env["TLTM_STAGE2_COLD_X_HISTORY_FILE"] = str(chain_dir / "x_history.dat")
     if args.write_cold_observables:
@@ -395,6 +413,7 @@ def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, c
         "final_snapshot_file": str(final_snapshot_file) if args.write_final_snapshot else "",
         "qn_attempt_capture_dir": str(qn_capture_dir) if qn_capture_dir is not None else "",
         "qn_attempt_capture_meta_file": str(qn_capture_dir / "qn_attempt_meta.csv") if qn_capture_dir is not None else "",
+        "local_transition_audit_file": str(local_transition_audit_file) if local_transition_audit_file is not None else "",
         "restart_boundary_policy": args.restart_boundary_policy if init_snapshot_file is not None else "",
         "summary_file": str(chain_dir / "summary.dat"),
         "log_file": str(log_file),

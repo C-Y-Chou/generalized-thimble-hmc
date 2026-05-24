@@ -37,6 +37,8 @@ def parse_args():
     parser.add_argument("--init-flow-bank-root", default="output/stephanov_flow_banks/stephanov_n6_tltm_t003_ladder13_dop853_highflow_bank_8x600_20260523_xhist_b100_s5/flow_bank_ladder13_dop853_dense_cache")
     parser.add_argument("--capture-limit", type=int, default=0)
     parser.add_argument("--capture-stride", type=int, default=1)
+    parser.add_argument("--enable-local-transition-audit", action="store_true")
+    parser.add_argument("--local-transition-audit-max-rows", type=int, default=200000)
     parser.add_argument("--write-plan-only", action="store_true")
     parser.add_argument("--merge-only", action="store_true")
     parser.add_argument("--force", action="store_true")
@@ -197,6 +199,12 @@ def parse_record_summary_headers(path):
             add_prefixed_kvs(out, "constraint", line)
         elif line.startswith("# quasi_stage_stats "):
             add_prefixed_kvs(out, "quasi_stage", line)
+        elif line.startswith("# local_transition_totals "):
+            add_prefixed_kvs(out, "local_transition", line)
+        elif line.startswith("# accepted_local_census_totals "):
+            add_prefixed_kvs(out, "accepted_local", line)
+        elif line.startswith("# accepted_local_route_totals "):
+            add_prefixed_kvs(out, "accepted_route", line)
         elif line.startswith("# qn_eval_flow_status "):
             add_prefixed_kvs(out, "qn_flow", line)
         elif line.startswith("# newton_eval_flow_status "):
@@ -237,6 +245,60 @@ def collect_attempt_rows(candidate, candidate_dir):
             out.update(row)
             rows.append(out)
     return rows
+
+
+def is_true_token(value):
+    return str(value).strip().upper() in ("T", "TRUE", "1")
+
+
+def collect_local_transition_audit_stats(candidate_dir):
+    rows = []
+    for audit_file in sorted(candidate_dir.glob("local_transition_audit/record_*/local_transition_audit.csv")):
+        for row in read_csv_rows(audit_file):
+            rows.append(row)
+    stats = {
+        "audit_transition_count": len(rows),
+        "audit_qn_probe_attempt_transition_count": 0,
+        "audit_qn_probe_success_transition_count": 0,
+        "audit_qn_rg_pass_transition_count": 0,
+        "audit_qn_actual_accept_count": 0,
+        "audit_qn_expected_accept_sum": 0.0,
+        "audit_qn_expected_accept_probe_success_sum": 0.0,
+        "audit_qn_accept_probability_median": float("nan"),
+        "audit_qn_accept_probability_p90": float("nan"),
+    }
+    qn_probs = []
+    for row in rows:
+        probe_attempt = to_int(row, "probe_attempt_delta", 0)
+        probe_success = to_int(row, "probe_success_delta", 0)
+        quasi_delta = to_int(row, "quasi_delta", 0)
+        rg_pass = to_int(row, "rg_pass_delta", 0)
+        used_qn = probe_attempt > 0 or probe_success > 0 or quasi_delta > 0
+        if not used_qn:
+            continue
+        accept_probability = to_float(row, "accept_probability", 0.0)
+        if not math.isfinite(accept_probability):
+            accept_probability = 0.0
+        stats["audit_qn_probe_attempt_transition_count"] += 1
+        stats["audit_qn_expected_accept_sum"] += accept_probability
+        qn_probs.append(accept_probability)
+        if probe_success > 0 or quasi_delta > 0:
+            stats["audit_qn_probe_success_transition_count"] += 1
+            stats["audit_qn_expected_accept_probe_success_sum"] += accept_probability
+        if rg_pass > 0:
+            stats["audit_qn_rg_pass_transition_count"] += 1
+        if is_true_token(row.get("accepted", "")):
+            stats["audit_qn_actual_accept_count"] += 1
+    attempts = stats["audit_qn_probe_attempt_transition_count"]
+    successes = stats["audit_qn_probe_success_transition_count"]
+    stats["audit_qn_expected_accept_per_probe_attempt"] = stats["audit_qn_expected_accept_sum"] / float(attempts) if attempts else ""
+    stats["audit_qn_expected_accept_per_probe_success"] = (
+        stats["audit_qn_expected_accept_probe_success_sum"] / float(successes) if successes else ""
+    )
+    stats["audit_qn_actual_accept_per_probe_attempt"] = stats["audit_qn_actual_accept_count"] / float(attempts) if attempts else ""
+    stats["audit_qn_accept_probability_median"] = percentile(qn_probs, 0.50)
+    stats["audit_qn_accept_probability_p90"] = percentile(qn_probs, 0.90)
+    return stats
 
 
 def summarize_candidate(candidate, candidate_dir, elapsed_sec, returncode):
@@ -284,6 +346,7 @@ def summarize_candidate(candidate, candidate_dir, elapsed_sec, returncode):
         }
     )
     out.update(collect_record_header_sums(candidate_dir))
+    out.update(collect_local_transition_audit_stats(candidate_dir))
     return out, attempt_rows
 
 
@@ -391,6 +454,15 @@ def run_candidate(args, repo_root, run_root, candidate):
                 str(args.capture_limit),
                 "--qn-attempt-capture-stride",
                 str(args.capture_stride),
+            ]
+        )
+    if args.enable_local_transition_audit:
+        cmd.extend(
+            [
+                "--local-transition-audit-root",
+                str(candidate_dir / "local_transition_audit"),
+                "--local-transition-audit-max-rows",
+                str(args.local_transition_audit_max_rows),
             ]
         )
     if args.dry_run:

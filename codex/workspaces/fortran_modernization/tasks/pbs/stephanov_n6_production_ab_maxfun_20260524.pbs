@@ -31,6 +31,8 @@ module load mkl/2025.3
 : "${TLTM_PROD_AB_THREADS:=1}"
 : "${TLTM_PROD_AB_TIMEOUT_SEC:=7200}"
 : "${TLTM_PROD_AB_SEED_BASE:=8930000}"
+: "${TLTM_PROD_AB_LOCAL_TRANSITION_AUDIT:=0}"
+: "${TLTM_PROD_AB_LOCAL_TRANSITION_AUDIT_MAX_ROWS:=200000}"
 : "${TLTM_OUTPUT_ROOT:=output/stephanov_dfols_tuning}"
 : "${TLTM_HIGHFLOW_BANK_PACKAGE:=stephanov_n6_tltm_t003_ladder13_dop853_highflow_bank_8x600_20260523_xhist_b100_s5}"
 : "${TLTM_INIT_FLOW_BANK_ROOT:=output/stephanov_flow_banks/${TLTM_HIGHFLOW_BANK_PACKAGE}/flow_bank_ladder13_dop853_dense_cache}"
@@ -55,6 +57,7 @@ echo "TLTM_PROD_AB_RECORDS=${TLTM_PROD_AB_RECORDS}"
 echo "TLTM_PROD_AB_CYCLES=${TLTM_PROD_AB_CYCLES}"
 echo "TLTM_PROD_AB_JOBS=${TLTM_PROD_AB_JOBS}"
 echo "TLTM_PROD_AB_THREADS=${TLTM_PROD_AB_THREADS}"
+echo "TLTM_PROD_AB_LOCAL_TRANSITION_AUDIT=${TLTM_PROD_AB_LOCAL_TRANSITION_AUDIT}"
 echo "TLTM_INIT_FLOW_BANK_ROOT=${TLTM_INIT_FLOW_BANK_ROOT}"
 
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
@@ -120,6 +123,9 @@ ARGS=(
 )
 if [ -n "${TLTM_PROD_AB_TASK_INDEX}" ]; then
   ARGS+=(--task-index "${TLTM_PROD_AB_TASK_INDEX}")
+fi
+if [ "${TLTM_PROD_AB_LOCAL_TRANSITION_AUDIT}" = "1" ]; then
+  ARGS+=(--enable-local-transition-audit --local-transition-audit-max-rows "${TLTM_PROD_AB_LOCAL_TRANSITION_AUDIT_MAX_ROWS}")
 fi
 
 /usr/bin/time -p "${PYTHON}" "${ARGS[@]}"
