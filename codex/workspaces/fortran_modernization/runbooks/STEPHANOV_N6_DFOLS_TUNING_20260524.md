@@ -146,3 +146,62 @@ Production conclusions:
   has essentially the same walltime and fewer maxfun hits.  Keep `maxfun=700`
   as the default with-fallback smoke setting unless a longer run changes the
   success/cost curve.
+
+## Acceptance-Weighted Production AB
+
+The production AB driver now supports per-record local transition audits and
+records `qn_capture_before/after/delta` so each local proposal can be joined to
+the exact DFO-LS attempt rows that it consumed.  This lets the maxfun decision
+use expected accepted proposals, not only raw converged attempts.
+
+```text
+implementation commits:
+3f8c78be887cbbcc88b5a3cdabf47dea850ddbb5  Add production AB local transition audit
+42be7dc834a5696a59b1603dd7d2c02ed028655b  Link local transition audit to QN captures
+
+PBS job: 16761[].anode01
+output: output/stephanov_dfols_tuning/stephanov_n6_prod_ab_maxfun_auditv2_8cand_8x5_20260524a
+summary: production_ab_summary.csv
+```
+
+Acceptance-weighted summary:
+
+```text
+candidate      wall/nofb  qn_attempts  exp_accept  actual_accept  exp/cpu_s  exp/1000_eval
+default_mf800     6.48          350       103.00            105    0.0628        0.5177
+tuned_mf400       2.85          219        19.38             18    0.0307        0.2298
+tuned_mf500       4.37          282        70.27             72    0.0734        0.5661
+tuned_mf600       4.58          296        79.07             81    0.0706        0.5563
+tuned_mf650       5.19          332        88.75             91    0.0700        0.5344
+tuned_mf700       5.09          329        93.44             95    0.0714        0.5500
+tuned_mf800       5.63          343        98.52            100    0.0670        0.5262
+```
+
+Long-solve bucket readback:
+
+```text
+candidate   bucket    transitions  attempts  converged  exp_accept  actual_accept  exp/cpu_s
+tuned_mf600 600-649        104        164        62        0.927          1         0.0014
+tuned_mf650 600-649         13         30        30       11.665         12         0.0889
+tuned_mf650 650-699         99        168        69        0.000          0         0.0000
+tuned_mf700 600-649         14         31        31       12.655         13         0.0937
+tuned_mf700 650-699          4          7         7        3.695          4         0.1069
+tuned_mf700 700-799         93        157        64        0.000          0         0.0000
+tuned_mf800 700-799         10         27        27        7.911          8         0.0635
+tuned_mf800 >=800           84        152        68        0.000          0         0.0000
+```
+
+Acceptance-weighted decision:
+
+- Raw convergence overstates the value of cap hits.  The attempts that run into
+  the current cap are mostly low-value: `tuned_mf700` has zero expected accepted
+  proposals in its `700-799` bucket, and `tuned_mf800` has zero expected accepted
+  proposals in its `>=800` bucket.
+- There is real value in allowing some solves beyond 600 evaluations:
+  `tuned_mf700` recovers 16.35 expected accepted proposals in the 600-699
+  buckets.
+- Raising from 700 to 800 recovers about 5.08 more expected accepted proposals
+  overall, with lower expected accepts per CPU than the 500-700 region.  This is
+  useful only if maximizing accepted proposals matters more than throughput.
+- Keep `maxfun=700` as the default short production setting.  Treat `maxfun=800`
+  as an expensive diagnostic or rescue setting, not the default.
