@@ -46,6 +46,26 @@ def parse_args():
         default="default,0.25,0.75",
         help="Comma-separated DFO-LS tr_radius.gamma_dec levels. Use 'default' for the package default.",
     )
+    parser.add_argument(
+        "--safety-step-threshes",
+        default="default",
+        help="Comma-separated DFO-LS general.safety_step_thresh levels. Use 'default' for the package default.",
+    )
+    parser.add_argument(
+        "--growing-safety-do-safety-steps",
+        default="default",
+        help="Comma-separated DFO-LS growing.safety.do_safety_step bool levels. Use 'default' for package default.",
+    )
+    parser.add_argument(
+        "--growing-safety-reduce-deltas",
+        default="default",
+        help="Comma-separated DFO-LS growing.safety.reduce_delta bool levels. Use 'default' for package default.",
+    )
+    parser.add_argument(
+        "--growing-safety-full-geom-steps",
+        default="default",
+        help="Comma-separated DFO-LS growing.safety.full_geom_step bool levels. Use 'default' for package default.",
+    )
     parser.add_argument("--objfun-has-noise", choices=("0", "1"), default="0")
     parser.add_argument("--residual-success-tol", default="1e-13")
     parser.add_argument("--capture-prefix", default="qn_attempt")
@@ -77,10 +97,25 @@ def float_token(value):
     return text.replace("+", "").replace("-", "m").replace(".", "p")
 
 
+def bool_token(value):
+    text = str(value).strip().lower()
+    if text in ("1", "true", "t", "yes", "y", "on"):
+        return "true"
+    if text in ("0", "false", "f", "no", "n", "off"):
+        return "false"
+    if text == "default":
+        return "default"
+    raise ValueError("Invalid bool/default value: {0}".format(value))
+
+
+def is_true_token(value):
+    return bool_token(value) == "true"
+
+
 def combo_label(combo):
     gamma_dec = combo.get("gamma_dec", "default")
     gamma_label = "gdecdefault" if gamma_dec == "default" else "gdec{0}".format(float_token(gamma_dec))
-    return "npt{0}_rb{1}_re{2}_abs{3}_rel{4}_{5}_noise{6}".format(
+    label = "npt{0}_rb{1}_re{2}_abs{3}_rel{4}_{5}_noise{6}".format(
         combo["npt"],
         float_token(combo["rhobeg"]),
         float_token(combo["rhoend"]),
@@ -89,18 +124,53 @@ def combo_label(combo):
         gamma_label,
         combo["objfun_has_noise"],
     )
+    suffixes = []
+    if combo.get("safety_step_thresh", "default") != "default":
+        suffixes.append("sst{0}".format(float_token(combo["safety_step_thresh"])))
+    if combo.get("growing_safety_do_safety_step", "default") != "default":
+        suffixes.append("gsds{0}".format(bool_token(combo["growing_safety_do_safety_step"])[0]))
+    if combo.get("growing_safety_reduce_delta", "default") != "default":
+        suffixes.append("gsrd{0}".format(bool_token(combo["growing_safety_reduce_delta"])[0]))
+    if combo.get("growing_safety_full_geom_step", "default") != "default":
+        suffixes.append("gsfg{0}".format(bool_token(combo["growing_safety_full_geom_step"])[0]))
+    if suffixes:
+        label = "{0}_{1}".format(label, "_".join(suffixes))
+    return label
 
 
 def build_grid(args):
     combos = []
-    for npt, rhobeg, rhoend, model_abs_tol, model_rel_tol, gamma_dec in itertools.product(
+    for (
+        npt,
+        rhobeg,
+        rhoend,
+        model_abs_tol,
+        model_rel_tol,
+        gamma_dec,
+        safety_step_thresh,
+        growing_safety_do_safety_step,
+        growing_safety_reduce_delta,
+        growing_safety_full_geom_step,
+    ) in itertools.product(
         split_csv(args.npts),
         split_csv(args.rhobegs),
         split_csv(args.rhoends),
         split_csv(args.model_abs_tols),
         split_csv(args.model_rel_tols),
         split_csv(args.gamma_decs),
+        split_csv(args.safety_step_threshes),
+        split_csv(args.growing_safety_do_safety_steps),
+        split_csv(args.growing_safety_reduce_deltas),
+        split_csv(args.growing_safety_full_geom_steps),
     ):
+        growing_safety_do_safety_step = bool_token(growing_safety_do_safety_step)
+        growing_safety_reduce_delta = bool_token(growing_safety_reduce_delta)
+        growing_safety_full_geom_step = bool_token(growing_safety_full_geom_step)
+        if is_true_token(growing_safety_reduce_delta) and is_true_token(growing_safety_full_geom_step):
+            continue
+        if not is_true_token(growing_safety_do_safety_step) and growing_safety_do_safety_step != "default":
+            if growing_safety_reduce_delta != "default" or growing_safety_full_geom_step != "default":
+                continue
         combo = {
             "npt": npt,
             "rhobeg": rhobeg,
@@ -108,6 +178,10 @@ def build_grid(args):
             "model_abs_tol": model_abs_tol,
             "model_rel_tol": model_rel_tol,
             "gamma_dec": gamma_dec,
+            "safety_step_thresh": safety_step_thresh,
+            "growing_safety_do_safety_step": growing_safety_do_safety_step,
+            "growing_safety_reduce_delta": growing_safety_reduce_delta,
+            "growing_safety_full_geom_step": growing_safety_full_geom_step,
             "objfun_has_noise": args.objfun_has_noise,
             "maxfun": str(args.maxfun),
         }
@@ -173,6 +247,14 @@ def combo_dfols_params(combo, extra_params):
     params = list(extra_params)
     if combo.get("gamma_dec", "default") != "default":
         params.append("tr_radius.gamma_dec={0}".format(combo["gamma_dec"]))
+    if combo.get("safety_step_thresh", "default") != "default":
+        params.append("general.safety_step_thresh={0}".format(combo["safety_step_thresh"]))
+    if combo.get("growing_safety_do_safety_step", "default") != "default":
+        params.append("growing.safety.do_safety_step={0}".format(combo["growing_safety_do_safety_step"]))
+    if combo.get("growing_safety_reduce_delta", "default") != "default":
+        params.append("growing.safety.reduce_delta={0}".format(combo["growing_safety_reduce_delta"]))
+    if combo.get("growing_safety_full_geom_step", "default") != "default":
+        params.append("growing.safety.full_geom_step={0}".format(combo["growing_safety_full_geom_step"]))
     return params
 
 
