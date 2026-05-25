@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "cluster": "iTHEMS cluster02",
-  "updated_at_jst": "2026-05-17T23:11:05+09:00",
+  "updated_at_jst": "2026-05-26T00:14:00+09:00",
   "resource_model": {
     "type": "shared_dynamic_cluster",
     "principle": "Persistent observations are priors; current qstat/probes decide present scheduling.",
@@ -50,8 +50,8 @@
       "C24": "Manual node range starts at 17 nodes; M6 chunks are one-node jobs.",
       "C36": "Manual node range starts at 25 nodes; M6 chunks are one-node jobs.",
       "C12-LONG2": "Observed stopped in live queue state; keep out of automatic scheduling.",
-      "C17": "8-core TLTM production-shape chunks observed Exit_status=127.",
-      "C17-LONG": "8-core TLTM production-shape chunks observed Exit_status=127.",
+      "C17": "Conditional only: cnode37 passed 8-core Stephanov probes, but cnode38/cnode39 lack git and current PBS git guard exits 127; use only with known-good placement or a gitless guard.",
+      "C17-LONG": "Conditional only: cnode37 passed 8-core Stephanov probes, but cnode38/cnode39 lack git and current PBS git guard exits 127; use only with known-good placement or a gitless guard.",
       "G": "GPU queue reserves GPU resources by default; not for CPU-only TLTM chunks.",
       "G-LONG": "GPU queue reserves GPU resources by default; not for CPU-only TLTM chunks.",
       "G-A100": "GPU queue reserves GPU resources by default; not for CPU-only TLTM chunks."
@@ -87,7 +87,7 @@
         "cnode40",
         "cnode41"
       ],
-      "decision": "blacklist for M6 production-shape chunks"
+      "decision": "node-specific failure prior remains active for cnode39-cnode41; 2026-05-25/26 probes show cnode37 can run but cnode38/cnode39 lack git under the current PBS guard"
     },
     {
       "queue": "C17-LONG",
@@ -98,7 +98,26 @@
         "cnode40",
         "cnode41"
       ],
-      "decision": "blacklist for M6 production-shape chunks"
+      "decision": "node-specific failure prior remains active for cnode39-cnode41; 2026-05-25/26 probes show cnode37 can run but cnode38/cnode39 lack git under the current PBS guard"
+    },
+    {
+      "queue": "C17",
+      "resource_shape": "select=1:ncpus=8:mpiprocs=8:mem=16gb",
+      "exit_status": 127,
+      "nodes": [
+        "cnode38",
+        "cnode39"
+      ],
+      "decision": "exclude from automatic scheduling until the PBS guard no longer requires a node-local git binary or placement can be constrained to known-good nodes"
+    },
+    {
+      "queue": "C17-LONG",
+      "resource_shape": "select=1:ncpus=8:mpiprocs=8:mem=16gb",
+      "exit_status": 127,
+      "nodes": [
+        "cnode38"
+      ],
+      "decision": "exclude from automatic scheduling until the PBS guard no longer requires a node-local git binary or placement can be constrained to known-good nodes"
     },
     {
       "queue": "submission_layer",
@@ -138,6 +157,33 @@
         "cnode35"
       ],
       "decision": "valid long-queue candidate when short queues are pressured"
+    },
+    {
+      "queue": "C16",
+      "resource_shape": "select=1:ncpus=8:mpiprocs=8:mem=16gb",
+      "exit_status": 0,
+      "nodes": [
+        "cnode01"
+      ],
+      "decision": "valid fallback candidate; 2026-05-25 Stephanov N6 withfb DOP853/DFO-LS probe completed 8/8 records but was slower than C17 probes"
+    },
+    {
+      "queue": "C17",
+      "resource_shape": "select=1:ncpus=8:mpiprocs=8:mem=16gb",
+      "exit_status": 0,
+      "nodes": [
+        "cnode37"
+      ],
+      "decision": "valid CPU candidate after 2026-05-25 Stephanov N6 withfb DOP853/DFO-LS probe completed 8/8 records"
+    },
+    {
+      "queue": "C17-LONG",
+      "resource_shape": "select=1:ncpus=8:mpiprocs=8:mem=16gb",
+      "exit_status": 0,
+      "nodes": [
+        "cnode37"
+      ],
+      "decision": "valid long-queue pressure-release candidate after 2026-05-25 Stephanov N6 withfb DOP853/DFO-LS probe completed 8/8 records"
     }
   ],
   "repair_policy": {

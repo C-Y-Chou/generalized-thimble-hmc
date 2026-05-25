@@ -67,7 +67,8 @@ Queue policy:
 - keep one seed per worker to avoid oversubscription and preserve simple timing interpretation;
 - submit `no_fb` and `fb_norefine` independently but with matched seed offsets.
 - use only CPU queues that are valid for one-node jobs by default: `C8`, `C8-LONG`, `C12`, `C12-LONG`, `C16`, and `F`;
-- exclude `G`, `G-LONG`, `G-A100`, `C24`, `C36`, `C12-LONG2`, `C17`, and `C17-LONG` by default;
+- exclude `G`, `G-LONG`, `G-A100`, `C24`, `C36`, and `C12-LONG2` by default;
+- treat `C17`/`C17-LONG` as conditional: cnode37 passed 2026-05-25/26 Stephanov N6 withfb 8-core probes, but cnode38/cnode39 lack node-local `git` and fail the current PBS git guard with `Exit_status=127`; use them only after known-good placement or a gitless guard is available;
 - score live `qstat -Qf` queue state at submission time and record the final queue assignment in the submit manifest and JSON queue plan.
 
 ## Cluster Submit Command

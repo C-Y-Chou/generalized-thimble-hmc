@@ -28,7 +28,19 @@ Excluded by default:
 - `G`, `G-LONG`, `G-A100`: GPU queues. The manual defines GPU allocation separately, and live jobs showed GPU resources are reserved for these queues.
 - `C24`, `C36`: manual node ranges start at 17 and 25 nodes respectively; M6 chunks are one-node jobs.
 - `C12-LONG2`: observed stopped in live queue state; do not use automatically.
-- `C17`, `C17-LONG`: 8-core TLTM production-shape chunks observed `Exit_status=127`; a one-core probe is not sufficient evidence for this job shape.
+- `C17`, `C17-LONG`: conditional only. Current Stephanov N6 withfb
+  production-shape probes pass on cnode37, but cnode38/cnode39 placements lack a
+  node-local `git` binary and current PBS git guards exit 127 before simulation.
+  Use only with known-good placement or after the PBS guard is made independent
+  of node-local `git`.
+
+Prior `C17` and `C17-LONG` `Exit_status=127` observations from 2026-05-10
+remain recorded as node-specific cnode39-cnode41 priors. On 2026-05-25/26 JST,
+Stephanov N6 withfb DOP853/DFO-LS production-shape probes completed on `C17`
+and `C17-LONG` at cnode37 with `Exit_status=0`, but later production-shaped
+jobs on cnode38/cnode39 failed immediately with `git: command not found`.
+Therefore `C17`/`C17-LONG` are usable evidence, but not automatic queue classes
+under the current guard.
 
 ## Dynamic Selection
 
@@ -107,6 +119,28 @@ this scheduler memory first, then live `qstat -Qf`.
   - R3 replacement: `14669` on `C12`, merge `14670`.
   - R4 replacements: `14671` on `C8`, `14672` on `C12-LONG`, `14673` on `C12`, `14674` on `C8`, merge `14675`.
 - Scheduler memory now treats `C8` and `C12` as preferred M6 production-shape compatibility priors, with `C12-LONG` as a validated long-queue pressure release. These are not fixed future availability guarantees.
+
+## Probe Update - 2026-05-26 JST
+
+- Current `qstat -Qf` showed `C16`, `C17`, and `C17-LONG` enabled and started
+  with zero jobs.
+- Stephanov N6 withfb DOP853/official-DFO-LS production-shape probes used
+  `select=1:ncpus=8:mpiprocs=8:mem=16gb`, 8 records, and 30 cycles.
+- `C16` job `16938.anode01` completed on `cnode01/0*8` with `Exit_status=0`;
+  output status was 8/8 records done, wall 1203.85s.
+- `C17` job `16939.anode01` completed on `cnode37/1*8` with `Exit_status=0`;
+  output status was 8/8 records done, wall 670.08s.
+- `C17-LONG` job `16940.anode01` completed on `cnode37/0*8` with
+  `Exit_status=0`; output status was 8/8 records done, wall 655.20s.
+- Follow-up production repair at 00:18 JST showed the important constraint:
+  `C17`/`C17-LONG` placements on cnode37 passed the git/commit guard, while
+  cnode38/cnode39 placements exited 127 before simulation because `git` was not
+  available. A direct C17 diagnostic on cnode38 confirmed `/usr/bin/git` was
+  absent.
+- Policy consequence: keep `C16` as a valid fallback candidate. Keep `C17` and
+  `C17-LONG` out of automatic scheduling until either placement can be
+  constrained to known-good nodes or PBS guard logic no longer requires
+  node-local `git`.
 
 Dry-run:
 

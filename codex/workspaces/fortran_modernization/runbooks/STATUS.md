@@ -229,11 +229,11 @@ Current protocol state:
 - `state/M6_REFERENCE_PACKAGES.tsv` now exists as the reference-package registry template.
 - User explicitly started R1-R4 reference generation planning on 2026-05-10 JST.
 - Configs and PBS scripts for R1-R4 are prepared, with the submit launcher now delegated to a manual-aware dynamic queue planner.
-- `runbooks/M6_DYNAMIC_QUEUE_POLICY_20260510.md` records the iTHEMS cluster02 manual-derived queue rules, GPU/C17 exclusions, and no-`qmove` repair policy.
+- `runbooks/M6_DYNAMIC_QUEUE_POLICY_20260510.md` records the iTHEMS cluster02 manual-derived queue rules, GPU/multi-node exclusions, conditional C17/C17-LONG production-shape eligibility, and no-`qmove` repair policy.
 - `runbooks/CLUSTER02_SCHEDULING_AGENT.md`, `state/CLUSTER02_SCHEDULER_KNOWLEDGE.json`, and `state/CLUSTER02_QUEUE_OBSERVATIONS.tsv` now define a persistent cluster02 scheduling agent for long-term queue/work-splitting optimization.
 - The scheduler agent utility `tasks/scripts/cluster02_scheduler_agent.py` can show the persistent policy, capture live `qstat -Qf` snapshots, summarize jobs, and append new queue observations.
-- The original static wave exposed scheduling hazards: GPU queues were unsuitable for CPU chunks, `C17/C17-LONG` failed for 8-core TLTM production-shape chunks, and qmove-created jobs could finish without usable execution/logs.
-- Current active cluster jobs are pinned to commit `a1028ad`; do not fast-forward that active worktree while they run.
+- The original static wave exposed scheduling hazards: GPU queues were unsuitable for CPU chunks, old `C17/C17-LONG` cnode39-cnode41 placements failed for 8-core TLTM production-shape chunks, and qmove-created jobs could finish without usable execution/logs. Current 2026-05-25/26 Stephanov N6 withfb 8-core probes passed on `C17/C17-LONG` at cnode37, but cnode38/cnode39 still fail the current PBS git guard because node-local `git` is absent; keep those queues conditional, not automatic.
+- Current active Stephanov cluster jobs are pinned to commit `0a8744c5`; do not fast-forward that active worktree while they run.
 - Repo entry docs now point to M6 guardrails/checklists and no longer describe single-chain output as the Stage3_4 production or modernization reference-package path.
 - Master/M3-to-M6 planning docs now mark M3/M4/M5 as completed or explicitly deferred where appropriate, with M6 review as the next gate before modernization reference-dataset construction/registration.
 - M6 queue probe/optimization is complete:

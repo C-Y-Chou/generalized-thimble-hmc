@@ -115,8 +115,8 @@ authority gate or preserve the same environment/request-ledger contract.
 - CPU-only TLTM chunks use `C8`, `C12`, `C16`, `C8-LONG`, `C12-LONG`, or `F` by default.
 - GPU queues are excluded for CPU-only chunks unless explicitly approved.
 - `C24` and `C36` are excluded for one-node jobs because their manual node ranges start above one node.
-- `C17` and `C17-LONG` are excluded for M6-style 8-core chunks because production-shape jobs failed with `Exit_status=127`.
-- One-core probes do not validate an 8-core TLTM chunk shape.
+- `C17` and `C17-LONG` are conditional only: cnode37 passed current Stephanov N6 withfb DOP853/DFO-LS 8-core probes, but cnode38/cnode39 placements lack node-local `git` and fail the current PBS git guard with `Exit_status=127`. Do not use them automatically until placement is constrained or the guard is gitless.
+- One-core probes do not validate an 8-core TLTM chunk shape; use production-shape probes when revalidating a queue or node placement.
 - Probe-passed queues are preferred only as compatibility priors. Current queue pressure still comes from fresh `qstat -Qf` and, when useful, new probes.
 
 ## Utility Commands
