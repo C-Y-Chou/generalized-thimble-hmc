@@ -42,6 +42,12 @@ def parse_args():
     parser.add_argument("--parallel-local-updates", choices=("0", "1"), default="1")
     parser.add_argument("--parallel-swaps", choices=("0", "1"), default="1")
     parser.add_argument(
+        "--swap-enabled",
+        choices=("0", "1"),
+        default="1",
+        help="Enable adjacent replica swaps. Use 0 for fixed-tau single-replica runs.",
+    )
+    parser.add_argument(
         "--enable-quasi-fallback",
         action="store_true",
         help="Enable the quasi-Newton fallback path for withfb runs.",
@@ -303,7 +309,7 @@ def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, c
             "TLTM_STAGE2_NUM_REPLICAS": str(len(ladder)),
             "TLTM_STAGE2_CYCLES": str(args.cycles),
             "TLTM_STAGE2_LOCAL_UPDATES": "1",
-            "TLTM_STAGE2_SWAP_ENABLED": "1",
+            "TLTM_STAGE2_SWAP_ENABLED": args.swap_enabled,
             "TLTM_STAGE2_SUMMARY_FILE": str(chain_dir / "summary.dat"),
             "TLTM_STAGE2_LABEL_TRACE_FILE": str(chain_dir / "label_trace.dat"),
             "TLTM_STAGE2_PHASE_CACHE_STATS_FILE": str(chain_dir / "phase_cache_stats.csv"),
@@ -404,6 +410,7 @@ def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, c
         "hmc_nstep": args.hmc_nstep,
         "hmc_L": hmc_l,
         "enable_quasi_fallback": int(args.enable_quasi_fallback),
+        "swap_enabled": int(args.swap_enabled),
         "preflow_L": args.preflow_L,
         "preflow_nstep": args.preflow_nstep,
         **metrics,
@@ -448,8 +455,10 @@ def main():
     run_dir.mkdir(parents=True, exist_ok=True)
     records = parse_int_list(args.records)
     ladder = parse_float_list(args.ladder)
-    if len(ladder) < 2:
-        raise RuntimeError("TLTM ladder needs at least two replicas.")
+    if len(ladder) < 1:
+        raise RuntimeError("TLTM ladder needs at least one replica.")
+    if len(ladder) < 2 and args.swap_enabled == "1":
+        raise RuntimeError("Single-replica fixed-tau runs require --swap-enabled 0.")
     if args.init_snapshot_file and len(records) != 1:
         raise RuntimeError("--init-snapshot-file is only valid for a single record.")
     if args.init_snapshot_file and args.init_snapshot_root:
