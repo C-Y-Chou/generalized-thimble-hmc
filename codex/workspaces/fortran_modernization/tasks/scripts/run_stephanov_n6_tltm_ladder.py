@@ -39,6 +39,16 @@ def parse_args():
     parser.add_argument("--hmc-nstep", type=int, default=4)
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--threads", type=int, default=4)
+    parser.add_argument(
+        "--blas-threads",
+        type=int,
+        default=0,
+        help=(
+            "Thread count for BLAS/LAPACK libraries inside each record process. "
+            "Defaults to --threads for backward compatibility; use 1 when OpenMP "
+            "is parallelizing replicas/swaps outside BLAS."
+        ),
+    )
     parser.add_argument("--parallel-local-updates", choices=("0", "1"), default="1")
     parser.add_argument("--parallel-swaps", choices=("0", "1"), default="1")
     parser.add_argument(
@@ -293,12 +303,13 @@ def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, c
         raise RuntimeError("Init flow-bank root does not exist: {0}".format(init_flow_bank_root))
     env = os.environ.copy()
     thread_text = str(max(1, args.threads))
+    blas_thread_text = str(max(1, args.blas_threads if args.blas_threads > 0 else args.threads))
     env.update(
         {
             "OMP_NUM_THREADS": thread_text,
-            "OPENBLAS_NUM_THREADS": thread_text,
-            "MKL_NUM_THREADS": thread_text,
-            "VECLIB_MAXIMUM_THREADS": thread_text,
+            "OPENBLAS_NUM_THREADS": blas_thread_text,
+            "MKL_NUM_THREADS": blas_thread_text,
+            "VECLIB_MAXIMUM_THREADS": blas_thread_text,
             "TLTM_PARAMETERS_FILE": str(params_file),
             "CHAIN_RNG_SEED": str(args.seed_base + record_idx + 10000 * chain_idx),
             "QN_REVERSE_GATE_ENABLED": "1",
@@ -406,6 +417,7 @@ def run_record(repo_root, run_dir, params_file, bank_file, ladder, record_idx, c
         "cycles": args.cycles,
         "ladder": ",".join("{0:g}".format(value) for value in ladder),
         "threads": args.threads,
+        "blas_threads": max(1, args.blas_threads if args.blas_threads > 0 else args.threads),
         "hmc_epsilon": args.hmc_epsilon,
         "hmc_nstep": args.hmc_nstep,
         "hmc_L": hmc_l,
