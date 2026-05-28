@@ -26,6 +26,7 @@ module load mkl/2025.3
 : "${TLTM_RUN_NAME:=stephanov_n6_nofb_runtime_layouts_40cyc_20260528a}"
 : "${TLTM_OUTPUT_ROOT:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/stephanov_runtime_benchmarks}"
 : "${TLTM_LOG_ROOT:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/stephanov_runtime_benchmarks/${TLTM_RUN_NAME}}"
+: "${TLTM_INIT_FLOW_BANK_ROOT:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/stephanov_flow_banks/stephanov_n6_tltm_t003_ladder13_dop853_highflow_bank_8x600_20260523_xhist_b100_s5/flow_bank_ladder13_dop853_dense_cache}"
 : "${TLTM_CYCLES:=40}"
 : "${TLTM_LAYOUTS:=32x1,16x2,8x4,4x8,2x16,1x32}"
 : "${TLTM_BLAS_THREADS:=1}"
@@ -42,6 +43,7 @@ echo "TLTM_WORKTREE=${TLTM_WORKTREE}"
 echo "TLTM_RUN_NAME=${TLTM_RUN_NAME}"
 echo "TLTM_CYCLES=${TLTM_CYCLES}"
 echo "TLTM_LAYOUTS=${TLTM_LAYOUTS}"
+echo "TLTM_INIT_FLOW_BANK_ROOT=${TLTM_INIT_FLOW_BANK_ROOT}"
 
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 CURRENT_COMMIT="$(git rev-parse HEAD)"
@@ -87,6 +89,7 @@ make -C build clean
   --cycles "${TLTM_CYCLES}" \
   --layouts "${TLTM_LAYOUTS}" \
   --blas-threads "${TLTM_BLAS_THREADS}" \
+  --init-flow-bank-root "${TLTM_INIT_FLOW_BANK_ROOT}" \
   --total-ncpus 32 \
   --force
 
