@@ -40,8 +40,20 @@ def parse_args():
     parser.add_argument("--init-flow-bank-root", default=DEFAULT_FLOW_BANK)
     parser.add_argument("--swap-reflow-backend", default="direct")
     parser.add_argument("--local-reflow-cache-mode", default="none")
-    parser.add_argument("--omp-proc-bind", default="spread")
-    parser.add_argument("--omp-places", default="cores")
+    parser.add_argument(
+        "--omp-proc-bind",
+        default="false",
+        help=(
+            "OpenMP binding policy. Default is false to match production "
+            "record-parallel jobs; binding each independent process to "
+            "OMP_PLACES=cores can pin every process to the first core."
+        ),
+    )
+    parser.add_argument(
+        "--omp-places",
+        default="",
+        help="Optional OMP_PLACES value. Leave empty for production-like process-parallel benchmarks.",
+    )
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--force", action="store_true")
     return parser.parse_args()
@@ -221,6 +233,11 @@ def mean(rows, key):
     return sum(vals) / float(len(vals)) if vals else 0.0
 
 
+def max_value(rows, key):
+    vals = [float(row[key]) for row in rows if key in row]
+    return max(vals) if vals else 0.0
+
+
 def run_layout(repo_root, args, run_dir, layout_name, jobs, threads, records):
     selected = records[:jobs]
     if len(selected) < jobs:
@@ -243,9 +260,10 @@ def run_layout(repo_root, args, run_dir, layout_name, jobs, threads, records):
             "OMP_DYNAMIC": "FALSE",
             "MKL_DYNAMIC": "FALSE",
             "OMP_PROC_BIND": args.omp_proc_bind,
-            "OMP_PLACES": args.omp_places,
         }
     )
+    if args.omp_places:
+        env["OMP_PLACES"] = args.omp_places
     cmd = [
         sys.executable,
         str(repo_root / "codex/workspaces/fortran_modernization/tasks/scripts/run_stephanov_n6_tltm_ladder.py"),
@@ -300,6 +318,8 @@ def run_layout(repo_root, args, run_dir, layout_name, jobs, threads, records):
         row.update(parse_summary(summary_file))
         record_rows.append(row)
     record_cycles = len(selected) * args.cycles
+    mean_elapsed_sec = mean(record_rows, "elapsed_sec")
+    max_elapsed_sec = max_value(record_rows, "elapsed_sec")
     return {
         "layout": layout_name,
         "jobs": jobs,
@@ -313,7 +333,10 @@ def run_layout(repo_root, args, run_dir, layout_name, jobs, threads, records):
         "case_wall_sec": wall,
         "record_cycles_per_wall_sec": record_cycles / wall if wall > 0.0 else 0.0,
         "record_cycles_per_core_sec": record_cycles / (wall * max(1, jobs * threads)) if wall > 0.0 else 0.0,
-        "mean_elapsed_sec": mean(record_rows, "elapsed_sec"),
+        "mean_elapsed_sec": mean_elapsed_sec,
+        "max_elapsed_sec": max_elapsed_sec,
+        "record_cycles_per_mean_elapsed_sec": record_cycles / mean_elapsed_sec if mean_elapsed_sec > 0.0 else 0.0,
+        "record_cycles_per_max_elapsed_sec": record_cycles / max_elapsed_sec if max_elapsed_sec > 0.0 else 0.0,
         "mean_local_update_sweep_sec": mean(record_rows, "local_update_sweep_sec"),
         "mean_swap_sweep_sec": mean(record_rows, "swap_sweep_sec"),
         "mean_swap_reflow_sec": mean(record_rows, "swap_reflow_sec"),
@@ -371,6 +394,9 @@ def write_readme(path, rows, args):
                 "Best observed throughput layout: `{0}` with `{1:.6f}` record-cycles/s.".format(
                     best["layout"], best["record_cycles_per_wall_sec"]
                 ),
+                "",
+                "`record_cycles_per_wall_sec` includes build-independent runner overhead, flow-bank loading, and startup I/O. "
+                "`record_cycles_per_max_elapsed_sec` in `benchmark_summary.csv` excludes Stage2 initialization and is the cleaner production-loop metric for long chunks.",
             ]
         )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
