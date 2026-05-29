@@ -224,6 +224,25 @@ def wall_epsilon_acceptance_candidate_rows(cycles):
     return rows
 
 
+def wall_l_eps0015_candidate_rows(cycles):
+    rows = []
+    for num_steps in [1, 2, 3, 4, 5, 6, 8]:
+        rows.append({
+            "label": "wall_g1_eps0p015_s{0}".format(num_steps),
+            "profile": "paper_wall",
+            "step_size": 0.015,
+            "num_steps": num_steps,
+            "cycles": cycles,
+            "t0": 0.005,
+            "t1": 0.2,
+            "d0": 0.005,
+            "d1": 0.05,
+            "gamma": 1.0,
+            "grid": "wall_l_eps0015",
+        })
+    return rows
+
+
 def candidate_rows(cycles, grid):
     if grid == "initial":
         rows = initial_candidate_rows(cycles)
@@ -231,6 +250,8 @@ def candidate_rows(cycles, grid):
         rows = wall_epsilon_candidate_rows(cycles)
     elif grid == "wall_epsilon_acceptance":
         rows = wall_epsilon_acceptance_candidate_rows(cycles)
+    elif grid == "wall_l_eps0015":
+        rows = wall_l_eps0015_candidate_rows(cycles)
     else:
         raise ValueError("unknown grid {0}".format(grid))
     for row in rows:
@@ -476,7 +497,11 @@ def main():
     parser.add_argument("--binary", default="bin/run_wv_hmc")
     parser.add_argument("--output-root", default="output/wv_hmc_pilot_20260529/dense_scan")
     parser.add_argument("--parameters-file", default="data/parameters_stephanov_n2_smoke.dat")
-    parser.add_argument("--grid", choices=["initial", "wall_epsilon", "wall_epsilon_acceptance"], default="initial")
+    parser.add_argument(
+        "--grid",
+        choices=["initial", "wall_epsilon", "wall_epsilon_acceptance", "wall_l_eps0015"],
+        default="initial",
+    )
     parser.add_argument("--cycles", type=int, default=100)
     parser.add_argument("--timeout-sec", type=float, default=20.0)
     parser.add_argument("--jobs", type=int, default=1)
