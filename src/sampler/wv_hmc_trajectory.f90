@@ -3,7 +3,11 @@ module wv_hmc_trajectory
    use model, only: ds
    use solve_flow, only: flow_workspace_t, intode_diagnostics_context_t, intode_status_unknown
    use utils, only: complex_to_real, dp
-   use wv_hmc_constraints, only: wv_calculate_hamiltonian, wv_rattle_step_dense_with_boundary
+   use wv_hmc_constraints, only: wv_calculate_hamiltonian, wv_newton_stop_converged, &
+                                 wv_newton_stop_divergence, wv_newton_stop_max_iter, &
+                                 wv_newton_stop_not_run, wv_newton_stop_stagnation, &
+                                 wv_newton_stop_unknown, wv_newton_trace_context_t, &
+                                 wv_rattle_step_dense_with_boundary
    use wv_hmc_kernels, only: wv_project_dense_with_jacobian, wv_xi_from_action_gradient
    use wv_hmc_potential, only: wv_potential_profile_t, wv_potential_value_and_derivative
    implicit none
@@ -20,6 +24,13 @@ module wv_hmc_trajectory
       integer :: completed_steps = 0
       integer :: bounced_steps = 0
       integer :: solver_iterations_total = 0
+      integer :: solver_stop_converged_count = 0
+      integer :: solver_stop_max_iter_count = 0
+      integer :: solver_stop_divergence_count = 0
+      integer :: solver_stop_stagnation_count = 0
+      integer :: solver_stop_not_run_count = 0
+      integer :: solver_stop_failure_count = 0
+      integer :: last_solver_stop_reason = wv_newton_stop_unknown
       integer :: last_status = intode_status_unknown
       real(dp) :: max_constraint_residual = 0.0_dp
       real(dp) :: initial_hamiltonian = huge(1.0_dp)
@@ -69,7 +80,8 @@ contains
 
    subroutine wv_trajectory_dense(step_size, num_steps, potential, t0, t1, d0, d1, flow_time, x, z, jac, pi, &
                                   flow_time_out, x_out, z_out, jac_out, pi_out, diagnostics, error, status, &
-                                  flow_workspace, intode_diagnostics, constraint_tol, constraint_max_iter)
+                                  flow_workspace, intode_diagnostics, constraint_tol, constraint_max_iter, &
+                                  adaptive_stop_enabled, trace_context, trace_direction)
       real(dp), intent(in) :: step_size, t0, t1, d0, d1, flow_time, x(:), pi(:)
       integer, intent(in) :: num_steps
       type(wv_potential_profile_t), intent(in) :: potential
@@ -83,8 +95,11 @@ contains
       type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
       real(dp), intent(in), optional :: constraint_tol
       integer, intent(in), optional :: constraint_max_iter
+      logical, intent(in), optional :: adaptive_stop_enabled
+      type(wv_newton_trace_context_t), intent(inout), optional :: trace_context
+      integer, intent(in), optional :: trace_direction
 
-      integer :: n, step_idx, step_status, iterations
+      integer :: n, step_idx, step_status, iterations, solver_stop_reason
       real(dp) :: w_value, wprime, residual_norm
       real(dp) :: t_current, t_next
       real(dp) :: x_current(size(x)), x_next(size(x)), pi_current(size(pi)), pi_next(size(pi))
@@ -100,6 +115,7 @@ contains
       error = .true.
       step_status = intode_status_unknown
       if (present(status)) status = step_status
+      solver_stop_reason = wv_newton_stop_unknown
 
       n = size(z)
       if (n <= 0) return
@@ -123,6 +139,10 @@ contains
 
       do step_idx = 1, num_steps
          diagnostics%attempted_steps = diagnostics%attempted_steps + 1
+         if (present(trace_context)) then
+            trace_context%step = step_idx
+            if (present(trace_direction)) trace_context%direction = trace_direction
+         end if
          call wv_potential_value_and_derivative(potential, t_current, w_value, wprime, local_error)
          if (local_error) return
          if (present(flow_workspace)) then
@@ -130,15 +150,20 @@ contains
                                                     z_current, jac_current, pi_current, t_next, x_next, z_next, &
                                                     jac_next, pi_next, residual_norm, iterations, bounced, local_error, &
                                                     step_status, flow_workspace, intode_diagnostics, constraint_tol, &
-                                                    constraint_max_iter)
+                                                    constraint_max_iter, solver_stop_reason, adaptive_stop_enabled, &
+                                                    trace_context)
          else
             call wv_rattle_step_dense_with_boundary(step_size, wprime, t0, t1, d0, d1, t_current, x_current, &
                                                     z_current, jac_current, pi_current, t_next, x_next, z_next, &
                                                     jac_next, pi_next, residual_norm, iterations, bounced, local_error, &
                                                     step_status, intode_diagnostics=intode_diagnostics, &
-                                                    constraint_tol=constraint_tol, constraint_max_iter=constraint_max_iter)
+                                                    constraint_tol=constraint_tol, constraint_max_iter=constraint_max_iter, &
+                                                    solver_stop_reason=solver_stop_reason, &
+                                                    adaptive_stop_enabled=adaptive_stop_enabled, trace_context=trace_context)
          end if
          diagnostics%last_status = step_status
+         diagnostics%last_solver_stop_reason = solver_stop_reason
+         call record_solver_stop_reason(diagnostics, solver_stop_reason)
          if (present(status)) status = step_status
          if (local_error) return
 
@@ -170,7 +195,7 @@ contains
    subroutine wv_transition_dense(step_size, num_steps, potential, t0, t1, d0, d1, flow_time, x, z, jac, raw_pi, &
                                   uniform01, flow_time_out, x_out, z_out, jac_out, diagnostics, error, status, &
                                   flow_workspace, intode_diagnostics, constraint_tol, constraint_max_iter, &
-                                  reverse_gate_state_tol, reverse_gate_momentum_tol)
+                                  reverse_gate_state_tol, reverse_gate_momentum_tol, adaptive_stop_enabled, trace_context)
       real(dp), intent(in) :: step_size, t0, t1, d0, d1, flow_time, x(:), raw_pi(:), uniform01
       integer, intent(in) :: num_steps
       type(wv_potential_profile_t), intent(in) :: potential
@@ -185,6 +210,8 @@ contains
       real(dp), intent(in), optional :: constraint_tol
       integer, intent(in), optional :: constraint_max_iter
       real(dp), intent(in), optional :: reverse_gate_state_tol, reverse_gate_momentum_tol
+      logical, intent(in), optional :: adaptive_stop_enabled
+      type(wv_newton_trace_context_t), intent(inout), optional :: trace_context
 
       integer :: n, flow_status
       real(dp) :: c
@@ -224,19 +251,21 @@ contains
          call wv_trajectory_dense(step_size, num_steps, potential, t0, t1, d0, d1, flow_time, x, z, jac, pi, &
                                   flow_time_proposed, x_proposed, z_proposed, jac_proposed, pi_proposed, &
                                   diagnostics%trajectory, local_error, flow_status, flow_workspace, intode_diagnostics, &
-                                  constraint_tol, constraint_max_iter)
+                                  constraint_tol, constraint_max_iter, adaptive_stop_enabled, trace_context, 1)
       else
          call wv_trajectory_dense(step_size, num_steps, potential, t0, t1, d0, d1, flow_time, x, z, jac, pi, &
                                   flow_time_proposed, x_proposed, z_proposed, jac_proposed, pi_proposed, &
                                   diagnostics%trajectory, local_error, flow_status, intode_diagnostics=intode_diagnostics, &
-                                  constraint_tol=constraint_tol, constraint_max_iter=constraint_max_iter)
+                                  constraint_tol=constraint_tol, constraint_max_iter=constraint_max_iter, &
+                                  adaptive_stop_enabled=adaptive_stop_enabled, trace_context=trace_context, trace_direction=1)
       end if
       if (present(status)) status = flow_status
       if (local_error) return
       call wv_reverse_gate_dense(step_size, num_steps, potential, t0, t1, d0, d1, flow_time, x, z, jac, pi, &
                                  flow_time_proposed, x_proposed, z_proposed, jac_proposed, pi_proposed, &
                                  diagnostics, local_error, flow_status, flow_workspace, intode_diagnostics, &
-                                 constraint_tol, constraint_max_iter, reverse_gate_state_tol, reverse_gate_momentum_tol)
+                                 constraint_tol, constraint_max_iter, reverse_gate_state_tol, reverse_gate_momentum_tol, &
+                                 adaptive_stop_enabled, trace_context)
       if (present(status)) status = flow_status
       if (local_error) then
          diagnostics%reverse_gate_rejected = .true.
@@ -278,7 +307,7 @@ contains
                                     z_initial, jac_initial, pi_initial, flow_time_forward, x_forward, z_forward, &
                                     jac_forward, pi_forward, diagnostics, error, status, flow_workspace, &
                                     intode_diagnostics, constraint_tol, constraint_max_iter, reverse_gate_state_tol, &
-                                    reverse_gate_momentum_tol)
+                                    reverse_gate_momentum_tol, adaptive_stop_enabled, trace_context)
       real(dp), intent(in) :: step_size, t0, t1, d0, d1, flow_time_initial, flow_time_forward
       real(dp), intent(in) :: x_initial(:), pi_initial(:), x_forward(:), pi_forward(:)
       integer, intent(in) :: num_steps
@@ -292,6 +321,8 @@ contains
       real(dp), intent(in), optional :: constraint_tol
       integer, intent(in), optional :: constraint_max_iter
       real(dp), intent(in), optional :: reverse_gate_state_tol, reverse_gate_momentum_tol
+      logical, intent(in), optional :: adaptive_stop_enabled
+      type(wv_newton_trace_context_t), intent(inout), optional :: trace_context
 
       integer :: flow_status
       real(dp) :: flow_time_reverse, t_scale, x_scale, z_scale, jac_scale, pi_scale
@@ -328,13 +359,15 @@ contains
          call wv_trajectory_dense(step_size, num_steps, potential, t0, t1, d0, d1, flow_time_forward, x_forward, &
                                   z_forward, jac_forward, -pi_forward, flow_time_reverse, x_reverse, z_reverse, &
                                   jac_reverse, pi_reverse, diagnostics%reverse_trajectory, local_error, flow_status, &
-                                  flow_workspace, intode_diagnostics, constraint_tol, constraint_max_iter)
+                                  flow_workspace, intode_diagnostics, constraint_tol, constraint_max_iter, &
+                                  adaptive_stop_enabled, trace_context, -1)
       else
          call wv_trajectory_dense(step_size, num_steps, potential, t0, t1, d0, d1, flow_time_forward, x_forward, &
                                   z_forward, jac_forward, -pi_forward, flow_time_reverse, x_reverse, z_reverse, &
                                   jac_reverse, pi_reverse, diagnostics%reverse_trajectory, local_error, flow_status, &
                                   intode_diagnostics=intode_diagnostics, constraint_tol=constraint_tol, &
-                                  constraint_max_iter=constraint_max_iter)
+                                  constraint_max_iter=constraint_max_iter, adaptive_stop_enabled=adaptive_stop_enabled, &
+                                  trace_context=trace_context, trace_direction=-1)
       end if
       if (present(status)) status = flow_status
       if (local_error) then
@@ -359,5 +392,25 @@ contains
                                         diagnostics%reverse_gate_momentum_error <= momentum_tol
       diagnostics%reverse_gate_rejected = .not. diagnostics%reverse_gate_passed
    end subroutine wv_reverse_gate_dense
+
+   subroutine record_solver_stop_reason(diagnostics, stop_reason)
+      type(wv_trajectory_diagnostics_t), intent(inout) :: diagnostics
+      integer, intent(in) :: stop_reason
+
+      select case (stop_reason)
+      case (wv_newton_stop_converged)
+         diagnostics%solver_stop_converged_count = diagnostics%solver_stop_converged_count + 1
+      case (wv_newton_stop_max_iter)
+         diagnostics%solver_stop_max_iter_count = diagnostics%solver_stop_max_iter_count + 1
+      case (wv_newton_stop_divergence)
+         diagnostics%solver_stop_divergence_count = diagnostics%solver_stop_divergence_count + 1
+      case (wv_newton_stop_stagnation)
+         diagnostics%solver_stop_stagnation_count = diagnostics%solver_stop_stagnation_count + 1
+      case (wv_newton_stop_not_run)
+         diagnostics%solver_stop_not_run_count = diagnostics%solver_stop_not_run_count + 1
+      case default
+         diagnostics%solver_stop_failure_count = diagnostics%solver_stop_failure_count + 1
+      end select
+   end subroutine record_solver_stop_reason
 
 end module wv_hmc_trajectory

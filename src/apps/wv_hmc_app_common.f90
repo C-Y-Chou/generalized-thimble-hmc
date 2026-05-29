@@ -3,10 +3,11 @@ module wv_hmc_app_common
    use, intrinsic :: iso_fortran_env, only: int64
    use model_observables, only: get_model_observable_name, model_observable_count
    use param_mod, only: config, read_parameters, set_derivative_mode
-   use runtime_env_mod, only: parse_int_env, parse_real_env, read_string_env, to_lower_ascii
+   use runtime_env_mod, only: parse_int_env, parse_logical_env, parse_real_env, read_string_env, to_lower_ascii
    use solve_flow, only: intode_status_unknown
    use tltm_rng, only: tltm_rng_domain_wv_hmc_init, tltm_rng_fill_normal, tltm_rng_uniform
    use utils, only: dp
+   use wv_hmc_constraints, only: wv_newton_trace_context_t
    use wv_hmc_driver, only: wv_dense_chain_summary_t, wv_run_dense_chain
    use wv_hmc_measurement, only: wv_dense_measurement_factor, wv_init_weighted_observable_accumulator, &
                                  wv_measurement_factor_t, wv_weighted_observable_accumulator_t, &
@@ -28,22 +29,25 @@ contains
       logical, intent(in) :: default_write_files
 
       integer :: n, num_steps, cycle_count, base_seed, status, observable_count, measurement_start_cycle
-      integer :: init_bank_record, init_bank_selected_record, init_bank_record_count
+      integer :: init_bank_record, init_bank_selected_record, init_bank_record_count, constraint_max_iter
+      integer :: newton_trace_unit
       real(dp) :: step_size, flow_time, sampler_t0, sampler_t1, d0, d1, measurement_t0, measurement_t1
       real(dp) :: w_gamma, w_c0, w_c1, reverse_gate_state_tol, reverse_gate_momentum_tol, init_sigma
+      real(dp) :: constraint_tol
       real(dp) :: flow_time_out
       real(dp), allocatable :: x(:), x_out(:)
       complex(dp), allocatable :: z_out(:), jac_out(:, :)
-      logical :: error
+      logical :: error, adaptive_newton_stop_enabled
       logical :: has_summary_file, has_observable_file, has_w_profile, has_init_mode, has_init_bank_file
-      logical :: found_summary_file, found_observable_file
+      logical :: found_summary_file, found_observable_file, has_newton_trace_file
       character(len=512) :: summary_file, observable_file
-      character(len=512) :: init_bank_file
+      character(len=512) :: init_bank_file, newton_trace_file
       character(len=64) :: w_profile_name, init_mode_name
       type(wv_dense_chain_summary_t) :: summary
       type(wv_measurement_factor_t) :: measurement_factor
       type(wv_potential_profile_t) :: potential
       type(wv_weighted_observable_accumulator_t) :: observable_accumulator
+      type(wv_newton_trace_context_t) :: newton_trace_context
       complex(dp), allocatable :: observable_estimates(:)
 
       call read_parameters()
@@ -70,8 +74,13 @@ contains
       w_c1 = 1.0_dp
       reverse_gate_state_tol = 1.0e-6_dp
       reverse_gate_momentum_tol = 1.0e-4_dp
+      constraint_tol = 1.0e-8_dp
+      constraint_max_iter = 16
+      adaptive_newton_stop_enabled = .false.
       init_sigma = 0.8_dp
       init_bank_file = ""
+      newton_trace_file = ""
+      newton_trace_unit = -1
       init_bank_record = -1
       init_bank_selected_record = -1
       init_bank_record_count = 0
@@ -99,6 +108,10 @@ contains
       call parse_real_env(env_name(env_prefix, "INIT_SIGMA"), init_sigma)
       call parse_real_env(env_name(env_prefix, "REVERSE_GATE_STATE_TOL"), reverse_gate_state_tol)
       call parse_real_env(env_name(env_prefix, "REVERSE_GATE_MOMENTUM_TOL"), reverse_gate_momentum_tol)
+      call parse_real_env(env_name(env_prefix, "CONSTRAINT_TOL"), constraint_tol)
+      call parse_int_env(env_name(env_prefix, "CONSTRAINT_MAX_ITER"), constraint_max_iter)
+      call parse_logical_env(env_name(env_prefix, "ADAPTIVE_NEWTON_STOP_ENABLED"), adaptive_newton_stop_enabled)
+      call read_string_env(env_name(env_prefix, "NEWTON_TRACE_FILE"), newton_trace_file, has_newton_trace_file)
       measurement_t0 = sampler_t0
       measurement_t1 = sampler_t1
       call parse_real_env(env_name(env_prefix, "MEASUREMENT_T0"), measurement_t0)
@@ -134,6 +147,20 @@ contains
             "gamma", w_gamma, "c0", w_c0, "c1", w_c1
          stop 3
       end if
+      if ((.not. ieee_is_finite(constraint_tol)) .or. constraint_tol <= 0.0_dp .or. constraint_max_iter < 0) then
+         write (*, '(*(g0,1X))') "ERROR", "invalid_wv_newton_controls", constraint_tol, constraint_max_iter
+         stop 3
+      end if
+      if (has_newton_trace_file .and. len_trim(newton_trace_file) > 0) then
+         open (newunit=newton_trace_unit, file=trim(newton_trace_file), status='replace', action='write', iostat=status)
+         if (status /= 0) then
+            write (*, '(A,1X,A)') "ERROR cannot_write_wv_newton_trace_file", trim(newton_trace_file)
+            stop 6
+         end if
+         write (newton_trace_unit, '(A)') &
+            "solve_id,cycle,direction,step,iter,residual_norm,tol,h,u_norm,lambda_norm,stop_reason"
+         newton_trace_context%unit = newton_trace_unit
+      end if
 
       status = intode_status_unknown
       call wv_run_dense_chain(base_seed, cycle_count, step_size, num_steps, potential, sampler_t0, sampler_t1, d0, d1, &
@@ -141,7 +168,11 @@ contains
                               observable_accumulator=observable_accumulator, measurement_t0=measurement_t0, &
                               measurement_t1=measurement_t1, reverse_gate_state_tol=reverse_gate_state_tol, &
                               reverse_gate_momentum_tol=reverse_gate_momentum_tol, &
-                              measurement_start_cycle=measurement_start_cycle)
+                              measurement_start_cycle=measurement_start_cycle, constraint_tol=constraint_tol, &
+                              constraint_max_iter=constraint_max_iter, &
+                              adaptive_stop_enabled=adaptive_newton_stop_enabled, &
+                              newton_trace_context=newton_trace_context)
+      if (newton_trace_unit > 0) close (newton_trace_unit)
       if (error) then
          write (*, '(*(g0,1X))') "ERROR", "dense_chain_failed", "status", status, &
             "cycles_attempted", summary%cycles_attempted, &
@@ -205,12 +236,33 @@ contains
          "w_c1", w_c1, &
          "reverse_gate_state_tol", reverse_gate_state_tol, &
          "reverse_gate_momentum_tol", reverse_gate_momentum_tol, &
+         "constraint_tol", constraint_tol, &
+         "constraint_max_iter", constraint_max_iter, &
+         "adaptive_newton_stop_enabled", adaptive_newton_stop_enabled, &
+         "newton_trace_file", trim(newton_trace_file), &
          "last_reverse_gate_state_error", summary%last_reverse_gate_state_error, &
          "last_reverse_gate_momentum_error", summary%last_reverse_gate_momentum_error, &
          "trajectory_steps", summary%trajectory_steps, &
          "bounced_steps", summary%bounced_steps, &
          "solver_iterations", summary%solver_iterations_total, &
+         "reverse_trajectory_steps", summary%reverse_trajectory_steps, &
+         "reverse_solver_iterations", summary%reverse_solver_iterations_total, &
+         "last_solver_stop_reason", summary%last_solver_stop_reason, &
+         "last_reverse_solver_stop_reason", summary%last_reverse_solver_stop_reason, &
+         "solver_stop_converged", summary%solver_stop_converged_count, &
+         "solver_stop_max_iter", summary%solver_stop_max_iter_count, &
+         "solver_stop_divergence", summary%solver_stop_divergence_count, &
+         "solver_stop_stagnation", summary%solver_stop_stagnation_count, &
+         "solver_stop_not_run", summary%solver_stop_not_run_count, &
+         "solver_stop_failure", summary%solver_stop_failure_count, &
+         "reverse_solver_stop_converged", summary%reverse_solver_stop_converged_count, &
+         "reverse_solver_stop_max_iter", summary%reverse_solver_stop_max_iter_count, &
+         "reverse_solver_stop_divergence", summary%reverse_solver_stop_divergence_count, &
+         "reverse_solver_stop_stagnation", summary%reverse_solver_stop_stagnation_count, &
+         "reverse_solver_stop_not_run", summary%reverse_solver_stop_not_run_count, &
+         "reverse_solver_stop_failure", summary%reverse_solver_stop_failure_count, &
          "max_constraint_residual", summary%max_constraint_residual, &
+         "reverse_max_constraint_residual", summary%reverse_max_constraint_residual, &
          "measurement_t0", measurement_t0, &
          "measurement_t1", measurement_t1, &
          "measurement_start_cycle", measurement_start_cycle, &
@@ -235,7 +287,9 @@ contains
                                                     measurement_factor, observable_accumulator, sampler_t0, sampler_t1, &
                                                     d0, d1, trim(w_profile_name), w_gamma, w_c0, w_c1, &
                                                     measurement_t0, measurement_t1, measurement_start_cycle, &
-                                                    reverse_gate_state_tol, reverse_gate_momentum_tol)
+                                                    reverse_gate_state_tol, reverse_gate_momentum_tol, constraint_tol, &
+                                                    constraint_max_iter, adaptive_newton_stop_enabled, &
+                                                    trim(newton_trace_file))
       if (has_observable_file) call write_observable_file(trim(observable_file), observable_estimates)
    end subroutine run_wv_hmc_env_app
 
@@ -432,7 +486,8 @@ contains
                                  local_measurement_factor, local_observable_accumulator, local_sampler_t0, local_sampler_t1, &
                                  local_sampler_d0, local_sampler_d1, local_w_profile_name, local_w_gamma, local_w_c0, &
                                  local_w_c1, local_measurement_t0, local_measurement_t1, local_measurement_start_cycle, &
-                                 local_reverse_gate_state_tol, local_reverse_gate_momentum_tol)
+                                 local_reverse_gate_state_tol, local_reverse_gate_momentum_tol, local_constraint_tol, &
+                                 local_constraint_max_iter, local_adaptive_newton_stop_enabled, local_newton_trace_file)
       character(len=*), intent(in) :: path
       integer, intent(in) :: local_base_seed
       real(dp), intent(in) :: local_flow_time_in, local_flow_time_out
@@ -441,6 +496,10 @@ contains
       real(dp), intent(in) :: local_w_gamma, local_w_c0, local_w_c1
       real(dp), intent(in) :: local_measurement_t0, local_measurement_t1
       real(dp), intent(in) :: local_reverse_gate_state_tol, local_reverse_gate_momentum_tol
+      real(dp), intent(in) :: local_constraint_tol
+      integer, intent(in) :: local_constraint_max_iter
+      logical, intent(in) :: local_adaptive_newton_stop_enabled
+      character(len=*), intent(in) :: local_newton_trace_file
       integer, intent(in) :: local_measurement_start_cycle
       type(wv_dense_chain_summary_t), intent(in) :: local_summary
       type(wv_measurement_factor_t), intent(in) :: local_measurement_factor
@@ -458,7 +517,14 @@ contains
          "flow_time_mean,flow_time_observations,trajectory_steps,bounced_steps,"// &
          "solver_iterations,max_constraint_residual,sampler_t0,sampler_t1,sampler_d0,sampler_d1,w_profile,"// &
          "w_gamma,w_c0,w_c1,reverse_gate_state_tol,reverse_gate_momentum_tol,"// &
+         "constraint_tol,constraint_max_iter,adaptive_newton_stop_enabled,newton_trace_file,"// &
          "last_reverse_gate_state_error,last_reverse_gate_momentum_error,"// &
+         "reverse_trajectory_steps,reverse_solver_iterations,reverse_max_constraint_residual,"// &
+         "last_solver_stop_reason,last_reverse_solver_stop_reason,"// &
+         "solver_stop_converged,solver_stop_max_iter,solver_stop_divergence,solver_stop_stagnation,"// &
+         "solver_stop_not_run,solver_stop_failure,reverse_solver_stop_converged,reverse_solver_stop_max_iter,"// &
+         "reverse_solver_stop_divergence,reverse_solver_stop_stagnation,reverse_solver_stop_not_run,"// &
+         "reverse_solver_stop_failure,"// &
          "measurement_t0,measurement_t1,measurement_start_cycle,measurement_attempted,measurement_included,"// &
          "measurement_skipped,measurement_failed,"// &
          "measurement_phase_coherence,wv_denominator_re,wv_denominator_im,wv_sum_abs_weight,odex_calls,"// &
@@ -475,7 +541,17 @@ contains
          local_sampler_t0, local_sampler_t1, local_sampler_d0, local_sampler_d1, trim(local_w_profile_name), &
          local_w_gamma, local_w_c0, local_w_c1, &
          local_reverse_gate_state_tol, local_reverse_gate_momentum_tol, &
+         local_constraint_tol, local_constraint_max_iter, local_adaptive_newton_stop_enabled, trim(local_newton_trace_file), &
          local_summary%last_reverse_gate_state_error, local_summary%last_reverse_gate_momentum_error, &
+         local_summary%reverse_trajectory_steps, local_summary%reverse_solver_iterations_total, &
+         local_summary%reverse_max_constraint_residual, local_summary%last_solver_stop_reason, &
+         local_summary%last_reverse_solver_stop_reason, local_summary%solver_stop_converged_count, &
+         local_summary%solver_stop_max_iter_count, local_summary%solver_stop_divergence_count, &
+         local_summary%solver_stop_stagnation_count, local_summary%solver_stop_not_run_count, &
+         local_summary%solver_stop_failure_count, local_summary%reverse_solver_stop_converged_count, &
+         local_summary%reverse_solver_stop_max_iter_count, local_summary%reverse_solver_stop_divergence_count, &
+         local_summary%reverse_solver_stop_stagnation_count, local_summary%reverse_solver_stop_not_run_count, &
+         local_summary%reverse_solver_stop_failure_count, &
          local_measurement_t0, local_measurement_t1, local_measurement_start_cycle, local_summary%measurement_attempted, &
          local_summary%measurement_included, local_summary%measurement_skipped, local_summary%measurement_failed, &
          local_summary%measurement_phase_coherence, real(local_observable_accumulator%denominator, dp), &

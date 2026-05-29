@@ -26,7 +26,24 @@ SUMMARY_FIELDS = [
     "flow_time_mean",
     "bounced_steps",
     "trajectory_steps",
+    "reverse_trajectory_steps",
+    "reverse_solver_iterations",
+    "last_solver_stop_reason",
+    "last_reverse_solver_stop_reason",
+    "solver_stop_converged",
+    "solver_stop_max_iter",
+    "solver_stop_divergence",
+    "solver_stop_stagnation",
+    "solver_stop_not_run",
+    "solver_stop_failure",
+    "reverse_solver_stop_converged",
+    "reverse_solver_stop_max_iter",
+    "reverse_solver_stop_divergence",
+    "reverse_solver_stop_stagnation",
+    "reverse_solver_stop_not_run",
+    "reverse_solver_stop_failure",
     "max_constraint_residual",
+    "reverse_max_constraint_residual",
     "last_reverse_gate_state_error",
     "last_reverse_gate_momentum_error",
     "measurement_phase_coherence",
@@ -219,11 +236,13 @@ def read_one_row_csv(path):
 
 
 def run_candidate(binary, output_root, candidate, parameters_file, base_seed, flow_time, timeout_sec, rg_state_tol,
-                  rg_momentum_tol, init_mode, init_sigma, init_bank_file, init_bank_record):
+                  rg_momentum_tol, init_mode, init_sigma, init_bank_file, init_bank_record, newton_trace_enabled,
+                  adaptive_newton_stop_enabled):
     label = candidate["label"]
     summary_path = output_root / (label + "_summary.csv")
     observable_path = output_root / (label + "_observables.csv")
     log_path = output_root / (label + ".log")
+    newton_trace_path = output_root / (label + "_newton_trace.csv")
     env = os.environ.copy()
     env.update({
         "TLTM_PARAMETERS_FILE": str(parameters_file),
@@ -246,7 +265,10 @@ def run_candidate(binary, output_root, candidate, parameters_file, base_seed, fl
         "WV_HMC_REVERSE_GATE_MOMENTUM_TOL": str(rg_momentum_tol),
         "WV_HMC_INIT_MODE": init_mode,
         "WV_HMC_INIT_SIGMA": str(init_sigma),
+        "WV_HMC_ADAPTIVE_NEWTON_STOP_ENABLED": "1" if adaptive_newton_stop_enabled else "0",
     })
+    if newton_trace_enabled:
+        env["WV_HMC_NEWTON_TRACE_FILE"] = str(newton_trace_path)
     if init_bank_file:
         env["WV_HMC_INIT_BANK_FILE"] = str(init_bank_file)
     if init_bank_record >= 0:
@@ -293,6 +315,7 @@ def run_candidate(binary, output_root, candidate, parameters_file, base_seed, fl
         "return_code": return_code,
         "summary_path": str(summary_path),
         "observable_path": str(observable_path),
+        "newton_trace_path": str(newton_trace_path) if newton_trace_enabled else "",
         "log_path": str(log_path),
     }
     if summary_path.exists():
@@ -359,6 +382,7 @@ def write_scan_outputs(rows, output_root):
         "runtime_sec",
         "timed_out",
         "return_code",
+        "newton_trace_path",
     ] + SUMMARY_FIELDS + [
         "movement_accept_rate",
         "metropolis_reject_rate",
@@ -387,15 +411,15 @@ def write_scan_outputs(rows, output_root):
             rows[0].get("init_sigma", "unknown") if rows else "unknown",
         ),
         "",
-        "| label | profile | eps | nstep | L | cycles | timeout | move acc | metro rej/cyc | RG rej/cyc | fail/cyc | constructed acc | metro acc after RG | t mean | t max | phase | sec |",
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| label | profile | eps | nstep | L | cycles | timeout | move acc | metro rej/cyc | RG rej/cyc | fail/cyc | fwd it | rev it | fwd maxiter | rev maxiter | t mean | t max | phase | sec |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         def cell(key):
             return row.get(key, "")
 
         lines.append(
-            "| {label} | {profile} | {eps} | {nstep} | {length} | {cycles} | {timeout} | {move_acc} | {metro_rate} | {rg_rate} | {fail_rate} | {constructed_acc} | {metro_acc_after_rg} | {tmean} | {tmax} | {phase} | {sec:.3g} |".format(
+            "| {label} | {profile} | {eps} | {nstep} | {length} | {cycles} | {timeout} | {move_acc} | {metro_rate} | {rg_rate} | {fail_rate} | {solver_it} | {reverse_solver_it} | {solver_maxiter} | {reverse_solver_maxiter} | {tmean} | {tmax} | {phase} | {sec:.3g} |".format(
                 label=cell("label"),
                 profile=cell("profile"),
                 eps=cell("step_size"),
@@ -407,8 +431,10 @@ def write_scan_outputs(rows, output_root):
                 metro_rate=cell("metropolis_reject_rate"),
                 rg_rate=cell("reverse_gate_reject_rate"),
                 fail_rate=cell("construction_failure_rate"),
-                constructed_acc=cell("constructed_movement_rate"),
-                metro_acc_after_rg=cell("metropolis_accept_rate_after_rg"),
+                solver_it=cell("solver_iterations"),
+                reverse_solver_it=cell("reverse_solver_iterations"),
+                solver_maxiter=cell("solver_stop_max_iter"),
+                reverse_solver_maxiter=cell("reverse_solver_stop_max_iter"),
                 tmean=cell("flow_time_mean"),
                 tmax=cell("flow_time_max"),
                 phase=cell("measurement_phase_coherence"),
@@ -445,6 +471,8 @@ def main():
     parser.add_argument("--init-sigma", type=float, default=0.8)
     parser.add_argument("--init-bank-file", default="")
     parser.add_argument("--init-bank-record", type=int, default=-1)
+    parser.add_argument("--newton-trace-enabled", action="store_true")
+    parser.add_argument("--adaptive-newton-stop-enabled", action="store_true")
     args = parser.parse_args()
 
     binary = Path(args.binary)
@@ -470,6 +498,8 @@ def main():
                     args.init_sigma,
                     args.init_bank_file,
                     args.init_bank_record,
+                    args.newton_trace_enabled,
+                    args.adaptive_newton_stop_enabled,
                 )
             )
     else:
@@ -492,6 +522,8 @@ def main():
                     args.init_sigma,
                     args.init_bank_file,
                     args.init_bank_record,
+                    args.newton_trace_enabled,
+                    args.adaptive_newton_stop_enabled,
                 )
                 futures[future] = idx
             for future in as_completed(futures):

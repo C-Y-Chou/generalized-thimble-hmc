@@ -6,6 +6,7 @@ module wv_hmc_driver
    use tltm_rng, only: tltm_rng_domain_wv_hmc_accept, tltm_rng_domain_wv_hmc_momentum, tltm_rng_fill_normal, &
                        tltm_rng_uniform
    use utils, only: dp
+   use wv_hmc_constraints, only: wv_newton_trace_context_t
    use wv_hmc_measurement, only: wv_accumulate_weighted_observables, wv_dense_measurement_factor, &
                                  wv_measurement_factor_t, wv_weighted_observable_accumulator_t, &
                                  wv_weighted_observable_phase_coherence
@@ -28,6 +29,22 @@ module wv_hmc_driver
       integer :: bounced_steps = 0
       integer :: trajectory_steps = 0
       integer :: solver_iterations_total = 0
+      integer :: reverse_trajectory_steps = 0
+      integer :: reverse_solver_iterations_total = 0
+      integer :: solver_stop_converged_count = 0
+      integer :: solver_stop_max_iter_count = 0
+      integer :: solver_stop_divergence_count = 0
+      integer :: solver_stop_stagnation_count = 0
+      integer :: solver_stop_not_run_count = 0
+      integer :: solver_stop_failure_count = 0
+      integer :: reverse_solver_stop_converged_count = 0
+      integer :: reverse_solver_stop_max_iter_count = 0
+      integer :: reverse_solver_stop_divergence_count = 0
+      integer :: reverse_solver_stop_stagnation_count = 0
+      integer :: reverse_solver_stop_not_run_count = 0
+      integer :: reverse_solver_stop_failure_count = 0
+      integer :: last_solver_stop_reason = 0
+      integer :: last_reverse_solver_stop_reason = 0
       integer :: last_status = intode_status_unknown
       integer :: last_attempted_steps = 0
       integer :: last_completed_steps = 0
@@ -47,6 +64,7 @@ module wv_hmc_driver
       real(dp) :: flow_time_max = -huge(1.0_dp)
       real(dp) :: flow_time_sum = 0.0_dp
       real(dp) :: last_constraint_residual = 0.0_dp
+      real(dp) :: reverse_max_constraint_residual = 0.0_dp
       real(dp) :: last_projection_alpha2 = 0.0_dp
       real(dp) :: last_projection_rejected_norm = 0.0_dp
       real(dp) :: last_reverse_gate_state_error = 0.0_dp
@@ -60,7 +78,7 @@ contains
                                  flow_time, x_initial, flow_time_out, x_out, z_out, jac_out, summary, error, &
                                  status, constraint_tol, constraint_max_iter, observable_accumulator, &
                                  measurement_t0, measurement_t1, reverse_gate_state_tol, reverse_gate_momentum_tol, &
-                                 measurement_start_cycle)
+                                 measurement_start_cycle, adaptive_stop_enabled, newton_trace_context)
       integer, intent(in) :: base_seed, cycle_count, num_steps
       real(dp), intent(in) :: step_size, t0, t1, d0, d1, flow_time, x_initial(:)
       type(wv_potential_profile_t), intent(in) :: potential
@@ -75,6 +93,8 @@ contains
       real(dp), intent(in), optional :: measurement_t0, measurement_t1
       real(dp), intent(in), optional :: reverse_gate_state_tol, reverse_gate_momentum_tol
       integer, intent(in), optional :: measurement_start_cycle
+      logical, intent(in), optional :: adaptive_stop_enabled
+      type(wv_newton_trace_context_t), intent(inout), optional :: newton_trace_context
 
       integer :: n, cycle_idx, local_status, observable_count, local_measurement_start_cycle
       real(dp) :: flow_time_current, flow_time_next, uniform01, coherence, local_measurement_t0, local_measurement_t1
@@ -143,12 +163,14 @@ contains
 
       do cycle_idx = 1, cycle_count
          summary%cycles_attempted = summary%cycles_attempted + 1
+         if (present(newton_trace_context)) newton_trace_context%cycle = cycle_idx
          call tltm_rng_fill_normal(raw_pi, tltm_rng_domain_wv_hmc_momentum, base_seed, cycle_idx, 1, 1)
          uniform01 = tltm_rng_uniform(tltm_rng_domain_wv_hmc_accept, base_seed, cycle_idx, 1, 1, 1)
          call wv_transition_dense(step_size, num_steps, potential, t0, t1, d0, d1, flow_time_current, x_current, &
                                   z_current, jac_current, raw_pi, uniform01, flow_time_next, x_next, z_next, &
                                   jac_next, transition, local_error, local_status, flow_workspace, intode_diagnostics, &
-                                  constraint_tol, constraint_max_iter, reverse_gate_state_tol, reverse_gate_momentum_tol)
+                                  constraint_tol, constraint_max_iter, reverse_gate_state_tol, reverse_gate_momentum_tol, &
+                                  adaptive_stop_enabled, newton_trace_context)
          summary%last_status = local_status
          summary%last_attempted_steps = transition%trajectory%attempted_steps
          summary%last_completed_steps = transition%trajectory%completed_steps
@@ -161,8 +183,16 @@ contains
          summary%bounced_steps = summary%bounced_steps + transition%trajectory%bounced_steps
          summary%trajectory_steps = summary%trajectory_steps + transition%trajectory%completed_steps
          summary%solver_iterations_total = summary%solver_iterations_total + transition%trajectory%solver_iterations_total
+         summary%reverse_trajectory_steps = summary%reverse_trajectory_steps + transition%reverse_trajectory%completed_steps
+         summary%reverse_solver_iterations_total = summary%reverse_solver_iterations_total + &
+                                                   transition%reverse_trajectory%solver_iterations_total
+         summary%last_solver_stop_reason = transition%trajectory%last_solver_stop_reason
+         summary%last_reverse_solver_stop_reason = transition%reverse_trajectory%last_solver_stop_reason
+         call accumulate_solver_stop_counts(summary, transition)
          summary%max_constraint_residual = max(summary%max_constraint_residual, &
                                                transition%trajectory%max_constraint_residual)
+         summary%reverse_max_constraint_residual = max(summary%reverse_max_constraint_residual, &
+                                                       transition%reverse_trajectory%max_constraint_residual)
          if (local_error) then
             summary%transitions_failed = summary%transitions_failed + 1
             summary%cycles_completed = summary%cycles_completed + 1
@@ -232,6 +262,36 @@ contains
       summary%odex_failure = intode_diagnostics%odex_failure
       error = .false.
    end subroutine wv_run_dense_chain
+
+   subroutine accumulate_solver_stop_counts(summary, transition)
+      type(wv_dense_chain_summary_t), intent(inout) :: summary
+      type(wv_transition_diagnostics_t), intent(in) :: transition
+
+      summary%solver_stop_converged_count = summary%solver_stop_converged_count + &
+                                            transition%trajectory%solver_stop_converged_count
+      summary%solver_stop_max_iter_count = summary%solver_stop_max_iter_count + &
+                                           transition%trajectory%solver_stop_max_iter_count
+      summary%solver_stop_divergence_count = summary%solver_stop_divergence_count + &
+                                             transition%trajectory%solver_stop_divergence_count
+      summary%solver_stop_stagnation_count = summary%solver_stop_stagnation_count + &
+                                             transition%trajectory%solver_stop_stagnation_count
+      summary%solver_stop_not_run_count = summary%solver_stop_not_run_count + &
+                                          transition%trajectory%solver_stop_not_run_count
+      summary%solver_stop_failure_count = summary%solver_stop_failure_count + &
+                                          transition%trajectory%solver_stop_failure_count
+      summary%reverse_solver_stop_converged_count = summary%reverse_solver_stop_converged_count + &
+                                                    transition%reverse_trajectory%solver_stop_converged_count
+      summary%reverse_solver_stop_max_iter_count = summary%reverse_solver_stop_max_iter_count + &
+                                                   transition%reverse_trajectory%solver_stop_max_iter_count
+      summary%reverse_solver_stop_divergence_count = summary%reverse_solver_stop_divergence_count + &
+                                                     transition%reverse_trajectory%solver_stop_divergence_count
+      summary%reverse_solver_stop_stagnation_count = summary%reverse_solver_stop_stagnation_count + &
+                                                     transition%reverse_trajectory%solver_stop_stagnation_count
+      summary%reverse_solver_stop_not_run_count = summary%reverse_solver_stop_not_run_count + &
+                                                  transition%reverse_trajectory%solver_stop_not_run_count
+      summary%reverse_solver_stop_failure_count = summary%reverse_solver_stop_failure_count + &
+                                                  transition%reverse_trajectory%solver_stop_failure_count
+   end subroutine accumulate_solver_stop_counts
 
    subroutine wv_record_flow_time(summary, flow_time)
       type(wv_dense_chain_summary_t), intent(inout) :: summary

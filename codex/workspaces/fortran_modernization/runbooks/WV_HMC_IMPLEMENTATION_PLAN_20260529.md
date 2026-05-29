@@ -212,6 +212,18 @@ parameters are not model observables; they are experiment settings.
    - Record flow-time histogram, high/low boundary bounce counts, acceptance,
      `Delta H`, RATTLE residuals, ODE failures, projection/alpha failures,
      flow-time round trips, and measurement inclusion/skips.
+   - Record WV first-constraint Newton residual traces before changing any
+     fail-fast policy.  A Newton stop rule is a calibrated numerical policy,
+     not a mathematical constant: recalibrate it whenever the model, `n`,
+     action parameters, manual derivative implementation, `W(t)`, `[T0,T1]`,
+     `(d0,d1)`, `epsilon`, `nstep`, DOP853 tolerance/controller settings, or
+     initial-bank distribution changes.
+   - Keep adaptive Newton fail-fast disabled until residual traces show a
+     reproducible separation between convergent, near-convergent, divergent,
+     and stagnating solves for the current parameter set.  The calibration
+     record must state the trace dataset, residual-tolerance target,
+     false-reject check on eventually convergent solves, and the chosen
+     fail-fast thresholds.
    - If samples accumulate at low `t`, increase `gamma` or use a tuned
      multicanonical profile.
    - If wall bounces or solver failures dominate, treat that as an efficiency
@@ -405,6 +417,11 @@ Additional completed kernel-level validation:
   `paper_wall gamma=1`, `T0=0.005`, `T1=0.2`, `d0=0.005`, `d1=0.05`,
   `epsilon=0.002`, `nstep=2`.  This is a pre-matrix-free wiring point, not a
   production physics setting.
+- Dense WV-HMC now exposes first-constraint Newton stop reasons and optional
+  residual traces through the app/PBS namespace.  These diagnostics are for
+  empirical calibration before matrix-free trajectory wiring.  Adaptive Newton
+  stopping remains disabled by default; enabling it without a matching
+  model/parameter calibration record is not a valid production setting.
 
 Do not proceed to the production driver, production IO, or production runs until the
 dense projection oracle, force/flow convention tests, first-constraint residual

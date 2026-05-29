@@ -39,6 +39,8 @@ module load mkl/2025.3
 : "${WV_SCAN_INIT_SIGMA:=0.8}"
 : "${WV_SCAN_INIT_BANK_FILE:=}"
 : "${WV_SCAN_INIT_BANK_RECORD:=-1}"
+: "${WV_SCAN_NEWTON_TRACE_ENABLED:=0}"
+: "${WV_SCAN_ADAPTIVE_NEWTON_STOP_ENABLED:=0}"
 : "${TLTM_ODE_BACKEND:=dop853}"
 : "${TLTM_DOP853_HINIT_ENABLED:=1}"
 : "${TLTM_DOP853_STIFFNESS_CHECK_ENABLED:=1}"
@@ -73,6 +75,8 @@ echo "WV_SCAN_INIT_MODE=${WV_SCAN_INIT_MODE}"
 echo "WV_SCAN_INIT_SIGMA=${WV_SCAN_INIT_SIGMA}"
 echo "WV_SCAN_INIT_BANK_FILE=${WV_SCAN_INIT_BANK_FILE}"
 echo "WV_SCAN_INIT_BANK_RECORD=${WV_SCAN_INIT_BANK_RECORD}"
+echo "WV_SCAN_NEWTON_TRACE_ENABLED=${WV_SCAN_NEWTON_TRACE_ENABLED}"
+echo "WV_SCAN_ADAPTIVE_NEWTON_STOP_ENABLED=${WV_SCAN_ADAPTIVE_NEWTON_STOP_ENABLED}"
 echo "TLTM_ODE_BACKEND=${TLTM_ODE_BACKEND}"
 echo "TLTM_DOP853_HINIT_ENABLED=${TLTM_DOP853_HINIT_ENABLED}"
 echo "TLTM_DOP853_STIFFNESS_CHECK_ENABLED=${TLTM_DOP853_STIFFNESS_CHECK_ENABLED}"
@@ -127,6 +131,13 @@ make -C build OMP=1 PYTHON="${PYTHON}" PYTHON_EMBED_CFLAGS="${PYTHON_EMBED_CFLAG
 
 RUN_ROOT="${TLTM_OUTPUT_ROOT}/${TLTM_RUN_NAME}_${PBS_JOBID:-manual}"
 mkdir -p "${RUN_ROOT}"
+EXTRA_SCAN_ARGS=()
+if [ "${WV_SCAN_NEWTON_TRACE_ENABLED}" = "1" ]; then
+  EXTRA_SCAN_ARGS+=(--newton-trace-enabled)
+fi
+if [ "${WV_SCAN_ADAPTIVE_NEWTON_STOP_ENABLED}" = "1" ]; then
+  EXTRA_SCAN_ARGS+=(--adaptive-newton-stop-enabled)
+fi
 
 /usr/bin/time -p python3 codex/workspaces/fortran_modernization/tasks/scripts/run_wv_hmc_dense_pilot_scan_20260529.py \
   --binary bin/run_wv_hmc \
@@ -143,7 +154,8 @@ mkdir -p "${RUN_ROOT}"
   --init-mode "${WV_SCAN_INIT_MODE}" \
   --init-sigma "${WV_SCAN_INIT_SIGMA}" \
   --init-bank-file "${WV_SCAN_INIT_BANK_FILE}" \
-  --init-bank-record "${WV_SCAN_INIT_BANK_RECORD}"
+  --init-bank-record "${WV_SCAN_INIT_BANK_RECORD}" \
+  "${EXTRA_SCAN_ARGS[@]}"
 
 echo "RUN_ROOT=${RUN_ROOT}"
 echo "SUMMARY=${RUN_ROOT}/dense_pilot_scan_summary.csv"

@@ -7,6 +7,7 @@ program test_wv_hmc_constraint_kernels
    use solve_flow, only: flow_apply_worldvolume_operator_at, flow_at
    use utils, only: complex_to_real, dp
    use wv_hmc_constraints, only: wv_apply_simplified_boundary_rule, wv_calculate_hamiltonian, &
+                                 wv_newton_stop_converged, wv_newton_stop_max_iter, &
                                  wv_first_constraint_residual_dense, wv_rattle_step_dense_no_boundary, &
                                  wv_rattle_step_dense_with_boundary, wv_solve_first_constraint_dense
    use wv_hmc_kernels, only: wv_decompose_matrix_free_at, wv_force_dense_with_jacobian, &
@@ -30,6 +31,7 @@ program test_wv_hmc_constraint_kernels
    call check_zero_residual(failures)
    call check_linearized_update_reduces_residual(failures)
    call check_dense_first_constraint_solver(failures)
+   call check_dense_first_constraint_solver_stop_reasons(failures)
    call check_final_momentum_projection_after_solve(failures)
    call check_dense_rattle_step_reversibility_smoke(failures)
    call check_dense_rattle_energy_scaling_smoke(failures)
@@ -152,7 +154,7 @@ contains
 
    subroutine check_dense_first_constraint_solver(failures)
       integer, intent(inout) :: failures
-      integer :: n_state, status, iterations
+      integer :: n_state, status, iterations, stop_reason
       real(dp), allocatable :: x(:), del_z(:), u(:), lambda(:), residual(:), xi_real(:)
       complex(dp), allocatable :: z(:), jac(:, :), grad(:), xi(:)
       real(dp) :: step_size, h, residual_norm, final_residual_norm, xi_norm
@@ -187,7 +189,7 @@ contains
       step_size = 2.0e-4_dp
       del_z = step_size*xi_real/xi_norm
       call wv_solve_first_constraint_dense(1.0e-10_dp, 8, 0.0_dp, x, z, jac, del_z, xi_real, h, u, lambda, &
-                                           residual_norm, iterations, converged, error, status)
+                                           residual_norm, iterations, converged, error, status, stop_reason=stop_reason)
       if (.not. error) then
          call wv_first_constraint_residual_dense(0.0_dp, x, z, del_z, h, u, lambda, residual, error, status)
       end if
@@ -198,11 +200,49 @@ contains
       end if
 
       ok = converged .and. (.not. error) .and. residual_norm <= 1.0e-10_dp .and. &
-           final_residual_norm <= 1.0e-10_dp .and. iterations > 0 .and. iterations <= 8
+           final_residual_norm <= 1.0e-10_dp .and. iterations > 0 .and. iterations <= 8 .and. &
+           stop_reason == wv_newton_stop_converged
       write (*, '(A,L1,A,I0,A,ES12.4,A,ES12.4,A,ES12.4)') "[CHECK] wv_dense_first_constraint_solver ok=", ok, &
          " iterations=", iterations, " residual=", residual_norm, " final=", final_residual_norm, " h=", h
       if (.not. ok) failures = failures + 1
    end subroutine check_dense_first_constraint_solver
+
+   subroutine check_dense_first_constraint_solver_stop_reasons(failures)
+      integer, intent(inout) :: failures
+      integer :: n_state, status, iterations, stop_reason
+      real(dp), allocatable :: x(:), del_z(:), u(:), lambda(:), xi_real(:)
+      complex(dp), allocatable :: z(:), jac(:, :), grad(:), xi(:)
+      real(dp) :: h, residual_norm, xi_norm
+      logical :: converged, error, ok
+
+      n_state = 2*stephanov_n*stephanov_n
+      allocate (x(n_state), del_z(2*n_state), u(2*n_state), lambda(2*n_state), xi_real(2*n_state))
+      allocate (z(n_state), jac(n_state, n_state), grad(n_state), xi(n_state))
+      call fill_base_x(x)
+      call flow_at(0.0_dp, x, z, jac, error, status)
+      if (error) then
+         failures = failures + 1
+         write (*, '(A,I0)') "[CHECK] wv_dense_first_constraint_stop flow_failed status=", status
+         return
+      end if
+      call ds(z, grad)
+      call wv_xi_from_action_gradient(grad, xi, error)
+      if (error) then
+         failures = failures + 1
+         write (*, '(A)') "[CHECK] wv_dense_first_constraint_stop xi_failed"
+         return
+      end if
+      call complex_to_real(xi, xi_real)
+      xi_norm = norm2(xi_real)
+      del_z = 2.0e-4_dp*xi_real/xi_norm
+      call wv_solve_first_constraint_dense(1.0e-12_dp, 0, 0.0_dp, x, z, jac, del_z, xi_real, h, u, lambda, &
+                                           residual_norm, iterations, converged, error, status, stop_reason=stop_reason)
+      ok = error .and. (.not. converged) .and. iterations == 0 .and. stop_reason == wv_newton_stop_max_iter .and. &
+           residual_norm > 1.0e-12_dp
+      write (*, '(A,L1,A,I0,A,I0,A,ES12.4)') "[CHECK] wv_dense_first_constraint_stop ok=", ok, &
+         " iterations=", iterations, " reason=", stop_reason, " residual=", residual_norm
+      if (.not. ok) failures = failures + 1
+   end subroutine check_dense_first_constraint_solver_stop_reasons
 
    subroutine check_final_momentum_projection_after_solve(failures)
       integer, intent(inout) :: failures
@@ -1017,7 +1057,8 @@ contains
       ok = ok .and. (.not. error) .and. summary%cycles_attempted == 3 .and. summary%cycles_completed == 3 .and. &
            summary%transitions_failed == 3 .and. summary%accepted == 0 .and. summary%rejected == 3 .and. &
            summary%measurement_attempted == 3 .and. summary%measurement_included == 3 .and. &
-           summary%measurement_failed == 0 .and. accumulator%sample_count == 3
+           summary%measurement_failed == 0 .and. accumulator%sample_count == 3 .and. &
+           summary%solver_stop_max_iter_count == 3
 
       write (*, '(A,L1,A,I0,A,I0,A,ES12.4,A,ES12.4,A,I0)') "[CHECK] wv_dense_chain_driver ok=", ok, &
          " accepted=", first_accepted, " rejected=", first_rejected, &

@@ -10,9 +10,31 @@ module wv_hmc_constraints
 
    private
    public :: wv_apply_simplified_boundary_rule, wv_calculate_hamiltonian, wv_first_constraint_residual_dense, &
-             wv_rattle_step_dense_with_boundary, wv_rattle_step_dense_no_boundary, wv_solve_first_constraint_dense
+             wv_newton_stop_converged, wv_newton_stop_divergence, wv_newton_stop_invalid_input, &
+             wv_newton_stop_max_iter, wv_newton_stop_nonfinite, wv_newton_stop_not_run, &
+             wv_newton_stop_residual_error, wv_newton_stop_stagnation, wv_newton_stop_unknown, &
+             wv_newton_stop_update_error, wv_newton_trace_context_t, wv_rattle_step_dense_with_boundary, &
+             wv_rattle_step_dense_no_boundary, wv_solve_first_constraint_dense
 
    real(dp), parameter :: wv_rattle_step_default_constraint_tol = 1.0e-8_dp
+   integer, parameter :: wv_newton_stop_unknown = 0
+   integer, parameter :: wv_newton_stop_converged = 1
+   integer, parameter :: wv_newton_stop_max_iter = 2
+   integer, parameter :: wv_newton_stop_residual_error = 3
+   integer, parameter :: wv_newton_stop_update_error = 4
+   integer, parameter :: wv_newton_stop_nonfinite = 5
+   integer, parameter :: wv_newton_stop_divergence = 6
+   integer, parameter :: wv_newton_stop_stagnation = 7
+   integer, parameter :: wv_newton_stop_invalid_input = 8
+   integer, parameter :: wv_newton_stop_not_run = 9
+
+   type, public :: wv_newton_trace_context_t
+      integer :: unit = -1
+      integer :: solve_count = 0
+      integer :: cycle = 0
+      integer :: direction = 0
+      integer :: step = 0
+   end type wv_newton_trace_context_t
 
 contains
 
@@ -176,7 +198,8 @@ contains
 
    subroutine wv_solve_first_constraint_dense(tol, max_iter, flow_time, x_base, z_base, jac_base, del_z, xi_real, &
                                              h, u_interleaved, lambda, residual_norm, iterations, converged, error, status, &
-                                             flow_workspace, intode_diagnostics)
+                                             flow_workspace, intode_diagnostics, stop_reason, adaptive_stop_enabled, &
+                                             trace_context)
       real(dp), intent(in) :: tol, flow_time, x_base(:), del_z(:), xi_real(:)
       integer, intent(in) :: max_iter
       complex(dp), intent(in) :: z_base(:), jac_base(:, :)
@@ -186,11 +209,18 @@ contains
       integer, intent(out), optional :: status
       type(flow_workspace_t), intent(inout), optional :: flow_workspace
       type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+      integer, intent(out), optional :: stop_reason
+      logical, intent(in), optional :: adaptive_stop_enabled
+      type(wv_newton_trace_context_t), intent(inout), optional :: trace_context
 
-      integer :: n, iter, flow_status
+      integer :: n, iter, flow_status, iter_cap, iter_cap_hard, near_extend_chunk
+      integer :: diverge_count, severe_diverge_count, stagnation_count, tiny_step_count, local_stop_reason
       real(dp) :: residual(size(del_z)), delta_u(size(del_z)), delta_lambda(size(del_z))
       real(dp) :: delta_h, c_b, alpha2
-      logical :: residual_error, update_error
+      real(dp) :: residual_prev, residual_best, rel_improvement
+      real(dp) :: near_tol, stagnation_floor, diverge_floor, update_norm, update_floor
+      logical :: residual_error, update_error, use_adaptive_stop
+      integer :: solve_id
 
       h = 0.0_dp
       u_interleaved = 0.0_dp
@@ -201,6 +231,15 @@ contains
       error = .true.
       flow_status = intode_status_unknown
       if (present(status)) status = flow_status
+      local_stop_reason = wv_newton_stop_invalid_input
+      if (present(stop_reason)) stop_reason = local_stop_reason
+      use_adaptive_stop = .false.
+      if (present(adaptive_stop_enabled)) use_adaptive_stop = adaptive_stop_enabled
+      solve_id = 0
+      if (present(trace_context)) then
+         trace_context%solve_count = trace_context%solve_count + 1
+         solve_id = trace_context%solve_count
+      end if
 
       n = size(z_base)
       if (n <= 0) return
@@ -214,7 +253,24 @@ contains
       if (.not. valid_real_vector(xi_real)) return
       if (.not. valid_complex_vector(z_base)) return
 
-      do iter = 0, max_iter
+      local_stop_reason = wv_newton_stop_unknown
+      if (present(stop_reason)) stop_reason = local_stop_reason
+      near_tol = max(2.0e2_dp*tol, 1.0e-10_dp)
+      stagnation_floor = max(1.0e4_dp*tol, 1.0e-8_dp)
+      diverge_floor = max(1.0e5_dp*tol, 1.0e-6_dp)
+      near_extend_chunk = max(4, max(1, max_iter/4))
+      iter_cap = max_iter
+      iter_cap_hard = max_iter + max(16, max_iter)
+      diverge_count = 0
+      severe_diverge_count = 0
+      stagnation_count = 0
+      tiny_step_count = 0
+      residual_prev = huge(1.0_dp)
+      residual_best = huge(1.0_dp)
+      update_norm = huge(1.0_dp)
+
+      iter = 0
+      do
          if (present(flow_workspace)) then
             call wv_first_constraint_residual_dense(flow_time, x_base, z_base, del_z, h, u_interleaved, lambda, &
                                                     residual, residual_error, flow_status, flow_workspace=flow_workspace, &
@@ -224,35 +280,120 @@ contains
                                                     residual, residual_error, flow_status, intode_diagnostics=intode_diagnostics)
          end if
          if (present(status)) status = flow_status
-         if (residual_error) return
+         if (residual_error) then
+            local_stop_reason = wv_newton_stop_residual_error
+            if (present(stop_reason)) stop_reason = local_stop_reason
+            return
+         end if
 
          residual_norm = norm2(residual)
          iterations = iter
-         if (.not. ieee_is_finite(residual_norm)) return
+         if (.not. ieee_is_finite(residual_norm)) then
+            local_stop_reason = wv_newton_stop_nonfinite
+            if (present(stop_reason)) stop_reason = local_stop_reason
+            call write_newton_trace_row(trace_context, solve_id, iter, residual_norm, tol, h, u_interleaved, lambda, &
+                                        local_stop_reason)
+            return
+         end if
          if (residual_norm <= tol) then
             converged = .true.
             error = .false.
+            local_stop_reason = wv_newton_stop_converged
+            if (present(stop_reason)) stop_reason = local_stop_reason
+            call write_newton_trace_row(trace_context, solve_id, iter, residual_norm, tol, h, u_interleaved, lambda, &
+                                        local_stop_reason)
             return
          end if
-         if (iter >= max_iter) exit
+         call write_newton_trace_row(trace_context, solve_id, iter, residual_norm, tol, h, u_interleaved, lambda, &
+                                     wv_newton_stop_unknown)
+
+         if (iter > 0) then
+            if (residual_norm < residual_best) residual_best = residual_norm
+            if (use_adaptive_stop .and. residual_norm <= near_tol .and. iter_cap < iter_cap_hard) then
+               iter_cap = min(iter_cap_hard, iter_cap + near_extend_chunk)
+            end if
+            if (residual_norm > 1.20_dp*residual_prev) then
+               diverge_count = diverge_count + 1
+            else
+               diverge_count = max(0, diverge_count - 1)
+            end if
+            if (residual_norm > 1.50_dp*residual_prev .and. residual_norm > diverge_floor) then
+               severe_diverge_count = severe_diverge_count + 1
+            else
+               severe_diverge_count = max(0, severe_diverge_count - 1)
+            end if
+            rel_improvement = abs(residual_prev - residual_norm)/max(1.0_dp, residual_prev)
+            if (rel_improvement < 5.0e-4_dp) then
+               stagnation_count = stagnation_count + 1
+            else
+               stagnation_count = 0
+            end if
+            update_floor = sqrt(epsilon(1.0_dp))*max(1.0_dp, abs(h) + norm2(u_interleaved) + norm2(lambda))
+            if (update_norm <= 10.0_dp*update_floor) then
+               tiny_step_count = tiny_step_count + 1
+            else
+               tiny_step_count = max(0, tiny_step_count - 1)
+            end if
+            if (use_adaptive_stop .and. (severe_diverge_count >= 2 .or. diverge_count >= 4)) then
+               local_stop_reason = wv_newton_stop_divergence
+               if (present(stop_reason)) stop_reason = local_stop_reason
+               call write_newton_trace_row(trace_context, solve_id, iter, residual_norm, tol, h, u_interleaved, &
+                                           lambda, local_stop_reason)
+               return
+            end if
+            if (use_adaptive_stop .and. iter >= min(8, max_iter) .and. stagnation_count >= 6 .and. &
+                tiny_step_count >= 3 .and. &
+                residual_norm > stagnation_floor .and. residual_best > max(20.0_dp*tol, 5.0e-10_dp)) then
+               local_stop_reason = wv_newton_stop_stagnation
+               if (present(stop_reason)) stop_reason = local_stop_reason
+               call write_newton_trace_row(trace_context, solve_id, iter, residual_norm, tol, h, u_interleaved, &
+                                           lambda, local_stop_reason)
+               return
+            end if
+         else
+            residual_best = residual_norm
+         end if
+
+         if (iter >= iter_cap) exit
 
          call wv_simplified_newton_update_dense_with_jacobian(residual, xi_real, jac_base, delta_h, delta_u, delta_lambda, &
                                                              c_b, alpha2, update_error)
-         if (update_error) return
+         if (update_error) then
+            local_stop_reason = wv_newton_stop_update_error
+            if (present(stop_reason)) stop_reason = local_stop_reason
+            return
+         end if
+         update_norm = sqrt(delta_h*delta_h + norm2(delta_u)**2 + norm2(delta_lambda)**2)
+         if (.not. ieee_is_finite(update_norm)) then
+            local_stop_reason = wv_newton_stop_nonfinite
+            if (present(stop_reason)) stop_reason = local_stop_reason
+            return
+         end if
          h = h + delta_h
          u_interleaved = u_interleaved + delta_u
          lambda = lambda + delta_lambda
          if ((.not. ieee_is_finite(h)) .or. (.not. valid_real_vector(u_interleaved)) .or. &
-             (.not. valid_real_vector(lambda))) return
+             (.not. valid_real_vector(lambda))) then
+            local_stop_reason = wv_newton_stop_nonfinite
+            if (present(stop_reason)) stop_reason = local_stop_reason
+            return
+         end if
+         residual_prev = residual_norm
+         iter = iter + 1
       end do
 
+      local_stop_reason = wv_newton_stop_max_iter
+      if (present(stop_reason)) stop_reason = local_stop_reason
+      call write_newton_trace_row(trace_context, solve_id, iterations, residual_norm, tol, h, u_interleaved, lambda, &
+                                  local_stop_reason)
       error = .true.
    end subroutine wv_solve_first_constraint_dense
 
    subroutine wv_rattle_step_dense_no_boundary(step_size, wprime, flow_time, x_base, z_base, jac_base, pi, &
                                                flow_time_new, x_new, z_new, jac_new, pi_new, residual_norm, iterations, &
                                                error, status, flow_workspace, intode_diagnostics, constraint_tol, &
-                                               constraint_max_iter)
+                                               constraint_max_iter, solver_stop_reason, adaptive_stop_enabled, &
+                                               trace_context)
       real(dp), intent(in) :: step_size, wprime, flow_time, x_base(:), pi(:)
       complex(dp), intent(in) :: z_base(:), jac_base(:, :)
       real(dp), intent(out) :: flow_time_new, x_new(:), pi_new(:), residual_norm
@@ -264,8 +405,11 @@ contains
       type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
       real(dp), intent(in), optional :: constraint_tol
       integer, intent(in), optional :: constraint_max_iter
+      integer, intent(out), optional :: solver_stop_reason
+      logical, intent(in), optional :: adaptive_stop_enabled
+      type(wv_newton_trace_context_t), intent(inout), optional :: trace_context
 
-      integer :: n, i, flow_status
+      integer :: n, i, flow_status, local_stop_reason
       integer :: local_max_iter
       real(dp) :: h, alpha2, c, local_constraint_tol
       real(dp) :: del_z(size(pi)), u(size(pi)), lambda(size(pi)), residual(size(pi))
@@ -284,6 +428,8 @@ contains
       error = .true.
       flow_status = intode_status_unknown
       if (present(status)) status = flow_status
+      local_stop_reason = wv_newton_stop_not_run
+      if (present(solver_stop_reason)) solver_stop_reason = local_stop_reason
 
       n = size(z_base)
       if (n <= 0) return
@@ -314,13 +460,16 @@ contains
       if (present(flow_workspace)) then
          call wv_solve_first_constraint_dense(local_constraint_tol, local_max_iter, flow_time, x_base, z_base, jac_base, del_z, xi_real, &
                                               h, u, lambda, residual_norm, iterations, converged, local_error, flow_status, &
-                                              flow_workspace, intode_diagnostics)
+                                              flow_workspace, intode_diagnostics, local_stop_reason, adaptive_stop_enabled, &
+                                              trace_context)
       else
          call wv_solve_first_constraint_dense(local_constraint_tol, local_max_iter, flow_time, x_base, z_base, jac_base, del_z, xi_real, &
                                               h, u, lambda, residual_norm, iterations, converged, local_error, flow_status, &
-                                              intode_diagnostics=intode_diagnostics)
+                                              intode_diagnostics=intode_diagnostics, stop_reason=local_stop_reason, &
+                                              adaptive_stop_enabled=adaptive_stop_enabled, trace_context=trace_context)
       end if
       if (present(status)) status = flow_status
+      if (present(solver_stop_reason)) solver_stop_reason = local_stop_reason
       if (local_error .or. .not. converged) return
 
       if (present(flow_workspace)) then
@@ -355,7 +504,8 @@ contains
    subroutine wv_rattle_step_dense_with_boundary(step_size, wprime, t0, t1, d0, d1, flow_time, x_base, z_base, &
                                                  jac_base, pi, flow_time_new, x_new, z_new, jac_new, pi_new, &
                                                  residual_norm, iterations, bounced, error, status, flow_workspace, &
-                                                 intode_diagnostics, constraint_tol, constraint_max_iter)
+                                                 intode_diagnostics, constraint_tol, constraint_max_iter, solver_stop_reason, &
+                                                 adaptive_stop_enabled, trace_context)
       real(dp), intent(in) :: step_size, wprime, t0, t1, d0, d1, flow_time, x_base(:), pi(:)
       complex(dp), intent(in) :: z_base(:), jac_base(:, :)
       real(dp), intent(out) :: flow_time_new, x_new(:), pi_new(:), residual_norm
@@ -367,8 +517,11 @@ contains
       type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
       real(dp), intent(in), optional :: constraint_tol
       integer, intent(in), optional :: constraint_max_iter
+      integer, intent(out), optional :: solver_stop_reason
+      logical, intent(in), optional :: adaptive_stop_enabled
+      type(wv_newton_trace_context_t), intent(inout), optional :: trace_context
 
-      integer :: n, flow_status
+      integer :: n, flow_status, local_stop_reason
       real(dp) :: flow_time_trial, lower_bound, upper_bound, boundary_tol, predicted_h, predicted_flow_time
       real(dp) :: x_trial(size(x_base)), pi_trial(size(pi))
       complex(dp) :: z_trial(size(z_base)), jac_trial(size(z_base), size(z_base))
@@ -385,6 +538,8 @@ contains
       error = .true.
       flow_status = intode_status_unknown
       if (present(status)) status = flow_status
+      local_stop_reason = wv_newton_stop_not_run
+      if (present(solver_stop_reason)) solver_stop_reason = local_stop_reason
 
       n = size(z_base)
       if (n <= 0) return
@@ -416,6 +571,7 @@ contains
       if (predicted_flow_time < -boundary_tol .and. predicted_boundary_bounce) then
          flow_status = intode_status_success_zero_time
          if (present(status)) status = flow_status
+         if (present(solver_stop_reason)) solver_stop_reason = local_stop_reason
          flow_time_new = flow_time
          x_new = x_base
          z_new = z_base
@@ -432,14 +588,18 @@ contains
          call wv_rattle_step_dense_no_boundary(step_size, wprime, flow_time, x_base, z_base, jac_base, pi, &
                                                flow_time_trial, x_trial, z_trial, jac_trial, pi_trial, residual_norm, &
                                                iterations, local_error, flow_status, flow_workspace, intode_diagnostics, &
-                                               constraint_tol, constraint_max_iter)
+                                               constraint_tol, constraint_max_iter, local_stop_reason, adaptive_stop_enabled, &
+                                               trace_context)
       else
          call wv_rattle_step_dense_no_boundary(step_size, wprime, flow_time, x_base, z_base, jac_base, pi, &
                                                flow_time_trial, x_trial, z_trial, jac_trial, pi_trial, residual_norm, &
                                                iterations, local_error, flow_status, intode_diagnostics=intode_diagnostics, &
-                                               constraint_tol=constraint_tol, constraint_max_iter=constraint_max_iter)
+                                               constraint_tol=constraint_tol, constraint_max_iter=constraint_max_iter, &
+                                               solver_stop_reason=local_stop_reason, adaptive_stop_enabled=adaptive_stop_enabled, &
+                                               trace_context=trace_context)
       end if
       if (present(status)) status = flow_status
+      if (present(solver_stop_reason)) solver_stop_reason = local_stop_reason
       if (local_error) then
          if (predicted_boundary_bounce) then
             flow_time_new = flow_time
@@ -507,6 +667,18 @@ contains
       end if
       error = .false.
    end subroutine wv_predict_first_constraint_delta_h
+
+   subroutine write_newton_trace_row(trace_context, solve_id, iter, residual_norm, tol, h, u_interleaved, lambda, &
+                                     stop_reason)
+      type(wv_newton_trace_context_t), intent(inout), optional :: trace_context
+      integer, intent(in) :: solve_id, iter, stop_reason
+      real(dp), intent(in) :: residual_norm, tol, h, u_interleaved(:), lambda(:)
+
+      if (.not. present(trace_context)) return
+      if (trace_context%unit <= 0) return
+      write (trace_context%unit, '(*(g0,:,","))') solve_id, trace_context%cycle, trace_context%direction, &
+         trace_context%step, iter, residual_norm, tol, h, norm2(u_interleaved), norm2(lambda), stop_reason
+   end subroutine write_newton_trace_row
 
    logical function valid_real_vector(vec) result(ok)
       real(dp), intent(in) :: vec(:)
