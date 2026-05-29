@@ -109,6 +109,32 @@ Before removing ODEX source, run cluster-gated checks for:
   `flow_policy_id=dop853_endpoint_v1`.
 - Script-evidence audit after ODEX historical quarantine or deletion.
 
+## Verification Completed In This Slice
+
+Cluster job `17929.anode01` completed with `Exit_status=0` on `cnode17` at
+commit `42fb257075c8ea31228cc049c907f1f9c1a9f34a`.
+
+Scope:
+
+- submitted through `codex/agents/cluster02_scheduler/cluster02_qsub_gate.sh`;
+- `TLTM_ODE_BACKEND` was unset inside the PBS job;
+- `test_odex_result_contract` passed and printed
+  `default_options ok=T backend=2`;
+- WV-HMC math and constraint kernel tests passed;
+- a one-cycle WV-HMC dense pilot scan completed with `TLTM_ODE_BACKEND` unset.
+
+Artifacts:
+
+```text
+/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/wv_hmc_dop853_default_smoke_20260530/dop853_default_source_smoke_20260530/pbs_boot_17929.anode01.log
+/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_dop853_default_smoke_20260530/dop853_default_source_smoke_20260530_17929.anode01/dense_pilot_scan_summary.csv
+/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_dop853_default_smoke_20260530/dop853_default_source_smoke_20260530_17929.anode01/dense_pilot_scan_readback.md
+```
+
+This verifies the source default and the WV-HMC dense smoke path.  It does not
+replace the full WV-HMC bank-initialized observable validation that previously
+ran as `17928.anode01`, because that run predated the DOP853-default correction.
+
 ## Interpretation Rule
 
 Old ODEX runs remain valid historical evidence for the source state they tested.
