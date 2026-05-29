@@ -22,7 +22,7 @@ module solve_flow
                            odex_status_success_zero_time, odex_status_unknown, odex_step_sequence_iwork3, &
                            odex_stability_control_conservative, odex_stability_control_none, odex_workspace
    use perf_profile, only: perf_tic, perf_toc, PERF_INTODE, PERF_FLOW, PERF_FLOWZ, PERF_FLOWZR
-   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_quiet_nan, ieee_value
    use, intrinsic :: iso_fortran_env, only: int64
    implicit none
 
@@ -2094,6 +2094,12 @@ contains
          return
       end if
       call real_to_complex(workspace%flow_vec_yf(1:n), z)
+      if (complex_vector_has_invalid(z)) then
+         error = .true.
+         call set_intode_status(status, intode_status_failure_invalid)
+         call perf_toc(PERF_FLOWZ, t_prof)
+         return
+      end if
       call perf_toc(PERF_FLOWZ, t_prof)
    end subroutine flowz_at_with_workspace
 
@@ -2163,6 +2169,12 @@ contains
          return
       end if
       call real_to_complex(workspace%flow_vec_yf(1:n), z)
+      if (complex_vector_has_invalid(z)) then
+         error = .true.
+         call set_intode_status(status, intode_status_failure_invalid)
+         call perf_toc(PERF_FLOWZR, t_prof)
+         return
+      end if
       call perf_toc(PERF_FLOWZR, t_prof)
    end subroutine flowzr_at_with_workspace
 
@@ -2244,6 +2256,12 @@ contains
       end if
       call real_to_complex(workspace%flow_jac_yf(1:n), z)
       call map_to_complex(workspace%flow_jac_yf(n + 1:total_n), j)
+      if (complex_vector_has_invalid(z) .or. complex_matrix_has_invalid(j)) then
+         error = .true.
+         call set_intode_status(status, intode_status_failure_invalid)
+         call perf_toc(PERF_FLOW, t_prof)
+         return
+      end if
       call perf_toc(PERF_FLOW, t_prof)
    end subroutine flow_at_with_workspace
 
@@ -2260,9 +2278,21 @@ contains
          if (.not. allocated(workspace%flow_vec_z) .or. .not. allocated(workspace%flow_vec_ds)) return
          n_complex = size(workspace%flow_vec_z)
          if (size(y) /= 2*n_complex) return
+         if (vector_has_invalid(y)) then
+            call mark_rhs_invalid(f)
+            return
+         end if
 
          call real_to_complex_vec_fast(y, workspace%flow_vec_z(1:n_complex))
+         if (complex_vector_has_invalid(workspace%flow_vec_z(1:n_complex))) then
+            call mark_rhs_invalid(f)
+            return
+         end if
          call ds(workspace%flow_vec_z(1:n_complex), workspace%flow_vec_ds(1:n_complex))
+         if (complex_vector_has_invalid(workspace%flow_vec_ds(1:n_complex))) then
+            call mark_rhs_invalid(f)
+            return
+         end if
          call complex_to_real_vec_conjg_scaled_fast(workspace%flow_vec_ds(1:n_complex), f, workspace%flow_vec_rhs_scale)
       end select
    end function rhs_flow_vec_context
@@ -2287,9 +2317,18 @@ contains
          if (size(workspace%flow_jac_j, 2) /= n_jac .or. size(workspace%flow_jac_jprod, 1) /= n_jac .or. &
              size(workspace%flow_jac_jprod, 2) /= n_jac) return
          if (size(y) /= n + 2*n_jac*n_jac) return
+         if (vector_has_invalid(y)) then
+            call mark_rhs_invalid(f)
+            return
+         end if
 
          call real_to_complex_vec_fast(y(1:n), workspace%flow_jac_z(1:n_complex))
          call real_to_complex_mat_rowmajor_fast(y(n + 1:), workspace%flow_jac_j(1:n_jac, 1:n_jac))
+         if (complex_vector_has_invalid(workspace%flow_jac_z(1:n_complex)) .or. &
+             complex_matrix_has_invalid(workspace%flow_jac_j(1:n_jac, 1:n_jac))) then
+            call mark_rhs_invalid(f)
+            return
+         end if
          if (batched_ds_hessian_vec_available()) then
             call ds_hessian_vec_batch(workspace%flow_jac_z(1:n_complex), workspace%flow_jac_j(1:n_jac, 1:n_jac), &
                                       workspace%flow_jac_ds(1:n_complex), workspace%flow_jac_jprod(1:n_jac, 1:n_jac))
@@ -2299,6 +2338,11 @@ contains
                call hessian_vec(workspace%flow_jac_z(1:n_complex), workspace%flow_jac_j(1:n_jac, col), &
                                 workspace%flow_jac_jprod(1:n_jac, col))
             end do
+         end if
+         if (complex_vector_has_invalid(workspace%flow_jac_ds(1:n_complex)) .or. &
+             complex_matrix_has_invalid(workspace%flow_jac_jprod(1:n_jac, 1:n_jac))) then
+            call mark_rhs_invalid(f)
+            return
          end if
          call complex_to_real_vec_conjg_scaled_fast(workspace%flow_jac_ds(1:n_complex), f(1:n), 1.0_dp)
          call map_to_real_conjg_scaled(workspace%flow_jac_jprod(1:n_jac, 1:n_jac), f(n + 1:), 1.0_dp)
@@ -2322,15 +2366,31 @@ contains
          n_complex = size(workspace%flow_wv_z)
          n = 2*n_complex
          if (size(y) /= 3*n) return
+         if (vector_has_invalid(y)) then
+            call mark_rhs_invalid(f)
+            return
+         end if
 
          call real_to_complex_vec_fast(y(1:n), workspace%flow_wv_z(1:n_complex))
          call real_to_complex_vec_fast(y(n + 1:2*n), workspace%flow_wv_v(1:n_complex))
          call real_to_complex_vec_fast(y(2*n + 1:3*n), workspace%flow_wv_n(1:n_complex))
+         if (complex_vector_has_invalid(workspace%flow_wv_z(1:n_complex)) .or. &
+             complex_vector_has_invalid(workspace%flow_wv_v(1:n_complex)) .or. &
+             complex_vector_has_invalid(workspace%flow_wv_n(1:n_complex))) then
+            call mark_rhs_invalid(f)
+            return
+         end if
          call ds(workspace%flow_wv_z(1:n_complex), workspace%flow_wv_ds(1:n_complex))
          call hessian_vec(workspace%flow_wv_z(1:n_complex), workspace%flow_wv_v(1:n_complex), &
                           workspace%flow_wv_hv_v(1:n_complex))
          call hessian_vec(workspace%flow_wv_z(1:n_complex), workspace%flow_wv_n(1:n_complex), &
                           workspace%flow_wv_hv_n(1:n_complex))
+         if (complex_vector_has_invalid(workspace%flow_wv_ds(1:n_complex)) .or. &
+             complex_vector_has_invalid(workspace%flow_wv_hv_v(1:n_complex)) .or. &
+             complex_vector_has_invalid(workspace%flow_wv_hv_n(1:n_complex))) then
+            call mark_rhs_invalid(f)
+            return
+         end if
          call complex_to_real_vec_conjg_scaled_fast(workspace%flow_wv_ds(1:n_complex), f(1:n), 1.0_dp)
          call complex_to_real_vec_conjg_scaled_fast(workspace%flow_wv_hv_v(1:n_complex), f(n + 1:2*n), 1.0_dp)
          call complex_to_real_vec_conjg_scaled_fast(workspace%flow_wv_hv_n(1:n_complex), f(2*n + 1:3*n), -1.0_dp)
@@ -2401,6 +2461,13 @@ contains
          end do
       end do
    end subroutine real_to_complex_mat_rowmajor_fast
+
+   subroutine mark_rhs_invalid(f)
+      implicit none
+      real(dp), intent(out) :: f(:)
+
+      if (size(f) > 0) f = ieee_value(0.0_dp, ieee_quiet_nan)
+   end subroutine mark_rhs_invalid
 
    subroutine release_flow_workspace(workspace)
       type(flow_workspace_t), intent(inout) :: workspace
