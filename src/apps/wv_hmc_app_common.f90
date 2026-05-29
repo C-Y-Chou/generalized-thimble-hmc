@@ -1,8 +1,10 @@
 module wv_hmc_app_common
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use model_observables, only: get_model_observable_name, model_observable_count
    use param_mod, only: config, read_parameters, set_derivative_mode
    use runtime_env_mod, only: parse_int_env, parse_real_env, read_string_env, to_lower_ascii
    use solve_flow, only: intode_status_unknown
+   use tltm_rng, only: tltm_rng_domain_wv_hmc_init, tltm_rng_fill_normal
    use utils, only: dp
    use wv_hmc_driver, only: wv_dense_chain_summary_t, wv_run_dense_chain
    use wv_hmc_measurement, only: wv_dense_measurement_factor, wv_init_weighted_observable_accumulator, &
@@ -26,15 +28,15 @@ contains
 
       integer :: n, num_steps, cycle_count, base_seed, status, observable_count, measurement_start_cycle
       real(dp) :: step_size, flow_time, sampler_t0, sampler_t1, d0, d1, measurement_t0, measurement_t1
-      real(dp) :: w_gamma, w_c0, w_c1, reverse_gate_state_tol, reverse_gate_momentum_tol
+      real(dp) :: w_gamma, w_c0, w_c1, reverse_gate_state_tol, reverse_gate_momentum_tol, init_sigma
       real(dp) :: flow_time_out
       real(dp), allocatable :: x(:), x_out(:)
       complex(dp), allocatable :: z_out(:), jac_out(:, :)
       logical :: error
-      logical :: has_summary_file, has_observable_file, has_w_profile
+      logical :: has_summary_file, has_observable_file, has_w_profile, has_init_mode
       logical :: found_summary_file, found_observable_file
       character(len=512) :: summary_file, observable_file
-      character(len=64) :: w_profile_name
+      character(len=64) :: w_profile_name, init_mode_name
       type(wv_dense_chain_summary_t) :: summary
       type(wv_measurement_factor_t) :: measurement_factor
       type(wv_potential_profile_t) :: potential
@@ -65,7 +67,9 @@ contains
       w_c1 = 1.0_dp
       reverse_gate_state_tol = 1.0e-6_dp
       reverse_gate_momentum_tol = 1.0e-4_dp
+      init_sigma = 0.8_dp
       w_profile_name = "zero"
+      init_mode_name = "deterministic"
       call parse_real_env(env_name(env_prefix, "STEP_SIZE"), step_size)
       call parse_int_env(env_name(env_prefix, "NUM_STEPS"), num_steps)
       call parse_int_env(env_name(env_prefix, "CYCLES"), cycle_count)
@@ -78,9 +82,12 @@ contains
       call parse_real_env(env_name(env_prefix, "D1"), d1)
       call read_string_env(env_name(env_prefix, "W_PROFILE"), w_profile_name, has_w_profile)
       w_profile_name = to_lower_ascii(adjustl(w_profile_name))
+      call read_string_env(env_name(env_prefix, "INIT_MODE"), init_mode_name, has_init_mode)
+      init_mode_name = to_lower_ascii(adjustl(init_mode_name))
       call parse_real_env(env_name(env_prefix, "W_GAMMA"), w_gamma)
       call parse_real_env(env_name(env_prefix, "W_C0"), w_c0)
       call parse_real_env(env_name(env_prefix, "W_C1"), w_c1)
+      call parse_real_env(env_name(env_prefix, "INIT_SIGMA"), init_sigma)
       call parse_real_env(env_name(env_prefix, "REVERSE_GATE_STATE_TOL"), reverse_gate_state_tol)
       call parse_real_env(env_name(env_prefix, "REVERSE_GATE_MOMENTUM_TOL"), reverse_gate_momentum_tol)
       measurement_t0 = sampler_t0
@@ -97,7 +104,11 @@ contains
       if (found_observable_file) has_observable_file = .true.
 
       allocate (x(n), x_out(n), z_out(n), jac_out(n, n))
-      call fill_deterministic_x(x)
+      call fill_initial_x(x, trim(init_mode_name), init_sigma, base_seed, error)
+      if (error) then
+         write (*, '(*(g0,1X))') "ERROR", "invalid_init_mode_or_sigma", trim(init_mode_name), init_sigma
+         stop 3
+      end if
       observable_count = model_observable_count()
       allocate (observable_estimates(observable_count))
       call wv_init_weighted_observable_accumulator(observable_accumulator, observable_count, error)
@@ -173,6 +184,8 @@ contains
          "sampler_d0", d0, &
          "sampler_d1", d1, &
          "w_profile", trim(w_profile_name), &
+         "init_mode", trim(init_mode_name), &
+         "init_sigma", init_sigma, &
          "w_gamma", w_gamma, &
          "w_c0", w_c0, &
          "w_c1", w_c1, &
@@ -227,6 +240,31 @@ contains
          x_values(i) = 0.02_dp + 0.001_dp*real(i, dp)
       end do
    end subroutine fill_deterministic_x
+
+   subroutine fill_initial_x(x_values, init_mode, init_sigma, base_seed, error)
+      real(dp), intent(out) :: x_values(:)
+      character(len=*), intent(in) :: init_mode
+      real(dp), intent(in) :: init_sigma
+      integer, intent(in) :: base_seed
+      logical, intent(out) :: error
+
+      error = .true.
+      x_values = 0.0_dp
+      select case (trim(init_mode))
+      case ("deterministic")
+         call fill_deterministic_x(x_values)
+      case ("zero")
+         x_values = 0.0_dp
+      case ("random_gaussian", "gaussian")
+         if ((.not. ieee_is_finite(init_sigma)) .or. init_sigma < 0.0_dp) return
+         call tltm_rng_fill_normal(x_values, tltm_rng_domain_wv_hmc_init, base_seed, 0, 1, 1)
+         x_values = init_sigma*x_values
+      case default
+         return
+      end select
+      if (any(.not. ieee_is_finite(x_values))) return
+      error = .false.
+   end subroutine fill_initial_x
 
    pure real(dp) function safe_ratio(numerator, denominator) result(value)
       real(dp), intent(in) :: numerator

@@ -34,6 +34,8 @@ def run_seed(args):
         "WV_HMC_D1": "0.05",
         "WV_HMC_MEASUREMENT_T0": "0.005",
         "WV_HMC_MEASUREMENT_T1": "0.2",
+        "WV_HMC_INIT_MODE": "random_gaussian",
+        "WV_HMC_INIT_SIGMA": "0.8",
         "WV_HMC_W_PROFILE": "paper_wall",
         "WV_HMC_W_GAMMA": "1.0",
         "WV_HMC_W_C0": "1.0",

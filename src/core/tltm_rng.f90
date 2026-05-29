@@ -10,6 +10,7 @@ module tltm_rng
    public :: tltm_rng_domain_stage2_swap_accept
    public :: tltm_rng_domain_wv_hmc_momentum
    public :: tltm_rng_domain_wv_hmc_accept
+   public :: tltm_rng_domain_wv_hmc_init
    public :: tltm_seed_kernel_state
    public :: tltm_kernel_seed
    public :: tltm_rng_uniform
@@ -23,6 +24,7 @@ module tltm_rng
    integer, parameter :: tltm_rng_domain_stage2_swap_accept = 1104
    integer, parameter :: tltm_rng_domain_wv_hmc_momentum = 2101
    integer, parameter :: tltm_rng_domain_wv_hmc_accept = 2102
+   integer, parameter :: tltm_rng_domain_wv_hmc_init = 2103
 
    real(real64), parameter :: pi = 3.141592653589793238462643383279502884197_real64
    integer(int64), parameter :: uint16_base = 65536_int64
