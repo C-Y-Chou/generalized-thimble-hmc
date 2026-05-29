@@ -36,6 +36,51 @@ cycle 1:
 Those failures are initial-state safety failures, not mid-chain transition
 failures.  Retuning Gaussian width therefore does not address the right problem.
 
+## Cluster Validation
+
+The bank route was validated on cluster02 after the Python 3.6 compatibility
+fix in commit `066e2d9`.
+
+- Initial-bank build job `17926.anode01` completed on C8 in 48 s wall time.
+  It built a Stephanov `n=2`, `t=0` physical bank with `state_size=8`,
+  prevalidated the first 1024 records to `T0=0.005`, and selected 1000 safe
+  records.
+- Bank-init smoke job `17927.anode01` completed on C8 in 33 s wall time.
+  The WV math and constraint kernel checks passed, `run_wv_hmc` compiled, and
+  8 bank-initialized candidates ran for 10 cycles without bank read or
+  initial-flow aborts.
+- Bank-init observable validation job `17928.anode01` completed on C16 in
+  15m52s wall time.  It produced 64/64 summaries and 64/64 observable files
+  with `manifest bad=0`.
+
+The safe bank used by the observable validation is:
+
+```text
+/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_initial_banks_20260530/stephanov_n2_wv_hmc_t0_initial_bank_8x2000_t0005_20260530_repair1_17926.anode01/safe_bank_t0p005/x_bank.dat
+```
+
+The formal validation output is:
+
+```text
+/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_observable_validation_20260529/wv_hmc_dense_observable_validation_n2_64x4000_eps020_bankinit_20260530_17928.anode01
+```
+
+Key readback numbers from `17928.anode01`:
+
+| seeds | cycles | measurements | phase coherence | accepted fraction | flow-time mean | flow-time max |
+|---:|---:|---:|---:|---:|---:|---:|
+| 64 | 256000 | 191999 | 0.929079 | 0.7264 | 0.09598 | 0.2000 |
+
+| observable | z Re | z Im |
+|---|---:|---:|
+| chiral_condensate | -2.28 | 1.58 |
+| number_density | 0.562 | -1.14 |
+
+This validates the bank-initialization mechanism and removes the Gaussian
+initial-flow failure mode.  It does not by itself freeze the final WV-HMC HMC
+parameters; subsequent tuning should use bank initialization and judge
+movement, observable stability, and acceptance diagnostics under that policy.
+
 ## Implemented Hooks
 
 WV-HMC app initialization accepts:
