@@ -6,7 +6,7 @@ program test_retained_core_qn_route_contract
    use param_mod, only: cttol, read_parameters, state_seed_size_cfg
    use quasi_newton_linear_solver_mod, only: initial_guess_from_jacobian
    use quasi_newton_solver_mod, only: evaluate_constraint_residual, get_qn_official_dfols_policy, &
-                                      get_quasi_newton_last_trace_r2c, get_quasi_newton_last_trace_stats, &
+                                      get_quasi_newton_last_trace_meta, get_quasi_newton_last_trace_stats, &
                                       qn_backend_official_dfols, qn_context_t, release_qn_context, &
                                       qn_diagnostics_context_t, release_qn_diagnostics_context, &
                                       reset_quasi_eval_flow_status_counts, get_quasi_eval_flow_status_counts, &
@@ -146,10 +146,9 @@ contains
 
       logical :: ierr, available, ok_policy, ok_trace, ok_package_success, expect_package_success
       logical :: has_eval_ok, has_accepted
-      integer :: backend_code, npt, maxfun, proposal_count, idx
+      integer :: backend_code, npt, maxfun, trace_dim, proposal_count, idx
       logical :: objfun_has_noise
       real(dp) :: rhobeg, rhoend, model_abs_tol, model_rel_tol
-      complex(dp), allocatable :: z_proposed(:), z_flowed(:)
       real(dp), allocatable :: residual_norm(:), alpha(:)
       integer, allocatable :: iter_idx(:), backtrack_idx(:), attempt_idx(:), route_code(:)
       logical, allocatable :: accepted(:), eval_ok(:)
@@ -162,8 +161,8 @@ contains
 
       call solve_constraint_quasi_newton(evaluate_constraint_residual, cttol, 28, x, z, del_z, ierr, Jl, x_new, jac, &
                                          x_best_solution=x_best)
-      call get_quasi_newton_last_trace_r2c(available, proposal_count, z_proposed, z_flowed, residual_norm, alpha, &
-                                           iter_idx, backtrack_idx, attempt_idx, accepted, eval_ok, route_code)
+      call get_quasi_newton_last_trace_meta(available, trace_dim, proposal_count, residual_norm, alpha, &
+                                            iter_idx, backtrack_idx, attempt_idx, accepted, eval_ok, route_code)
 
       has_eval_ok = .false.
       has_accepted = .false.
@@ -180,16 +179,14 @@ contains
 
       write (*, '(A,L1,A,I0,A,I0,A,L1,A,L1)') "[CHECK] official_qn_route_policy ok=", ok_policy, &
          " npt=", npt, " maxfun=", maxfun, " noise=", objfun_has_noise, " ierr=", ierr
-      write (*, '(A,L1,A,L1,A,I0,A,L1)') "[CHECK] official_qn_route_trace ok=", ok_trace, &
-         " available=", available, " proposal_count=", proposal_count, " has_eval_ok=", has_eval_ok
+      write (*, '(A,L1,A,L1,A,I0,A,I0,A,L1)') "[CHECK] official_qn_route_trace ok=", ok_trace, &
+         " available=", available, " trace_dim=", trace_dim, " proposal_count=", proposal_count, " has_eval_ok=", has_eval_ok
       write (*, '(A,L1,A,L1,A,L1,A,L1)') "[CHECK] official_qn_package_success ok=", ok_package_success, &
          " expect=", expect_package_success, " ierr=", ierr, " has_accepted=", has_accepted
       if (.not. ok_policy) failures = failures + 1
       if (.not. ok_trace) failures = failures + 1
       if (.not. ok_package_success) failures = failures + 1
 
-      if (allocated(z_proposed)) deallocate (z_proposed)
-      if (allocated(z_flowed)) deallocate (z_flowed)
       if (allocated(residual_norm)) deallocate (residual_norm)
       if (allocated(alpha)) deallocate (alpha)
       if (allocated(iter_idx)) deallocate (iter_idx)
@@ -352,12 +349,11 @@ contains
 
       real(dp), parameter :: step_sizes(3) = (/0.002_dp, 0.003_dp, 0.004_dp/)
       real(dp), allocatable :: del_z_case(:), residual_norm(:), alpha(:)
-      complex(dp), allocatable :: z_proposed(:), z_flowed(:)
       integer, allocatable :: iter_idx(:), backtrack_idx(:), attempt_idx(:), route_code(:)
       logical, allocatable :: accepted(:), eval_ok(:)
       logical :: ierr, available, expect_package_success
       logical :: all_route10, any_eval_ok, any_accepted, case_ok, ok
-      integer :: case_idx, proposal_count, idx, route10_cases, success_cases, accepted_cases, valid_cases
+      integer :: case_idx, trace_dim, proposal_count, idx, route10_cases, success_cases, accepted_cases, valid_cases
 
       allocate (del_z_case(size(dV)))
       expect_package_success = .false.
@@ -371,8 +367,8 @@ contains
          del_z_case = -step_sizes(case_idx)**2*dV
          call solve_constraint_quasi_newton(evaluate_constraint_residual, cttol, 28, x, z, del_z_case, ierr, Jl, x_new, jac, &
                                             x_best_solution=x_best)
-         call get_quasi_newton_last_trace_r2c(available, proposal_count, z_proposed, z_flowed, residual_norm, alpha, &
-                                              iter_idx, backtrack_idx, attempt_idx, accepted, eval_ok, route_code)
+         call get_quasi_newton_last_trace_meta(available, trace_dim, proposal_count, residual_norm, alpha, &
+                                               iter_idx, backtrack_idx, attempt_idx, accepted, eval_ok, route_code)
 
          all_route10 = available .and. proposal_count >= 1
          any_eval_ok = .false.
@@ -399,8 +395,6 @@ contains
             case_idx, " ok=", case_ok, " step=", step_sizes(case_idx), " proposals=", proposal_count, &
             " route10=", all_route10, " ierr=", ierr, " accepted=", any_accepted
 
-         if (allocated(z_proposed)) deallocate (z_proposed)
-         if (allocated(z_flowed)) deallocate (z_flowed)
          if (allocated(residual_norm)) deallocate (residual_norm)
          if (allocated(alpha)) deallocate (alpha)
          if (allocated(iter_idx)) deallocate (iter_idx)

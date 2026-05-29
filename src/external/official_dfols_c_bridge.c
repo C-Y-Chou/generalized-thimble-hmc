@@ -404,7 +404,12 @@ int tltm_official_dfols_solve(
     if (dict_set_bool(kwargs, "objfun_has_noise", objfun_has_noise) != 0) { status = 25; goto cleanup; }
     if (dict_set_bool(kwargs, "do_logging", 0) != 0) { status = 26; goto cleanup; }
     if (dict_set_bool(kwargs, "print_progress", 0) != 0) { status = 27; goto cleanup; }
-    if (npt > 0) {
+    /*
+     * DFO-LS rejects npt values below n+1 for the inexact-interpolation model.
+     * Older TLTM presets may carry small npt values from low-dimensional gates;
+     * omit invalid values here and let the official package choose its default.
+     */
+    if (npt >= n + 1) {
         if (dict_set_long(kwargs, "npt", npt) != 0) { status = 28; goto cleanup; }
     }
     if (rhobeg > 0.0) {

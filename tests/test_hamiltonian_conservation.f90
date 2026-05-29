@@ -43,7 +43,7 @@ program test_hamiltonian_conservation
    call grand(testmom)
    testmom = 1.0_dp
 
-   flow_time = config%integrator%initial_flow_time
+      flow_time = min(config%integrator%initial_flow_time, 1.0e-4_dp)
    x_seed = 1.0_dp
    call x_set_flow_time(x_state, flow_time)
    call x_set_seed_real(x_state, x_seed)

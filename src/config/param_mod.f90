@@ -8,7 +8,6 @@ module param_mod
       logical :: istest = .false.
       logical :: tra2 = .false.
       logical :: eo = .false.
-      logical :: wv = .false.
       logical :: ckrv = .false.
    end type runtime_flags_t
 
@@ -78,7 +77,7 @@ module param_mod
 
    ! Legacy globals kept for compatibility with existing modules
    real(dp) :: T0
-   logical  :: istest, wv, ckrv, tra2, eo             ! Test mode flag
+   logical  :: istest, ckrv, tra2, eo                 ! Test mode flag
    real(dp), allocatable :: testmom(:)
 
    ! Markov Chain Parameters
@@ -211,7 +210,6 @@ contains
       istest = config%flags%istest
       tra2 = config%flags%tra2
       eo = config%flags%eo
-      wv = config%flags%wv
       ckrv = config%flags%ckrv
 
       chain_length = config%chain%length
@@ -381,10 +379,6 @@ contains
          call parse_logical_value(value, ltmp, ok)
          if (.not. ok) call kv_parse_error(line_no, key, value)
          config%flags%eo = ltmp
-      case ("wv")
-         call parse_logical_value(value, ltmp, ok)
-         if (.not. ok) call kv_parse_error(line_no, key, value)
-         config%flags%wv = ltmp
       case ("ckrv")
          call parse_logical_value(value, ltmp, ok)
          if (.not. ok) call kv_parse_error(line_no, key, value)

@@ -1,0 +1,118 @@
+#!/bin/bash
+#PBS -N wvpilot
+#PBS -q C8
+#PBS -l select=1:ncpus=8:mpiprocs=8:mem=16gb
+#PBS -l walltime=01:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  # shellcheck source=/dev/null
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization_wv_pilot}"
+: "${TLTM_EXPECTED_GIT_BRANCH:=HEAD}"
+: "${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
+: "${TLTM_RUN_NAME:=wv_hmc_dense_pilot_scan_20260529}"
+: "${TLTM_OUTPUT_ROOT:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_pilot_20260529}"
+: "${TLTM_LOG_ROOT:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/wv_hmc_pilot_20260529/${TLTM_RUN_NAME}}"
+: "${TLTM_PARAMETERS_FILE:=data/parameters_stephanov_n2_smoke.dat}"
+: "${WV_SCAN_CYCLES:=100}"
+: "${WV_SCAN_TIMEOUT_SEC:=60}"
+: "${WV_SCAN_JOBS:=8}"
+: "${WV_SCAN_BASE_SEED:=3001}"
+: "${WV_SCAN_FLOW_TIME:=1.0e-5}"
+: "${WV_SCAN_RG_STATE_TOL:=1.0e-5}"
+: "${WV_SCAN_RG_MOMENTUM_TOL:=1.0e-3}"
+
+cd "${TLTM_WORKTREE}"
+mkdir -p "${TLTM_LOG_ROOT}"
+exec > "${TLTM_LOG_ROOT}/pbs_boot_${PBS_JOBID:-manual}.log" 2>&1
+
+echo "RUN_DATE=$(date -Is)"
+echo "HOSTNAME=$(hostname)"
+echo "PBS_JOBID=${PBS_JOBID:-manual}"
+echo "PBS_QUEUE=${PBS_QUEUE:-unknown}"
+echo "TLTM_WORKTREE=${TLTM_WORKTREE}"
+echo "TLTM_RUN_NAME=${TLTM_RUN_NAME}"
+echo "TLTM_PARAMETERS_FILE=${TLTM_PARAMETERS_FILE}"
+echo "WV_SCAN_CYCLES=${WV_SCAN_CYCLES}"
+echo "WV_SCAN_TIMEOUT_SEC=${WV_SCAN_TIMEOUT_SEC}"
+echo "WV_SCAN_JOBS=${WV_SCAN_JOBS}"
+echo "WV_SCAN_RG_STATE_TOL=${WV_SCAN_RG_STATE_TOL}"
+echo "WV_SCAN_RG_MOMENTUM_TOL=${WV_SCAN_RG_MOMENTUM_TOL}"
+
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+CURRENT_COMMIT="$(git rev-parse HEAD)"
+echo "GIT_BRANCH=${CURRENT_BRANCH}"
+echo "GIT_COMMIT=${CURRENT_COMMIT}"
+echo "EXPECTED_GIT_COMMIT=${TLTM_EXPECTED_GIT_COMMIT}"
+if [ "${TLTM_EXPECTED_GIT_BRANCH}" != "HEAD" ] && [ "${CURRENT_BRANCH}" != "${TLTM_EXPECTED_GIT_BRANCH}" ]; then
+  echo "[ERROR] expected branch ${TLTM_EXPECTED_GIT_BRANCH}, got ${CURRENT_BRANCH}" >&2
+  exit 2
+fi
+if [ "${CURRENT_COMMIT}" != "${TLTM_EXPECTED_GIT_COMMIT}" ]; then
+  echo "[ERROR] expected commit ${TLTM_EXPECTED_GIT_COMMIT}, got ${CURRENT_COMMIT}" >&2
+  exit 2
+fi
+if [ -n "$(git status --porcelain)" ]; then
+  echo "[ERROR] working tree is dirty; refusing WV-HMC pilot scan" >&2
+  git status --short >&2
+  exit 2
+fi
+
+if [ -x .venv-dfols/bin/python ]; then
+  DFOLS_SITE_PACKAGES="$(.venv-dfols/bin/python - <<'PY'
+import sysconfig
+print(sysconfig.get_paths()["purelib"])
+PY
+)"
+  export TLTM_OFFICIAL_DFOLS_PYTHONPATH="${DFOLS_SITE_PACKAGES}${TLTM_OFFICIAL_DFOLS_PYTHONPATH:+:${TLTM_OFFICIAL_DFOLS_PYTHONPATH}}"
+fi
+
+# Configure Python.h/libpython for the official DFO-LS C bridge on cluster02.
+# shellcheck source=/dev/null
+. codex/workspaces/fortran_modernization/tasks/scripts/python_embed_env.sh
+
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export OMP_DYNAMIC=FALSE
+export MKL_DYNAMIC=FALSE
+
+make -C build clean
+make -C build OMP=1 PYTHON="${PYTHON}" PYTHON_EMBED_CFLAGS="${PYTHON_EMBED_CFLAGS}" \
+  PYTHON_EMBED_LDFLAGS="${PYTHON_EMBED_LDFLAGS}" test_wv_hmc_math_kernels test_wv_hmc_constraint_kernels
+make -C build OMP=1 PYTHON="${PYTHON}" PYTHON_EMBED_CFLAGS="${PYTHON_EMBED_CFLAGS}" \
+  PYTHON_EMBED_LDFLAGS="${PYTHON_EMBED_LDFLAGS}" ../bin/run_wv_hmc
+
+RUN_ROOT="${TLTM_OUTPUT_ROOT}/${TLTM_RUN_NAME}_${PBS_JOBID:-manual}"
+mkdir -p "${RUN_ROOT}"
+
+/usr/bin/time -p python3 codex/workspaces/fortran_modernization/tasks/scripts/run_wv_hmc_dense_pilot_scan_20260529.py \
+  --binary bin/run_wv_hmc \
+  --parameters-file "${TLTM_PARAMETERS_FILE}" \
+  --output-root "${RUN_ROOT}" \
+  --cycles "${WV_SCAN_CYCLES}" \
+  --timeout-sec "${WV_SCAN_TIMEOUT_SEC}" \
+  --jobs "${WV_SCAN_JOBS}" \
+  --base-seed "${WV_SCAN_BASE_SEED}" \
+  --flow-time "${WV_SCAN_FLOW_TIME}" \
+  --rg-state-tol "${WV_SCAN_RG_STATE_TOL}" \
+  --rg-momentum-tol "${WV_SCAN_RG_MOMENTUM_TOL}"
+
+echo "RUN_ROOT=${RUN_ROOT}"
+echo "SUMMARY=${RUN_ROOT}/dense_pilot_scan_summary.csv"
+echo "READBACK=${RUN_ROOT}/dense_pilot_scan_readback.md"
+cat "${RUN_ROOT}/dense_pilot_scan_readback.md"

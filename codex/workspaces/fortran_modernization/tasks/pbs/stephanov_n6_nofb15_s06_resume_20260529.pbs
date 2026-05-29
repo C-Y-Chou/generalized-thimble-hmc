@@ -1,0 +1,171 @@
+#!/bin/bash
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  # shellcheck source=/dev/null
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization}"
+: "${TLTM_EXPECTED_GIT_BRANCH:=codex/fortran-modernization}"
+: "${TLTM_EXPECTED_GIT_COMMIT:?TLTM_EXPECTED_GIT_COMMIT is required}"
+: "${TLTM_RUN_GROUP:=stephanov_n6_nofb15k_512_equalcost_20260526f}"
+: "${TLTM_RUN_NAME:?TLTM_RUN_NAME is required}"
+: "${TLTM_RECORDS_SPEC:?TLTM_RECORDS_SPEC is required}"
+: "${TLTM_STAGE_CYCLES:=2500}"
+: "${TLTM_STAGE_JOBS:=8}"
+: "${TLTM_STAGE_THREADS:=4}"
+: "${TLTM_INIT_SNAPSHOT_ROOT:?TLTM_INIT_SNAPSHOT_ROOT is required}"
+: "${TLTM_OUTPUT_ROOT:=output/stephanov_tltm_production/${TLTM_RUN_GROUP}}"
+: "${TLTM_LOG_ROOT:=output/logs/stephanov_tltm_production/${TLTM_RUN_GROUP}/${TLTM_RUN_NAME}}"
+: "${TLTM_TIMEOUT_SEC:=42000}"
+: "${TLTM_QN_OFFICIAL_DFOLS_PRESET:=stable_gate77}"
+: "${TLTM_QN_OFFICIAL_DFOLS_NPT:=0}"
+: "${TLTM_QN_OFFICIAL_DFOLS_MAXFUN:=500}"
+: "${TLTM_QN_OFFICIAL_DFOLS_OBJFUN_HAS_NOISE:=1}"
+: "${TLTM_QN_OFFICIAL_DFOLS_RHOBEG:=1.8e-2}"
+: "${TLTM_QN_OFFICIAL_DFOLS_RHOEND:=1e-16}"
+: "${TLTM_QN_OFFICIAL_DFOLS_MODEL_ABS_TOL:=1e-26}"
+: "${TLTM_QN_OFFICIAL_DFOLS_MODEL_REL_TOL:=0}"
+
+cd "${TLTM_WORKTREE}"
+mkdir -p "${TLTM_LOG_ROOT}"
+exec > "${TLTM_LOG_ROOT}/pbs_boot_${PBS_JOBID:-manual}.log" 2>&1
+
+echo "RUN_DATE=$(date -Is)"
+echo "HOSTNAME=$(hostname)"
+echo "PBS_JOBID=${PBS_JOBID:-manual}"
+echo "PBS_QUEUE=${PBS_QUEUE:-unknown}"
+echo "TLTM_WORKTREE=${TLTM_WORKTREE}"
+echo "TLTM_RUN_GROUP=${TLTM_RUN_GROUP}"
+echo "TLTM_RUN_NAME=${TLTM_RUN_NAME}"
+echo "TLTM_RECORDS_SPEC=${TLTM_RECORDS_SPEC}"
+echo "TLTM_STAGE_CYCLES=${TLTM_STAGE_CYCLES}"
+echo "TLTM_STAGE_JOBS=${TLTM_STAGE_JOBS}"
+echo "TLTM_STAGE_THREADS=${TLTM_STAGE_THREADS}"
+echo "TLTM_INIT_KIND=snapshot"
+echo "TLTM_INIT_SNAPSHOT_ROOT=${TLTM_INIT_SNAPSHOT_ROOT}"
+echo "TLTM_ENABLE_QUASI_FALLBACK=0"
+echo "TLTM_TIMEOUT_SEC=${TLTM_TIMEOUT_SEC}"
+echo "TLTM_QN_OFFICIAL_DFOLS_MAXFUN=${TLTM_QN_OFFICIAL_DFOLS_MAXFUN}"
+
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+CURRENT_COMMIT="$(git rev-parse HEAD)"
+echo "GIT_BRANCH=${CURRENT_BRANCH}"
+echo "GIT_COMMIT=${CURRENT_COMMIT}"
+echo "EXPECTED_GIT_COMMIT=${TLTM_EXPECTED_GIT_COMMIT}"
+if [ "${CURRENT_BRANCH}" != "${TLTM_EXPECTED_GIT_BRANCH}" ]; then
+  echo "[ERROR] expected branch ${TLTM_EXPECTED_GIT_BRANCH}, got ${CURRENT_BRANCH}" >&2
+  exit 2
+fi
+if [ "${CURRENT_COMMIT}" != "${TLTM_EXPECTED_GIT_COMMIT}" ]; then
+  echo "[ERROR] expected commit ${TLTM_EXPECTED_GIT_COMMIT}, got ${CURRENT_COMMIT}" >&2
+  exit 2
+fi
+if [ -n "$(git status --porcelain)" ]; then
+  echo "[ERROR] working tree is dirty; refusing cluster production" >&2
+  git status --short >&2
+  exit 2
+fi
+
+if [ -x .venv-dfols/bin/python ]; then
+  DFOLS_SITE_PACKAGES="$(.venv-dfols/bin/python - <<'PY'
+import sysconfig
+print(sysconfig.get_paths()["purelib"])
+PY
+)"
+  export TLTM_OFFICIAL_DFOLS_PYTHONPATH="${DFOLS_SITE_PACKAGES}${TLTM_OFFICIAL_DFOLS_PYTHONPATH:+:${TLTM_OFFICIAL_DFOLS_PYTHONPATH}}"
+fi
+
+# shellcheck source=/dev/null
+. codex/workspaces/fortran_modernization/tasks/scripts/python_embed_env.sh
+
+export OMP_NUM_THREADS="${TLTM_STAGE_THREADS}"
+export OPENBLAS_NUM_THREADS="${TLTM_STAGE_THREADS}"
+export MKL_NUM_THREADS="${TLTM_STAGE_THREADS}"
+export VECLIB_MAXIMUM_THREADS="${TLTM_STAGE_THREADS}"
+export OMP_PROC_BIND=false
+export CONSTRAINT_FAIL_CAPTURE_START_SAMPLE=2147483647
+
+export TLTM_ODE_BACKEND=dop853
+export TLTM_DOP853_HINIT_ENABLED=1
+export TLTM_DOP853_STIFFNESS_CHECK_ENABLED=1
+export TLTM_DOP853_STIFFNESS_CHECK_INTERVAL=1000
+export TLTM_DOP853_STIFFNESS_MAX_HITS=15
+export TLTM_DOP853_STIFFNESS_THRESHOLD=6.1
+
+export TLTM_STAGE2_SWAP_REFLOW_BACKEND=direct
+export TLTM_STAGE2_LOCAL_REFLOW_CACHE_MODE=none
+export QN_SOLVER_BACKEND=official_dfols
+export QN_OFFICIAL_DFOLS_PRESET="${TLTM_QN_OFFICIAL_DFOLS_PRESET}"
+export QN_OFFICIAL_DFOLS_NPT="${TLTM_QN_OFFICIAL_DFOLS_NPT}"
+export QN_OFFICIAL_DFOLS_MAXFUN="${TLTM_QN_OFFICIAL_DFOLS_MAXFUN}"
+export QN_OFFICIAL_DFOLS_OBJFUN_HAS_NOISE="${TLTM_QN_OFFICIAL_DFOLS_OBJFUN_HAS_NOISE}"
+export QN_OFFICIAL_DFOLS_RHOBEG="${TLTM_QN_OFFICIAL_DFOLS_RHOBEG}"
+export QN_OFFICIAL_DFOLS_RHOEND="${TLTM_QN_OFFICIAL_DFOLS_RHOEND}"
+export QN_OFFICIAL_DFOLS_MODEL_ABS_TOL="${TLTM_QN_OFFICIAL_DFOLS_MODEL_ABS_TOL}"
+export QN_OFFICIAL_DFOLS_MODEL_REL_TOL="${TLTM_QN_OFFICIAL_DFOLS_MODEL_REL_TOL}"
+
+TLTM_RECORDS="${TLTM_RECORDS_SPEC//:/,}"
+python3 - "${TLTM_INIT_SNAPSHOT_ROOT}" "${TLTM_RECORDS}" <<'PY'
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+records = [int(item) for item in sys.argv[2].split(",") if item.strip()]
+missing = []
+for record in records:
+    snapshot = root / "records" / f"record_{record:04d}" / "final_snapshot.bin"
+    if not snapshot.exists():
+        missing.append(str(snapshot))
+if missing:
+    raise SystemExit("[ERROR] missing snapshot files: " + ", ".join(missing[:10]))
+print(f"SNAPSHOT_INPUT_OK records={len(records)} root={root}")
+PY
+
+if [ ! -x bin/run_tltm_stage2 ]; then
+  echo "[ERROR] bin/run_tltm_stage2 is missing or not executable." >&2
+  exit 2
+fi
+
+RUNNER_ARGS=(
+  codex/workspaces/fortran_modernization/tasks/scripts/run_stephanov_n6_tltm_ladder.py
+  --skip-build
+  --init-snapshot-root "${TLTM_INIT_SNAPSHOT_ROOT}"
+  --restart-boundary-policy skip
+  --records "${TLTM_RECORDS}"
+  --cycles "${TLTM_STAGE_CYCLES}"
+  --jobs "${TLTM_STAGE_JOBS}"
+  --threads "${TLTM_STAGE_THREADS}"
+  --timeout-sec "${TLTM_TIMEOUT_SEC}"
+  --seed-base 8930000
+  --hmc-epsilon 0.04
+  --hmc-nstep 4
+  --ladder 0,1e-3,3e-3,7e-3,1e-2,1.3e-2,1.6e-2,1.8e-2,2e-2,2.25e-2,2.5e-2,2.75e-2,3e-2
+  --parallel-local-updates 1
+  --parallel-swaps 1
+  --write-cold-observables
+  --write-all-replica-observables
+  --observable-stride 1
+  --write-cold-x-history
+  --write-final-snapshot
+  --output-root "${TLTM_OUTPUT_ROOT}"
+  --run-name "${TLTM_RUN_NAME}"
+  --force
+)
+
+/usr/bin/time -p python3 "${RUNNER_ARGS[@]}"
+
+SUMMARY="${TLTM_OUTPUT_ROOT}/${TLTM_RUN_NAME}/tltm_ladder_summary.csv"
+AGGREGATE="${TLTM_OUTPUT_ROOT}/${TLTM_RUN_NAME}/tltm_ladder_aggregate.csv"
+echo "SUMMARY=${SUMMARY}"
+echo "AGGREGATE=${AGGREGATE}"
+cat "${AGGREGATE}"

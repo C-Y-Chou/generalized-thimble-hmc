@@ -1049,6 +1049,36 @@ contains
       eval_ok = active_context%last_trace_eval_ok(1:proposal_count)
    end subroutine get_quasi_newton_last_trace_r2c
 
+   subroutine get_quasi_newton_last_trace_meta(available, trace_dim, proposal_count, residual_norm, alpha, iter_idx, backtrack_idx, &
+                                               attempt_idx, accepted, eval_ok, route_code, qn_context)
+      implicit none
+      logical, intent(out) :: available
+      integer, intent(out) :: trace_dim, proposal_count
+      real(dp), allocatable, intent(out) :: residual_norm(:), alpha(:)
+      integer, allocatable, intent(out) :: iter_idx(:), backtrack_idx(:), attempt_idx(:), route_code(:)
+      logical, allocatable, intent(out) :: accepted(:), eval_ok(:)
+      type(qn_context_t), intent(inout), optional, target :: qn_context
+
+      type(qn_context_t), pointer :: active_context
+
+      call resolve_qn_context(qn_context, active_context)
+      trace_dim = active_context%last_trace_dim
+      proposal_count = active_context%last_trace_count
+      available = (trace_dim > 0 .and. proposal_count > 0)
+      allocate (residual_norm(proposal_count), alpha(proposal_count), iter_idx(proposal_count), &
+                backtrack_idx(proposal_count), attempt_idx(proposal_count), route_code(proposal_count), &
+                accepted(proposal_count), eval_ok(proposal_count))
+      if (proposal_count <= 0) return
+      residual_norm = active_context%last_trace_res_norm(1:proposal_count)
+      alpha = active_context%last_trace_alpha(1:proposal_count)
+      iter_idx = active_context%last_trace_iter(1:proposal_count)
+      backtrack_idx = active_context%last_trace_backtrack(1:proposal_count)
+      attempt_idx = active_context%last_trace_attempt(1:proposal_count)
+      route_code = active_context%last_trace_route(1:proposal_count)
+      accepted = active_context%last_trace_accepted(1:proposal_count)
+      eval_ok = active_context%last_trace_eval_ok(1:proposal_count)
+   end subroutine get_quasi_newton_last_trace_meta
+
    subroutine get_quasi_newton_last_trace_stats(available, proposal_count, first_res_norm, best_res_norm, last_res_norm, all_eval_ok, &
                                                 valid_eval_count, valid_eval_fraction, qn_context)
       implicit none

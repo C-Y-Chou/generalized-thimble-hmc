@@ -1,11 +1,16 @@
-# WV-HMC Fortran Project
+# TLTM Fortran Modernization Project
 
-This repository implements a worldvolume-HMC workflow in modern Fortran, including:
+This repository currently implements and modernizes a TLTM / GT-HMC-style
+fixed-flow ladder workflow in modern Fortran, including:
 
 - flow integration in complexified field space,
 - constrained molecular dynamics (RATTLE-style updates),
-- canonical p28 quasi-Newton/DFO-LS-style BTN backflow rescue,
+- optional quasi-Newton / DFO-LS-style BTN diagnostic fallback paths,
 - Markov-chain generation and observable evaluation.
+
+It does not currently contain a complete WV-HMC transition kernel.  WV-HMC is a
+planned sibling sampler path after canonical TLTM closure and repository
+hygiene.
 
 Project goal:
 
@@ -18,11 +23,14 @@ The codebase is organized into explicit layers, has runnable numerical tests, an
 
 Current modernization state:
 
-- Canonical TLTM route is Newton -> p28 QN BTN/backflow rescue residual -> reverse gate -> Metropolis.
-- Flow policy is ODEX primary integration plus solver-internal ODE assist for Newton/QN residual evaluation, with strict final `flow(...)` for live proposals.
-- Stage2/Stage3 remain compatibility workflow entry points while M6 product-readiness work defines the future unified TLTM wrapper path.
-- Stage3_4 owns the separate `nofb` vs `withfb` production-comparison workflow.
-- Modernization reference-dataset construction/registration is paused until the M6 checklist is reviewed and explicitly started.
+- Canonical TLTM production mode is `nofb`; the frozen final criterion closure
+  did not find a downstream correctness, ratio-stability, or wall-clock reason
+  to promote `withfb`.
+- Lower failure count alone is not a production criterion.
+- DFO-LS fallback is default-off legacy diagnostic mode.
+- Stage2/Stage3 remain compatibility workflow entry points while the canonical
+  TLTM SOP and post-TLTM workflow define the next repository direction.
+- WV-HMC must be added later as a sibling sampler, not as a hidden TLTM mode.
 - Repository-level distribution license is GPL-3.0-or-later, selected to allow
   official DFO-LS production backend integration.
 
@@ -60,6 +68,14 @@ v1alpha sidecars as documented under
 
 Important runbooks:
 
+- `MODERNIZATION_POST_TLTM_WORKFLOW_20260528.md`
+- `TLTM_CANONICAL_SOP_20260528.md`
+- `POST_TLTM_ARTIFACT_INVENTORY_20260528.md`
+- `POST_TLTM_SOURCE_BOUNDARY_AUDIT_20260528.md`
+- `POST_TLTM_GUARDRAIL_CHECKLIST_20260528.md`
+- `WV_HMC_SIMPLIFIED_ALGORITHM_READBACK_20260528.md`
+- `WV_LEGACY_RESIDUE_AUDIT_20260528.md`
+- `runbooks/generated/post_tltm_wv_hmc_ready_20260529/FINAL_WITHFB_NOFB_CRITERION_CLOSURE_20260529.md`
 - `PARALLEL_WORKSTREAM_BOUNDARY_AND_REFERENCE_DATASET_POLICY.md`
 - `M6_REFERENCE_DATASET_DESIGN_SPEC.md`
 - `M6_REFERENCE_DATASET_READBACK_PLAN.md`
@@ -119,9 +135,9 @@ Recommended behavior:
   hand-written `action`, `ds`, `hessian_vec`, and observables.
 - Set `bootstrap_samples = 0` for automatic speed/accuracy tuning in expectation evaluation, or set a fixed positive value.
 - Temporary override is also available via `EVAL_BOOTSTRAP_SAMPLES=<N>` at runtime.
-- Quasi fallback remains the active improvement path; no-fallback is a reference mode.
-- Current working fallback baseline is bounded probe-only with near/non-near rescue disabled.
-- Optional fallback controls:
+- `nofb` is the canonical TLTM production mode. `withfb` / DFO-LS fallback is
+  retained as a default-off legacy diagnostic path.
+- Optional diagnostic fallback controls:
   - `QN_S1_PROBE_MAX_ITER` (default `28`; keep `<=32` outside ablations)
   - `QN_S1_NEAR_RESCUE_ENABLED` (default `0`)
   - `QN_S1_NONNEAR_RESCUE_ENABLED` (default `0`)
@@ -165,8 +181,9 @@ and `LICENSE_POLICY.md`.
 Third-party packages/tools that affect production distribution are tracked in
 repository-root `THIRD_PARTY_NOTICES.md`. In particular:
 
-- Official DFO-LS is GPL-3.0-or-later and is the planned production solver
-  backend after behavior gates pass.
+- Official DFO-LS is GPL-3.0-or-later and remains available for diagnostic
+  fallback/readback paths unless the frozen final criterion framework promotes
+  it.
 
 ## State Vector Convention
 

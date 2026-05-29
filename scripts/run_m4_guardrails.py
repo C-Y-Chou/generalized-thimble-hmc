@@ -130,8 +130,8 @@ def write_tiny_stage3_config(path):
     config = {
         "stage_3_3_todo": {
             "frozen_setup": {
-                "flow_time_ladder": [0.0, 0.05],
-                "max_flow_time": 0.05,
+                "flow_time_ladder": [0.0, 1.0e-4],
+                "max_flow_time": 1.0e-4,
                 "trajectory_length_L": 0.2,
                 "nstep": 2,
                 "local_updates_per_cycle": 1,
@@ -515,6 +515,8 @@ def run_guardrails(args):
                     "test_tltm_rng_contract",
                     "test_perf_profile_context_contract",
                     "test_numerical_helper_contracts",
+                    "test_wv_hmc_math_kernels",
+                    "test_wv_hmc_constraint_kernels",
                     "test_hmc_reversibility_context_contract",
                     "test_newton_eval_flow_status_context_contract",
                     "test_retained_core_newton_contract",

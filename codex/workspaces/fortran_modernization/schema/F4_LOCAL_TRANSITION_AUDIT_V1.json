@@ -1,7 +1,7 @@
 {
   "schema_name": "local_transition_audit",
   "schema_version": "F4_LOCAL_TRANSITION_AUDIT_V1",
-  "updated_jst": "2026-05-12",
+  "updated_jst": "2026-05-29",
   "producer": "src/sampler/tltm_stage2_driver.f90",
   "typed_event_source": "src/sampler/tltm_types.f90:tltm_local_transition_event_t",
   "enable_env": "TLTM_LOCAL_TRANSITION_AUDIT_FILE",
@@ -26,7 +26,10 @@
       "near_success_delta",
       "rg_candidate_delta",
       "rg_pass_delta",
-      "rg_reject_delta"
+      "rg_reject_delta",
+      "qn_capture_before",
+      "qn_capture_after",
+      "qn_capture_delta"
     ],
     "acceptance_role_fields": ["accepted", "proposal_failed", "transition_status"],
     "counter_denominator": "one Stage2 local Metropolis transition row",
@@ -74,6 +77,9 @@
     "rg_candidate_delta",
     "rg_pass_delta",
     "rg_reject_delta",
+    "qn_capture_before",
+    "qn_capture_after",
+    "qn_capture_delta",
     "row_index"
   ],
   "required_row_invariants": [

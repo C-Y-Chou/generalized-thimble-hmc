@@ -110,6 +110,49 @@ Current implementation status:
 - Modernization is active at the reference-dataset generation/readback gate.
 - Future source-code modernization is gated by an accepted reference package or explicit user approval of a narrower baseline.
 
+## Post-TLTM Workflow Update - 2026-05-29
+
+The active modernization sequence has narrowed around TLTM closure before adding
+a second sampler path.
+
+Authoritative workflow documents:
+
+- `TLTM_CANONICAL_SOP_20260528.md`: TLTM production workflow order and canonical
+  nofb boundary.
+- `MODERNIZATION_POST_TLTM_WORKFLOW_20260528.md`: repository-level sequence for
+  closing TLTM, stabilizing shared infrastructure, and then adding WV-HMC.  It
+  also contains the explicit crosswalk from earlier handoff/open-item TODOs to
+  the post-TLTM wrapup phases.
+- `POST_TLTM_PRE_PRODUCTION_COMPLETION_20260528.md`,
+  `POST_TLTM_ARTIFACT_INVENTORY_20260528.md`,
+  `POST_TLTM_SOURCE_BOUNDARY_AUDIT_20260528.md`, and
+  `POST_TLTM_GUARDRAIL_CHECKLIST_20260528.md`: post-TLTM hygiene and guardrail
+  artifacts.
+- `WV_HMC_IMPLEMENTATION_PLAN_20260529.md`: staged WV-HMC implementation plan,
+  starting with deterministic math kernels before any sampler driver.
+- `runbooks/generated/post_tltm_wv_hmc_ready_20260529/FINAL_WITHFB_NOFB_CRITERION_CLOSURE_20260529.md`:
+  final frozen-gate closure for the Stephanov `n=6` `nofb`/`withfb`
+  comparison.
+
+Sequencing decision:
+
+1. Close the TLTM canonical path first.
+2. Keep `nofb` as TLTM production default.
+3. Keep `withfb` / DFO-LS fallback in legacy diagnostic status because the
+   frozen final gates did not show a downstream correctness, ratio-stability,
+   severe ergodicity, or wall-clock need.
+4. Stabilize shared model-provider, derivative, observable, IO, snapshot,
+   readback, and validation infrastructure.
+5. Add WV-HMC only as a sibling sampler path after TLTM closure, not as a hidden
+   mode inside TLTM.
+
+WV-HMC must follow both
+`WV_HMC_SIMPLIFIED_ALGORITHM_READBACK_20260528.md` and
+`WV_HMC_MATH_PHYSICS_REVIEW_20260529.md`, sequenced by
+`WV_HMC_IMPLEMENTATION_PLAN_20260529.md`, and must not reuse the old dead `wv`
+flag semantics.  The first WV-HMC source slice should be math-kernel and
+dense-oracle validation, not a production driver.
+
 ## Success criteria
 - major modules have stable, limited responsibilities
 - solver behavior is explainable and test-protected

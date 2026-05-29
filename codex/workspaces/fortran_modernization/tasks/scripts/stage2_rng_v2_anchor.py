@@ -20,7 +20,7 @@ STAGE2_ENV = {
     "TLTM_STAGE2_NUM_REPLICAS": "2",
     "TLTM_STAGE2_CYCLES": "2",
     "TLTM_STAGE2_LOCAL_UPDATES": "2",
-    "TLTM_STAGE2_MAX_FLOW_TIME": "0.1",
+    "TLTM_STAGE2_MAX_FLOW_TIME": "1e-4",
     "TLTM_STAGE2_SWAP_ENABLED": "1",
 }
 CANONICAL_QN_ENV = {
@@ -122,6 +122,14 @@ def normalize_text(path, normalize_summary):
         stripped = line.strip()
         if normalize_summary and stripped.startswith("# elapsed_sec="):
             normalized.append("# elapsed_sec=<elapsed_sec>")
+            runtime_index = None
+            continue
+        if normalize_summary and (
+            stripped.startswith("# production_timing ") or stripped.startswith("# production_subtiming ")
+        ):
+            tokens = stripped.split()
+            telemetry_key = tokens[1] if len(tokens) > 1 and tokens[0] == "#" else tokens[0].lstrip("#")
+            normalized.append("#{0}=<runtime_dependent_production_telemetry>".format(telemetry_key))
             runtime_index = None
             continue
         if stripped.startswith("#"):

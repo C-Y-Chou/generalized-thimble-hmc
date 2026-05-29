@@ -1,0 +1,142 @@
+{
+  "status": {
+    "date": "2026-05-27",
+    "label": "transport warning flag; no production switch yet",
+    "scope": "Stephanov n=6 TLTM t_high=0.03 nofb vs withfb",
+    "current_positive_evidence": [
+      "failure-mediated ladder transport only"
+    ],
+    "current_negative_or_inconclusive_evidence": [
+      "denominator and phase-ESS instability gates currently do not support withfb necessity",
+      "observable-bias gate currently does not support withfb necessity",
+      "wall-clock efficiency unavailable",
+      "final withfb failure/swap/runtime/solver summaries unavailable"
+    ]
+  },
+  "hard_gates": [
+    {
+      "name": "observable_correctness",
+      "metrics": [
+        "Re(chiral_condensate) vs exact 0.0244771983",
+        "Im(chiral_condensate) vs zero",
+        "Re(number_density) vs exact 0.5661155667",
+        "Im(number_density) vs zero"
+      ]
+    },
+    {
+      "name": "wall_clock_efficiency",
+      "metrics": [
+        "phase_ESS_per_hour",
+        "round_trips_per_hour",
+        "1_over_SE_Re_chiral_condensate_squared_per_hour",
+        "1_over_SE_Re_number_density_squared_per_hour",
+        "runtime_and_solver_cost_breakdown"
+      ]
+    }
+  ],
+  "mechanistic_gates": [
+    {
+      "name": "ratio_estimator_stability",
+      "metrics": [
+        "global_pooled_C",
+        "block_C",
+        "phase_ESS",
+        "abs_D",
+        "arg_D",
+        "denominator_outlier_rate",
+        "leave_one_seed_influence"
+      ]
+    },
+    {
+      "name": "ladder_transport_high_flow_return",
+      "metrics": [
+        "label_MSD",
+        "round_trips",
+        "zero_round_trip_seed_fraction",
+        "high_flow_first_passage",
+        "high_flow_return_time",
+        "high_flow_residence",
+        "high_flow_consecutive_stay_length"
+      ]
+    },
+    {
+      "name": "failure_mediated_repair",
+      "metrics": [
+        "matched_seed_block_delta_failure_rate",
+        "matched_seed_block_delta_transport",
+        "matched_seed_block_delta_ratio_stability",
+        "matched_seed_block_delta_observable_error",
+        "high_failure_nofb_seeds_where_withfb_improves"
+      ]
+    },
+    {
+      "name": "edge_localized_bottleneck",
+      "metrics": [
+        "failure_rate_by_edge",
+        "swap_acceptance_by_edge",
+        "accepted_flux_by_edge",
+        "bottleneck_rank",
+        "withfb_repairs_nofb_bottleneck_edges"
+      ]
+    }
+  ],
+  "adopt_withfb_conditions": [
+    "nofb fails observable correctness under robust seed/block uncertainty and withfb fixes or materially reduces the same failure",
+    "nofb has ratio-estimator instability and withfb repairs the same instability in matched seeds/blocks",
+    "nofb transport degradation propagates to estimator quality or high-flow ergodicity risk and withfb repairs that degradation in the same seeds/blocks/edges",
+    "withfb is competitive or better in primary information rate per wall-clock hour and does not materially degrade the other primary observable"
+  ],
+  "keep_nofb_conditions": [
+    "observables pass against exact/zero targets",
+    "denominator stability passes",
+    "transport warning does not propagate downstream to observable bias, ratio instability, high-flow non-return, or reduced wall-clock-normalized precision",
+    "nofb wins or ties withfb in primary 1/SE^2/hour metrics",
+    "conclusions survive seed bootstrap, block-size variation, matched-seed common-prefix comparison, and equal-wall-clock comparison"
+  ],
+  "deferred_items": [
+    "true_withfb_failure_counts",
+    "swap_acceptance_by_ladder_edge",
+    "local_acceptance_by_flow_time_slot",
+    "fallback_calls",
+    "DFO_LS_objective_evaluations",
+    "ODE_calls",
+    "ODE_step_counts",
+    "per_record_wall_clock_timing",
+    "production_timing_breakdown",
+    "equal_wall_clock_cuts",
+    "true_paired_delta_failure_rate",
+    "edge_localized_bottleneck_repair",
+    "cost_adjusted_rescued_failure_value"
+  ],
+  "cut_hierarchy": [
+    {
+      "name": "matched_seed_equal_prefix",
+      "role": "primary algorithmic comparison before final runtimes are available"
+    },
+    {
+      "name": "equal_wall_clock",
+      "role": "required for final production decision"
+    },
+    {
+      "name": "equal_cycle",
+      "role": "per-cycle algorithmic behavior; insufficient when runtime differs strongly"
+    },
+    {
+      "name": "all_available",
+      "role": "operational comparison, not algorithm-intrinsic when budgets differ"
+    }
+  ],
+  "non_circularity_rule": {
+    "statement": "Lower failure count itself is not a criterion.",
+    "allowed_use_of_failure": "Failure can support a decision only if it predicts or repairs downstream non-failure degradation.",
+    "allowed_downstream_metrics": [
+      "observable_correctness",
+      "ratio_estimator_stability",
+      "ladder_transport",
+      "high_flow_return",
+      "seed_robustness",
+      "wall_clock_normalized_information_rate"
+    ],
+    "transport_only_rule": "Transport-only improvement is not enough for a production switch unless it indicates severe ergodicity risk such as zero-round-trip seeds, high-flow non-return, high-flow trapping, or edge bottleneck trapping."
+  }
+}

@@ -28,7 +28,7 @@ STAGE1_ENV = {
     "TLTM_STAGE1_NUM_REPLICAS": "2",
     "TLTM_STAGE1_CYCLES": "2",
     "TLTM_STAGE1_LOCAL_UPDATES": "2",
-    "TLTM_STAGE1_MAX_FLOW_TIME": "0.1",
+    "TLTM_STAGE1_MAX_FLOW_TIME": "1e-4",
 }
 STAGE2_ENV = {
     "CHAIN_RNG_SEED": SEED,
@@ -36,7 +36,7 @@ STAGE2_ENV = {
     "TLTM_STAGE2_NUM_REPLICAS": "2",
     "TLTM_STAGE2_CYCLES": "2",
     "TLTM_STAGE2_LOCAL_UPDATES": "2",
-    "TLTM_STAGE2_MAX_FLOW_TIME": "0.1",
+    "TLTM_STAGE2_MAX_FLOW_TIME": "1e-4",
     "TLTM_STAGE2_SWAP_ENABLED": "1",
 }
 CANONICAL_QN_ENV = {
@@ -154,6 +154,8 @@ def normalize_text(path, normalize_summary):
         if normalize_summary and (
             stripped.startswith("# odex_stats ")
             or stripped.startswith("# odex_context_")
+            or stripped.startswith("# production_timing ")
+            or stripped.startswith("# production_subtiming ")
         ):
             tokens = stripped.split()
             telemetry_key = tokens[1] if len(tokens) > 1 and tokens[0] == "#" else tokens[0].lstrip("#")

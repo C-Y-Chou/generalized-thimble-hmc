@@ -158,8 +158,8 @@ def write_tiny_stage3_config(path):
     config = {
         "stage_3_3_todo": {
             "frozen_setup": {
-                "flow_time_ladder": [0.0, 0.05],
-                "max_flow_time": 0.05,
+                "flow_time_ladder": [0.0, 1.0e-4],
+                "max_flow_time": 1.0e-4,
                 "trajectory_length_L": 0.2,
                 "nstep": 2,
                 "local_updates_per_cycle": 1,

@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-05-29T03:59:15.205319+00:00",
+  "nofb": {
+    "common_max_prefix": 15001,
+    "records": 512,
+    "samples_max": 15001,
+    "samples_median": 15001,
+    "samples_min": 15001,
+    "samples_total": 7680512
+  },
+  "nofb_root": "output/stephanov_tltm_production/stephanov_n6_nofb15k_512_equalcost_20260526f",
+  "withfb": {
+    "common_max_prefix": 5001,
+    "records": 512,
+    "samples_max": 5001,
+    "samples_median": 5001,
+    "samples_min": 5001,
+    "samples_total": 2560512
+  },
+  "withfb_root": "output/stephanov_tltm_production/stephanov_n6_5000_complete_512_optimal_20260526e"
+}

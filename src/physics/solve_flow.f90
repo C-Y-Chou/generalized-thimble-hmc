@@ -40,9 +40,11 @@ module solve_flow
       real(dp), allocatable :: intode_yc(:), intode_yf(:)
       real(dp), allocatable :: flow_vec_y(:), flow_vec_yf(:)
       real(dp), allocatable :: flow_jac_y(:), flow_jac_yf(:)
+      real(dp), allocatable :: flow_wv_y(:), flow_wv_yf(:)
       complex(dp), allocatable :: flow_vec_z(:), flow_vec_ds(:)
       complex(dp), allocatable :: flow_jac_z(:), flow_jac_ds(:)
       complex(dp), allocatable :: flow_jac_j(:, :), flow_jac_jprod(:, :)
+      complex(dp), allocatable :: flow_wv_z(:), flow_wv_ds(:), flow_wv_v(:), flow_wv_n(:), flow_wv_hv_v(:), flow_wv_hv_n(:)
       real(dp) :: flow_vec_rhs_scale = 1.0_dp
       type(intode_runtime_trace_context_t) :: intode_trace
       type(odex_workspace) :: intode_odex_workspace
@@ -1684,6 +1686,105 @@ contains
       end if
    end subroutine flow_at
 
+   subroutine flow_apply_worldvolume_operator_at(flow_time, x_state, w0_real, z, tangent, normal, combined, error, &
+                                                 status, workspace, intode_diagnostics)
+      real(dp), intent(in) :: flow_time, x_state(:), w0_real(:)
+      complex(dp), intent(inout) :: z(:)
+      real(dp), intent(out) :: tangent(:), normal(:), combined(:)
+      logical, intent(out) :: error
+      integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout), optional :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+
+      type(flow_workspace_t) :: local_workspace
+
+      if (present(workspace)) then
+         call flow_apply_worldvolume_operator_at_with_workspace(flow_time, x_state, w0_real, z, tangent, normal, &
+                                                               combined, error, status, workspace, intode_diagnostics)
+      else
+         call flow_apply_worldvolume_operator_at_with_workspace(flow_time, x_state, w0_real, z, tangent, normal, &
+                                                               combined, error, status, local_workspace, intode_diagnostics)
+      end if
+   end subroutine flow_apply_worldvolume_operator_at
+
+   subroutine flow_apply_worldvolume_operator_at_with_workspace(flow_time, x_state, w0_real, z, tangent, normal, &
+                                                               combined, error, status, workspace, intode_diagnostics)
+      real(dp), intent(in) :: flow_time, x_state(:), w0_real(:)
+      complex(dp), intent(inout) :: z(:)
+      real(dp), intent(out) :: tangent(:), normal(:), combined(:)
+      logical, intent(out) :: error
+      integer, intent(out), optional :: status
+      type(flow_workspace_t), intent(inout) :: workspace
+      type(intode_diagnostics_context_t), intent(inout), optional, target :: intode_diagnostics
+
+      integer :: n, n_complex, flow_status_local, i
+      real(dp) :: t_prof
+
+      call perf_tic(t_prof)
+      call set_intode_status(status, intode_status_unknown)
+      error = .true.
+      z = cmplx(0.0_dp, 0.0_dp, dp)
+      tangent = 0.0_dp
+      normal = 0.0_dp
+      combined = 0.0_dp
+      n_complex = size(x_state)
+      n = 2*n_complex
+      if (n_complex <= 0) then
+         call set_intode_status(status, intode_status_failure_invalid)
+         call perf_toc(PERF_FLOW, t_prof)
+         return
+      end if
+      if (size(z) /= n_complex .or. size(w0_real) /= n .or. size(tangent) /= n .or. size(normal) /= n .or. &
+          size(combined) /= n) then
+         call set_intode_status(status, intode_status_failure_invalid)
+         call perf_toc(PERF_FLOW, t_prof)
+         return
+      end if
+      if ((.not. ieee_is_finite(flow_time)) .or. vector_has_invalid(x_state) .or. vector_has_invalid(w0_real)) then
+         call set_intode_status(status, intode_status_failure_invalid)
+         call perf_toc(PERF_FLOW, t_prof)
+         return
+      end if
+
+      call ensure_real_workspace(workspace%flow_wv_y, 3*n)
+      call ensure_real_workspace(workspace%flow_wv_yf, 3*n)
+      call ensure_complex_workspace(workspace%flow_wv_z, n_complex)
+      call ensure_complex_workspace(workspace%flow_wv_ds, n_complex)
+      call ensure_complex_workspace(workspace%flow_wv_v, n_complex)
+      call ensure_complex_workspace(workspace%flow_wv_n, n_complex)
+      call ensure_complex_workspace(workspace%flow_wv_hv_v, n_complex)
+      call ensure_complex_workspace(workspace%flow_wv_hv_n, n_complex)
+
+      workspace%flow_wv_y(1:n:2) = x_state
+      workspace%flow_wv_y(2:n:2) = 0.0_dp
+      workspace%flow_wv_y(n + 1:3*n) = 0.0_dp
+      do i = 1, n_complex
+         workspace%flow_wv_y(n + 2*i - 1) = w0_real(2*i - 1)
+         workspace%flow_wv_y(2*n + 2*i) = w0_real(2*i)
+      end do
+
+      workspace%intode_trace%current_context = intode_ctx_flow
+      call intode_with_context(rhs_flow_wv_operator_context, workspace%flow_wv_y(1:3*n), flow_time, &
+                               workspace%flow_wv_yf(1:3*n), error, flow_status_local, workspace, intode_diagnostics)
+      workspace%intode_trace%current_context = intode_ctx_unknown
+      call set_intode_status(status, flow_status_local)
+      if (error) then
+         call perf_toc(PERF_FLOW, t_prof)
+         return
+      end if
+
+      call real_to_complex(workspace%flow_wv_yf(1:n), z)
+      tangent = workspace%flow_wv_yf(n + 1:2*n)
+      normal = workspace%flow_wv_yf(2*n + 1:3*n)
+      combined = tangent + normal
+      error = vector_has_invalid(tangent) .or. vector_has_invalid(normal) .or. vector_has_invalid(combined) .or. &
+              complex_vector_has_invalid(z)
+      if (error) then
+         call set_intode_status(status, intode_status_failure_invalid)
+      end if
+      call perf_toc(PERF_FLOW, t_prof)
+   end subroutine flow_apply_worldvolume_operator_at_with_workspace
+
    subroutine flow_continue(source_flow_time, target_flow_time, z_source, j_source, z, j, error, status, &
                             workspace, intode_diagnostics)
       real(dp), intent(in) :: source_flow_time, target_flow_time
@@ -2204,6 +2305,38 @@ contains
       end select
    end function rhs_flow_jac_context
 
+   function rhs_flow_wv_operator_context(y, context) result(f)
+      implicit none
+      real(dp), intent(in) :: y(:)
+      class(*), intent(inout) :: context
+      real(dp) :: f(size(y))
+      integer :: n_complex, n
+
+      f = 0.0_dp
+      select type (workspace => context)
+      type is (flow_workspace_t)
+         if (.not. allocated(workspace%flow_wv_z) .or. .not. allocated(workspace%flow_wv_ds)) return
+         if (.not. allocated(workspace%flow_wv_v) .or. .not. allocated(workspace%flow_wv_n)) return
+         if (.not. allocated(workspace%flow_wv_hv_v) .or. .not. allocated(workspace%flow_wv_hv_n)) return
+
+         n_complex = size(workspace%flow_wv_z)
+         n = 2*n_complex
+         if (size(y) /= 3*n) return
+
+         call real_to_complex_vec_fast(y(1:n), workspace%flow_wv_z(1:n_complex))
+         call real_to_complex_vec_fast(y(n + 1:2*n), workspace%flow_wv_v(1:n_complex))
+         call real_to_complex_vec_fast(y(2*n + 1:3*n), workspace%flow_wv_n(1:n_complex))
+         call ds(workspace%flow_wv_z(1:n_complex), workspace%flow_wv_ds(1:n_complex))
+         call hessian_vec(workspace%flow_wv_z(1:n_complex), workspace%flow_wv_v(1:n_complex), &
+                          workspace%flow_wv_hv_v(1:n_complex))
+         call hessian_vec(workspace%flow_wv_z(1:n_complex), workspace%flow_wv_n(1:n_complex), &
+                          workspace%flow_wv_hv_n(1:n_complex))
+         call complex_to_real_vec_conjg_scaled_fast(workspace%flow_wv_ds(1:n_complex), f(1:n), 1.0_dp)
+         call complex_to_real_vec_conjg_scaled_fast(workspace%flow_wv_hv_v(1:n_complex), f(n + 1:2*n), 1.0_dp)
+         call complex_to_real_vec_conjg_scaled_fast(workspace%flow_wv_hv_n(1:n_complex), f(2*n + 1:3*n), -1.0_dp)
+      end select
+   end function rhs_flow_wv_operator_context
+
    subroutine map_to_real_conjg_scaled(mat, vec, scale)
       implicit none
       complex(dp), intent(in) :: mat(:, :)
@@ -2278,12 +2411,20 @@ contains
       if (allocated(workspace%flow_vec_yf)) deallocate (workspace%flow_vec_yf)
       if (allocated(workspace%flow_jac_y)) deallocate (workspace%flow_jac_y)
       if (allocated(workspace%flow_jac_yf)) deallocate (workspace%flow_jac_yf)
+      if (allocated(workspace%flow_wv_y)) deallocate (workspace%flow_wv_y)
+      if (allocated(workspace%flow_wv_yf)) deallocate (workspace%flow_wv_yf)
       if (allocated(workspace%flow_vec_z)) deallocate (workspace%flow_vec_z)
       if (allocated(workspace%flow_vec_ds)) deallocate (workspace%flow_vec_ds)
       if (allocated(workspace%flow_jac_z)) deallocate (workspace%flow_jac_z)
       if (allocated(workspace%flow_jac_ds)) deallocate (workspace%flow_jac_ds)
       if (allocated(workspace%flow_jac_j)) deallocate (workspace%flow_jac_j)
       if (allocated(workspace%flow_jac_jprod)) deallocate (workspace%flow_jac_jprod)
+      if (allocated(workspace%flow_wv_z)) deallocate (workspace%flow_wv_z)
+      if (allocated(workspace%flow_wv_ds)) deallocate (workspace%flow_wv_ds)
+      if (allocated(workspace%flow_wv_v)) deallocate (workspace%flow_wv_v)
+      if (allocated(workspace%flow_wv_n)) deallocate (workspace%flow_wv_n)
+      if (allocated(workspace%flow_wv_hv_v)) deallocate (workspace%flow_wv_hv_v)
+      if (allocated(workspace%flow_wv_hv_n)) deallocate (workspace%flow_wv_hv_n)
       if (allocated(workspace%intode_odex_workspace%tableau)) deallocate (workspace%intode_odex_workspace%tableau)
       if (allocated(workspace%intode_odex_workspace%ystate)) deallocate (workspace%intode_odex_workspace%ystate)
       if (allocated(workspace%intode_odex_workspace%yprev)) deallocate (workspace%intode_odex_workspace%yprev)

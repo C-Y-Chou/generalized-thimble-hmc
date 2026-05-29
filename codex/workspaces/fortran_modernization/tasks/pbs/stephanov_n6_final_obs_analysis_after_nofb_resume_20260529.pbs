@@ -1,0 +1,71 @@
+#!/bin/bash
+set -euo pipefail
+
+: "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization}"
+: "${TLTM_ANALYSIS_TOOL_ROOT:=/lustre1/home/cychou/TLTM_analysis_tools/stephanov_n6_final_20260529}"
+: "${TLTM_ANALYSIS_OUT:=/lustre1/home/cychou/TLTM_postrun_analysis/stephanov_n6_final_observable_z_20260529_complete}"
+: "${TLTM_WITHFB_ROOT:=output/stephanov_tltm_production/stephanov_n6_5000_complete_512_optimal_20260526e}"
+: "${TLTM_NOFB_ROOT:=output/stephanov_tltm_production/stephanov_n6_nofb15k_512_equalcost_20260526f}"
+
+cd "${TLTM_WORKTREE}"
+mkdir -p "${TLTM_ANALYSIS_OUT}"
+exec > "${TLTM_ANALYSIS_OUT}/pbs_analysis_${PBS_JOBID:-manual}.log" 2>&1
+
+echo "RUN_DATE=$(date -Is)"
+echo "HOSTNAME=$(hostname)"
+echo "PBS_JOBID=${PBS_JOBID:-manual}"
+echo "TLTM_WORKTREE=${TLTM_WORKTREE}"
+echo "TLTM_ANALYSIS_TOOL_ROOT=${TLTM_ANALYSIS_TOOL_ROOT}"
+echo "TLTM_ANALYSIS_OUT=${TLTM_ANALYSIS_OUT}"
+echo "TLTM_WITHFB_ROOT=${TLTM_WITHFB_ROOT}"
+echo "TLTM_NOFB_ROOT=${TLTM_NOFB_ROOT}"
+
+/usr/bin/python3.11 - "${TLTM_NOFB_ROOT}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+width = 12 * 8
+by_record = {}
+for path in root.glob("nofb15*/records/record_*/observable_history.dat"):
+    rid = int(path.parent.name.rsplit("_", 1)[1])
+    by_record.setdefault(rid, 0)
+    by_record[rid] += path.stat().st_size // width
+lengths = {rid: by_record.get(rid, 0) for rid in range(808) if rid in by_record}
+active = {rid: rows for rid, rows in lengths.items() if rows > 0}
+bad = {rid: rows for rid, rows in active.items() if rows != 15001}
+summary = {
+    "records": len(active),
+    "min_rows": min(active.values()) if active else 0,
+    "max_rows": max(active.values()) if active else 0,
+    "bad_count": len(bad),
+    "bad_first": list(sorted(bad.items())[:20]),
+}
+print(json.dumps(summary, indent=2, sort_keys=True))
+if len(active) != 512 or bad:
+    raise SystemExit(3)
+PY
+
+/usr/bin/python3.11 "${TLTM_ANALYSIS_TOOL_ROOT}/write_stephanov_n6_convergence_visuals_20260528.py" \
+  --withfb-root "${TLTM_WITHFB_ROOT}" \
+  --nofb-root "${TLTM_NOFB_ROOT}" \
+  --out-dir "${TLTM_ANALYSIS_OUT}"
+
+/usr/bin/python3.11 "${TLTM_ANALYSIS_TOOL_ROOT}/write_stephanov_n6_z_convergence_20260528.py" \
+  --withfb-root "${TLTM_WITHFB_ROOT}" \
+  --nofb-root "${TLTM_NOFB_ROOT}" \
+  --out-dir "${TLTM_ANALYSIS_OUT}"
+
+/usr/bin/python3.11 "${TLTM_ANALYSIS_TOOL_ROOT}/write_stephanov_n6_final_observable_z_20260529.py" \
+  --withfb-root "${TLTM_WITHFB_ROOT}" \
+  --nofb-root "${TLTM_NOFB_ROOT}" \
+  --out-dir "${TLTM_ANALYSIS_OUT}"
+
+cd "${TLTM_ANALYSIS_OUT}"
+gnuplot plot_cumulative.gp
+gnuplot plot_delta.gp
+gnuplot plot_block.gp
+gnuplot plot_distance.gp
+gnuplot plot_z_convergence.gp
+echo "ANALYSIS_DONE=${TLTM_ANALYSIS_OUT}"

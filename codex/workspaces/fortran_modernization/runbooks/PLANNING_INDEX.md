@@ -1,10 +1,23 @@
 # Fortran Modernization Planning Index
 
-Updated: 2026-05-10
+Updated: 2026-05-29
 Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 ## Start Here
 
+- `MODERNIZATION_POST_TLTM_WORKFLOW_20260528.md`
+- `TLTM_CANONICAL_SOP_20260528.md`
+- `POST_TLTM_PRE_PRODUCTION_COMPLETION_20260528.md`
+- `POST_TLTM_ARTIFACT_INVENTORY_20260528.md`
+- `POST_TLTM_SOURCE_BOUNDARY_AUDIT_20260528.md`
+- `POST_TLTM_GUARDRAIL_CHECKLIST_20260528.md`
+- `PRODUCT_DOCS_CONSOLIDATION_DESIGN_20260528.md`
+- `WV_HMC_SIMPLIFIED_ALGORITHM_READBACK_20260528.md`
+- `WV_HMC_MATH_PHYSICS_REVIEW_20260529.md`
+- `WV_HMC_IMPLEMENTATION_PLAN_20260529.md`
+- `WV_LEGACY_RESIDUE_AUDIT_20260528.md`
+- `STEPHANOV_N6_DATASET_ARCHIVE_GROUPS_20260528.md`
+- `runbooks/generated/post_tltm_wv_hmc_ready_20260529/FINAL_WITHFB_NOFB_CRITERION_CLOSURE_20260529.md`
 - `CONFIRMED_DECISIONS_AND_NEXT_PLAN.md`
 - `PRE_STAGE3_4_COMPLETION_PLAN.md`
 - `M3_TO_M6_BEFORE_REFERENCE_DATASET_PLAN.md`
@@ -20,6 +33,17 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 - `BEHAVIOR_PRESERVATION_PROTOCOL.md`
 - `FORTRAN_MODERNIZATION_MASTER_PLAN.md`
+- `MODERNIZATION_POST_TLTM_WORKFLOW_20260528.md`
+- `TLTM_CANONICAL_SOP_20260528.md`
+- `POST_TLTM_PRE_PRODUCTION_COMPLETION_20260528.md`
+- `POST_TLTM_ARTIFACT_INVENTORY_20260528.md`
+- `POST_TLTM_SOURCE_BOUNDARY_AUDIT_20260528.md`
+- `POST_TLTM_GUARDRAIL_CHECKLIST_20260528.md`
+- `PRODUCT_DOCS_CONSOLIDATION_DESIGN_20260528.md`
+- `WV_HMC_SIMPLIFIED_ALGORITHM_READBACK_20260528.md`
+- `WV_HMC_MATH_PHYSICS_REVIEW_20260529.md`
+- `WV_HMC_IMPLEMENTATION_PLAN_20260529.md`
+- `WV_LEGACY_RESIDUE_AUDIT_20260528.md`
 - `SUBROUTINE_API_REDESIGN_GUIDE.md`
 - `TEST_AND_BENCHMARK_ROADMAP.md`
 
@@ -48,6 +72,18 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 ## Repo-Wide Modernization
 
+- `MODERNIZATION_POST_TLTM_WORKFLOW_20260528.md`
+- `TLTM_CANONICAL_SOP_20260528.md`
+- `POST_TLTM_PRE_PRODUCTION_COMPLETION_20260528.md`
+- `POST_TLTM_ARTIFACT_INVENTORY_20260528.md`
+- `POST_TLTM_SOURCE_BOUNDARY_AUDIT_20260528.md`
+- `POST_TLTM_GUARDRAIL_CHECKLIST_20260528.md`
+- `PRODUCT_DOCS_CONSOLIDATION_DESIGN_20260528.md`
+- `WV_HMC_SIMPLIFIED_ALGORITHM_READBACK_20260528.md`
+- `WV_HMC_MATH_PHYSICS_REVIEW_20260529.md`
+- `WV_HMC_IMPLEMENTATION_PLAN_20260529.md`
+- `WV_LEGACY_RESIDUE_AUDIT_20260528.md`
+- `STEPHANOV_N6_DATASET_ARCHIVE_GROUPS_20260528.md`
 - `M3_ARCHITECTURE_CONTRACT.md`
 - `M3_TEMPERING_PROTOCOL_AND_OUTPUT_SCHEMA_DESIGN.md`
 - `M3_V0_OUTPUT_INVENTORY_AND_PROTOCOL_AUDIT_PLAN.md`
@@ -76,10 +112,22 @@ Scope: index of planning artifacts for TLTM repo-wide modernization.
 
 ## Current Position
 
-- Current phase: R1-R4 reference dataset PBS/config package prepared; desktop cannot submit because `qsub` is unavailable.
-- Completed source wave: ODEX sequence canonicalization, QN BTN sign cleanup, QN invalid-evaluation handling, post-refine/non-p28 QN source deletion, Radau/JFNK source deletion, solver-assist naming cleanup, RATTLE progress guard diagnostic downgrade, and state/status surface patches.
-- Latest completed M3 slice: parser-only TLTM protocol audit, adjacent-swap kernel contract test, opt-in Stage2 v1alpha sidecars, and Stage2 post-swap measurement/history/label-trace boundary.
-- Current next area: run `tasks/scripts/submit_m6_reference_datasets.sh` from the PBS cluster worktree to submit R1-R4. No source-code modernization should begin before an accepted reference baseline or an explicitly approved narrower baseline.
+- Current phase: post-TLTM closure is complete enough to open the WV-HMC
+  implementation gate after local guardrails pass.
+- Final Stephanov `n=6`, `t_high=0.03` TLTM criterion packet:
+  `runbooks/generated/post_tltm_wv_hmc_ready_20260529/FINAL_WITHFB_NOFB_CRITERION_CLOSURE_20260529.md`.
+- Canonical TLTM production mode is `nofb`; `withfb` / DFO-LS fallback is
+  default-off legacy diagnostic mode.
+- Completed post-TLTM wrapup: canonical SOP, frozen `nofb`/`withfb` criterion
+  framework, final criterion closure, four-group dataset registry, handoff TODO
+  crosswalk, artifact inventory, source boundary audit, guardrail checklist,
+  WV-HMC algorithm readback, and stale `wv` config residue removal.
+- Next allowed work: add WV-HMC as a sibling sampler following
+  `WV_HMC_SIMPLIFIED_ALGORITHM_READBACK_20260528.md` and
+  `WV_HMC_MATH_PHYSICS_REVIEW_20260529.md`, sequenced by
+  `WV_HMC_IMPLEMENTATION_PLAN_20260529.md`.  Do not resurrect the old `wv` flag
+  semantics and do not modify canonical TLTM proposal behavior while adding
+  WV-HMC.
 
 - `M2_RETAINED_CORE_IMPLEMENTATION_AUDIT_SUMMARY.md`: completed static audit findings and discussion blockers for retained ODEX/Newton/RATTLE/QN/HMC code.
 - `M2_REFERENCE_BACKED_CORE_AUDIT.md`: reference-first retained-core audit superseding the earlier source-level risk scan where conclusions differ.
