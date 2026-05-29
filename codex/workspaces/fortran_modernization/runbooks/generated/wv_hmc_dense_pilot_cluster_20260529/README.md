@@ -50,14 +50,17 @@ Fixed profile: `paper_wall`, `gamma=1`, `T0=0.005`, `T1=0.2`, `d0=0.005`,
 ## Pre-Matrix-Free Working Point
 
 Use `paper_wall gamma=1`, `T0=0.005`, `T1=0.2`, `d0=0.005`, `d1=0.05`,
-`epsilon=0.002`, `nstep=2` as the current conservative dense working point.
+`epsilon=0.002`, `nstep=2` as the current dense working point.
 
 Reason: it moves substantially beyond the small-flow region (`flow_mean ~
-0.0346`, `flow_max ~ 0.107`) while keeping pressure moderate in the 200-cycle
-pilot (`194/200` accepted, `2` reverse-gate rejects, `3` construction
-failures).  `epsilon=0.003, nstep=2` reaches deeper (`flow_mean ~0.0759`) but
-already has much higher failure pressure (`7` reverse-gate rejects, `22`
-construction failures).
+0.0346`, `flow_max ~ 0.107`) with `194/200` accepted attempts in the 200-cycle
+pilot.  `epsilon=0.003, nstep=2` reaches deeper (`flow_mean ~0.0759`) but
+has lower acceptance (`170/200` accepted).
+
+Reverse-gate rejections and classified construction failures are reported in
+the tables, but they are not correctness criteria for this production-kernel
+choice.  They are stay-put rejections and efficiency/robustness diagnostics, so
+the tuning criterion here is target acceptance plus useful flow-time transport.
 
 This is not a physics-production setting.  It is the dense-oracle starting
 point for matrix-free / BiCGStab trajectory wiring and later high-dimensional

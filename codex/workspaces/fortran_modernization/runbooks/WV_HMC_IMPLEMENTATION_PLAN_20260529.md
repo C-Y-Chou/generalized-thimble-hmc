@@ -196,14 +196,17 @@ parameters are not model observables; they are experiment settings.
      next step is multicanonical tuning of `W(t)`, not changing the estimator.
 
 5. Choose HMC trajectory parameters.
-   - Pick the integrator step size `epsilon` first, because it controls local
-     numerical stability and acceptance.
-   - Then scan `nstep` and `L=epsilon*nstep` for flow-time transport, bounce
-     rate, round trips, and acceptance.
-   - Do not choose `L/nstep` by trying to suppress diagnostic failures alone.
-     Failures are diagnostics; the primary criteria are correct transition
-     behavior, stable Hamiltonian errors, adequate flow-time transport, and
-     estimator quality.
+   - Pick the integrator step size `epsilon` first, because it controls the
+     proposal scale and acceptance.
+   - Then scan `nstep` and `L=epsilon*nstep` for the target acceptance rate,
+     flow-time transport, bounce rate, and round trips.
+   - Do not choose `epsilon`, `L`, or `nstep` by trying to suppress diagnostic
+     failures or reverse-gate rejections.  In the production Markov kernel,
+     reverse-gate rejection and classified construction failure are stay-put
+     rejections and therefore affect efficiency, not correctness, provided the
+     transition records them as attempts and does not silently select samples.
+     They remain numerical health diagnostics and cost predictors, not primary
+     tuning criteria.
 
 6. Run a short pilot.
    - Record flow-time histogram, high/low boundary bounce counts, acceptance,
@@ -211,8 +214,9 @@ parameters are not model observables; they are experiment settings.
      flow-time round trips, and measurement inclusion/skips.
    - If samples accumulate at low `t`, increase `gamma` or use a tuned
      multicanonical profile.
-   - If wall bounces or solver failures dominate, adjust `epsilon`, `d0/d1`,
-     and wall strength before increasing production length.
+   - If wall bounces or solver failures dominate, treat that as an efficiency
+     and robustness diagnostic.  Retune through the target acceptance rate and
+     flow-time transport, not by imposing a separate low-failure objective.
 
 7. Promote to production only after readback passes.
    - Small exact-reference observables must be correct.
@@ -397,7 +401,7 @@ Additional completed kernel-level validation:
   Both PBS jobs passed the WV math and constraint kernel tests before running
   the scans.  The initial grid confirmed that flat `W(t)` concentrates near
   small flow time, while the focused tilted-wall grid identified the current
-  conservative dense-oracle working point:
+  dense-oracle working point under the acceptance/transport criterion:
   `paper_wall gamma=1`, `T0=0.005`, `T1=0.2`, `d0=0.005`, `d1=0.05`,
   `epsilon=0.002`, `nstep=2`.  This is a pre-matrix-free wiring point, not a
   production physics setting.
