@@ -14,7 +14,7 @@ from pathlib import Path
 
 def run_seed(args):
     (binary, output_root, parameters_file, seed, cycles, measurement_start_cycle, timeout_sec,
-     step_size, num_steps, init_mode, init_sigma) = args
+     step_size, num_steps, init_mode, init_sigma, init_bank_file, init_bank_record) = args
     summary_path = output_root / "seed_{:05d}_summary.csv".format(seed)
     observable_path = output_root / "seed_{:05d}_observables.csv".format(seed)
     log_path = output_root / "seed_{:05d}.log".format(seed)
@@ -44,6 +44,10 @@ def run_seed(args):
         "WV_HMC_REVERSE_GATE_STATE_TOL": "1.0e-5",
         "WV_HMC_REVERSE_GATE_MOMENTUM_TOL": "1.0e-3",
     })
+    if init_bank_file:
+        env["WV_HMC_INIT_BANK_FILE"] = str(init_bank_file)
+    if init_bank_record >= 0:
+        env["WV_HMC_INIT_BANK_RECORD"] = str(init_bank_record)
     start = time.time()
     timed_out = 0
     return_code = 0
@@ -71,6 +75,8 @@ def run_seed(args):
         "trajectory_length": step_size * num_steps,
         "init_mode": init_mode,
         "init_sigma": init_sigma,
+        "init_bank_file": str(init_bank_file) if init_bank_file else "",
+        "init_bank_record": init_bank_record,
         "runtime_sec": runtime_sec,
         "timed_out": timed_out,
         "return_code": return_code,
@@ -93,6 +99,8 @@ def write_manifest(rows, output_root):
         "trajectory_length",
         "init_mode",
         "init_sigma",
+        "init_bank_file",
+        "init_bank_record",
         "runtime_sec",
         "timed_out",
         "return_code",
@@ -123,6 +131,8 @@ def main():
     parser.add_argument("--num-steps", type=int, default=2)
     parser.add_argument("--init-mode", default="random_gaussian")
     parser.add_argument("--init-sigma", type=float, default=0.8)
+    parser.add_argument("--init-bank-file", default="")
+    parser.add_argument("--init-bank-record", type=int, default=-1)
     parser.add_argument("--jobs", type=int, default=8)
     parser.add_argument("--timeout-sec", type=float, default=1200.0)
     args = parser.parse_args()
@@ -134,7 +144,8 @@ def main():
 
     work = [
         (binary, output_root, parameters_file, args.seed_start + offset, args.cycles, args.measurement_start_cycle,
-         args.timeout_sec, args.step_size, args.num_steps, args.init_mode, args.init_sigma)
+         args.timeout_sec, args.step_size, args.num_steps, args.init_mode, args.init_sigma, args.init_bank_file,
+         args.init_bank_record)
         for offset in range(args.seed_count)
     ]
     rows = [None] * len(work)

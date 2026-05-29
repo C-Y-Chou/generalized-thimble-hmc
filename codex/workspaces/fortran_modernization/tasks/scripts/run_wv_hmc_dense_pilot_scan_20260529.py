@@ -218,7 +218,8 @@ def read_one_row_csv(path):
     return rows[0]
 
 
-def run_candidate(binary, output_root, candidate, parameters_file, base_seed, flow_time, timeout_sec, rg_state_tol, rg_momentum_tol, init_mode, init_sigma):
+def run_candidate(binary, output_root, candidate, parameters_file, base_seed, flow_time, timeout_sec, rg_state_tol,
+                  rg_momentum_tol, init_mode, init_sigma, init_bank_file, init_bank_record):
     label = candidate["label"]
     summary_path = output_root / (label + "_summary.csv")
     observable_path = output_root / (label + "_observables.csv")
@@ -246,6 +247,10 @@ def run_candidate(binary, output_root, candidate, parameters_file, base_seed, fl
         "WV_HMC_INIT_MODE": init_mode,
         "WV_HMC_INIT_SIGMA": str(init_sigma),
     })
+    if init_bank_file:
+        env["WV_HMC_INIT_BANK_FILE"] = str(init_bank_file)
+    if init_bank_record >= 0:
+        env["WV_HMC_INIT_BANK_RECORD"] = str(init_bank_record)
     start = time.time()
     timed_out = False
     return_code = None
@@ -280,6 +285,8 @@ def run_candidate(binary, output_root, candidate, parameters_file, base_seed, fl
         "base_seed": base_seed,
         "init_mode": init_mode,
         "init_sigma": init_sigma,
+        "init_bank_file": str(init_bank_file) if init_bank_file else "",
+        "init_bank_record": init_bank_record,
         "parameters_file": str(parameters_file),
         "runtime_sec": runtime_sec,
         "timed_out": int(timed_out),
@@ -346,6 +353,8 @@ def write_scan_outputs(rows, output_root):
         "base_seed",
         "init_mode",
         "init_sigma",
+        "init_bank_file",
+        "init_bank_record",
         "parameters_file",
         "runtime_sec",
         "timed_out",
@@ -434,6 +443,8 @@ def main():
     parser.add_argument("--rg-momentum-tol", type=float, default=1.0e-3)
     parser.add_argument("--init-mode", default="random_gaussian")
     parser.add_argument("--init-sigma", type=float, default=0.8)
+    parser.add_argument("--init-bank-file", default="")
+    parser.add_argument("--init-bank-record", type=int, default=-1)
     args = parser.parse_args()
 
     binary = Path(args.binary)
@@ -457,6 +468,8 @@ def main():
                     args.rg_momentum_tol,
                     args.init_mode,
                     args.init_sigma,
+                    args.init_bank_file,
+                    args.init_bank_record,
                 )
             )
     else:
@@ -477,6 +490,8 @@ def main():
                     args.rg_momentum_tol,
                     args.init_mode,
                     args.init_sigma,
+                    args.init_bank_file,
+                    args.init_bank_record,
                 )
                 futures[future] = idx
             for future in as_completed(futures):

@@ -35,6 +35,8 @@ module load mkl/2025.3
 : "${WV_OBS_NUM_STEPS:=2}"
 : "${WV_OBS_INIT_MODE:=random_gaussian}"
 : "${WV_OBS_INIT_SIGMA:=0.8}"
+: "${WV_OBS_INIT_BANK_FILE:=}"
+: "${WV_OBS_INIT_BANK_RECORD:=-1}"
 : "${WV_OBS_JOBS:=16}"
 : "${WV_OBS_TIMEOUT_SEC:=1200}"
 
@@ -57,6 +59,8 @@ echo "WV_OBS_STEP_SIZE=${WV_OBS_STEP_SIZE}"
 echo "WV_OBS_NUM_STEPS=${WV_OBS_NUM_STEPS}"
 echo "WV_OBS_INIT_MODE=${WV_OBS_INIT_MODE}"
 echo "WV_OBS_INIT_SIGMA=${WV_OBS_INIT_SIGMA}"
+echo "WV_OBS_INIT_BANK_FILE=${WV_OBS_INIT_BANK_FILE}"
+echo "WV_OBS_INIT_BANK_RECORD=${WV_OBS_INIT_BANK_RECORD}"
 echo "WV_OBS_JOBS=${WV_OBS_JOBS}"
 
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
@@ -120,6 +124,8 @@ mkdir -p "${RUN_ROOT}" "${READBACK_ROOT}"
   --num-steps "${WV_OBS_NUM_STEPS}" \
   --init-mode "${WV_OBS_INIT_MODE}" \
   --init-sigma "${WV_OBS_INIT_SIGMA}" \
+  --init-bank-file "${WV_OBS_INIT_BANK_FILE}" \
+  --init-bank-record "${WV_OBS_INIT_BANK_RECORD}" \
   --jobs "${WV_OBS_JOBS}" \
   --timeout-sec "${WV_OBS_TIMEOUT_SEC}"
 

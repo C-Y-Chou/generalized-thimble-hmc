@@ -1,10 +1,11 @@
 module wv_hmc_app_common
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+   use, intrinsic :: iso_fortran_env, only: int64
    use model_observables, only: get_model_observable_name, model_observable_count
    use param_mod, only: config, read_parameters, set_derivative_mode
    use runtime_env_mod, only: parse_int_env, parse_real_env, read_string_env, to_lower_ascii
    use solve_flow, only: intode_status_unknown
-   use tltm_rng, only: tltm_rng_domain_wv_hmc_init, tltm_rng_fill_normal
+   use tltm_rng, only: tltm_rng_domain_wv_hmc_init, tltm_rng_fill_normal, tltm_rng_uniform
    use utils, only: dp
    use wv_hmc_driver, only: wv_dense_chain_summary_t, wv_run_dense_chain
    use wv_hmc_measurement, only: wv_dense_measurement_factor, wv_init_weighted_observable_accumulator, &
@@ -27,15 +28,17 @@ contains
       logical, intent(in) :: default_write_files
 
       integer :: n, num_steps, cycle_count, base_seed, status, observable_count, measurement_start_cycle
+      integer :: init_bank_record, init_bank_selected_record, init_bank_record_count
       real(dp) :: step_size, flow_time, sampler_t0, sampler_t1, d0, d1, measurement_t0, measurement_t1
       real(dp) :: w_gamma, w_c0, w_c1, reverse_gate_state_tol, reverse_gate_momentum_tol, init_sigma
       real(dp) :: flow_time_out
       real(dp), allocatable :: x(:), x_out(:)
       complex(dp), allocatable :: z_out(:), jac_out(:, :)
       logical :: error
-      logical :: has_summary_file, has_observable_file, has_w_profile, has_init_mode
+      logical :: has_summary_file, has_observable_file, has_w_profile, has_init_mode, has_init_bank_file
       logical :: found_summary_file, found_observable_file
       character(len=512) :: summary_file, observable_file
+      character(len=512) :: init_bank_file
       character(len=64) :: w_profile_name, init_mode_name
       type(wv_dense_chain_summary_t) :: summary
       type(wv_measurement_factor_t) :: measurement_factor
@@ -68,6 +71,10 @@ contains
       reverse_gate_state_tol = 1.0e-6_dp
       reverse_gate_momentum_tol = 1.0e-4_dp
       init_sigma = 0.8_dp
+      init_bank_file = ""
+      init_bank_record = -1
+      init_bank_selected_record = -1
+      init_bank_record_count = 0
       w_profile_name = "zero"
       init_mode_name = "deterministic"
       call parse_real_env(env_name(env_prefix, "STEP_SIZE"), step_size)
@@ -84,6 +91,8 @@ contains
       w_profile_name = to_lower_ascii(adjustl(w_profile_name))
       call read_string_env(env_name(env_prefix, "INIT_MODE"), init_mode_name, has_init_mode)
       init_mode_name = to_lower_ascii(adjustl(init_mode_name))
+      call read_string_env(env_name(env_prefix, "INIT_BANK_FILE"), init_bank_file, has_init_bank_file)
+      call parse_int_env(env_name(env_prefix, "INIT_BANK_RECORD"), init_bank_record)
       call parse_real_env(env_name(env_prefix, "W_GAMMA"), w_gamma)
       call parse_real_env(env_name(env_prefix, "W_C0"), w_c0)
       call parse_real_env(env_name(env_prefix, "W_C1"), w_c1)
@@ -104,9 +113,11 @@ contains
       if (found_observable_file) has_observable_file = .true.
 
       allocate (x(n), x_out(n), z_out(n), jac_out(n, n))
-      call fill_initial_x(x, trim(init_mode_name), init_sigma, base_seed, error)
+      call fill_initial_x(x, trim(init_mode_name), init_sigma, base_seed, trim(init_bank_file), init_bank_record, &
+                          init_bank_selected_record, init_bank_record_count, error)
       if (error) then
-         write (*, '(*(g0,1X))') "ERROR", "invalid_init_mode_or_sigma", trim(init_mode_name), init_sigma
+         write (*, '(*(g0,1X))') "ERROR", "invalid_initial_state", trim(init_mode_name), init_sigma, &
+            trim(init_bank_file), init_bank_record
          stop 3
       end if
       observable_count = model_observable_count()
@@ -186,6 +197,9 @@ contains
          "w_profile", trim(w_profile_name), &
          "init_mode", trim(init_mode_name), &
          "init_sigma", init_sigma, &
+         "init_bank_file", trim(init_bank_file), &
+         "init_bank_record", init_bank_selected_record, &
+         "init_bank_record_count", init_bank_record_count, &
          "w_gamma", w_gamma, &
          "w_c0", w_c0, &
          "w_c1", w_c1, &
@@ -241,14 +255,18 @@ contains
       end do
    end subroutine fill_deterministic_x
 
-   subroutine fill_initial_x(x_values, init_mode, init_sigma, base_seed, error)
+   subroutine fill_initial_x(x_values, init_mode, init_sigma, base_seed, init_bank_file, init_bank_record_request, &
+                             init_bank_selected_record, init_bank_record_count, error)
       real(dp), intent(out) :: x_values(:)
-      character(len=*), intent(in) :: init_mode
+      character(len=*), intent(in) :: init_mode, init_bank_file
       real(dp), intent(in) :: init_sigma
-      integer, intent(in) :: base_seed
+      integer, intent(in) :: base_seed, init_bank_record_request
+      integer, intent(out) :: init_bank_selected_record, init_bank_record_count
       logical, intent(out) :: error
 
       error = .true.
+      init_bank_selected_record = -1
+      init_bank_record_count = 0
       x_values = 0.0_dp
       select case (trim(init_mode))
       case ("deterministic")
@@ -259,12 +277,123 @@ contains
          if ((.not. ieee_is_finite(init_sigma)) .or. init_sigma < 0.0_dp) return
          call tltm_rng_fill_normal(x_values, tltm_rng_domain_wv_hmc_init, base_seed, 0, 1, 1)
          x_values = init_sigma*x_values
+      case ("bank", "x_bank", "checkpoint_bank")
+         call fill_bank_initial_x(x_values, trim(init_bank_file), init_bank_record_request, base_seed, &
+                                  init_bank_selected_record, init_bank_record_count, error)
+         return
       case default
          return
       end select
       if (any(.not. ieee_is_finite(x_values))) return
       error = .false.
    end subroutine fill_initial_x
+
+   subroutine fill_bank_initial_x(x_values, init_bank_file, init_bank_record_request, base_seed, selected_record, &
+                                  record_count, error)
+      real(dp), intent(out) :: x_values(:)
+      character(len=*), intent(in) :: init_bank_file
+      integer, intent(in) :: init_bank_record_request, base_seed
+      integer, intent(out) :: selected_record, record_count
+      logical, intent(out) :: error
+
+      logical :: ok
+      real(dp) :: draw
+
+      error = .true.
+      selected_record = -1
+      record_count = 0
+      if (len_trim(init_bank_file) == 0) then
+         write (*, '(A)') "ERROR wv_init_bank_file_missing"
+         return
+      end if
+
+      call count_x_bank_records(trim(init_bank_file), size(x_values), record_count, ok)
+      if (.not. ok) return
+      if (init_bank_record_request >= 0) then
+         selected_record = init_bank_record_request
+         if (selected_record >= record_count) then
+            write (*, '(*(g0,1X))') "ERROR", "wv_init_bank_record_out_of_range", selected_record, record_count
+            return
+         end if
+      else
+         draw = tltm_rng_uniform(tltm_rng_domain_wv_hmc_init, base_seed, 0, 1, 2, 1)
+         selected_record = int(floor(draw*real(record_count, dp)))
+         selected_record = max(0, min(record_count - 1, selected_record))
+      end if
+
+      call load_x_bank_record(trim(init_bank_file), selected_record, x_values, ok)
+      if (.not. ok) return
+      error = .false.
+   end subroutine fill_bank_initial_x
+
+   subroutine count_x_bank_records(init_bank_file, state_size, record_count, ok)
+      character(len=*), intent(in) :: init_bank_file
+      integer, intent(in) :: state_size
+      integer, intent(out) :: record_count
+      logical, intent(out) :: ok
+
+      integer :: ios
+      integer(int64) :: file_size, record_bytes, count64
+
+      ok = .false.
+      record_count = 0
+      if (state_size <= 0) return
+      inquire (file=trim(init_bank_file), size=file_size, iostat=ios)
+      if (ios /= 0 .or. file_size <= 0_int64) then
+         write (*, '(A,1X,A)') "ERROR cannot_stat_wv_init_bank_file", trim(init_bank_file)
+         return
+      end if
+      record_bytes = int(state_size, int64)*8_int64
+      if (mod(file_size, record_bytes) /= 0_int64) then
+         write (*, '(*(g0,1X))') "ERROR", "wv_init_bank_size_mismatch", trim(init_bank_file), file_size, record_bytes
+         return
+      end if
+      count64 = file_size/record_bytes
+      if (count64 < 1_int64 .or. count64 > int(huge(record_count), int64)) then
+         write (*, '(*(g0,1X))') "ERROR", "wv_init_bank_record_count_invalid", trim(init_bank_file), count64
+         return
+      end if
+      record_count = int(count64)
+      ok = .true.
+   end subroutine count_x_bank_records
+
+   subroutine load_x_bank_record(init_bank_file, record_index, x_state, ok)
+      character(len=*), intent(in) :: init_bank_file
+      integer, intent(in) :: record_index
+      real(dp), intent(out) :: x_state(:)
+      logical, intent(out) :: ok
+
+      integer :: unit_x, ios
+      integer(int64) :: pos_bytes, record_bytes
+
+      ok = .false.
+      if (record_index < 0) then
+         write (*, '(A,I0)') "ERROR invalid_wv_init_bank_record=", record_index
+         return
+      end if
+
+      record_bytes = int(size(x_state), int64)*8_int64
+      pos_bytes = 1_int64 + int(record_index, int64)*record_bytes
+      open (newunit=unit_x, file=trim(init_bank_file), status='old', access='stream', form='unformatted', &
+            action='read', iostat=ios)
+      if (ios /= 0) then
+         write (*, '(A,1X,A)') "ERROR cannot_open_wv_init_bank_file", trim(init_bank_file)
+         return
+      end if
+
+      read (unit_x, pos=pos_bytes, iostat=ios) x_state
+      close (unit_x)
+      if (ios /= 0) then
+         write (*, '(A,I0,A,1X,A)') "ERROR cannot_read_wv_init_bank_record=", record_index, "file=", trim(init_bank_file)
+         return
+      end if
+      if (any(.not. ieee_is_finite(x_state))) then
+         write (*, '(A,I0)') "ERROR nonfinite_wv_init_bank_record=", record_index
+         return
+      end if
+
+      ok = .true.
+   end subroutine load_x_bank_record
 
    pure real(dp) function safe_ratio(numerator, denominator) result(value)
       real(dp), intent(in) :: numerator

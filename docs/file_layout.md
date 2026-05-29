@@ -65,8 +65,11 @@ This document defines the intended responsibilities of top-level directories and
 - `docs/file_layout.md`
   - this document
 - `codex/workspaces/fortran_modernization/tasks/scripts/build_stephanov_t0_checkpoint_bank.py`
-  - local development helper that runs Stage2 `t=0` chains and consolidates
+  - cluster-side helper that runs Stage2 `t=0` chains and consolidates
     physical `x` checkpoints into a restart bank
+- `codex/workspaces/fortran_modernization/tasks/scripts/filter_x_bank_by_flow_diagnostics_20260530.py`
+  - filters a checkpoint bank to records prevalidated by dense-flow diagnostics
+    for WV-HMC bank initialization
 - `codex/workspaces/fortran_modernization/tasks/scripts/scan_stephanov_n6_bank_hmc_protocol.py`
   - local development helper that scans Stephanov `n=6` bank-started nofb HMC
     protocol candidates with fixed adaptive-preflow initialization

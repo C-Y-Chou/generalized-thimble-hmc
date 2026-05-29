@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a local t=0 Stephanov checkpoint bank from Stage2 chains."""
+"""Build a t=0 Stephanov checkpoint bank from Stage2 chains."""
 
 import argparse
 import csv
@@ -27,7 +27,7 @@ OBSERVABLE_NAMES = [
 
 def parse_args():
     repo_root = Path(__file__).resolve().parents[5]
-    parser = argparse.ArgumentParser(description="Build a Stephanov n=6 t=0 checkpoint bank.")
+    parser = argparse.ArgumentParser(description="Build a Stephanov t=0 checkpoint bank.")
     parser.add_argument("--repo-root", default=str(repo_root), help="Repository root.")
     parser.add_argument("--base-parameters", default="data/parameters_stephanov_n6_mu06_t0.dat")
     parser.add_argument("--stage2-bin", default="bin/run_tltm_stage2")
@@ -39,9 +39,22 @@ def parse_args():
     parser.add_argument("--burn-records", type=int, default=20)
     parser.add_argument("--seed-base", type=int, default=8606000)
     parser.add_argument("--init-sigma", type=float, default=0.1)
+    parser.add_argument("--state-size", type=int, default=0, help="Physical state size; default reads physical_state_size from parameters.")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--skip-build", action="store_true")
     return parser.parse_args()
+
+
+def parse_physical_state_size(parameters_path):
+    with Path(parameters_path).open("r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            clean = line.split("#", 1)[0].strip()
+            if not clean or "=" not in clean:
+                continue
+            key, value = [part.strip() for part in clean.split("=", 1)]
+            if key == "physical_state_size":
+                return int(value)
+    raise RuntimeError("Could not read physical_state_size from {0}".format(parameters_path))
 
 
 def relpath(repo_root, path):
@@ -117,7 +130,7 @@ def start_chain(repo_root, stage2_bin, base_parameters, run_dir, chain_id, seed,
     }
 
 
-def wait_chains(chains):
+def wait_chains(chains, state_size):
     alive = set(range(len(chains)))
     while alive:
         finished = []
@@ -135,7 +148,7 @@ def wait_chains(chains):
             counts = []
             for chain in chains:
                 x_file = chain["dir"] / "x_history.dat"
-                counts.append(sample_count_from_bytes(x_file, 72, 8) if x_file.exists() else 0)
+                counts.append(sample_count_from_bytes(x_file, state_size, 8) if x_file.exists() else 0)
             print("[BANK][PROGRESS] samples_by_chain={0}".format(",".join(str(x) for x in counts)), flush=True)
             time.sleep(10.0)
     failures = [chain for chain in chains if chain.get("returncode", 0) != 0]
@@ -249,7 +262,7 @@ def parse_slot_summary(summary_path):
     return {}
 
 
-def summarize_and_write_bank(repo_root, run_dir, chains, args):
+def summarize_and_write_bank(repo_root, run_dir, chains, args, state_size):
     bank_dir = run_dir / "bank"
     bank_dir.mkdir(parents=True, exist_ok=True)
     x_bank_file = bank_dir / "x_bank.dat"
@@ -279,7 +292,7 @@ def summarize_and_write_bank(repo_root, run_dir, chains, args):
             chain_id = chain["chain_id"]
             seed = chain["seed"]
             chain_dir = chain["dir"]
-            x_records = read_real_records(chain_dir / "x_history.dat", 72)
+            x_records = read_real_records(chain_dir / "x_history.dat", state_size)
             obs_records = read_complex_records(chain_dir / "observable_history.dat", 1 + len(OBSERVABLE_NAMES))
             if len(x_records) != len(obs_records):
                 raise RuntimeError("x/observable sample mismatch for chain {0}".format(chain_id))
@@ -375,7 +388,7 @@ def summarize_and_write_bank(repo_root, run_dir, chains, args):
         "x_bank_file": relpath(repo_root, x_bank_file),
         "index_file": relpath(repo_root, index_file),
         "summary_csv": relpath(repo_root, summary_csv),
-        "n_state": 72,
+        "n_state": state_size,
         "chains": args.chains,
         "cycles": args.cycles,
         "history_stride": args.history_stride,
@@ -394,11 +407,12 @@ def main():
     args = parse_args()
     repo_root = Path(args.repo_root).resolve()
     base_parameters = (repo_root / args.base_parameters).resolve()
+    state_size = args.state_size if args.state_size > 0 else parse_physical_state_size(base_parameters)
     stage2_bin = (repo_root / args.stage2_bin).resolve()
     output_root = Path(args.output_root)
     if not output_root.is_absolute():
         output_root = repo_root / output_root
-    run_name = args.run_name or datetime.now(tz=timezone.utc).strftime("stephanov_n6_t0_bank_%Y%m%dT%H%M%SZ")
+    run_name = args.run_name or datetime.now(tz=timezone.utc).strftime("stephanov_t0_bank_%Y%m%dT%H%M%SZ")
     run_dir = output_root / run_name
     if run_dir.exists():
         if not args.force:
@@ -418,8 +432,8 @@ def main():
     for chain_id in range(args.chains):
         seed = args.seed_base + chain_id
         chains.append(start_chain(repo_root, stage2_bin, base_parameters, run_dir, chain_id, seed, args))
-    wait_chains(chains)
-    coverage = summarize_and_write_bank(repo_root, run_dir, chains, args)
+    wait_chains(chains, state_size)
+    coverage = summarize_and_write_bank(repo_root, run_dir, chains, args, state_size)
     print(json.dumps({
         "run_dir": coverage["run_dir"],
         "x_bank_file": coverage["x_bank_file"],
