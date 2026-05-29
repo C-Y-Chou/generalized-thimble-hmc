@@ -24,7 +24,7 @@ contains
       real(dp), intent(in) :: default_flow_time
       logical, intent(in) :: default_write_files
 
-      integer :: n, num_steps, cycle_count, base_seed, status, observable_count
+      integer :: n, num_steps, cycle_count, base_seed, status, observable_count, measurement_start_cycle
       real(dp) :: step_size, flow_time, sampler_t0, sampler_t1, d0, d1, measurement_t0, measurement_t1
       real(dp) :: w_gamma, w_c0, w_c1, reverse_gate_state_tol, reverse_gate_momentum_tol
       real(dp) :: flow_time_out
@@ -55,6 +55,7 @@ contains
       cycle_count = default_cycle_count
       base_seed = 20260529
       flow_time = default_flow_time
+      measurement_start_cycle = 1
       sampler_t0 = 0.0_dp
       sampler_t1 = 0.2_dp
       d0 = 0.0_dp
@@ -69,6 +70,7 @@ contains
       call parse_int_env(env_name(env_prefix, "NUM_STEPS"), num_steps)
       call parse_int_env(env_name(env_prefix, "CYCLES"), cycle_count)
       call parse_int_env(env_name(env_prefix, "BASE_SEED"), base_seed)
+      call parse_int_env(env_name(env_prefix, "MEASUREMENT_START_CYCLE"), measurement_start_cycle)
       call parse_real_env(env_name(env_prefix, "FLOW_TIME"), flow_time)
       call parse_real_env(env_name(env_prefix, "T0"), sampler_t0)
       call parse_real_env(env_name(env_prefix, "T1"), sampler_t1)
@@ -116,7 +118,8 @@ contains
                               flow_time, x, flow_time_out, x_out, z_out, jac_out, summary, error, status, &
                               observable_accumulator=observable_accumulator, measurement_t0=measurement_t0, &
                               measurement_t1=measurement_t1, reverse_gate_state_tol=reverse_gate_state_tol, &
-                              reverse_gate_momentum_tol=reverse_gate_momentum_tol)
+                              reverse_gate_momentum_tol=reverse_gate_momentum_tol, &
+                              measurement_start_cycle=measurement_start_cycle)
       if (error) then
          write (*, '(*(g0,1X))') "ERROR", "dense_chain_failed", "status", status, &
             "cycles_attempted", summary%cycles_attempted, &
@@ -183,6 +186,7 @@ contains
          "max_constraint_residual", summary%max_constraint_residual, &
          "measurement_t0", measurement_t0, &
          "measurement_t1", measurement_t1, &
+         "measurement_start_cycle", measurement_start_cycle, &
          "measurement_attempted", summary%measurement_attempted, &
          "measurement_included", summary%measurement_included, &
          "measurement_skipped", summary%measurement_skipped, &
@@ -203,8 +207,8 @@ contains
       if (has_summary_file) call write_summary_file(trim(summary_file), base_seed, flow_time, flow_time_out, summary, &
                                                     measurement_factor, observable_accumulator, sampler_t0, sampler_t1, &
                                                     d0, d1, trim(w_profile_name), w_gamma, w_c0, w_c1, &
-                                                    measurement_t0, measurement_t1, reverse_gate_state_tol, &
-                                                    reverse_gate_momentum_tol)
+                                                    measurement_t0, measurement_t1, measurement_start_cycle, &
+                                                    reverse_gate_state_tol, reverse_gate_momentum_tol)
       if (has_observable_file) call write_observable_file(trim(observable_file), observable_estimates)
    end subroutine run_wv_hmc_env_app
 
@@ -260,8 +264,8 @@ contains
    subroutine write_summary_file(path, local_base_seed, local_flow_time_in, local_flow_time_out, local_summary, &
                                  local_measurement_factor, local_observable_accumulator, local_sampler_t0, local_sampler_t1, &
                                  local_sampler_d0, local_sampler_d1, local_w_profile_name, local_w_gamma, local_w_c0, &
-                                 local_w_c1, local_measurement_t0, local_measurement_t1, local_reverse_gate_state_tol, &
-                                 local_reverse_gate_momentum_tol)
+                                 local_w_c1, local_measurement_t0, local_measurement_t1, local_measurement_start_cycle, &
+                                 local_reverse_gate_state_tol, local_reverse_gate_momentum_tol)
       character(len=*), intent(in) :: path
       integer, intent(in) :: local_base_seed
       real(dp), intent(in) :: local_flow_time_in, local_flow_time_out
@@ -270,6 +274,7 @@ contains
       real(dp), intent(in) :: local_w_gamma, local_w_c0, local_w_c1
       real(dp), intent(in) :: local_measurement_t0, local_measurement_t1
       real(dp), intent(in) :: local_reverse_gate_state_tol, local_reverse_gate_momentum_tol
+      integer, intent(in) :: local_measurement_start_cycle
       type(wv_dense_chain_summary_t), intent(in) :: local_summary
       type(wv_measurement_factor_t), intent(in) :: local_measurement_factor
       type(wv_weighted_observable_accumulator_t), intent(in) :: local_observable_accumulator
@@ -287,7 +292,7 @@ contains
          "solver_iterations,max_constraint_residual,sampler_t0,sampler_t1,sampler_d0,sampler_d1,w_profile,"// &
          "w_gamma,w_c0,w_c1,reverse_gate_state_tol,reverse_gate_momentum_tol,"// &
          "last_reverse_gate_state_error,last_reverse_gate_momentum_error,"// &
-         "measurement_t0,measurement_t1,measurement_attempted,measurement_included,"// &
+         "measurement_t0,measurement_t1,measurement_start_cycle,measurement_attempted,measurement_included,"// &
          "measurement_skipped,measurement_failed,"// &
          "measurement_phase_coherence,wv_denominator_re,wv_denominator_im,wv_sum_abs_weight,odex_calls,"// &
          "odex_failure,alpha,alpha2,phase_re,phase_im,wv_factor_re,wv_factor_im"
@@ -304,7 +309,7 @@ contains
          local_w_gamma, local_w_c0, local_w_c1, &
          local_reverse_gate_state_tol, local_reverse_gate_momentum_tol, &
          local_summary%last_reverse_gate_state_error, local_summary%last_reverse_gate_momentum_error, &
-         local_measurement_t0, local_measurement_t1, local_summary%measurement_attempted, &
+         local_measurement_t0, local_measurement_t1, local_measurement_start_cycle, local_summary%measurement_attempted, &
          local_summary%measurement_included, local_summary%measurement_skipped, local_summary%measurement_failed, &
          local_summary%measurement_phase_coherence, real(local_observable_accumulator%denominator, dp), &
          aimag(local_observable_accumulator%denominator), local_observable_accumulator%sum_abs_weight, &

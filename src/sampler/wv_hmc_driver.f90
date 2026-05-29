@@ -37,6 +37,7 @@ module wv_hmc_driver
       integer :: measurement_included = 0
       integer :: measurement_skipped = 0
       integer :: measurement_failed = 0
+      integer :: measurement_start_cycle = 1
       integer :: flow_time_observations = 0
       real(dp) :: accept_probability_sum = 0.0_dp
       real(dp) :: max_constraint_residual = 0.0_dp
@@ -58,7 +59,8 @@ contains
    subroutine wv_run_dense_chain(base_seed, cycle_count, step_size, num_steps, potential, t0, t1, d0, d1, &
                                  flow_time, x_initial, flow_time_out, x_out, z_out, jac_out, summary, error, &
                                  status, constraint_tol, constraint_max_iter, observable_accumulator, &
-                                 measurement_t0, measurement_t1, reverse_gate_state_tol, reverse_gate_momentum_tol)
+                                 measurement_t0, measurement_t1, reverse_gate_state_tol, reverse_gate_momentum_tol, &
+                                 measurement_start_cycle)
       integer, intent(in) :: base_seed, cycle_count, num_steps
       real(dp), intent(in) :: step_size, t0, t1, d0, d1, flow_time, x_initial(:)
       type(wv_potential_profile_t), intent(in) :: potential
@@ -72,8 +74,9 @@ contains
       type(wv_weighted_observable_accumulator_t), intent(inout), optional :: observable_accumulator
       real(dp), intent(in), optional :: measurement_t0, measurement_t1
       real(dp), intent(in), optional :: reverse_gate_state_tol, reverse_gate_momentum_tol
+      integer, intent(in), optional :: measurement_start_cycle
 
-      integer :: n, cycle_idx, local_status, observable_count
+      integer :: n, cycle_idx, local_status, observable_count, local_measurement_start_cycle
       real(dp) :: flow_time_current, flow_time_next, uniform01, coherence, local_measurement_t0, local_measurement_t1
       real(dp), allocatable :: x_current(:), x_next(:), raw_pi(:)
       complex(dp), allocatable :: observable_values(:)
@@ -97,10 +100,14 @@ contains
       local_measurement_t1 = t1
       if (present(measurement_t0)) local_measurement_t0 = measurement_t0
       if (present(measurement_t1)) local_measurement_t1 = measurement_t1
+      local_measurement_start_cycle = 1
+      if (present(measurement_start_cycle)) local_measurement_start_cycle = measurement_start_cycle
+      summary%measurement_start_cycle = local_measurement_start_cycle
 
       n = size(x_initial)
       if (n <= 0) return
       if (cycle_count < 0 .or. num_steps < 0) return
+      if (local_measurement_start_cycle < 1) return
       if ((.not. ieee_is_finite(step_size)) .or. step_size <= 0.0_dp) return
       if (.not. all(ieee_is_finite([t0, t1, d0, d1, flow_time, local_measurement_t0, local_measurement_t1]))) return
       if (flow_time < 0.0_dp) return
@@ -189,6 +196,10 @@ contains
          call wv_record_flow_time(summary, flow_time_current)
 
          if (present(observable_accumulator)) then
+            if (cycle_idx < local_measurement_start_cycle) then
+               summary%measurement_skipped = summary%measurement_skipped + 1
+               cycle
+            end if
             if (flow_time_current < local_measurement_t0 .or. flow_time_current > local_measurement_t1) then
                summary%measurement_skipped = summary%measurement_skipped + 1
                cycle
