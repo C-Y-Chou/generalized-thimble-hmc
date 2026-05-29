@@ -28,7 +28,7 @@ module wv_hmc_constraints
    integer, parameter :: wv_newton_stop_invalid_input = 8
    integer, parameter :: wv_newton_stop_not_run = 9
 
-   type, public :: wv_newton_trace_context_t
+   type :: wv_newton_trace_context_t
       integer :: unit = -1
       integer :: solve_count = 0
       integer :: cycle = 0
