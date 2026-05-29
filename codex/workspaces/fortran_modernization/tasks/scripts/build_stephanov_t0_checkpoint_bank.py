@@ -117,7 +117,7 @@ def start_chain(repo_root, stage2_bin, base_parameters, run_dir, chain_id, seed,
         env=env,
         stdout=log_handle,
         stderr=subprocess.STDOUT,
-        text=True,
+        universal_newlines=True,
     )
     return {
         "chain_id": chain_id,
