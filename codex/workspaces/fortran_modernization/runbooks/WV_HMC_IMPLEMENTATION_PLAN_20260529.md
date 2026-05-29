@@ -390,6 +390,17 @@ Additional completed kernel-level validation:
   through the no-boundary trial and the explicit boundary rule.  Negative
   `T0-d0` remains unsupported until the flow backend defines negative-time
   behavior.
+- Cluster-only dense pilots were run on cluster02 after the local-execution
+  policy change; no local simulation evidence is used for the pilot decision.
+  See
+  `runbooks/generated/wv_hmc_dense_pilot_cluster_20260529/README.md`.
+  Both PBS jobs passed the WV math and constraint kernel tests before running
+  the scans.  The initial grid confirmed that flat `W(t)` concentrates near
+  small flow time, while the focused tilted-wall grid identified the current
+  conservative dense-oracle working point:
+  `paper_wall gamma=1`, `T0=0.005`, `T1=0.2`, `d0=0.005`, `d1=0.05`,
+  `epsilon=0.002`, `nstep=2`.  This is a pre-matrix-free wiring point, not a
+  production physics setting.
 
 Do not proceed to the production driver, production IO, or production runs until the
 dense projection oracle, force/flow convention tests, first-constraint residual
