@@ -31,6 +31,10 @@ module load mkl/2025.3
 : "${WV_OBS_SEED_COUNT:=64}"
 : "${WV_OBS_CYCLES:=4000}"
 : "${WV_OBS_MEASUREMENT_START_CYCLE:=1001}"
+: "${WV_OBS_STEP_SIZE:=0.002}"
+: "${WV_OBS_NUM_STEPS:=2}"
+: "${WV_OBS_INIT_MODE:=random_gaussian}"
+: "${WV_OBS_INIT_SIGMA:=0.8}"
 : "${WV_OBS_JOBS:=16}"
 : "${WV_OBS_TIMEOUT_SEC:=1200}"
 
@@ -49,6 +53,10 @@ echo "WV_OBS_SEED_START=${WV_OBS_SEED_START}"
 echo "WV_OBS_SEED_COUNT=${WV_OBS_SEED_COUNT}"
 echo "WV_OBS_CYCLES=${WV_OBS_CYCLES}"
 echo "WV_OBS_MEASUREMENT_START_CYCLE=${WV_OBS_MEASUREMENT_START_CYCLE}"
+echo "WV_OBS_STEP_SIZE=${WV_OBS_STEP_SIZE}"
+echo "WV_OBS_NUM_STEPS=${WV_OBS_NUM_STEPS}"
+echo "WV_OBS_INIT_MODE=${WV_OBS_INIT_MODE}"
+echo "WV_OBS_INIT_SIGMA=${WV_OBS_INIT_SIGMA}"
 echo "WV_OBS_JOBS=${WV_OBS_JOBS}"
 
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
@@ -108,6 +116,10 @@ mkdir -p "${RUN_ROOT}" "${READBACK_ROOT}"
   --seed-count "${WV_OBS_SEED_COUNT}" \
   --cycles "${WV_OBS_CYCLES}" \
   --measurement-start-cycle "${WV_OBS_MEASUREMENT_START_CYCLE}" \
+  --step-size "${WV_OBS_STEP_SIZE}" \
+  --num-steps "${WV_OBS_NUM_STEPS}" \
+  --init-mode "${WV_OBS_INIT_MODE}" \
+  --init-sigma "${WV_OBS_INIT_SIGMA}" \
   --jobs "${WV_OBS_JOBS}" \
   --timeout-sec "${WV_OBS_TIMEOUT_SEC}"
 

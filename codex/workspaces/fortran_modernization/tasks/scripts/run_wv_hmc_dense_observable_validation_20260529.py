@@ -13,7 +13,8 @@ from pathlib import Path
 
 
 def run_seed(args):
-    binary, output_root, parameters_file, seed, cycles, measurement_start_cycle, timeout_sec = args
+    (binary, output_root, parameters_file, seed, cycles, measurement_start_cycle, timeout_sec,
+     step_size, num_steps, init_mode, init_sigma) = args
     summary_path = output_root / "seed_{:05d}_summary.csv".format(seed)
     observable_path = output_root / "seed_{:05d}_observables.csv".format(seed)
     log_path = output_root / "seed_{:05d}.log".format(seed)
@@ -25,8 +26,8 @@ def run_seed(args):
         "WV_HMC_BASE_SEED": str(seed),
         "WV_HMC_CYCLES": str(cycles),
         "WV_HMC_MEASUREMENT_START_CYCLE": str(measurement_start_cycle),
-        "WV_HMC_STEP_SIZE": "0.002",
-        "WV_HMC_NUM_STEPS": "2",
+        "WV_HMC_STEP_SIZE": str(step_size),
+        "WV_HMC_NUM_STEPS": str(num_steps),
         "WV_HMC_FLOW_TIME": "0.005",
         "WV_HMC_T0": "0.005",
         "WV_HMC_T1": "0.2",
@@ -34,8 +35,8 @@ def run_seed(args):
         "WV_HMC_D1": "0.05",
         "WV_HMC_MEASUREMENT_T0": "0.005",
         "WV_HMC_MEASUREMENT_T1": "0.2",
-        "WV_HMC_INIT_MODE": "random_gaussian",
-        "WV_HMC_INIT_SIGMA": "0.8",
+        "WV_HMC_INIT_MODE": init_mode,
+        "WV_HMC_INIT_SIGMA": str(init_sigma),
         "WV_HMC_W_PROFILE": "paper_wall",
         "WV_HMC_W_GAMMA": "1.0",
         "WV_HMC_W_C0": "1.0",
@@ -65,6 +66,11 @@ def run_seed(args):
         "seed": seed,
         "cycles": cycles,
         "measurement_start_cycle": measurement_start_cycle,
+        "step_size": step_size,
+        "num_steps": num_steps,
+        "trajectory_length": step_size * num_steps,
+        "init_mode": init_mode,
+        "init_sigma": init_sigma,
         "runtime_sec": runtime_sec,
         "timed_out": timed_out,
         "return_code": return_code,
@@ -82,6 +88,11 @@ def write_manifest(rows, output_root):
         "seed",
         "cycles",
         "measurement_start_cycle",
+        "step_size",
+        "num_steps",
+        "trajectory_length",
+        "init_mode",
+        "init_sigma",
         "runtime_sec",
         "timed_out",
         "return_code",
@@ -108,6 +119,10 @@ def main():
     parser.add_argument("--seed-count", type=int, default=64)
     parser.add_argument("--cycles", type=int, default=4000)
     parser.add_argument("--measurement-start-cycle", type=int, default=1001)
+    parser.add_argument("--step-size", type=float, default=0.002)
+    parser.add_argument("--num-steps", type=int, default=2)
+    parser.add_argument("--init-mode", default="random_gaussian")
+    parser.add_argument("--init-sigma", type=float, default=0.8)
     parser.add_argument("--jobs", type=int, default=8)
     parser.add_argument("--timeout-sec", type=float, default=1200.0)
     args = parser.parse_args()
@@ -119,7 +134,7 @@ def main():
 
     work = [
         (binary, output_root, parameters_file, args.seed_start + offset, args.cycles, args.measurement_start_cycle,
-         args.timeout_sec)
+         args.timeout_sec, args.step_size, args.num_steps, args.init_mode, args.init_sigma)
         for offset in range(args.seed_count)
     ]
     rows = [None] * len(work)
