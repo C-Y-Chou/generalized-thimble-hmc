@@ -422,6 +422,14 @@ Additional completed kernel-level validation:
   empirical calibration before matrix-free trajectory wiring.  Adaptive Newton
   stopping remains disabled by default; enabling it without a matching
   model/parameter calibration record is not a valid production setting.
+- The first cluster residual-trace calibration is recorded in
+  `runbooks/generated/wv_hmc_newton_trace_calibration_20260530/README.md`.
+  For the current Stephanov `n=2` dense working range only, the observed
+  convergence behavior supports `WV_SCAN_CONSTRAINT_MAX_ITER=10` with
+  `WV_SCAN_ADAPTIVE_NEWTON_STOP_ENABLED=0`.  The source default remains `16`,
+  because stress-grid traces show valid high-epsilon solves can still converge
+  at iteration `16`; every model/parameter/`W(t)`/HMC-setting change must
+  rerun the trace calibration.
 
 Do not proceed to the production driver, production IO, or production runs until the
 dense projection oracle, force/flow convention tests, first-constraint residual
