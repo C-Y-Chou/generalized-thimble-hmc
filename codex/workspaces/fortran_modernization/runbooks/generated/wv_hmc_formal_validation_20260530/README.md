@@ -115,3 +115,82 @@ sequence was properly enforced. A formal WV-HMC validation must first choose
 using configuration-space movement diagnostics (`||delta x||^2/n`,
 `||delta z||^2/n`, effective jump including rejections), not flow-time movement
 alone. Flow-time movement is only an extended-variable diagnostic.
+
+## Corrected Configuration-Movement Validation
+
+After adding configuration-space movement diagnostics, the fixed-`epsilon`
+scan at `epsilon=0.015` selected `nstep=3`, i.e. `L=0.045`, as the first
+corrected formal validation candidate. This choice uses effective and accepted
+`x/z` movement, not flow-time movement alone.
+
+```text
+worktree = /lustre1/home/cychou/TLTM_worktrees/fortran_modernization_wv_config_movement_6838a5c
+commit = 5f71da6b6fdc7516d46f09e473d01b26150af25a
+job = 17961.anode01
+queue/node = C16 / cnode01
+exit_status = 0
+run_root = /lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_observable_validation_20260530/wv_hmc_formal_validation_n2_64x4000_bankinit_eps0015_s3_configmove_20260530_17961.anode01
+readback = /lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_observable_validation_20260530/wv_hmc_formal_validation_n2_64x4000_bankinit_eps0015_s3_configmove_20260530_17961.anode01/readback/wv_hmc_pilot_readback.md
+summary_csv = /lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_observable_validation_20260530/wv_hmc_formal_validation_n2_64x4000_bankinit_eps0015_s3_configmove_20260530_17961.anode01/readback/wv_hmc_pilot_summary.csv
+observable_z_csv = /lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_observable_validation_20260530/wv_hmc_formal_validation_n2_64x4000_bankinit_eps0015_s3_configmove_20260530_17961.anode01/readback/wv_hmc_pilot_observable_z.csv
+```
+
+Fixed setting:
+
+```text
+model = Stephanov n=2
+W profile = paper_wall
+T0 = 0.005
+T1 = 0.2
+d0 = 0.005
+d1 = 0.05
+measurement interval = [0.005, 0.2]
+init_mode = bank
+epsilon = 0.015
+nstep = 3
+L = 0.045
+cycles = 4000
+measurement_start_cycle = 1001
+seeds = 64
+jobs = 16
+ODE backend = dop853
+constraint_tol = 1.0e-8
+constraint_max_iter = 10
+```
+
+Runtime and transition diagnostics:
+
+```text
+manifest_rows = 64
+failed_rows = 0
+walltime = about 20.5 minutes
+per_seed_runtime_sec_min = 195.33
+per_seed_runtime_sec_median = 256.54
+per_seed_runtime_sec_max = 349.22
+phase_coherence = 0.928055
+accepted_transitions = 199276
+accepted_transition_rate_including_failures_and_rejections = 0.778422
+metropolis_rejections = 47
+reverse_gate_rejections = 32584
+forward_construction_failures = 24093
+ODE_failures = 736
+effective_x_jump_sq_per_cycle = 0.00256
+effective_z_jump_sq_per_cycle = 0.00160404
+accepted_x_jump_sq_per_accepted_proposal = 0.00328871
+accepted_z_jump_sq_per_accepted_proposal = 0.00206063
+```
+
+Observable readback:
+
+| observable | Re | SE Re | z Re | Im | SE Im | z Im |
+|---|---:|---:|---:|---:|---:|---:|
+| chiral_condensate | 0.359037053 | 0.0106 | -1.98 | -0.00293078253 | 0.0117 | -0.25 |
+| logdet_dirac | 0.640649432 | 0.0923 |  | 1.07627648 | 0.23 |  |
+| min_singular_ba_m2 | 0.580155349 | 0.0181 |  | 0.00415991337 | 0.00649 |  |
+| number_density | 0.0484803706 | 0.024 | 0.408 | -0.0164638007 | 0.0337 | -0.489 |
+| phase_factor | 0.747227899 | 0.0232 |  | -0.015636527 | 0.0239 |  |
+
+Interim conclusion: `epsilon=0.015, nstep=3, L=0.045` is the first WV-HMC
+dense n=2 candidate that passes this observable smoke gate under the corrected
+configuration-space movement tuning rule. This is not yet a production claim:
+it is a pre-matrix-free dense validation checkpoint.
