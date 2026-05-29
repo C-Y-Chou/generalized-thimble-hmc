@@ -61,6 +61,21 @@ def safe_float(row, key):
         return float("nan")
 
 
+def weighted_summary_mean(records, value_key, weight_key):
+    numerator = 0.0
+    denominator = 0.0
+    for record in records:
+        value = safe_float(record["summary"], value_key)
+        try:
+            weight = float(record["summary"].get(weight_key, 0))
+        except (TypeError, ValueError):
+            weight = 0.0
+        if math.isfinite(value) and weight > 0.0:
+            numerator += value * weight
+            denominator += weight
+    return numerator / denominator if denominator > 0.0 else float("nan")
+
+
 def load_records(root):
     records = []
     for summary_path, obs_path in discover_pairs(root):
@@ -135,6 +150,17 @@ def write_outputs(records, out_dir):
     total_transitions_failed = sum(int(record["summary"]["transitions_failed"]) for record in records)
     total_metropolis_rejected = sum(int(record["summary"].get("metropolis_rejected", 0)) for record in records)
     total_reverse_gate_rejected = sum(int(record["summary"].get("reverse_gate_rejected", 0)) for record in records)
+    total_accepted_jump_count = sum(int(record["summary"].get("accepted_jump_count", 0)) for record in records)
+    accepted_x_jump_sq_mean = weighted_summary_mean(records, "accepted_x_jump_sq_mean", "accepted_jump_count")
+    accepted_z_jump_sq_mean = weighted_summary_mean(records, "accepted_z_jump_sq_mean", "accepted_jump_count")
+    accepted_flow_time_jump_abs_mean = weighted_summary_mean(
+        records, "accepted_flow_time_jump_abs_mean", "accepted_jump_count"
+    )
+    effective_x_jump_sq_mean = weighted_summary_mean(records, "effective_x_jump_sq_mean", "cycles_completed")
+    effective_z_jump_sq_mean = weighted_summary_mean(records, "effective_z_jump_sq_mean", "cycles_completed")
+    effective_flow_time_jump_abs_mean = weighted_summary_mean(
+        records, "effective_flow_time_jump_abs_mean", "cycles_completed"
+    )
     phase = abs(total["D"]) / total["sum_abs_weight"] if total["sum_abs_weight"] > 0.0 else float("nan")
 
     summary_path = out_dir / "wv_hmc_pilot_summary.csv"
@@ -143,7 +169,10 @@ def write_outputs(records, out_dir):
             "seeds", "total_cycles", "total_measurements", "total_trajectory_steps", "total_bounced_steps",
             "bounce_rate_per_step", "total_transitions_failed", "total_metropolis_rejected",
             "total_reverse_gate_rejected", "total_odex_failure", "phase_coherence",
-            "phase_coherence_seed_jk_se", "denominator_re", "denominator_im", "sum_abs_weight",
+            "phase_coherence_seed_jk_se", "accepted_jump_count", "accepted_x_jump_sq_mean",
+            "accepted_z_jump_sq_mean", "accepted_flow_time_jump_abs_mean", "effective_x_jump_sq_mean",
+            "effective_z_jump_sq_mean", "effective_flow_time_jump_abs_mean", "denominator_re",
+            "denominator_im", "sum_abs_weight",
         ]
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
@@ -160,6 +189,13 @@ def write_outputs(records, out_dir):
             "total_odex_failure": total_odex_failure,
             "phase_coherence": phase,
             "phase_coherence_seed_jk_se": jk_se(phase_jk),
+            "accepted_jump_count": total_accepted_jump_count,
+            "accepted_x_jump_sq_mean": accepted_x_jump_sq_mean,
+            "accepted_z_jump_sq_mean": accepted_z_jump_sq_mean,
+            "accepted_flow_time_jump_abs_mean": accepted_flow_time_jump_abs_mean,
+            "effective_x_jump_sq_mean": effective_x_jump_sq_mean,
+            "effective_z_jump_sq_mean": effective_z_jump_sq_mean,
+            "effective_flow_time_jump_abs_mean": effective_flow_time_jump_abs_mean,
             "denominator_re": total["D"].real,
             "denominator_im": total["D"].imag,
             "sum_abs_weight": total["sum_abs_weight"],
@@ -206,6 +242,17 @@ def write_outputs(records, out_dir):
                 "flow_time_min": safe_float(record["summary"], "flow_time_min"),
                 "flow_time_max": safe_float(record["summary"], "flow_time_max"),
                 "flow_time_mean": safe_float(record["summary"], "flow_time_mean"),
+                "accepted_jump_count": int(record["summary"].get("accepted_jump_count", 0)),
+                "accepted_x_jump_sq_mean": safe_float(record["summary"], "accepted_x_jump_sq_mean"),
+                "accepted_z_jump_sq_mean": safe_float(record["summary"], "accepted_z_jump_sq_mean"),
+                "accepted_flow_time_jump_abs_mean": safe_float(
+                    record["summary"], "accepted_flow_time_jump_abs_mean"
+                ),
+                "effective_x_jump_sq_mean": safe_float(record["summary"], "effective_x_jump_sq_mean"),
+                "effective_z_jump_sq_mean": safe_float(record["summary"], "effective_z_jump_sq_mean"),
+                "effective_flow_time_jump_abs_mean": safe_float(
+                    record["summary"], "effective_flow_time_jump_abs_mean"
+                ),
             }
             for record in records
         ],
@@ -243,6 +290,10 @@ def write_outputs(records, out_dir):
         "- Reverse-gate rejections: `{}`".format(srow["total_reverse_gate_rejected"]),
         "- Forward construction failures: `{}`".format(srow["total_transitions_failed"]),
         "- ODE failures: `{}`".format(srow["total_odex_failure"]),
+        "- Effective x jump sq / cycle: `{:.6g}`".format(float(srow["effective_x_jump_sq_mean"])),
+        "- Effective z jump sq / cycle: `{:.6g}`".format(float(srow["effective_z_jump_sq_mean"])),
+        "- Accepted x jump sq / accepted proposal: `{:.6g}`".format(float(srow["accepted_x_jump_sq_mean"])),
+        "- Accepted z jump sq / accepted proposal: `{:.6g}`".format(float(srow["accepted_z_jump_sq_mean"])),
     ])
     lines.extend([
         "",

@@ -514,7 +514,10 @@ contains
       write (unit_id, '(A)') "base_seed,cycles_requested,cycles_completed,accepted,rejected,transitions_failed,"// &
          "metropolis_rejected,reverse_gate_rejected,accept_probability_mean,delta_hamiltonian_mean,"// &
          "flow_time_in,flow_time_out,flow_time_min,flow_time_max,"// &
-         "flow_time_mean,flow_time_observations,trajectory_steps,bounced_steps,"// &
+         "flow_time_mean,flow_time_observations,accepted_jump_count,accepted_x_jump_sq_mean,"// &
+         "accepted_z_jump_sq_mean,accepted_flow_time_jump_abs_mean,effective_x_jump_sq_mean,"// &
+         "effective_z_jump_sq_mean,effective_flow_time_jump_abs_mean,max_x_jump_sq,max_z_jump_sq,"// &
+         "max_flow_time_jump_abs,trajectory_steps,bounced_steps,"// &
          "solver_iterations,max_constraint_residual,sampler_t0,sampler_t1,sampler_d0,sampler_d1,w_profile,"// &
          "w_gamma,w_c0,w_c1,reverse_gate_state_tol,reverse_gate_momentum_tol,"// &
          "constraint_tol,constraint_max_iter,adaptive_newton_stop_enabled,newton_trace_file,"// &
@@ -536,7 +539,15 @@ contains
          safe_ratio(local_summary%delta_hamiltonian_sum, local_summary%cycles_completed), local_flow_time_in, &
          local_flow_time_out, local_summary%flow_time_min, local_summary%flow_time_max, &
          safe_ratio(local_summary%flow_time_sum, local_summary%flow_time_observations), &
-         local_summary%flow_time_observations, local_summary%trajectory_steps, local_summary%bounced_steps, &
+         local_summary%flow_time_observations, local_summary%accepted_jump_count, &
+         safe_ratio(local_summary%accepted_x_jump_sq_sum, local_summary%accepted_jump_count), &
+         safe_ratio(local_summary%accepted_z_jump_sq_sum, local_summary%accepted_jump_count), &
+         safe_ratio(local_summary%accepted_flow_time_jump_abs_sum, local_summary%accepted_jump_count), &
+         safe_ratio(local_summary%effective_x_jump_sq_sum, local_summary%cycles_completed), &
+         safe_ratio(local_summary%effective_z_jump_sq_sum, local_summary%cycles_completed), &
+         safe_ratio(local_summary%effective_flow_time_jump_abs_sum, local_summary%cycles_completed), &
+         local_summary%max_x_jump_sq, local_summary%max_z_jump_sq, local_summary%max_flow_time_jump_abs, &
+         local_summary%trajectory_steps, local_summary%bounced_steps, &
          local_summary%solver_iterations_total, local_summary%max_constraint_residual, &
          local_sampler_t0, local_sampler_t1, local_sampler_d0, local_sampler_d1, trim(local_w_profile_name), &
          local_w_gamma, local_w_c0, local_w_c1, &

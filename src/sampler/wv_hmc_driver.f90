@@ -56,6 +56,7 @@ module wv_hmc_driver
       integer :: measurement_failed = 0
       integer :: measurement_start_cycle = 1
       integer :: flow_time_observations = 0
+      integer :: accepted_jump_count = 0
       real(dp) :: accept_probability_sum = 0.0_dp
       real(dp) :: max_constraint_residual = 0.0_dp
       real(dp) :: delta_hamiltonian_sum = 0.0_dp
@@ -63,6 +64,15 @@ module wv_hmc_driver
       real(dp) :: flow_time_min = huge(1.0_dp)
       real(dp) :: flow_time_max = -huge(1.0_dp)
       real(dp) :: flow_time_sum = 0.0_dp
+      real(dp) :: accepted_x_jump_sq_sum = 0.0_dp
+      real(dp) :: accepted_z_jump_sq_sum = 0.0_dp
+      real(dp) :: accepted_flow_time_jump_abs_sum = 0.0_dp
+      real(dp) :: effective_x_jump_sq_sum = 0.0_dp
+      real(dp) :: effective_z_jump_sq_sum = 0.0_dp
+      real(dp) :: effective_flow_time_jump_abs_sum = 0.0_dp
+      real(dp) :: max_x_jump_sq = 0.0_dp
+      real(dp) :: max_z_jump_sq = 0.0_dp
+      real(dp) :: max_flow_time_jump_abs = 0.0_dp
       real(dp) :: last_constraint_residual = 0.0_dp
       real(dp) :: reverse_max_constraint_residual = 0.0_dp
       real(dp) :: last_projection_alpha2 = 0.0_dp
@@ -98,6 +108,7 @@ contains
 
       integer :: n, cycle_idx, local_status, observable_count, local_measurement_start_cycle
       real(dp) :: flow_time_current, flow_time_next, uniform01, coherence, local_measurement_t0, local_measurement_t1
+      real(dp) :: x_jump_sq, z_jump_sq, flow_time_jump_abs
       real(dp), allocatable :: x_current(:), x_next(:), raw_pi(:)
       complex(dp), allocatable :: observable_values(:)
       complex(dp), allocatable :: z_current(:), z_next(:), jac_current(:, :), jac_next(:, :)
@@ -171,6 +182,9 @@ contains
                                   jac_next, transition, local_error, local_status, flow_workspace, intode_diagnostics, &
                                   constraint_tol, constraint_max_iter, reverse_gate_state_tol, reverse_gate_momentum_tol, &
                                   adaptive_stop_enabled, newton_trace_context)
+         x_jump_sq = 0.0_dp
+         z_jump_sq = 0.0_dp
+         flow_time_jump_abs = 0.0_dp
          summary%last_status = local_status
          summary%last_attempted_steps = transition%trajectory%attempted_steps
          summary%last_completed_steps = transition%trajectory%completed_steps
@@ -218,6 +232,22 @@ contains
                end if
             end if
          end if
+
+         if (.not. local_error .and. transition%accepted) then
+            x_jump_sq = sum((x_next - x_current)**2)/real(n, dp)
+            z_jump_sq = sum(abs(z_next - z_current)**2)/real(n, dp)
+            flow_time_jump_abs = abs(flow_time_next - flow_time_current)
+            summary%accepted_jump_count = summary%accepted_jump_count + 1
+            summary%accepted_x_jump_sq_sum = summary%accepted_x_jump_sq_sum + x_jump_sq
+            summary%accepted_z_jump_sq_sum = summary%accepted_z_jump_sq_sum + z_jump_sq
+            summary%accepted_flow_time_jump_abs_sum = summary%accepted_flow_time_jump_abs_sum + flow_time_jump_abs
+         end if
+         summary%effective_x_jump_sq_sum = summary%effective_x_jump_sq_sum + x_jump_sq
+         summary%effective_z_jump_sq_sum = summary%effective_z_jump_sq_sum + z_jump_sq
+         summary%effective_flow_time_jump_abs_sum = summary%effective_flow_time_jump_abs_sum + flow_time_jump_abs
+         summary%max_x_jump_sq = max(summary%max_x_jump_sq, x_jump_sq)
+         summary%max_z_jump_sq = max(summary%max_z_jump_sq, z_jump_sq)
+         summary%max_flow_time_jump_abs = max(summary%max_flow_time_jump_abs, flow_time_jump_abs)
 
          flow_time_current = flow_time_next
          x_current = x_next

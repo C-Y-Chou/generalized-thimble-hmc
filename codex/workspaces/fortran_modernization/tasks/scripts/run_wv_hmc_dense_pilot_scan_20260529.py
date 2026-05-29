@@ -24,6 +24,16 @@ SUMMARY_FIELDS = [
     "flow_time_min",
     "flow_time_max",
     "flow_time_mean",
+    "accepted_jump_count",
+    "accepted_x_jump_sq_mean",
+    "accepted_z_jump_sq_mean",
+    "accepted_flow_time_jump_abs_mean",
+    "effective_x_jump_sq_mean",
+    "effective_z_jump_sq_mean",
+    "effective_flow_time_jump_abs_mean",
+    "max_x_jump_sq",
+    "max_z_jump_sq",
+    "max_flow_time_jump_abs",
     "bounced_steps",
     "trajectory_steps",
     "solver_iterations",
@@ -414,15 +424,15 @@ def write_scan_outputs(rows, output_root):
             rows[0].get("init_sigma", "unknown") if rows else "unknown",
         ),
         "",
-        "| label | profile | eps | nstep | L | cycles | timeout | move acc | metro rej/cyc | RG rej/cyc | fail/cyc | fwd it | rev it | fwd maxiter | rev maxiter | t mean | t max | phase | sec |",
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| label | profile | eps | nstep | L | cycles | timeout | move acc | metro rej/cyc | RG rej/cyc | fail/cyc | eff x2 | eff z2 | acc x2 | acc z2 | fwd it | rev it | fwd maxiter | rev maxiter | t mean | t max | phase | sec |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         def cell(key):
             return row.get(key, "")
 
         lines.append(
-            "| {label} | {profile} | {eps} | {nstep} | {length} | {cycles} | {timeout} | {move_acc} | {metro_rate} | {rg_rate} | {fail_rate} | {solver_it} | {reverse_solver_it} | {solver_maxiter} | {reverse_solver_maxiter} | {tmean} | {tmax} | {phase} | {sec:.3g} |".format(
+            "| {label} | {profile} | {eps} | {nstep} | {length} | {cycles} | {timeout} | {move_acc} | {metro_rate} | {rg_rate} | {fail_rate} | {eff_x2} | {eff_z2} | {acc_x2} | {acc_z2} | {solver_it} | {reverse_solver_it} | {solver_maxiter} | {reverse_solver_maxiter} | {tmean} | {tmax} | {phase} | {sec:.3g} |".format(
                 label=cell("label"),
                 profile=cell("profile"),
                 eps=cell("step_size"),
@@ -434,6 +444,10 @@ def write_scan_outputs(rows, output_root):
                 metro_rate=cell("metropolis_reject_rate"),
                 rg_rate=cell("reverse_gate_reject_rate"),
                 fail_rate=cell("construction_failure_rate"),
+                eff_x2=cell("effective_x_jump_sq_mean"),
+                eff_z2=cell("effective_z_jump_sq_mean"),
+                acc_x2=cell("accepted_x_jump_sq_mean"),
+                acc_z2=cell("accepted_z_jump_sq_mean"),
                 solver_it=cell("solver_iterations"),
                 reverse_solver_it=cell("reverse_solver_iterations"),
                 solver_maxiter=cell("solver_stop_max_iter"),
