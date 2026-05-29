@@ -35,7 +35,7 @@ SUMMARY_FIELDS = [
 ]
 
 
-def candidate_rows(cycles):
+def initial_candidate_rows(cycles):
     return [
         {
             "label": "flat_eps0p0005_s5",
@@ -136,6 +136,46 @@ def candidate_rows(cycles):
     ]
 
 
+def wall_epsilon_candidate_rows(cycles):
+    rows = []
+    for label, step_size, num_steps in [
+        ("wall_g1_eps0p001_s1", 0.001, 1),
+        ("wall_g1_eps0p002_s1", 0.002, 1),
+        ("wall_g1_eps0p003_s1", 0.003, 1),
+        ("wall_g1_eps0p005_s1", 0.005, 1),
+        ("wall_g1_eps0p008_s1", 0.008, 1),
+        ("wall_g1_eps0p002_s2", 0.002, 2),
+        ("wall_g1_eps0p003_s2", 0.003, 2),
+        ("wall_g1_eps0p005_s2", 0.005, 2),
+    ]:
+        rows.append({
+            "label": label,
+            "profile": "paper_wall",
+            "step_size": step_size,
+            "num_steps": num_steps,
+            "cycles": cycles,
+            "t0": 0.005,
+            "t1": 0.2,
+            "d0": 0.005,
+            "d1": 0.05,
+            "gamma": 1.0,
+            "grid": "wall_epsilon",
+        })
+    return rows
+
+
+def candidate_rows(cycles, grid):
+    if grid == "initial":
+        rows = initial_candidate_rows(cycles)
+    elif grid == "wall_epsilon":
+        rows = wall_epsilon_candidate_rows(cycles)
+    else:
+        raise ValueError("unknown grid {0}".format(grid))
+    for row in rows:
+        row.setdefault("grid", grid)
+    return rows
+
+
 def read_one_row_csv(path):
     with path.open(newline="") as handle:
         rows = list(csv.DictReader(handle))
@@ -190,6 +230,7 @@ def run_candidate(binary, output_root, candidate, parameters_file, base_seed, fl
     runtime_sec = time.time() - start
     row = {
         "label": label,
+        "grid": candidate["grid"],
         "profile": candidate["profile"],
         "step_size": candidate["step_size"],
         "num_steps": candidate["num_steps"],
@@ -223,6 +264,7 @@ def write_scan_outputs(rows, output_root):
     csv_path = output_root / "dense_pilot_scan_summary.csv"
     fieldnames = [
         "label",
+        "grid",
         "profile",
         "step_size",
         "num_steps",
@@ -250,6 +292,7 @@ def write_scan_outputs(rows, output_root):
         "# WV-HMC Dense Pilot Scan",
         "",
         "Scope: Stephanov n=2 dense backend, production reverse gate enabled.",
+        "Grid: `{0}`.".format(rows[0].get("grid", "unknown") if rows else "unknown"),
         "",
         "| label | profile | eps | nstep | L | cycles | timeout | accepted | metro rej | RG rej | fail | t mean | t max | phase | sec |",
         "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
@@ -294,6 +337,7 @@ def main():
     parser.add_argument("--binary", default="bin/run_wv_hmc")
     parser.add_argument("--output-root", default="output/wv_hmc_pilot_20260529/dense_scan")
     parser.add_argument("--parameters-file", default="data/parameters_stephanov_n2_smoke.dat")
+    parser.add_argument("--grid", choices=["initial", "wall_epsilon"], default="initial")
     parser.add_argument("--cycles", type=int, default=100)
     parser.add_argument("--timeout-sec", type=float, default=20.0)
     parser.add_argument("--jobs", type=int, default=1)
@@ -307,7 +351,7 @@ def main():
     parameters_file = Path(args.parameters_file)
     output_root = Path(args.output_root)
     output_root.mkdir(parents=True, exist_ok=True)
-    candidates = candidate_rows(args.cycles)
+    candidates = candidate_rows(args.cycles, args.grid)
     if args.jobs <= 1:
         rows = []
         for candidate in candidates:

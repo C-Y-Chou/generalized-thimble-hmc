@@ -28,6 +28,7 @@ module load mkl/2025.3
 : "${TLTM_LOG_ROOT:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/wv_hmc_pilot_20260529/${TLTM_RUN_NAME}}"
 : "${TLTM_PARAMETERS_FILE:=data/parameters_stephanov_n2_smoke.dat}"
 : "${WV_SCAN_CYCLES:=100}"
+: "${WV_SCAN_GRID:=initial}"
 : "${WV_SCAN_TIMEOUT_SEC:=60}"
 : "${WV_SCAN_JOBS:=8}"
 : "${WV_SCAN_BASE_SEED:=3001}"
@@ -47,6 +48,7 @@ echo "TLTM_WORKTREE=${TLTM_WORKTREE}"
 echo "TLTM_RUN_NAME=${TLTM_RUN_NAME}"
 echo "TLTM_PARAMETERS_FILE=${TLTM_PARAMETERS_FILE}"
 echo "WV_SCAN_CYCLES=${WV_SCAN_CYCLES}"
+echo "WV_SCAN_GRID=${WV_SCAN_GRID}"
 echo "WV_SCAN_TIMEOUT_SEC=${WV_SCAN_TIMEOUT_SEC}"
 echo "WV_SCAN_JOBS=${WV_SCAN_JOBS}"
 echo "WV_SCAN_RG_STATE_TOL=${WV_SCAN_RG_STATE_TOL}"
@@ -104,6 +106,7 @@ mkdir -p "${RUN_ROOT}"
   --binary bin/run_wv_hmc \
   --parameters-file "${TLTM_PARAMETERS_FILE}" \
   --output-root "${RUN_ROOT}" \
+  --grid "${WV_SCAN_GRID}" \
   --cycles "${WV_SCAN_CYCLES}" \
   --timeout-sec "${WV_SCAN_TIMEOUT_SEC}" \
   --jobs "${WV_SCAN_JOBS}" \
