@@ -35,6 +35,8 @@ module load mkl/2025.3
 : "${WV_SCAN_FLOW_TIME:=1.0e-5}"
 : "${WV_SCAN_RG_STATE_TOL:=1.0e-5}"
 : "${WV_SCAN_RG_MOMENTUM_TOL:=1.0e-3}"
+: "${WV_SCAN_INIT_MODE:=random_gaussian}"
+: "${WV_SCAN_INIT_SIGMA:=0.8}"
 
 cd "${TLTM_WORKTREE}"
 mkdir -p "${TLTM_LOG_ROOT}"
@@ -53,6 +55,8 @@ echo "WV_SCAN_TIMEOUT_SEC=${WV_SCAN_TIMEOUT_SEC}"
 echo "WV_SCAN_JOBS=${WV_SCAN_JOBS}"
 echo "WV_SCAN_RG_STATE_TOL=${WV_SCAN_RG_STATE_TOL}"
 echo "WV_SCAN_RG_MOMENTUM_TOL=${WV_SCAN_RG_MOMENTUM_TOL}"
+echo "WV_SCAN_INIT_MODE=${WV_SCAN_INIT_MODE}"
+echo "WV_SCAN_INIT_SIGMA=${WV_SCAN_INIT_SIGMA}"
 
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 CURRENT_COMMIT="$(git rev-parse HEAD)"
@@ -113,7 +117,9 @@ mkdir -p "${RUN_ROOT}"
   --base-seed "${WV_SCAN_BASE_SEED}" \
   --flow-time "${WV_SCAN_FLOW_TIME}" \
   --rg-state-tol "${WV_SCAN_RG_STATE_TOL}" \
-  --rg-momentum-tol "${WV_SCAN_RG_MOMENTUM_TOL}"
+  --rg-momentum-tol "${WV_SCAN_RG_MOMENTUM_TOL}" \
+  --init-mode "${WV_SCAN_INIT_MODE}" \
+  --init-sigma "${WV_SCAN_INIT_SIGMA}"
 
 echo "RUN_ROOT=${RUN_ROOT}"
 echo "SUMMARY=${RUN_ROOT}/dense_pilot_scan_summary.csv"

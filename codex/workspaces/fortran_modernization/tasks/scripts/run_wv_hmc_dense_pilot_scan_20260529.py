@@ -164,11 +164,45 @@ def wall_epsilon_candidate_rows(cycles):
     return rows
 
 
+def wall_epsilon_acceptance_candidate_rows(cycles):
+    rows = []
+    for label, step_size, num_steps in [
+        ("wall_g1_eps0p006_s2", 0.006, 2),
+        ("wall_g1_eps0p010_s2", 0.010, 2),
+        ("wall_g1_eps0p015_s2", 0.015, 2),
+        ("wall_g1_eps0p020_s2", 0.020, 2),
+        ("wall_g1_eps0p030_s2", 0.030, 2),
+        ("wall_g1_eps0p040_s2", 0.040, 2),
+        ("wall_g1_eps0p060_s2", 0.060, 2),
+        ("wall_g1_eps0p080_s2", 0.080, 2),
+        ("wall_g1_eps0p010_s4", 0.010, 4),
+        ("wall_g1_eps0p015_s4", 0.015, 4),
+        ("wall_g1_eps0p020_s4", 0.020, 4),
+        ("wall_g1_eps0p030_s4", 0.030, 4),
+    ]:
+        rows.append({
+            "label": label,
+            "profile": "paper_wall",
+            "step_size": step_size,
+            "num_steps": num_steps,
+            "cycles": cycles,
+            "t0": 0.005,
+            "t1": 0.2,
+            "d0": 0.005,
+            "d1": 0.05,
+            "gamma": 1.0,
+            "grid": "wall_epsilon_acceptance",
+        })
+    return rows
+
+
 def candidate_rows(cycles, grid):
     if grid == "initial":
         rows = initial_candidate_rows(cycles)
     elif grid == "wall_epsilon":
         rows = wall_epsilon_candidate_rows(cycles)
+    elif grid == "wall_epsilon_acceptance":
+        rows = wall_epsilon_acceptance_candidate_rows(cycles)
     else:
         raise ValueError("unknown grid {0}".format(grid))
     for row in rows:
@@ -184,7 +218,7 @@ def read_one_row_csv(path):
     return rows[0]
 
 
-def run_candidate(binary, output_root, candidate, parameters_file, base_seed, flow_time, timeout_sec, rg_state_tol, rg_momentum_tol):
+def run_candidate(binary, output_root, candidate, parameters_file, base_seed, flow_time, timeout_sec, rg_state_tol, rg_momentum_tol, init_mode, init_sigma):
     label = candidate["label"]
     summary_path = output_root / (label + "_summary.csv")
     observable_path = output_root / (label + "_observables.csv")
@@ -209,6 +243,8 @@ def run_candidate(binary, output_root, candidate, parameters_file, base_seed, fl
         "WV_HMC_W_C1": "1.0",
         "WV_HMC_REVERSE_GATE_STATE_TOL": str(rg_state_tol),
         "WV_HMC_REVERSE_GATE_MOMENTUM_TOL": str(rg_momentum_tol),
+        "WV_HMC_INIT_MODE": init_mode,
+        "WV_HMC_INIT_SIGMA": str(init_sigma),
     })
     start = time.time()
     timed_out = False
@@ -242,6 +278,8 @@ def run_candidate(binary, output_root, candidate, parameters_file, base_seed, fl
         "d1": candidate["d1"],
         "gamma": candidate["gamma"],
         "base_seed": base_seed,
+        "init_mode": init_mode,
+        "init_sigma": init_sigma,
         "parameters_file": str(parameters_file),
         "runtime_sec": runtime_sec,
         "timed_out": int(timed_out),
@@ -257,6 +295,36 @@ def run_candidate(binary, output_root, candidate, parameters_file, base_seed, fl
     else:
         for key in SUMMARY_FIELDS:
             row[key] = ""
+    return row
+
+
+def int_value(row, key):
+    try:
+        return int(row.get(key, ""))
+    except (TypeError, ValueError):
+        return 0
+
+
+def rate(numerator, denominator):
+    if denominator <= 0:
+        return ""
+    return "{0:.6g}".format(float(numerator) / float(denominator))
+
+
+def add_acceptance_rates(row):
+    cycles = int_value(row, "cycles_completed")
+    accepted = int_value(row, "accepted")
+    metropolis_rejected = int_value(row, "metropolis_rejected")
+    reverse_gate_rejected = int_value(row, "reverse_gate_rejected")
+    transitions_failed = int_value(row, "transitions_failed")
+    constructed = max(0, cycles - transitions_failed)
+    reversible = max(0, constructed - reverse_gate_rejected)
+    row["movement_accept_rate"] = rate(accepted, cycles)
+    row["metropolis_reject_rate"] = rate(metropolis_rejected, cycles)
+    row["reverse_gate_reject_rate"] = rate(reverse_gate_rejected, cycles)
+    row["construction_failure_rate"] = rate(transitions_failed, cycles)
+    row["constructed_movement_rate"] = rate(accepted, constructed)
+    row["metropolis_accept_rate_after_rg"] = rate(accepted, reversible)
     return row
 
 
@@ -276,11 +344,23 @@ def write_scan_outputs(rows, output_root):
         "d1",
         "gamma",
         "base_seed",
+        "init_mode",
+        "init_sigma",
         "parameters_file",
         "runtime_sec",
         "timed_out",
         "return_code",
-    ] + SUMMARY_FIELDS + ["summary_path", "observable_path", "log_path"]
+    ] + SUMMARY_FIELDS + [
+        "movement_accept_rate",
+        "metropolis_reject_rate",
+        "reverse_gate_reject_rate",
+        "construction_failure_rate",
+        "constructed_movement_rate",
+        "metropolis_accept_rate_after_rg",
+        "summary_path",
+        "observable_path",
+        "log_path",
+    ]
     with csv_path.open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
@@ -293,16 +373,20 @@ def write_scan_outputs(rows, output_root):
         "",
         "Scope: Stephanov n=2 dense backend, production reverse gate enabled.",
         "Grid: `{0}`.".format(rows[0].get("grid", "unknown") if rows else "unknown"),
+        "Initialization: `{0}`, sigma `{1}`.".format(
+            rows[0].get("init_mode", "unknown") if rows else "unknown",
+            rows[0].get("init_sigma", "unknown") if rows else "unknown",
+        ),
         "",
-        "| label | profile | eps | nstep | L | cycles | timeout | accepted | metro rej | RG rej | fail | t mean | t max | phase | sec |",
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| label | profile | eps | nstep | L | cycles | timeout | move acc | metro rej/cyc | RG rej/cyc | fail/cyc | constructed acc | metro acc after RG | t mean | t max | phase | sec |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         def cell(key):
             return row.get(key, "")
 
         lines.append(
-            "| {label} | {profile} | {eps} | {nstep} | {length} | {cycles} | {timeout} | {acc} | {metro} | {rg} | {fail} | {tmean} | {tmax} | {phase} | {sec:.3g} |".format(
+            "| {label} | {profile} | {eps} | {nstep} | {length} | {cycles} | {timeout} | {move_acc} | {metro_rate} | {rg_rate} | {fail_rate} | {constructed_acc} | {metro_acc_after_rg} | {tmean} | {tmax} | {phase} | {sec:.3g} |".format(
                 label=cell("label"),
                 profile=cell("profile"),
                 eps=cell("step_size"),
@@ -310,10 +394,12 @@ def write_scan_outputs(rows, output_root):
                 length=cell("trajectory_length"),
                 cycles=cell("cycles_completed"),
                 timeout=cell("timed_out"),
-                acc=cell("accepted"),
-                metro=cell("metropolis_rejected"),
-                rg=cell("reverse_gate_rejected"),
-                fail=cell("transitions_failed"),
+                move_acc=cell("movement_accept_rate"),
+                metro_rate=cell("metropolis_reject_rate"),
+                rg_rate=cell("reverse_gate_reject_rate"),
+                fail_rate=cell("construction_failure_rate"),
+                constructed_acc=cell("constructed_movement_rate"),
+                metro_acc_after_rg=cell("metropolis_accept_rate_after_rg"),
                 tmean=cell("flow_time_mean"),
                 tmax=cell("flow_time_max"),
                 phase=cell("measurement_phase_coherence"),
@@ -324,6 +410,7 @@ def write_scan_outputs(rows, output_root):
         "",
         "Operational note: flat `W(t)` is expected to concentrate samples near small flow time.",
         "Tilted wall cases must retune `epsilon` and `L` rather than inheriting flat-W parameters.",
+        "Tuning note: choose `epsilon` from Metropolis/movement behavior, while reverse-gate and construction failures are diagnostics for unusable points, not the primary target.",
         "",
         "Artifacts:",
         "- `{0}`".format(csv_path),
@@ -337,7 +424,7 @@ def main():
     parser.add_argument("--binary", default="bin/run_wv_hmc")
     parser.add_argument("--output-root", default="output/wv_hmc_pilot_20260529/dense_scan")
     parser.add_argument("--parameters-file", default="data/parameters_stephanov_n2_smoke.dat")
-    parser.add_argument("--grid", choices=["initial", "wall_epsilon"], default="initial")
+    parser.add_argument("--grid", choices=["initial", "wall_epsilon", "wall_epsilon_acceptance"], default="initial")
     parser.add_argument("--cycles", type=int, default=100)
     parser.add_argument("--timeout-sec", type=float, default=20.0)
     parser.add_argument("--jobs", type=int, default=1)
@@ -345,6 +432,8 @@ def main():
     parser.add_argument("--flow-time", type=float, default=1.0e-5)
     parser.add_argument("--rg-state-tol", type=float, default=1.0e-5)
     parser.add_argument("--rg-momentum-tol", type=float, default=1.0e-3)
+    parser.add_argument("--init-mode", default="random_gaussian")
+    parser.add_argument("--init-sigma", type=float, default=0.8)
     args = parser.parse_args()
 
     binary = Path(args.binary)
@@ -366,6 +455,8 @@ def main():
                     args.timeout_sec,
                     args.rg_state_tol,
                     args.rg_momentum_tol,
+                    args.init_mode,
+                    args.init_sigma,
                 )
             )
     else:
@@ -384,10 +475,13 @@ def main():
                     args.timeout_sec,
                     args.rg_state_tol,
                     args.rg_momentum_tol,
+                    args.init_mode,
+                    args.init_sigma,
                 )
                 futures[future] = idx
             for future in as_completed(futures):
                 rows[futures[future]] = future.result()
+    rows = [add_acceptance_rates(row) for row in rows]
     csv_path, md_path = write_scan_outputs(rows, output_root)
     print("wrote {0}".format(csv_path))
     print("wrote {0}".format(md_path))
