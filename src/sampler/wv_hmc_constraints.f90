@@ -283,6 +283,8 @@ contains
          if (residual_error) then
             local_stop_reason = wv_newton_stop_residual_error
             if (present(stop_reason)) stop_reason = local_stop_reason
+            call write_newton_trace_row(trace_context, solve_id, iter, residual_norm, tol, h, u_interleaved, lambda, &
+                                        local_stop_reason)
             return
          end if
 
@@ -361,12 +363,16 @@ contains
          if (update_error) then
             local_stop_reason = wv_newton_stop_update_error
             if (present(stop_reason)) stop_reason = local_stop_reason
+            call write_newton_trace_row(trace_context, solve_id, iter, residual_norm, tol, h, u_interleaved, lambda, &
+                                        local_stop_reason)
             return
          end if
          update_norm = sqrt(delta_h*delta_h + norm2(delta_u)**2 + norm2(delta_lambda)**2)
          if (.not. ieee_is_finite(update_norm)) then
             local_stop_reason = wv_newton_stop_nonfinite
             if (present(stop_reason)) stop_reason = local_stop_reason
+            call write_newton_trace_row(trace_context, solve_id, iter, residual_norm, tol, h, u_interleaved, lambda, &
+                                        local_stop_reason)
             return
          end if
          h = h + delta_h
@@ -376,6 +382,8 @@ contains
              (.not. valid_real_vector(lambda))) then
             local_stop_reason = wv_newton_stop_nonfinite
             if (present(stop_reason)) stop_reason = local_stop_reason
+            call write_newton_trace_row(trace_context, solve_id, iter, residual_norm, tol, h, u_interleaved, lambda, &
+                                        local_stop_reason)
             return
          end if
          residual_prev = residual_norm

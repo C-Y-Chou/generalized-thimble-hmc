@@ -238,7 +238,7 @@ def read_one_row_csv(path):
 
 def run_candidate(binary, output_root, candidate, parameters_file, base_seed, flow_time, timeout_sec, rg_state_tol,
                   rg_momentum_tol, init_mode, init_sigma, init_bank_file, init_bank_record, newton_trace_enabled,
-                  adaptive_newton_stop_enabled):
+                  adaptive_newton_stop_enabled, constraint_tol, constraint_max_iter):
     label = candidate["label"]
     summary_path = output_root / (label + "_summary.csv")
     observable_path = output_root / (label + "_observables.csv")
@@ -267,6 +267,8 @@ def run_candidate(binary, output_root, candidate, parameters_file, base_seed, fl
         "WV_HMC_INIT_MODE": init_mode,
         "WV_HMC_INIT_SIGMA": str(init_sigma),
         "WV_HMC_ADAPTIVE_NEWTON_STOP_ENABLED": "1" if adaptive_newton_stop_enabled else "0",
+        "WV_HMC_CONSTRAINT_TOL": str(constraint_tol),
+        "WV_HMC_CONSTRAINT_MAX_ITER": str(constraint_max_iter),
     })
     if newton_trace_enabled:
         env["WV_HMC_NEWTON_TRACE_FILE"] = str(newton_trace_path)
@@ -474,6 +476,8 @@ def main():
     parser.add_argument("--init-bank-record", type=int, default=-1)
     parser.add_argument("--newton-trace-enabled", action="store_true")
     parser.add_argument("--adaptive-newton-stop-enabled", action="store_true")
+    parser.add_argument("--constraint-tol", type=float, default=1.0e-8)
+    parser.add_argument("--constraint-max-iter", type=int, default=16)
     args = parser.parse_args()
 
     binary = Path(args.binary)
@@ -501,6 +505,8 @@ def main():
                     args.init_bank_record,
                     args.newton_trace_enabled,
                     args.adaptive_newton_stop_enabled,
+                    args.constraint_tol,
+                    args.constraint_max_iter,
                 )
             )
     else:
@@ -525,6 +531,8 @@ def main():
                     args.init_bank_record,
                     args.newton_trace_enabled,
                     args.adaptive_newton_stop_enabled,
+                    args.constraint_tol,
+                    args.constraint_max_iter,
                 )
                 futures[future] = idx
             for future in as_completed(futures):
