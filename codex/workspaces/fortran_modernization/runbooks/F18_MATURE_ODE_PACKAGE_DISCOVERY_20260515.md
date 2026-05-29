@@ -136,7 +136,10 @@ Implemented the first endpoint shim slice locally:
 - default build remains `ENABLE_SUNDIALS_CVODE=0` with a stub C bridge;
 - runtime switch remains explicit:
   `TLTM_ODE_BACKEND=sundials_cvode`;
-- current default backend remains handwritten endpoint-only ODEX;
+- historical note: at the time of this discovery packet the default backend
+  remained handwritten endpoint-only ODEX; as of 2026-05-30 the active source
+  default is DOP853, and ODEX is scheduled for deletion in
+  `DOP853_DEFAULT_AND_ODEX_DELETION_PLAN_20260530.md`;
 - CVODE path maps TLTM endpoint RHS callbacks through a C bridge, returns
   TLTM-style success/max-steps/invalid statuses, and keeps zero-time handling
   in Fortran;

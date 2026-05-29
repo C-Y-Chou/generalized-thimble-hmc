@@ -212,7 +212,7 @@ module odex_backend
    type, public :: odex_options
       real(dp) :: abs_tol = 0.0_dp
       real(dp) :: rel_tol = 0.0_dp
-      integer :: backend = odex_backend_kind_odex
+      integer :: backend = odex_backend_kind_dop853
       integer :: k_min = odex_k_min
       integer :: k_max = odex_k_max
       integer :: max_steps = odex_max_steps_default
@@ -514,7 +514,7 @@ contains
       options%rel_tol = 0.0_dp
       if (present(abs_tol)) options%abs_tol = abs_tol
       if (present(rel_tol)) options%rel_tol = rel_tol
-      options%backend = odex_backend_kind_odex
+      options%backend = odex_backend_kind_dop853
       options%k_min = odex_k_min
       options%k_max = odex_k_max
       options%max_steps = odex_max_steps_default
@@ -560,12 +560,12 @@ contains
       character(len=*), intent(in) :: backend_token
 
       select case (trim(odex_to_lower_ascii(backend_token)))
-      case ("odex", "internal", "default")
+      case ("odex", "internal")
          options%backend = odex_backend_kind_odex
+      case ("default", "dop853", "dopri853", "dormand_prince_853")
+         options%backend = odex_backend_kind_dop853
       case ("sundials", "sundials_cvode", "cvode")
          options%backend = odex_backend_kind_sundials_cvode
-      case ("dop853", "dopri853", "dormand_prince_853")
-         options%backend = odex_backend_kind_dop853
       case default
          options%backend = -1
       end select

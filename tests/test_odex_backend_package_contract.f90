@@ -53,7 +53,8 @@ contains
 end module test_odex_backend_package_rhs
 
 program test_odex_backend_package_contract
-   use odex_backend, only: build_nsteps, odex_backend_kind_dop853, odex_controller_policy_hairer_experimental, &
+   use odex_backend, only: build_nsteps, odex_backend_kind_dop853, odex_backend_kind_odex, &
+                           odex_controller_policy_hairer_experimental, &
                            odex_default_options, odex_integrate_dop853_dense_targets, &
                            odex_integrate_dop853_dense_targets_context, odex_integrate_endpoint, &
                            odex_integrate_endpoint_context, &
@@ -120,6 +121,7 @@ contains
       logical :: failed, failed_context, ok, ok_context
 
       call odex_default_options(options, 3.0e-14_dp, 3.0e-14_dp)
+      options%backend = odex_backend_kind_odex
       exp_lambda = -2.0_dp
       y0(1) = 1.0_dp
       call odex_integrate_endpoint(rhs_exp, y0, 1.0_dp, y_out, failed, result_state, workspace, options)
@@ -367,6 +369,7 @@ contains
       logical :: failed, failed_context, ok, ok_context
 
       call odex_default_options(options, 3.0e-14_dp, 3.0e-14_dp)
+      options%backend = odex_backend_kind_odex
       options%controller_policy = odex_controller_policy_hairer_experimental
       exp_lambda = -2.0_dp
       y0(1) = 1.0_dp
@@ -452,6 +455,7 @@ contains
       logical :: signed_ok, k2_ok, reject_ok
 
       call odex_default_options(options, 3.0e-14_dp, 3.0e-14_dp)
+      options%backend = odex_backend_kind_odex
       options%controller_policy = odex_controller_policy_hairer_experimental
       exp_lambda = -1.3_dp
       y0(1) = 0.8125_dp
@@ -465,6 +469,7 @@ contains
                   result_back%final_step_size < 0.0_dp .and. err <= 2.0e-11_dp
 
       call odex_default_options(loose_options, 1.0e-1_dp, 1.0e-1_dp)
+      loose_options%backend = odex_backend_kind_odex
       loose_options%controller_policy = odex_controller_policy_hairer_experimental
       loose_options%max_steps = 1
       exp_lambda = -0.5_dp
@@ -476,6 +481,7 @@ contains
               result_k2%odex_tltm_policy_steps == 0
 
       call odex_default_options(reject_options, 1.0e-12_dp, 1.0e-12_dp)
+      reject_options%backend = odex_backend_kind_odex
       reject_options%controller_policy = odex_controller_policy_hairer_experimental
       reject_options%max_steps = 10000
       exp_lambda = -100.0_dp
@@ -511,6 +517,7 @@ contains
       logical :: failed_mid, failed_back, ok
 
       call odex_default_options(options, 3.0e-14_dp, 3.0e-14_dp)
+      options%backend = odex_backend_kind_odex
       exp_lambda = -1.3_dp
       y0(1) = 0.8125_dp
       call odex_integrate_endpoint(rhs_exp, y0, 0.75_dp, y_mid, failed_mid, result_mid, workspace, options)
@@ -559,6 +566,7 @@ contains
       logical :: failed, ok
 
       call odex_default_options(options, 3.0e-14_dp, 3.0e-14_dp)
+      options%backend = odex_backend_kind_odex
       options%step_sequence = odex_step_sequence_iwork3 + 100
       exp_lambda = -2.0_dp
       y0(1) = 1.0_dp
@@ -583,6 +591,7 @@ contains
       logical :: failed, failed_context, ok, ok_context
 
       call odex_default_options(options, 3.0e-14_dp, 3.0e-14_dp)
+      options%backend = odex_backend_kind_odex
       y0(1) = 1.0_dp
       call odex_integrate_endpoint(rhs_nan, y0, 1.0_dp, y_out, failed, result_state, workspace, options)
       ok = failed .and. result_state%status == odex_status_failure_invalid .and. &
@@ -615,6 +624,7 @@ contains
       logical :: failed, failed_context, ok, ok_context
 
       call odex_default_options(options, 3.0e-14_dp, 3.0e-14_dp)
+      options%backend = odex_backend_kind_odex
       exp_lambda = -2.0_dp
       y0 = [1.0_dp, 2.0_dp]
       y_out = -999.0_dp

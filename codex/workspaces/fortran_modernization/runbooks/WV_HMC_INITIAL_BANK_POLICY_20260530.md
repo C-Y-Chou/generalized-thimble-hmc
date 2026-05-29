@@ -65,6 +65,12 @@ The formal validation output is:
 /lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_observable_validation_20260529/wv_hmc_dense_observable_validation_n2_64x4000_eps020_bankinit_20260530_17928.anode01
 ```
 
+Backend note: this run validated the bank-initialization mechanism, but it
+predates the 2026-05-30 DOP853-default correction.  The WV-HMC wrapper did not
+force `TLTM_ODE_BACKEND=dop853`, so this run must not be used as DOP853 runtime
+evidence.  Rerun the bank-init validation under the corrected DOP853 default
+before comparing WV-HMC production speed.
+
 Key readback numbers from `17928.anode01`:
 
 | seeds | cycles | measurements | phase coherence | accepted fraction | flow-time mean | flow-time max |

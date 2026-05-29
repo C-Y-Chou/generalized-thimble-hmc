@@ -10,8 +10,9 @@ program test_odex_result_contract
                          odex_status_failure_max_steps, odex_status_from_failure_reason, odex_status_is_failure, &
                          odex_status_is_mechanism_status, odex_status_success, odex_status_success_zero_time, &
                          odex_status_unknown, odex_step_sequence_iwork3, odex_stability_control_none, odex_workspace
-   use odex_backend, only: odex_apply_controller_policy_name, odex_controller_policy_hairer_experimental, &
-                           odex_controller_policy_name, odex_controller_policy_tltm_endpoint
+   use odex_backend, only: odex_apply_controller_policy_name, odex_backend_kind_dop853, &
+                           odex_controller_policy_hairer_experimental, odex_controller_policy_name, &
+                           odex_controller_policy_tltm_endpoint
    use utils, only: dp
    implicit none
 
@@ -47,12 +48,13 @@ contains
       ok = options%abs_tol == at .and. options%rel_tol == rt .and. &
            options%k_min == odex_k_min .and. options%k_max == odex_k_max .and. &
            options%max_steps > 0 .and. options%step_sequence == odex_step_sequence_iwork3 .and. &
+           options%backend == odex_backend_kind_dop853 .and. &
            options%controller_policy == odex_controller_policy_hairer_experimental .and. &
            odex_controller_policy_tltm_endpoint == odex_controller_policy_hairer_experimental .and. &
            options%stability_control == odex_stability_control_none .and. options%endpoint_only
-      write (*, '(A,L1,A,I0,A,I0,A,I0,A,L1)') "[CHECK] default_options ok=", ok, &
-         " k_min=", options%k_min, " k_max=", options%k_max, " step_sequence=", options%step_sequence, &
-         " endpoint_only=", options%endpoint_only
+      write (*, '(A,L1,A,I0,A,I0,A,I0,A,I0,A,L1)') "[CHECK] default_options ok=", ok, &
+         " backend=", options%backend, " k_min=", options%k_min, " k_max=", options%k_max, &
+         " step_sequence=", options%step_sequence, " endpoint_only=", options%endpoint_only
       if (.not. ok) then
          failures = failures + 1
          write (*, '(A)') "[FAIL] ODEX default options no longer match the current source contract."

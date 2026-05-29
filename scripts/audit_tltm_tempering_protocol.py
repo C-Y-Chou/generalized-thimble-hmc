@@ -867,7 +867,7 @@ def check_v1_sidecars(summary, manifest, protocol, rate_tol):
                 checks,
                 "v1 manifest product route identity",
                 manifest_data.get("canonical_route_id") == "constrained_hmc_reverse_gate_metropolis_v1"
-                and manifest_data.get("flow_policy_id") == "odex_hairer_endpoint_v1"
+                and manifest_data.get("flow_policy_id") == "dop853_endpoint_v1"
                 and manifest_data.get("qn_solver_policy_id") == "official_dfols_residual_certified_v1",
                 details={
                     "canonical_route_id": manifest_data.get("canonical_route_id"),

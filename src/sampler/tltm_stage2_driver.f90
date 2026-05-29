@@ -5138,18 +5138,18 @@ contains
       character(len=64) :: env_value
       logical :: has_backend
 
-      backend_token = "odex"
+      backend_token = "dop853"
       env_value = ""
       call read_string_env("TLTM_ODE_BACKEND", env_value, has_backend)
       if (has_backend) backend_token = trim(to_lower_ascii(adjustl(env_value)))
 
       select case (trim(backend_token))
-      case ("", "odex", "hairer_odex")
-         backend_token = "odex"
-         flow_policy_id = "odex_hairer_endpoint_v1"
-      case ("dop853", "dopri853", "dormand_prince_853")
+      case ("", "default", "dop853", "dopri853", "dormand_prince_853")
          backend_token = "dop853"
          flow_policy_id = "dop853_endpoint_v1"
+      case ("odex", "hairer_odex")
+         backend_token = "odex"
+         flow_policy_id = "odex_hairer_endpoint_v1"
       case ("cvode", "sundials", "sundials_cvode")
          backend_token = "sundials_cvode"
          flow_policy_id = "sundials_cvode_endpoint_v1"
