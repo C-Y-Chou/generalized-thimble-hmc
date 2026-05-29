@@ -80,7 +80,7 @@ contains
       init_sigma = 0.8_dp
       init_bank_file = ""
       newton_trace_file = ""
-      newton_trace_unit = -1
+      newton_trace_unit = 0
       init_bank_record = -1
       init_bank_selected_record = -1
       init_bank_record_count = 0
@@ -172,7 +172,7 @@ contains
                               constraint_max_iter=constraint_max_iter, &
                               adaptive_stop_enabled=adaptive_newton_stop_enabled, &
                               newton_trace_context=newton_trace_context)
-      if (newton_trace_unit > 0) close (newton_trace_unit)
+      if (newton_trace_unit /= 0) close (newton_trace_unit)
       if (error) then
          write (*, '(*(g0,1X))') "ERROR", "dense_chain_failed", "status", status, &
             "cycles_attempted", summary%cycles_attempted, &

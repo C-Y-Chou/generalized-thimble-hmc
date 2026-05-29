@@ -26,6 +26,7 @@ SUMMARY_FIELDS = [
     "flow_time_mean",
     "bounced_steps",
     "trajectory_steps",
+    "solver_iterations",
     "reverse_trajectory_steps",
     "reverse_solver_iterations",
     "last_solver_stop_reason",

@@ -29,7 +29,7 @@ module wv_hmc_constraints
    integer, parameter :: wv_newton_stop_not_run = 9
 
    type :: wv_newton_trace_context_t
-      integer :: unit = -1
+      integer :: unit = 0
       integer :: solve_count = 0
       integer :: cycle = 0
       integer :: direction = 0
@@ -675,7 +675,7 @@ contains
       real(dp), intent(in) :: residual_norm, tol, h, u_interleaved(:), lambda(:)
 
       if (.not. present(trace_context)) return
-      if (trace_context%unit <= 0) return
+      if (trace_context%unit == 0) return
       write (trace_context%unit, '(*(g0,:,","))') solve_id, trace_context%cycle, trace_context%direction, &
          trace_context%step, iter, residual_norm, tol, h, norm2(u_interleaved), norm2(lambda), stop_reason
    end subroutine write_newton_trace_row
