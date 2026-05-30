@@ -194,3 +194,57 @@ Interim conclusion: `epsilon=0.015, nstep=3, L=0.045` is the first WV-HMC
 dense n=2 candidate that passes this observable smoke gate under the corrected
 configuration-space movement tuning rule. This is not yet a production claim:
 it is a pre-matrix-free dense validation checkpoint.
+
+## Long Cycle Seed-Parallel Check
+
+To test whether the remaining observable deviations were just finite-cycle
+noise, the same tuned setting was rerun at `64 seeds x 30000 cycles`. The first
+attempt used one `C16` job and therefore only ran 16 seeds concurrently; that
+job was stopped and excluded from the formal readback. The accepted run used
+five independent PBS chunks, each with an isolated worktree so concurrent
+`make clean` / build steps could not interfere:
+
+```text
+chunk00 = 17990.anode01, C12, 12 seeds, exit 0
+chunk01 = 17991.anode01, C12, 12 seeds, exit 0
+chunk02 = 17992.anode01, C12, 12 seeds, exit 0
+chunk03 = 17993.anode01, C12, 12 seeds, exit 0
+chunk04 = 17996.anode01, C16, 16 seeds, exit 0
+combined_root = /lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_observable_validation_20260530/wv_hmc_formal_validation_n2_64x30000_seedparallel_combined_eps0015_s3_configmove_20260530
+combined_readback = /lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_observable_validation_20260530/wv_hmc_formal_validation_n2_64x30000_seedparallel_combined_eps0015_s3_configmove_20260530/readback/wv_hmc_pilot_readback.md
+```
+
+Combined transition diagnostics:
+
+```text
+seeds = 64
+total_cycles = 1920000
+total_measurements = 1855979
+phase_coherence = 0.926789
+metropolis_rejections = 267
+reverse_gate_rejections = 246100
+forward_construction_failures = 178929
+ODE_failures = 5009
+effective_x_jump_sq_per_cycle = 0.00254756
+effective_z_jump_sq_per_cycle = 0.00160476
+accepted_x_jump_sq_per_accepted_proposal = 0.00327243
+accepted_z_jump_sq_per_accepted_proposal = 0.00206137
+```
+
+Combined observable readback:
+
+| observable | Re | SE Re | z Re | Im | SE Im | z Im |
+|---|---:|---:|---:|---:|---:|---:|
+| chiral_condensate | 0.365450784 | 0.00321 | -4.55 | 0.0064384745 | 0.00414 | 1.56 |
+| logdet_dirac | 0.656483724 | 0.0302 |  | 1.18578443 | 0.0872 |  |
+| min_singular_ba_m2 | 0.5691849 | 0.00532 |  | 0.000105090261 | 0.00184 |  |
+| number_density | 0.0503806101 | 0.0076 | 1.53 | -0.0209535207 | 0.0117 | -1.8 |
+| phase_factor | 0.739632452 | 0.00717 |  | -0.0104949993 | 0.00919 |  |
+
+Conclusion update: increasing cycles did not push all four exact-reference
+z-scores below one. The long run sharpened the error estimate and exposed a
+stable `chiral_condensate` Re deviation. Therefore `epsilon=0.015, nstep=3,
+L=0.045` is not a validated WV-HMC dense production setting. The next step is
+not more cycles at the same setting; it is to diagnose algorithm/measurement
+correctness or retune the WV-HMC transition with a criterion that includes
+observable correctness, not only accepted/effective configuration movement.
