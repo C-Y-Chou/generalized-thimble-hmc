@@ -1,206 +1,207 @@
 #!/usr/bin/env python3
-"""Thin product-facing TLTM compatibility runner.
+"""Product-facing runner for generalized thimble simulations.
 
-This wrapper intentionally delegates execution to the existing Stage3 multiseed
-driver while enforcing the current product-surface package policy: v1 sidecars,
-protocol audit, and the cleaned route/component identifiers.
+The wrapper exposes the current public surface:
+
+* canonical TLTM execution through the Stage3 multiseed driver;
+* dense explicit-J WV-HMC execution through ``bin/run_wv_hmc``;
+* build and validation commands used by the public README.
+
+It intentionally keeps research campaign selectors out of the user-facing
+interface.  Internal scripts remain available for reproducibility work, but a
+new user should be able to start here.
 """
 
+from __future__ import annotations
+
 import argparse
-import csv
 import json
 import os
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Dict, Iterable, List, Mapping
 
 
-PRODUCT_IDS = {
-    "algorithm_id": "tltm_hmc_v1",
-    "canonical_route_id": "constrained_hmc_reverse_gate_metropolis_v1",
-    "integrator_policy_id": "rattle_v1",
-    "constraint_solver_policy_id": "newton_projection_v1",
-    "flow_policy_id": "dop853_endpoint_v1",
-    "qn_solver_policy_id": "official_dfols_residual_certified_v1",
-    "reverse_gate_policy_id": "reverse_trajectory_certification_v1",
-    "failure_policy_id": "reject_stay_put_v1",
-    "precision_policy_id": "double_strict_v1",
-}
-
-METHOD_SETS = {
-    "canonical_pair": "no_fb_fbnorefine",
-    "nofb": "no_fb",
-    "withfb": "fb_norefine",
-    "legacy_stage3_pair": "both",
-}
-METHOD_ALIAS_SCHEMA = Path("codex/workspaces/fortran_modernization/schema/F7_METHOD_ALIASES_V1.json")
-PRODUCT_PER_SEED_TABLE = "product_per_seed_summary_table.csv"
-PRODUCT_AGGREGATED_TABLE = "product_aggregated_summary_table.csv"
-RETIRED_PRODUCT_RAW_FIELDS = {
-    "accepted_local_nonnear_route_count",
-    "quasi_watchdog_hit_count",
-    "quasi_watchdog_used_sum",
-    "quasi_watchdog_used_max",
-    "quasi_watchdog_budget_last",
-    "total_accepted_local_nonnear_route_count",
-    "total_quasi_watchdog_hit_count",
-    "total_quasi_watchdog_used_sum",
-    "total_quasi_watchdog_used_max",
-    "total_quasi_watchdog_budget_last",
-}
-RETIRED_PRODUCT_RAW_PREFIXES = (
-    "cvode_",
-    "mean_cvode_",
-    "total_cvode_",
-)
-RETIRED_PRODUCT_RAW_SUBSTRINGS = (
-    "post_refine",
-    "solver_assist",
-)
+DEFAULT_PARAMETERS = "data/parameters_stephanov_n6_mu06_t0.dat"
+DEFAULT_OUTPUT_ROOT = "output/product"
+DEFAULT_WV_T0 = 1.0e-4
+DEFAULT_WV_T1 = 3.0e-2
+DEFAULT_WV_D0 = 1.0e-4
+DEFAULT_WV_D1 = 5.0e-3
+DEFAULT_WV_STEP_SIZE = 1.6e-2
+DEFAULT_WV_STEPS = 10
+DEFAULT_WV_GAMMA = 55.0
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run the current TLTM product compatibility workflow through the Stage3 driver."
+        description="Build, test, and run the product-facing generalized thimble workflows."
     )
-    parser.add_argument("--repo-root", default=".", help="Repository root.")
-    parser.add_argument("--config", required=True, help="Stage3 protocol JSON, relative to repo root or absolute.")
-    parser.add_argument(
-        "--method-set",
-        choices=tuple(sorted(METHOD_SETS)),
-        default=os.environ.get("TLTM_PRODUCT_METHOD_SET", "canonical_pair"),
-        help="Product method set. canonical_pair maps to current nofb/withfb compatibility execution.",
+    parser.add_argument("--repo-root", default=".", help="Repository root. Defaults to the current directory.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    build = subparsers.add_parser("build", help="Build public executables.")
+    build.add_argument(
+        "--target",
+        action="append",
+        default=[],
+        help="Additional build target. Defaults to run_wv_hmc and run_wv_hmc_smoke.",
     )
-    parser.add_argument(
-        "--stage3-methods",
-        choices=("both", "no_fb_fbnorefine", "no_fb", "fb", "fb_norefine"),
-        default="",
-        help="Developer compatibility override for the delegated Stage3 method selector.",
+    build.add_argument("--fast", action="store_true", help="Use debug-friendly Fortran flags.")
+    build.add_argument("--dry-run", action="store_true", help="Print commands without executing.")
+
+    test = subparsers.add_parser("test", help="Run public validation targets.")
+    test.add_argument(
+        "--target",
+        action="append",
+        default=[],
+        help="Additional test target. Defaults to WV-HMC math/constraint and model derivative tests.",
     )
-    parser.add_argument("--seed-offset", type=int, default=0, help="First selected seed offset.")
-    parser.add_argument("--max-seeds", type=int, default=0, help="Maximum selected seeds; 0 means all selected seeds.")
-    parser.add_argument("--jobs", type=int, default=1, help="Parallel Stage3 worker count.")
-    parser.add_argument(
-        "--stage2-threads",
-        type=int,
-        default=int(os.environ.get("TLTM_PRODUCT_STAGE2_THREADS", "1")),
-        help="Thread budget for each run_tltm_stage2 process.",
+    test.add_argument("--dry-run", action="store_true", help="Print commands without executing.")
+
+    tltm = subparsers.add_parser("tltm", help="Run canonical TLTM through the multiseed driver.")
+    tltm.add_argument("--config", required=True, help="Stage3 protocol JSON.")
+    tltm.add_argument("--output-dir", default=f"{DEFAULT_OUTPUT_ROOT}/tltm", help="Output directory.")
+    tltm.add_argument("--logs-dir", default="output/logs/product/tltm", help="Log directory.")
+    tltm.add_argument("--seed-offset", type=int, default=0, help="First selected seed offset.")
+    tltm.add_argument("--max-seeds", type=int, default=0, help="Maximum selected seeds; 0 means all.")
+    tltm.add_argument("--jobs", type=int, default=1, help="Parallel worker count.")
+    tltm.add_argument("--skip-build", action="store_true", help="Do not rebuild delegated executables.")
+    tltm.add_argument("--dry-run", action="store_true", help="Print the delegated plan without executing.")
+
+    wv = subparsers.add_parser("wv-hmc", help="Run dense explicit-J WV-HMC.")
+    wv.add_argument("--parameters", default=DEFAULT_PARAMETERS, help="Parameters file.")
+    wv.add_argument("--output-dir", default=f"{DEFAULT_OUTPUT_ROOT}/wv_hmc", help="Output directory.")
+    wv.add_argument("--seed", type=int, default=20260529, help="Base RNG seed.")
+    wv.add_argument("--cycles", type=int, default=100, help="Number of Markov cycles.")
+    wv.add_argument("--step-size", type=float, default=DEFAULT_WV_STEP_SIZE, help="Leapfrog step size.")
+    wv.add_argument("--num-steps", type=int, default=DEFAULT_WV_STEPS, help="Leapfrog step count.")
+    wv.add_argument("--t0", type=float, default=DEFAULT_WV_T0, help="Sampler lower flow-time boundary.")
+    wv.add_argument("--t1", type=float, default=DEFAULT_WV_T1, help="Sampler upper flow-time boundary.")
+    wv.add_argument("--d0", type=float, default=DEFAULT_WV_D0, help="Lower soft-wall width.")
+    wv.add_argument("--d1", type=float, default=DEFAULT_WV_D1, help="Upper soft-wall width.")
+    wv.add_argument("--measurement-t0", type=float, default=None, help="Measurement lower flow-time boundary.")
+    wv.add_argument("--measurement-t1", type=float, default=None, help="Measurement upper flow-time boundary.")
+    wv.add_argument("--measurement-start-cycle", type=int, default=1, help="First measured cycle.")
+    wv.add_argument("--w-profile", default="paper_wall", choices=("paper_wall", "zero", "polynomial"), help="Flow-time potential profile.")
+    wv.add_argument("--w-gamma", type=float, default=DEFAULT_WV_GAMMA, help="Flow-time potential strength.")
+    wv.add_argument("--w-c0", type=float, default=1.0, help="Lower wall coefficient.")
+    wv.add_argument("--w-c1", type=float, default=1.0, help="Upper wall coefficient.")
+    wv.add_argument(
+        "--init-mode",
+        default="deterministic",
+        choices=("deterministic", "zero", "gaussian", "random_gaussian", "bank", "state_bank"),
+        help="Initial state source.",
     )
-    parser.add_argument(
-        "--eval-threads",
-        type=int,
-        default=int(os.environ.get("TLTM_PRODUCT_EVAL_THREADS", "1")),
-        help="Thread budget for each evaluate_expectations process.",
-    )
-    parser.add_argument(
-        "--schedule",
-        choices=("paired", "task"),
-        default=os.environ.get("TLTM_PRODUCT_SCHEDULE", "paired"),
-        help="Delegated Stage3 scheduling policy.",
-    )
-    parser.add_argument(
-        "--pair-order",
-        choices=("alternating", "no_fb_first", "fb_first"),
-        default=os.environ.get("TLTM_PRODUCT_PAIR_ORDER", "alternating"),
-        help="Delegated paired-schedule method order.",
-    )
-    parser.add_argument(
-        "--task-method-order",
-        choices=("no_fb_first", "fb_first"),
-        default=os.environ.get("TLTM_PRODUCT_TASK_METHOD_ORDER", "no_fb_first"),
-        help="Delegated task-schedule method order.",
-    )
-    parser.add_argument(
-        "--output-subdir",
-        default=os.environ.get("TLTM_PRODUCT_OUTPUT_SUBDIR", "output/product/tltm_run"),
-        help="Output directory relative to repo root, or absolute.",
-    )
-    parser.add_argument(
-        "--logs-subdir",
-        default=os.environ.get("TLTM_PRODUCT_LOGS_SUBDIR", "output/logs/tltm_product"),
-        help="Log directory relative to repo root, or absolute.",
-    )
-    parser.add_argument(
-        "--log-prefix",
-        default=os.environ.get("TLTM_PRODUCT_LOG_PREFIX", "tltm_product"),
-        help="Prefix used in delegated Stage2/evaluation log filenames.",
-    )
-    parser.add_argument(
-        "--report-title",
-        default=os.environ.get("TLTM_PRODUCT_REPORT_TITLE", "TLTM Product Compatibility Run"),
-        help="Markdown report title.",
-    )
-    parser.add_argument("--skip-build", action="store_true", help="Pass --skip-build to the Stage3 driver.")
-    parser.add_argument("--dry-run", action="store_true", help="Print the delegated Stage3 plan without executing.")
-    parser.add_argument(
-        "--validate-only",
-        action="store_true",
-        help="Validate an existing product wrapper output directory without launching Stage3.",
-    )
-    parser.add_argument(
-        "--allow-oversubscribe",
-        action="store_true",
-        help="Pass --allow-oversubscribe to the Stage3 driver.",
-    )
+    wv.add_argument("--init-sigma", type=float, default=0.8, help="Gaussian initial-state scale.")
+    wv.add_argument("--init-bank-file", default="", help="Initial bank path for bank modes.")
+    wv.add_argument("--init-bank-record", type=int, default=-1, help="Bank record index; -1 chooses from the seed.")
+    wv.add_argument("--constraint-tol", type=float, default=1.0e-10, help="Newton projection tolerance.")
+    wv.add_argument("--constraint-max-iter", type=int, default=192, help="Newton projection iteration cap.")
+    wv.add_argument("--reverse-state-tol", type=float, default=1.0e-6, help="Reverse trajectory state tolerance.")
+    wv.add_argument("--reverse-momentum-tol", type=float, default=1.0e-4, help="Reverse trajectory momentum tolerance.")
+    wv.add_argument("--history", action="store_true", help="Write observable and state histories.")
+    wv.add_argument("--history-stride", type=int, default=1, help="History stride in cycles.")
+    wv.add_argument("--snapshot-interval", type=int, default=0, help="Write cyclic snapshots every N cycles; 0 disables.")
+    wv.add_argument("--snapshot-slots", type=int, default=4, help="Number of cyclic snapshot slots.")
+    wv.add_argument("--skip-build", action="store_true", help="Do not build bin/run_wv_hmc first.")
+    wv.add_argument("--dry-run", action="store_true", help="Print command and environment without executing.")
+
     return parser.parse_args()
 
 
-def resolve_path(repo_root, path_text):
+def repo_root_from(args: argparse.Namespace) -> Path:
+    return Path(args.repo_root).resolve()
+
+
+def as_repo_path(repo_root: Path, path_text: str) -> Path:
     path = Path(path_text)
-    if path.is_absolute():
-        return path
-    return repo_root / path
+    return path if path.is_absolute() else repo_root / path
 
 
-def relpath_text(repo_root, path):
-    path = Path(path)
+def relpath(repo_root: Path, path: Path) -> str:
     try:
-        return str(path.relative_to(repo_root))
+        return str(path.resolve().relative_to(repo_root))
     except ValueError:
         return str(path)
 
 
-def selected_stage3_methods(args):
-    if args.stage3_methods:
-        return args.stage3_methods
-    return METHOD_SETS[args.method_set]
+def run_command(cmd: List[str], cwd: Path, dry_run: bool, env: Mapping[str, str] | None = None) -> int:
+    if dry_run:
+        print("$ " + " ".join(cmd))
+        if env:
+            for key in sorted(env):
+                print(f"{key}={env[key]}")
+        return 0
+    if env is None:
+        return subprocess.call(cmd, cwd=str(cwd))
+    run_env = os.environ.copy()
+    run_env.update(env)
+    return subprocess.call(cmd, cwd=str(cwd), env=run_env)
 
 
-def build_stage3_command(repo_root, args, stage3_methods):
+def make_command(repo_root: Path, targets: Iterable[str], fast: bool = False) -> List[str]:
+    cmd = ["make", "-C", str(repo_root / "build")]
+    if fast:
+        cmd.append("fast")
+    cmd.extend(targets)
+    return cmd
+
+
+def product_timestamp() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def write_manifest(path: Path, payload: Mapping[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def command_build(repo_root: Path, args: argparse.Namespace) -> int:
+    targets = args.target or ["../bin/run_wv_hmc", "../bin/run_wv_hmc_smoke"]
+    return run_command(make_command(repo_root, targets, fast=args.fast), repo_root, args.dry_run)
+
+
+def command_test(repo_root: Path, args: argparse.Namespace) -> int:
+    targets = args.target or [
+        "test_wv_hmc_math_kernels",
+        "test_wv_hmc_constraint_kernels",
+        "test2",
+    ]
+    return run_command(make_command(repo_root, targets), repo_root, args.dry_run)
+
+
+def command_tltm(repo_root: Path, args: argparse.Namespace) -> int:
+    config_path = as_repo_path(repo_root, args.config)
+    if not config_path.exists():
+        print(f"ERROR config does not exist: {config_path}", file=sys.stderr)
+        return 2
+
     cmd = [
         sys.executable,
         str(repo_root / "scripts" / "run_stage3_3_multiseed.py"),
         "--repo-root",
         str(repo_root),
         "--config",
-        str(args.config),
+        str(config_path),
         "--methods",
-        stage3_methods,
+        "no_fb",
         "--seed-offset",
         str(args.seed_offset),
         "--max-seeds",
         str(args.max_seeds),
         "--jobs",
         str(args.jobs),
-        "--stage2-threads",
-        str(args.stage2_threads),
-        "--eval-threads",
-        str(args.eval_threads),
-        "--schedule",
-        args.schedule,
-        "--pair-order",
-        args.pair_order,
-        "--task-method-order",
-        args.task_method_order,
         "--output-subdir",
-        args.output_subdir,
+        args.output_dir,
         "--logs-subdir",
-        args.logs_subdir,
+        args.logs_dir,
         "--log-prefix",
-        args.log_prefix,
+        "tltm_product",
         "--report-title",
-        args.report_title,
+        "Canonical TLTM Product Run",
         "--stage2-v1-sidecars",
         "on",
         "--stage2-protocol-audit",
@@ -212,240 +213,147 @@ def build_stage3_command(repo_root, args, stage3_methods):
         cmd.append("--skip-build")
     if args.dry_run:
         cmd.append("--dry-run")
-    if args.allow_oversubscribe:
-        cmd.append("--allow-oversubscribe")
-    return cmd
+
+    status = run_command(cmd, repo_root, args.dry_run)
+    if status == 0 and not args.dry_run:
+        out_dir = as_repo_path(repo_root, args.output_dir)
+        write_manifest(
+            out_dir / "product_run_manifest.json",
+            {
+                "schema_version": "gtm.product.run.v1",
+                "sampler": "tltm",
+                "generated_at_utc": product_timestamp(),
+                "config": relpath(repo_root, config_path),
+                "output_dir": relpath(repo_root, out_dir),
+                "logs_dir": args.logs_dir,
+                "driver": relpath(repo_root, repo_root / "scripts" / "run_stage3_3_multiseed.py"),
+                "stage2_sidecars": "on",
+                "protocol_audit": "auto",
+            },
+        )
+    return status
 
 
-def read_csv_rows(path):
-    with path.open(newline="", encoding="utf-8") as handle:
-        return list(csv.DictReader(handle))
-
-
-def write_csv_rows(path, fieldnames, rows):
-    with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
-        writer.writeheader()
-        for row in rows:
-            writer.writerow(row)
-
-
-def load_method_aliases(repo_root):
-    schema_path = repo_root / METHOD_ALIAS_SCHEMA
-    data = json.loads(schema_path.read_text(encoding="utf-8"))
-    mapping = {}
-    for canonical, spec in data.get("canonical_methods", {}).items():
-        mapping[canonical] = canonical
-        for alias in spec.get("raw_aliases", []):
-            mapping[alias] = canonical
-    return mapping
-
-
-def is_product_raw_field_retired(key):
-    if key in RETIRED_PRODUCT_RAW_FIELDS:
-        return True
-    if any(key.startswith(prefix) for prefix in RETIRED_PRODUCT_RAW_PREFIXES):
-        return True
-    if any(fragment in key for fragment in RETIRED_PRODUCT_RAW_SUBSTRINGS):
-        return True
-    return False
-
-
-def collect_fieldnames(rows):
-    fieldnames = []
-    seen = set()
-    for row in rows:
-        for key in row:
-            if key not in seen:
-                seen.add(key)
-                fieldnames.append(key)
-    return fieldnames
-
-
-def productize_rows(rows, alias_map):
-    product_rows = []
-    unknown = []
-    excluded = set()
-    for row in rows:
-        raw_method = row.get("method", "")
-        product_method = alias_map.get(raw_method, "")
-        if not product_method:
-            unknown.append(raw_method)
-            product_method = raw_method
-        product_row = {"product_method": product_method, "raw_method": raw_method}
-        product_row.update(PRODUCT_IDS)
-        for key, value in row.items():
-            if key == "method":
-                continue
-            if is_product_raw_field_retired(key):
-                excluded.add(key)
-                continue
-            product_row[key] = value
-        product_rows.append(product_row)
-    return product_rows, sorted(set(unknown)), sorted(excluded)
-
-
-def write_product_tables(repo_root, output_dir):
-    alias_map = load_method_aliases(repo_root)
-    generated = {}
-    unknown_methods = []
-    excluded_raw_fields = set()
-    for source_name, target_name in (
-        ("per_seed_summary_table.csv", PRODUCT_PER_SEED_TABLE),
-        ("aggregated_summary_table.csv", PRODUCT_AGGREGATED_TABLE),
-    ):
-        source_path = output_dir / source_name
-        target_path = output_dir / target_name
-        rows = read_csv_rows(source_path)
-        product_rows, unknown, excluded = productize_rows(rows, alias_map)
-        unknown_methods.extend(unknown)
-        excluded_raw_fields.update(excluded)
-        if product_rows:
-            fieldnames = collect_fieldnames(product_rows)
-        else:
-            fieldnames = ["product_method", "raw_method"] + list(PRODUCT_IDS.keys())
-        write_csv_rows(target_path, fieldnames, product_rows)
-        generated[target_name] = relpath_text(repo_root, target_path)
-    return {
-        "status": "pass" if not unknown_methods else "warning",
-        "generated": generated,
-        "unknown_raw_methods": sorted(set(unknown_methods)),
-        "excluded_raw_fields": sorted(excluded_raw_fields),
+def wv_env(repo_root: Path, args: argparse.Namespace, out_dir: Path) -> Dict[str, str]:
+    env = {
+        "TLTM_PARAMETERS_FILE": str(as_repo_path(repo_root, args.parameters)),
+        "TLTM_ODE_BACKEND": "dop853",
+        "WV_HMC_BASE_SEED": str(args.seed),
+        "WV_HMC_CYCLES": str(args.cycles),
+        "WV_HMC_STEP_SIZE": str(args.step_size),
+        "WV_HMC_NUM_STEPS": str(args.num_steps),
+        "WV_HMC_T0": str(args.t0),
+        "WV_HMC_T1": str(args.t1),
+        "WV_HMC_D0": str(args.d0),
+        "WV_HMC_D1": str(args.d1),
+        "WV_HMC_W_PROFILE": args.w_profile,
+        "WV_HMC_W_GAMMA": str(args.w_gamma),
+        "WV_HMC_W_C0": str(args.w_c0),
+        "WV_HMC_W_C1": str(args.w_c1),
+        "WV_HMC_INIT_MODE": args.init_mode,
+        "WV_HMC_INIT_SIGMA": str(args.init_sigma),
+        "WV_HMC_INIT_BANK_RECORD": str(args.init_bank_record),
+        "WV_HMC_CONSTRAINT_TOL": str(args.constraint_tol),
+        "WV_HMC_CONSTRAINT_MAX_ITER": str(args.constraint_max_iter),
+        "WV_HMC_REVERSE_GATE_STATE_TOL": str(args.reverse_state_tol),
+        "WV_HMC_REVERSE_GATE_MOMENTUM_TOL": str(args.reverse_momentum_tol),
+        "WV_HMC_MEASUREMENT_START_CYCLE": str(args.measurement_start_cycle),
+        "WV_HMC_SUMMARY_FILE": str(out_dir / "summary.csv"),
+        "WV_HMC_OBSERVABLE_FILE": str(out_dir / "observables.csv"),
+        "WV_HMC_FINAL_STATE_FILE": str(out_dir / "final_state.bin"),
     }
+    if args.measurement_t0 is not None:
+        env["WV_HMC_MEASUREMENT_T0"] = str(args.measurement_t0)
+    if args.measurement_t1 is not None:
+        env["WV_HMC_MEASUREMENT_T1"] = str(args.measurement_t1)
+    if args.init_bank_file:
+        env["WV_HMC_INIT_BANK_FILE"] = str(as_repo_path(repo_root, args.init_bank_file))
+    if args.history:
+        env["WV_HMC_HISTORY_STRIDE"] = str(args.history_stride)
+        env["WV_HMC_OBSERVABLE_HISTORY_FILE"] = str(out_dir / "observable_history.csv")
+        env["WV_HMC_X_HISTORY_FILE"] = str(out_dir / "x_history.dat")
+        env["WV_HMC_STATE_HISTORY_FILE"] = str(out_dir / "state_history.dat")
+    if args.snapshot_interval > 0:
+        env["WV_HMC_SNAPSHOT_INTERVAL"] = str(args.snapshot_interval)
+        env["WV_HMC_SNAPSHOT_SLOTS"] = str(args.snapshot_slots)
+        env["WV_HMC_SNAPSHOT_PREFIX"] = str(out_dir / "snapshots" / "snapshot")
+        env["WV_HMC_SNAPSHOT_INDEX_FILE"] = str(out_dir / "snapshot_index.csv")
+    return env
 
 
-def validate_stage3_product_output(repo_root, output_dir):
-    errors = []
-    per_seed_csv = output_dir / "per_seed_summary_table.csv"
-    aggregate_csv = output_dir / "aggregated_summary_table.csv"
-    protocol_audit_csv = output_dir / "protocol_audit_summary.csv"
+def command_wv_hmc(repo_root: Path, args: argparse.Namespace) -> int:
+    parameters_path = as_repo_path(repo_root, args.parameters)
+    if not parameters_path.exists():
+        print(f"ERROR parameters file does not exist: {parameters_path}", file=sys.stderr)
+        return 2
 
-    for label, path in (
-        ("per_seed_summary_table", per_seed_csv),
-        ("aggregated_summary_table", aggregate_csv),
-        ("protocol_audit_summary", protocol_audit_csv),
-    ):
-        if not path.exists():
-            errors.append("{0} missing: {1}".format(label, path))
-
-    rows = []
-    if per_seed_csv.exists():
-        rows = read_csv_rows(per_seed_csv)
-        if not rows:
-            errors.append("per_seed_summary_table has no rows: {0}".format(per_seed_csv))
-
-    for idx, row in enumerate(rows, start=2):
-        row_id = "row {0} method={1} seed={2}".format(idx, row.get("method", ""), row.get("seed_id", ""))
-        if row.get("stage2_v1_sidecar_enabled") != "1":
-            errors.append("{0}: stage2_v1_sidecar_enabled != 1".format(row_id))
-        if row.get("stage2_protocol_audit_verdict") != "pass":
-            errors.append("{0}: stage2_protocol_audit_verdict != pass".format(row_id))
-        for field_name in (
-            "stage2_v1_manifest_file",
-            "stage2_v1_protocol_file",
-            "stage2_v1_resolved_config_file",
-        ):
-            field_text = row.get(field_name, "")
-            if not field_text:
-                errors.append("{0}: {1} is missing".format(row_id, field_name))
-                continue
-            field_path = resolve_path(repo_root, field_text)
-            if not field_path.exists():
-                errors.append("{0}: {1} does not exist: {2}".format(row_id, field_name, field_text))
-                continue
-            if field_name == "stage2_v1_resolved_config_file":
-                try:
-                    config_data = json.loads(field_path.read_text(encoding="utf-8"))
-                except ValueError as exc:
-                    errors.append("{0}: resolved config is not valid JSON: {1}".format(row_id, exc))
-                    continue
-                if config_data.get("schema_version") != "tltm.stage2.config.resolved.v1alpha1":
-                    errors.append("{0}: resolved config schema_version mismatch".format(row_id))
-                if config_data.get("precision", {}).get("precision_policy_id") != "double_strict_v1":
-                    errors.append("{0}: resolved config precision_policy_id mismatch".format(row_id))
-
-    return {
-        "status": "fail" if errors else "pass",
-        "row_count": len(rows),
-        "errors": errors,
-        "checked_files": {
-            "per_seed_summary_table": relpath_text(repo_root, per_seed_csv),
-            "aggregated_summary_table": relpath_text(repo_root, aggregate_csv),
-            "protocol_audit_summary": relpath_text(repo_root, protocol_audit_csv),
-        },
-    }
-
-
-def write_wrapper_manifest(repo_root, args, stage3_methods, stage3_cmd, validation_result):
-    out_dir = resolve_path(repo_root, args.output_subdir)
+    out_dir = as_repo_path(repo_root, args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    manifest_path = out_dir / "product_wrapper_manifest.json"
-    product_tables = {}
-    if validation_result.get("status") == "pass":
-        product_tables = write_product_tables(repo_root, out_dir)
-    manifest = {
-        "schema_version": "tltm.product.wrapper.v1alpha1",
-        "writer_version": "product_compat_wrapper_2026-05-17",
-        "generated_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "repo_root": str(repo_root),
-        "config": str(args.config),
-        "method_set": args.method_set,
-        "stage3_methods": stage3_methods,
-        "output_subdir": args.output_subdir,
-        "logs_subdir": args.logs_subdir,
-        "stage3_command": stage3_cmd,
-        "validation": validation_result,
-        "product_tables": product_tables,
-        "enforced_policy": {
-            "stage2_v1_sidecars": "on",
-            "stage2_protocol_audit": "auto",
-            "stage2_protocol_audit_fail_on": "error",
-            "raw_stage_scripts_status": "developer_compatibility_entry_points",
+    if args.snapshot_interval > 0:
+        (out_dir / "snapshots").mkdir(parents=True, exist_ok=True)
+
+    if not args.skip_build:
+        status = run_command(make_command(repo_root, ["../bin/run_wv_hmc"]), repo_root, args.dry_run)
+        if status != 0:
+            return status
+
+    env = wv_env(repo_root, args, out_dir)
+    cmd = [str(repo_root / "bin" / "run_wv_hmc")]
+    status = run_command(cmd, repo_root, args.dry_run, env=env)
+    if status != 0 or args.dry_run:
+        return status
+
+    write_manifest(
+        out_dir / "product_run_manifest.json",
+        {
+            "schema_version": "gtm.product.run.v1",
+            "sampler": "wv_hmc_dense_explicit_j",
+            "generated_at_utc": product_timestamp(),
+            "parameters": relpath(repo_root, parameters_path),
+            "output_dir": relpath(repo_root, out_dir),
+            "cycles": args.cycles,
+            "seed": args.seed,
+            "step_size": args.step_size,
+            "num_steps": args.num_steps,
+            "t0": args.t0,
+            "t1": args.t1,
+            "d0": args.d0,
+            "d1": args.d1,
+            "measurement_t0": args.measurement_t0 if args.measurement_t0 is not None else args.t0,
+            "measurement_t1": args.measurement_t1 if args.measurement_t1 is not None else args.t1,
+            "measurement_start_cycle": args.measurement_start_cycle,
+            "w_profile": args.w_profile,
+            "w_gamma": args.w_gamma,
+            "init_mode": args.init_mode,
+            "ode_backend": "dop853",
+            "outputs": {
+                "summary": relpath(repo_root, out_dir / "summary.csv"),
+                "observables": relpath(repo_root, out_dir / "observables.csv"),
+                "final_state": relpath(repo_root, out_dir / "final_state.bin"),
+                "observable_history": relpath(repo_root, out_dir / "observable_history.csv")
+                if args.history
+                else "",
+                "snapshot_index": relpath(repo_root, out_dir / "snapshot_index.csv")
+                if args.snapshot_interval > 0
+                else "",
+            },
         },
-        "product_ids": PRODUCT_IDS,
-        "expected_outputs": {
-            "per_seed_summary_table": relpath_text(repo_root, out_dir / "per_seed_summary_table.csv"),
-            "aggregated_summary_table": relpath_text(repo_root, out_dir / "aggregated_summary_table.csv"),
-            "product_per_seed_summary_table": relpath_text(repo_root, out_dir / PRODUCT_PER_SEED_TABLE),
-            "product_aggregated_summary_table": relpath_text(repo_root, out_dir / PRODUCT_AGGREGATED_TABLE),
-            "protocol_audit_summary": relpath_text(repo_root, out_dir / "protocol_audit_summary.csv"),
-        },
-    }
-    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return manifest_path
+    )
+    return 0
 
 
-def main():
+def main() -> int:
     args = parse_args()
-    repo_root = Path(args.repo_root).resolve()
-    stage3_methods = selected_stage3_methods(args)
-    stage3_cmd = build_stage3_command(repo_root, args, stage3_methods)
-    out_dir = resolve_path(repo_root, args.output_subdir)
-
-    if args.validate_only:
-        validation_result = validate_stage3_product_output(repo_root, out_dir)
-        manifest_path = write_wrapper_manifest(repo_root, args, stage3_methods, stage3_cmd, validation_result)
-        print("[TLTM-PRODUCT] validate-only status={0}".format(validation_result["status"]))
-        print("[TLTM-PRODUCT] manifest={0}".format(relpath_text(repo_root, manifest_path)))
-        for error in validation_result["errors"][:40]:
-            print("[TLTM-PRODUCT][FAIL] {0}".format(error), file=sys.stderr)
-        return 0 if validation_result["status"] == "pass" else 1
-
-    print("[TLTM-PRODUCT] delegated Stage3 command:")
-    print(" ".join(stage3_cmd), flush=True)
-    returncode = subprocess.call(stage3_cmd, cwd=str(repo_root))
-    if returncode != 0:
-        return returncode
-
-    if args.dry_run:
-        return 0
-
-    validation_result = validate_stage3_product_output(repo_root, out_dir)
-    manifest_path = write_wrapper_manifest(repo_root, args, stage3_methods, stage3_cmd, validation_result)
-    print("[TLTM-PRODUCT] manifest={0}".format(relpath_text(repo_root, manifest_path)))
-    for error in validation_result["errors"][:40]:
-        print("[TLTM-PRODUCT][FAIL] {0}".format(error), file=sys.stderr)
-    return 0 if validation_result["status"] == "pass" else 1
+    repo_root = repo_root_from(args)
+    if args.command == "build":
+        return command_build(repo_root, args)
+    if args.command == "test":
+        return command_test(repo_root, args)
+    if args.command == "tltm":
+        return command_tltm(repo_root, args)
+    if args.command == "wv-hmc":
+        return command_wv_hmc(repo_root, args)
+    raise AssertionError(args.command)
 
 
 if __name__ == "__main__":

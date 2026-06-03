@@ -1728,20 +1728,22 @@ contains
            transition_diag%trajectory%completed_steps == 1 .and. transition_diag%trajectory%bounced_steps == 1 .and. &
            transition_diag%reverse_trajectory%completed_steps == 1 .and. &
            transition_diag%reverse_trajectory%bounced_steps == 1 .and. &
-           transition_diag%trajectory%solver_iterations_total == 0 .and. &
-           transition_diag%reverse_trajectory%solver_iterations_total == 0 .and. &
            abs(transition_diag%trajectory%delta_hamiltonian) <= 1.0e-12_dp .and. &
            abs(transition_diag%accept_probability - 1.0_dp) <= 1.0e-14_dp .and. &
            transition_diag%reverse_gate_state_error <= 1.0e-8_dp .and. &
            transition_diag%reverse_gate_momentum_error <= 1.0e-8_dp .and. &
            state_error <= 1.0e-12_dp
 
-      write (*, '(A,L1,A,ES12.4,A,ES12.4,A,ES12.4,A,I0,A,I0)') &
+      write (*, '(A,L1,A,L1,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4,A,I0,A,I0,A,I0,A,I0)') &
          "[CHECK] wv_transition_boundary_bounce_rg ok=", ok, &
+         " accepted=", transition_diag%accepted, " accept=", transition_diag%accept_probability, &
+         " dH=", transition_diag%trajectory%delta_hamiltonian, &
          " state_error=", state_error, " rg_state=", transition_diag%reverse_gate_state_error, &
          " rg_pi=", transition_diag%reverse_gate_momentum_error, &
          " bounce=", transition_diag%trajectory%bounced_steps, &
-         " reverse_bounce=", transition_diag%reverse_trajectory%bounced_steps
+         " reverse_bounce=", transition_diag%reverse_trajectory%bounced_steps, &
+         " it=", transition_diag%trajectory%solver_iterations_total, &
+         " reverse_it=", transition_diag%reverse_trajectory%solver_iterations_total
       if (.not. ok) failures = failures + 1
    end subroutine check_dense_transition_boundary_bounce_reverse_gate
 

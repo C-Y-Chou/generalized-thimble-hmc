@@ -1,0 +1,36 @@
+{
+  "date": "2026-06-03",
+  "status": "pre_public_product_evidence_packet",
+  "samplers": {
+    "tltm": {
+      "status": "canonical_production_style_path",
+      "evidence": "codex/workspaces/fortran_modernization/runbooks/generated/post_tltm_wv_hmc_ready_20260529/"
+    },
+    "wv_hmc_dense_explicit_j": {
+      "status": "validated_with_burn_in_caveat",
+      "evidence": "codex/workspaces/fortran_modernization/runbooks/generated/wv_hmc_n6_t0001_validation_20260603/N6_LONG_VALIDATION_READBACK_20260603.md"
+    },
+    "wv_hmc_matrix_free": {
+      "status": "roadmap"
+    }
+  },
+  "public_docs": [
+    "README.md",
+    "docs/INSTALL.md",
+    "docs/USER_GUIDE.md",
+    "docs/MODEL_PROVIDER.md",
+    "docs/SAMPLERS.md",
+    "docs/CONFIGURATION.md",
+    "docs/OUTPUTS_AND_RESTART.md",
+    "docs/DEVELOPMENT.md",
+    "docs/REFERENCES.md",
+    "docs/REPRODUCIBILITY_RECORDS.md"
+  ],
+  "public_wrapper": "scripts/run_tltm_product.py",
+  "guardrails": [
+    "git diff --check",
+    "make build",
+    "make test",
+    "make wv-hmc-smoke"
+  ]
+}

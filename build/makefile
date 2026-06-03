@@ -3,7 +3,7 @@ SHELL       := /bin/bash
 REPO_ROOT   := $(abspath ..)
 
 # Prefer Intel toolchain when available (module-loaded environments), then MPI
-# wrappers, then GNU fallback.
+# wrappers, then GNU compiler.
 ifeq ($(origin FC), default)
 FC          := $(shell if command -v ifx >/dev/null 2>&1; then echo ifx; \
                  elif command -v mpiifx >/dev/null 2>&1; then echo mpiifx; \
@@ -41,8 +41,7 @@ FC_FAMILY    := gnu
 endif
 
 # Python for build helpers and guardrail scripts.
-PYTHON       ?= $(shell if [ -x "$(REPO_ROOT)/.venv-dfols/bin/python" ]; then echo "$(REPO_ROOT)/.venv-dfols/bin/python"; \
-                    elif command -v python3.11 >/dev/null 2>&1; then echo python3.11; \
+PYTHON       ?= $(shell if command -v python3.11 >/dev/null 2>&1; then echo python3.11; \
                     elif command -v python3.10 >/dev/null 2>&1; then echo python3.10; \
                     elif command -v python3.9 >/dev/null 2>&1; then echo python3.9; \
                     elif command -v python3.8 >/dev/null 2>&1; then echo python3.8; \
@@ -69,7 +68,7 @@ ifeq ($(filter $(TLTM_TOLERANCE_PROFILE),$(SUPPORTED_TLTM_TOLERANCE_PROFILES)),)
 $(error TLTM_TOLERANCE_PROFILE=$(TLTM_TOLERANCE_PROFILE) is not certified in this tree. Supported now: $(SUPPORTED_TLTM_TOLERANCE_PROFILES). Weaker tolerance profiles require F20 certification gates.)
 endif
 
-ENABLE_OFFICIAL_DFOLS ?= 1
+ENABLE_OFFICIAL_DFOLS ?= 0
 PYTHON_EMBED_CFLAGS ?= $(shell $(PYTHON)-config --includes 2>/dev/null || \
                     $(PYTHON) -c "import sysconfig; print('-I' + sysconfig.get_paths()['include'])")
 PYTHON_EMBED_LDFLAGS ?= $(shell $(PYTHON)-config --ldflags --embed 2>/dev/null || \
@@ -625,43 +624,25 @@ PARAM_FILE ?= ../data/parameters.dat
 help:
 	@echo "Build targets:"
 	@echo "  make all      - build all executables (default)"
-	@echo "  make fast     - build with debug-friendly fast flags"
-	@echo "  make OMP=1    - enable OpenMP (Intel path also enables parallel MKL)"
+	@echo "  make fast     - build with debug-friendly flags"
 	@echo "  make FC=<compiler> PYTHON=<python> - override auto-detected toolchain"
-	@echo "  make ENABLE_OFFICIAL_DFOLS=1 - build the embedded official DFO-LS backend (default)"
-	@echo "  make ENABLE_OFFICIAL_DFOLS=0 - build a stub bridge for package-off route tests"
-	@echo "  make ENABLE_SUNDIALS_CVODE=1 SUNDIALS_PREFIX=<prefix> - build the disabled-by-default SUNDIALS CVODE ODE backend"
-	@echo "  make TLTM_PRECISION=double TLTM_TOLERANCE_PROFILE=f20f_most_conservative_double - selected certified precision/tolerance profile (only supported mode)"
-	@echo "  make USE_EXTERNAL_LINALG=1 EXTERNAL_LINALG_LIBS='-lopenblas' - link external BLAS/LAPACK instead of fallback"
+	@echo "  make OMP=1    - enable OpenMP where supported"
+	@echo "  make TLTM_PRECISION=double TLTM_TOLERANCE_PROFILE=f20f_most_conservative_double - certified precision/tolerance profile"
+	@echo "  make USE_EXTERNAL_LINALG=1 EXTERNAL_LINALG_LIBS='-lopenblas' - link external BLAS/LAPACK instead of the bundled linear algebra path"
 	@echo "  make USE_EXTERNAL_LINALG=1 - on macOS defaults to Accelerate"
 	@echo ""
 	@echo "Run targets:"
-	@echo "  make chain    - run generate_markov_chain (outputs -> $(OUT_PROD_DIR), log -> $(OUT_LOG_DIR))"
-	@echo "  make expect   - run evaluate_expectations (analysis -> $(OUT_PROD_DIR), log -> $(OUT_LOG_DIR))"
-	@echo "  make tltm_stage1 - run stage-1 multi-replica baseline (no swap)"
-	@echo "  make test_tltm_stage1 - smoke run with max flow=0.3, L=2, nstep=20"
-	@echo "  make tltm_stage2 - run stage-2 multi-replica baseline with adjacent swap"
-	@echo "  make tltm_stage2_ref - run stage-2 with frozen stage-2.5 reference ladder"
-	@echo "  make stage3_1 - run matched-control fallback OFF vs ON comparison on frozen ladder"
-	@echo "  make stage3_3 - run multiseed matched-control summary (fallback OFF vs ON, parallel via STAGE3_3_JOBS)"
-	@echo "  make test_tltm_stage2 - smoke run with swap and max flow=0.3, L=2, nstep=20"
+	@echo "  make run_wv_hmc - run the dense WV-HMC executable"
+	@echo "  make run_wv_hmc_smoke - run a deterministic WV-HMC smoke"
+	@echo "  make chain    - run the single-chain compatibility app"
+	@echo "  make expect   - run observable evaluation for single-chain outputs"
+	@echo "  make tltm_stage1 - run the Stage1 TLTM compatibility executable"
+	@echo "  make tltm_stage2 - run the Stage2 TLTM compatibility executable"
+	@echo "  make stage3_3 - run the multiseed TLTM compatibility driver"
 	@echo "  make test1    - run Hamiltonian conservation test (artifacts -> $(OUT_TEST1_DIR))"
 	@echo "  make test2    - run action derivative test (log -> $(OUT_LOG_DIR))"
-	@echo "  make test_odex_solver - run analytic ODEX/status smoke test (log -> $(OUT_LOG_DIR))"
-	@echo "  make test_odex_foundation_contract - run ODEX foundation contract test (log -> $(OUT_LOG_DIR))"
-	@echo "  make test_odex_assist_policy - run ODEX assist deletion policy gate (log -> $(OUT_LOG_DIR))"
-	@echo "  make test_odex_result_contract - run ODEX result/workspace/status contract test (log -> $(OUT_LOG_DIR))"
-	@echo "  make test_odex_flow_jacobian_contract - run ODEX flow/Jacobian deterministic contract test (log -> $(OUT_LOG_DIR))"
-	@echo "  make test_odex_backend_package_contract - run standalone ODEX backend package contract test (log -> $(OUT_LOG_DIR))"
-	@echo "  make test_odex_controller_observation_contract - run ODEX controller observation contract test (log -> $(OUT_LOG_DIR))"
-	@echo "  make test_odex_controller_alignment_spec - run ODEX controller F18b.4 alignment spec probes (log -> $(OUT_LOG_DIR))"
-	@echo "  make test_sundials_cvode_backend_contract - run SUNDIALS CVODE backend contract test, skipping if the bridge is stubbed (log -> $(OUT_LOG_DIR))"
-	@echo "  make test_official_dfols_preset_contract - run official DFO-LS backend/preset policy contract test (log -> $(OUT_LOG_DIR))"
-	@echo "  make evaluate_btn_residual_case - build offline BTN residual bridge for external DFO-LS comparison"
 	@echo "  make replay_flowz_cases - build fixed-input flowz ODEX replay diagnostic"
 	@echo "  make compare_swap_reflow_backends - build direct-vs-dense swap reflow comparison app"
-	@echo "  make run_wv_hmc - run standalone WV-HMC dense pilot app"
-	@echo "  make run_wv_hmc_smoke - run deterministic WV-HMC transition smoke diagnostic"
 	@echo "  make test_tltm_swap_kernel_contract - run TLTM swap-kernel contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_tltm_swap_kernel_contract_dense - rerun swap contract with DOP853 dense-output reflow"
 	@echo "  make test_mt95_state_contract - run explicit mt95 RNG-state contract test (log -> $(OUT_LOG_DIR))"
@@ -673,15 +654,10 @@ help:
 	@echo "  make test_hmc_reversibility_context_contract - run HMC reversibility/progress context contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make test_newton_eval_flow_status_context_contract - run Newton eval-flow status context contract test (log -> $(OUT_LOG_DIR))"
 	@echo "  make modernization_guardrails - run M4 local compile/build/audit/smoke guardrails"
-	@echo "  make f14_pre_redo_complete_gate - run complete F3/F4/F7/F8 pre-redo gate"
 	@echo "  make post_b_rng_reference_anchor - run post-B per-replica RNG reference anchor"
 	@echo "  make stage2_rng_v2_anchor - run Stage2 kernel RNG v2 deterministic anchor"
 	@echo "  make script_evidence_audit_gate - run CV-005 script/evidence audit coverage gate"
 	@echo "  make precision_readiness_audit - run F20 precision/GPU readiness boundary gate"
-	@echo "  make test1_fb_on / test1_fb_off - run test1 with fallback forced on/off"
-	@echo "  make test2_fb_on / test2_fb_off - run test2 with fallback forced on/off"
-	@echo "  make test_fb_matrix - run (test1,test2) x (fallback on,off)"
-	@echo "  make menu     - interactive menu (alias: mn)"
 	@echo ""
 	@echo "Cleanup:"
 	@echo "  make clean"

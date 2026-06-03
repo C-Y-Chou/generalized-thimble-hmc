@@ -20,8 +20,8 @@ Current working expectation:
 
 - no new matrix-free/BiCGStab trajectory work before the dense validation is
   read back;
-- no DFO-LS/`withfb` production work; TLTM keeps `nofb` canonical and
-  `withfb` is legacy diagnostic only;
+- no noncanonical TLTM diagnostic-branch production work; TLTM keeps its
+  canonical path as the product workflow;
 - no new broad parameter search unless the long validation exposes a specific
   correctness failure;
 - all simulation launches remain cluster/scheduler-gated, not local production
@@ -59,7 +59,7 @@ Fail condition:
   transition-kernel, measurement, bank, or parameter gate implicated by the
   readback;
 - do not start matrix-free work as a workaround;
-- do not revive DFO-LS/`withfb` as a workaround.
+- do not revive noncanonical TLTM diagnostic branches as a workaround.
 
 ## Productization Closure Sequence
 
@@ -68,19 +68,18 @@ this order.
 
 1. Freeze sampler status.
    - TLTM: canonical `nofb` production path.
-   - TLTM `withfb`/DFO-LS: legacy diagnostic, default-off, not product
-     dependency.
+   - Noncanonical TLTM diagnostic branches: not product dependencies.
    - WV-HMC: dense explicit-J sibling sampler status based on the completed
      `n=6` readback.
    - Matrix-free/BiCGStab: deferred optimization/high-dimensional roadmap item.
 
 2. Clean licensing and dependency surface.
-   - Remove DFO-LS from active requirements, build/test paths, and product
-     docs.
+   - Remove inactive optional solver packages from active requirements,
+     build/test paths, and product docs.
    - Update `THIRD_PARTY_NOTICES.md` and `LICENSE_POLICY.md` so active
-     dependencies are separated from historical DFO-LS evidence.
-   - Keep historical DFO-LS runbooks/data only as archive/evidence, not as an
-     active product dependency.
+     dependencies are separated from historical diagnostic evidence.
+   - Keep historical diagnostic runbooks/data as internal evidence, not as
+     active product dependencies.
 
 3. Consolidate product documentation.
    - Create/update root `README.md`.
@@ -88,16 +87,16 @@ this order.
      `PRODUCT_DOCS_CONSOLIDATION_DESIGN_20260528.md`:
      `INSTALL.md`, `USER_GUIDE.md`, `MODEL_PROVIDER.md`, `SAMPLERS.md`,
      `CONFIGURATION.md`, `OUTPUTS_AND_RESTART.md`, `DEVELOPMENT.md`,
-     `REFERENCES.md`, and `ARCHIVE_INDEX.md`.
-   - Keep campaign-specific runbooks internal or archived.
+     `REFERENCES.md`, and `REPRODUCIBILITY_RECORDS.md`.
+   - Keep campaign-specific runbooks internal.
    - Public docs must state sampler status and claim boundaries explicitly.
 
 4. Build the product evidence packet.
-   - Include TLTM canonical status and frozen `nofb`/`withfb` criterion closure.
+   - Include TLTM canonical status and frozen TLTM criterion closure.
    - Include WV-HMC dense validation readback.
    - Include model-provider and observable contracts.
    - Include guardrail/test commands and source-pin provenance.
-   - Include dataset/archive index and reproducibility notes.
+   - Include dataset and reproducibility notes.
 
 5. Run product guardrails.
    - `git diff --check`.
@@ -121,12 +120,12 @@ publication package.
 | Order | Item | Status | Exit artifact |
 | ---: | --- | --- | --- |
 | 1 | Finish current Stephanov `n=6` long dense WV-HMC validation. | completed with bounded caveat | `runbooks/generated/wv_hmc_n6_t0001_validation_20260603/N6_LONG_VALIDATION_READBACK_20260603.md` |
-| 2 | Decide WV-HMC publication claim level from that readback. | pending | sampler-status statement for README and `docs/SAMPLERS.md`; dense explicit-J WV-HMC after burn-in, not high-dimensional/matrix-free readiness |
-| 3 | Remove DFO-LS from active dependency/license/install/build/test surface. | pending | updated `THIRD_PARTY_NOTICES.md`, `LICENSE_POLICY.md`, requirements/build/test/docs audit |
-| 4 | Consolidate public docs. | pending | root `README.md` plus stable `docs/` set from `PRODUCT_DOCS_CONSOLIDATION_DESIGN_20260528.md` |
-| 5 | Build product evidence packet. | pending | compact evidence/index packet linking TLTM closure, WV-HMC validation, model-provider contract, and reproducibility metadata |
-| 6 | Run final guardrails. | pending | `git diff --check`, documented build/test commands, script/evidence audit if paths move |
-| 7 | Prepare OSS/credit application package. | pending | one-page project summary, compute-need statement, roadmap, limitations |
+| 2 | Decide WV-HMC publication claim level from that readback. | completed | sampler-status statement in `README.md` and `docs/SAMPLERS.md`; dense explicit-J WV-HMC after burn-in, not high-dimensional/matrix-free readiness |
+| 3 | Remove inactive optional dependency/license/install/build/test surface. | completed | updated `THIRD_PARTY_NOTICES.md`, `LICENSE_POLICY.md`, root wrapper/build/test/docs public-surface audit |
+| 4 | Consolidate public docs. | completed | root `README.md` plus stable `docs/` set with `REPRODUCIBILITY_RECORDS.md` |
+| 5 | Build product evidence packet. | completed | `runbooks/generated/product_evidence_packet_20260603/` |
+| 6 | Run final guardrails. | completed | `git diff --check`, `make build`, `make test`, `make wv-hmc-smoke`, public-surface grep |
+| 7 | Prepare OSS/credit application package. | completed | `runbooks/generated/oss_credit_application_package_20260603/` |
 
 Anything outside this table is not a pre-publication blocker unless the `n=6`
 readback exposes a concrete correctness failure.
@@ -137,9 +136,9 @@ These are not blockers for the credit-application-ready package:
 
 - true matrix-free/BiCGStab trajectory wiring;
 - high-dimensional production optimization;
-- DFO-LS/`withfb` revival;
+- noncanonical TLTM diagnostic-branch revival;
 - aggressive source slimming beyond behavior-preserving hygiene;
-- broad public-doc archive relocation that risks breaking scripts before the
+- broad historical-result relocation that risks breaking scripts before the
   product package is frozen.
 
 ## Non-Negotiable Boundaries
@@ -147,7 +146,7 @@ These are not blockers for the credit-application-ready package:
 - Do not adjust final decision gates after reading the long validation.
 - Do not use lower failure count as an algorithmic success criterion.
 - Do not use post-hoc flow-time cuts as proof of production correctness.
-- Do not mix correctness fixes, docs cleanup, and archive moves in a way that
+- Do not mix correctness fixes, docs cleanup, and historical-record moves in a way that
   hides behavior changes.
 - Do not claim WV-HMC high-dimensional readiness until matrix-free/BiCGStab is
   implemented and validated.
@@ -159,7 +158,7 @@ The repository is ready for the OSS/credit application when:
 - the `n=6` long validation readback is complete and passes or has a clearly
   bounded nonblocking caveat;
 - public docs present one coherent build/run/validation story;
-- DFO-LS is absent from active dependency/license surface;
+- inactive optional solver packages are absent from active dependency/license surface;
 - historical evidence is indexed but not confused with product docs;
 - current sampler status is explicit;
 - the remaining roadmap is clearly labeled as future work rather than current
