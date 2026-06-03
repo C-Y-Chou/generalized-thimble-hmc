@@ -38,5 +38,5 @@ git diff --check
 - `src/physics`: model provider, observables, flow backend.
 - `src/sampler`: TLTM, HMC, WV-HMC kernels, constraints, drivers.
 - `src/apps`: executable entry points.
-- `scripts`: product runner and internal automation scripts.
+- `scripts`: product runner and automation scripts.
 - `tests`: Fortran validation programs.

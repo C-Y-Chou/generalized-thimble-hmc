@@ -66,11 +66,11 @@ python3 scripts/run_tltm_product.py wv-hmc \
   --snapshot-interval 250
 ```
 
-Run canonical TLTM through a Stage3 protocol file:
+Run canonical TLTM through a run-protocol file:
 
 ```bash
 python3 scripts/run_tltm_product.py tltm \
-  --config path/to/stage3_protocol.json \
+  --config path/to/tltm_protocol.json \
   --jobs 8 \
   --output-dir output/product/tltm_example
 ```

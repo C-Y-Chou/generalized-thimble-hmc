@@ -65,5 +65,6 @@ The simulations used Generalized Thimble HMC by CHOU CHIEN YU
 WV-HMC formulations of Fukuma and collaborators.
 ```
 
-Internal mathematical review and implementation notes are kept under
-`codex/workspaces/fortran_modernization/runbooks/`.
+Mathematical review notes, validation readbacks, and benchmark provenance are
+kept in the repository provenance tree under
+`codex/workspaces/fortran_modernization/`.

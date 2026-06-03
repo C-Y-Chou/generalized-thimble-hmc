@@ -1,10 +1,10 @@
 # Reproducibility Records
 
 The public entry point is the root README and the stable docs in this directory.
-Detailed run records, generated readbacks, and scheduler metadata are kept under:
+Detailed run records, validation readbacks, and scheduler metadata are kept in
+the repository provenance tree:
 
 - `codex/workspaces/fortran_modernization/runbooks/`
-- `codex/workspaces/fortran_modernization/runbooks/generated/`
 - `codex/workspaces/fortran_modernization/state/`
 - `model_specs/`
 

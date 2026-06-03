@@ -27,11 +27,11 @@ python3 scripts/run_tltm_product.py wv-hmc \
 
 ## TLTM Outputs
 
-TLTM runs through the Stage3 driver write:
+TLTM runs through the product runner write:
 
 - per-seed summary tables;
 - aggregate summary tables;
-- protocol sidecars;
+- run-protocol metadata;
 - observable estimates;
 - run logs;
 - `product_run_manifest.json`.

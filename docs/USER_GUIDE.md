@@ -35,11 +35,11 @@ The wrapper writes a `product_run_manifest.json` into the output directory.
 
 ## TLTM Example
 
-TLTM uses a Stage3 protocol JSON for multiseed runs:
+TLTM uses a run-protocol JSON for multiseed runs:
 
 ```bash
 python3 scripts/run_tltm_product.py tltm \
-  --config path/to/stage3_protocol.json \
+  --config path/to/tltm_protocol.json \
   --jobs 8 \
   --max-seeds 32 \
   --output-dir output/product/tltm_example

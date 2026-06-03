@@ -3,13 +3,12 @@
 
 The wrapper exposes the current public surface:
 
-* canonical TLTM execution through the Stage3 multiseed driver;
+* canonical TLTM execution through the multiseed protocol runner;
 * dense explicit-J WV-HMC execution through ``bin/run_wv_hmc``;
 * build and validation commands used by the public README.
 
-It intentionally keeps research campaign selectors out of the user-facing
-interface.  Internal scripts remain available for reproducibility work, but a
-new user should be able to start here.
+It intentionally keeps development-only selectors out of the user-facing
+interface.  A new user should be able to start here.
 """
 
 from __future__ import annotations
@@ -62,7 +61,7 @@ def parse_args() -> argparse.Namespace:
     test.add_argument("--dry-run", action="store_true", help="Print commands without executing.")
 
     tltm = subparsers.add_parser("tltm", help="Run canonical TLTM through the multiseed driver.")
-    tltm.add_argument("--config", required=True, help="Stage3 protocol JSON.")
+    tltm.add_argument("--config", required=True, help="TLTM run-protocol JSON.")
     tltm.add_argument("--output-dir", default=f"{DEFAULT_OUTPUT_ROOT}/tltm", help="Output directory.")
     tltm.add_argument("--logs-dir", default="output/logs/product/tltm", help="Log directory.")
     tltm.add_argument("--seed-offset", type=int, default=0, help="First selected seed offset.")

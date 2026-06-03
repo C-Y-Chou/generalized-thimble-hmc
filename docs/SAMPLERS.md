@@ -19,11 +19,11 @@ production-style TLTM experiments.
 Public entry point:
 
 ```bash
-python3 scripts/run_tltm_product.py tltm --config path/to/stage3_protocol.json
+python3 scripts/run_tltm_product.py tltm --config path/to/tltm_protocol.json
 ```
 
-TLTM outputs per-seed summaries, protocol sidecars, observable estimates, and
-replica-label histories through the Stage3 driver.
+TLTM outputs per-seed summaries, aggregate summaries, observable estimates, and
+replica-label histories through the product runner.
 
 ## GT-HMC
 
