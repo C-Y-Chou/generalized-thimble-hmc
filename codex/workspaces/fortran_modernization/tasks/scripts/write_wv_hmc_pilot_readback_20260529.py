@@ -8,10 +8,11 @@ import math
 from pathlib import Path
 
 
-EXACT = {
+DEFAULT_EXACT = {
     "chiral_condensate": 0.380047505938398,
     "number_density": 0.0387173396674602,
 }
+EXACT = dict(DEFAULT_EXACT)
 
 
 def parse_complex(re_text, im_text):
@@ -39,7 +40,7 @@ def read_observables(path):
 
 def discover_pairs(root):
     pairs = []
-    for summary_path in sorted(root.glob("*_summary.csv")):
+    for summary_path in sorted(root.rglob("*_summary.csv")):
         obs_path = summary_path.with_name(summary_path.name.replace("_summary.csv", "_observables.csv"))
         if obs_path.exists():
             pairs.append((summary_path, obs_path))
@@ -61,6 +62,47 @@ def safe_float(row, key):
         return float("nan")
 
 
+def parse_hist(text):
+    if text is None:
+        return []
+    text = str(text).strip()
+    if not text:
+        return []
+    return [int(part) for part in text.split(";") if part != ""]
+
+
+def hist_metrics(counts):
+    total = sum(counts)
+    nonzero = [value for value in counts if value > 0]
+    zero_bins = sum(1 for value in counts if value == 0)
+    if not counts or total <= 0:
+        return {
+            "total": total,
+            "zero_bins": zero_bins,
+            "min_count": 0,
+            "max_count": 0,
+            "mean_count": float("nan"),
+            "max_min_ratio": float("nan"),
+            "adjacent_flatness": float("nan"),
+        }
+    adjacent_terms = []
+    for left, right in zip(counts[:-1], counts[1:]):
+        denom = 0.5 * (left + right)
+        if denom > 0.0:
+            adjacent_terms.append(((right - left) / denom) ** 2)
+    min_count = min(counts)
+    max_count = max(counts)
+    return {
+        "total": total,
+        "zero_bins": zero_bins,
+        "min_count": min_count,
+        "max_count": max_count,
+        "mean_count": total / float(len(counts)),
+        "max_min_ratio": max_count / float(min(nonzero)) if nonzero else float("nan"),
+        "adjacent_flatness": sum(adjacent_terms) / len(adjacent_terms) if adjacent_terms else float("nan"),
+    }
+
+
 def weighted_summary_mean(records, value_key, weight_key):
     numerator = 0.0
     denominator = 0.0
@@ -74,6 +116,16 @@ def weighted_summary_mean(records, value_key, weight_key):
             numerator += value * weight
             denominator += weight
     return numerator / denominator if denominator > 0.0 else float("nan")
+
+
+def summary_sum_int(records, key):
+    return sum(int(record["summary"].get(key, 0) or 0) for record in records)
+
+
+def summary_max_float(records, key):
+    values = [safe_float(record["summary"], key) for record in records]
+    values = [value for value in values if math.isfinite(value)]
+    return max(values) if values else float("nan")
 
 
 def load_records(root):
@@ -97,6 +149,21 @@ def load_records(root):
     if not records:
         raise RuntimeError("no *_summary.csv / *_observables.csv pairs found under {}".format(root))
     return records
+
+
+def aggregate_hist(records, key):
+    totals = []
+    for record in records:
+        counts = parse_hist(record["summary"].get(key, ""))
+        if not counts:
+            continue
+        if not totals:
+            totals = [0] * len(counts)
+        if len(counts) != len(totals):
+            raise RuntimeError("histogram bin count mismatch for {0}".format(key))
+        for idx, value in enumerate(counts):
+            totals[idx] += value
+    return totals
 
 
 def total_record(records):
@@ -150,6 +217,12 @@ def write_outputs(records, out_dir):
     total_transitions_failed = sum(int(record["summary"]["transitions_failed"]) for record in records)
     total_metropolis_rejected = sum(int(record["summary"].get("metropolis_rejected", 0)) for record in records)
     total_reverse_gate_rejected = sum(int(record["summary"].get("reverse_gate_rejected", 0)) for record in records)
+    total_reverse_gate_checked = summary_sum_int(records, "reverse_gate_checked")
+    total_reverse_gate_passed = summary_sum_int(records, "reverse_gate_passed")
+    total_reverse_gate_failed = summary_sum_int(records, "reverse_gate_failed")
+    has_reverse_gate_error_samples = any("reverse_gate_error_samples" in record["summary"] for record in records)
+    reverse_gate_error_weight_key = "reverse_gate_error_samples" if has_reverse_gate_error_samples else "reverse_gate_checked"
+    total_reverse_gate_error_samples = summary_sum_int(records, "reverse_gate_error_samples")
     total_accepted_jump_count = sum(int(record["summary"].get("accepted_jump_count", 0)) for record in records)
     accepted_x_jump_sq_mean = weighted_summary_mean(records, "accepted_x_jump_sq_mean", "accepted_jump_count")
     accepted_z_jump_sq_mean = weighted_summary_mean(records, "accepted_z_jump_sq_mean", "accepted_jump_count")
@@ -161,18 +234,38 @@ def write_outputs(records, out_dir):
     effective_flow_time_jump_abs_mean = weighted_summary_mean(
         records, "effective_flow_time_jump_abs_mean", "cycles_completed"
     )
+    reverse_gate_state_error_mean = weighted_summary_mean(
+        records, "reverse_gate_state_error_mean", reverse_gate_error_weight_key
+    )
+    reverse_gate_momentum_error_mean = weighted_summary_mean(
+        records, "reverse_gate_momentum_error_mean", reverse_gate_error_weight_key
+    )
+    reverse_gate_state_error_max = summary_max_float(records, "reverse_gate_state_error_max")
+    reverse_gate_momentum_error_max = summary_max_float(records, "reverse_gate_momentum_error_max")
     phase = abs(total["D"]) / total["sum_abs_weight"] if total["sum_abs_weight"] > 0.0 else float("nan")
+    flow_hist = aggregate_hist(records, "flow_time_hist_inside")
+    measurement_flow_hist = aggregate_hist(records, "measurement_flow_time_hist_inside")
+    flow_hist_metrics = hist_metrics(flow_hist)
+    measurement_flow_hist_metrics = hist_metrics(measurement_flow_hist)
+    flow_hist_low = summary_sum_int(records, "flow_time_hist_low")
+    flow_hist_high = summary_sum_int(records, "flow_time_hist_high")
 
     summary_path = out_dir / "wv_hmc_pilot_summary.csv"
     with summary_path.open("w", newline="") as handle:
         fieldnames = [
             "seeds", "total_cycles", "total_measurements", "total_trajectory_steps", "total_bounced_steps",
             "bounce_rate_per_step", "total_transitions_failed", "total_metropolis_rejected",
-            "total_reverse_gate_rejected", "total_odex_failure", "phase_coherence",
+            "total_reverse_gate_rejected", "total_reverse_gate_checked", "total_reverse_gate_passed",
+            "total_reverse_gate_failed", "total_reverse_gate_error_samples",
+            "reverse_gate_state_error_mean", "reverse_gate_momentum_error_mean",
+            "reverse_gate_state_error_max", "reverse_gate_momentum_error_max",
+            "total_odex_failure", "phase_coherence",
             "phase_coherence_seed_jk_se", "accepted_jump_count", "accepted_x_jump_sq_mean",
             "accepted_z_jump_sq_mean", "accepted_flow_time_jump_abs_mean", "effective_x_jump_sq_mean",
             "effective_z_jump_sq_mean", "effective_flow_time_jump_abs_mean", "denominator_re",
-            "denominator_im", "sum_abs_weight",
+            "denominator_im", "sum_abs_weight", "flow_hist_zero_bins", "flow_hist_adjacent_flatness",
+            "flow_hist_max_min_ratio", "flow_hist_low", "flow_hist_high", "measurement_flow_hist_zero_bins",
+            "measurement_flow_hist_adjacent_flatness", "measurement_flow_hist_max_min_ratio",
         ]
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
@@ -186,6 +279,14 @@ def write_outputs(records, out_dir):
             "total_transitions_failed": total_transitions_failed,
             "total_metropolis_rejected": total_metropolis_rejected,
             "total_reverse_gate_rejected": total_reverse_gate_rejected,
+            "total_reverse_gate_checked": total_reverse_gate_checked,
+            "total_reverse_gate_passed": total_reverse_gate_passed,
+            "total_reverse_gate_failed": total_reverse_gate_failed,
+            "total_reverse_gate_error_samples": total_reverse_gate_error_samples,
+            "reverse_gate_state_error_mean": reverse_gate_state_error_mean,
+            "reverse_gate_momentum_error_mean": reverse_gate_momentum_error_mean,
+            "reverse_gate_state_error_max": reverse_gate_state_error_max,
+            "reverse_gate_momentum_error_max": reverse_gate_momentum_error_max,
             "total_odex_failure": total_odex_failure,
             "phase_coherence": phase,
             "phase_coherence_seed_jk_se": jk_se(phase_jk),
@@ -199,7 +300,42 @@ def write_outputs(records, out_dir):
             "denominator_re": total["D"].real,
             "denominator_im": total["D"].imag,
             "sum_abs_weight": total["sum_abs_weight"],
+            "flow_hist_zero_bins": flow_hist_metrics["zero_bins"],
+            "flow_hist_adjacent_flatness": flow_hist_metrics["adjacent_flatness"],
+            "flow_hist_max_min_ratio": flow_hist_metrics["max_min_ratio"],
+            "flow_hist_low": flow_hist_low,
+            "flow_hist_high": flow_hist_high,
+            "measurement_flow_hist_zero_bins": measurement_flow_hist_metrics["zero_bins"],
+            "measurement_flow_hist_adjacent_flatness": measurement_flow_hist_metrics["adjacent_flatness"],
+            "measurement_flow_hist_max_min_ratio": measurement_flow_hist_metrics["max_min_ratio"],
         })
+
+    hist_path = out_dir / "wv_hmc_flow_time_histogram.csv"
+    if flow_hist or measurement_flow_hist:
+        with hist_path.open("w", newline="") as handle:
+            fieldnames = [
+                "kind", "bin", "count", "fraction", "zero_bins", "adjacent_flatness", "max_min_ratio",
+                "tail_low", "tail_high",
+            ]
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
+            writer.writeheader()
+            for kind, counts, metrics in [
+                ("chain", flow_hist, flow_hist_metrics),
+                ("measurement", measurement_flow_hist, measurement_flow_hist_metrics),
+            ]:
+                total_count = sum(counts)
+                for idx, count in enumerate(counts):
+                    writer.writerow({
+                        "kind": kind,
+                        "bin": idx,
+                        "count": count,
+                        "fraction": count / float(total_count) if total_count else float("nan"),
+                        "zero_bins": metrics["zero_bins"],
+                        "adjacent_flatness": metrics["adjacent_flatness"],
+                        "max_min_ratio": metrics["max_min_ratio"],
+                        "tail_low": flow_hist_low if kind == "chain" else "",
+                        "tail_high": flow_hist_high if kind == "chain" else "",
+                    })
 
     obs_path = out_dir / "wv_hmc_pilot_observable_z.csv"
     with obs_path.open("w", newline="") as handle:
@@ -233,11 +369,24 @@ def write_outputs(records, out_dir):
             {
                 "summary_path": record["summary_path"],
                 "observable_path": record["observable_path"],
+                "init_mode": record["summary"].get("init_mode", ""),
+                "init_bank_file": record["summary"].get("init_bank_file", ""),
+                "init_bank_record_request": int(record["summary"].get("init_bank_record_request", -1) or -1),
+                "init_bank_record": int(record["summary"].get("init_bank_record", -1) or -1),
+                "init_bank_record_count": int(record["summary"].get("init_bank_record_count", 0) or 0),
                 "cycles_completed": int(record["summary"]["cycles_completed"]),
                 "accepted": int(record["summary"]["accepted"]),
                 "rejected": int(record["summary"]["rejected"]),
                 "metropolis_rejected": int(record["summary"].get("metropolis_rejected", 0)),
                 "reverse_gate_rejected": int(record["summary"].get("reverse_gate_rejected", 0)),
+                "reverse_gate_checked": int(record["summary"].get("reverse_gate_checked", 0) or 0),
+                "reverse_gate_passed": int(record["summary"].get("reverse_gate_passed", 0) or 0),
+                "reverse_gate_failed": int(record["summary"].get("reverse_gate_failed", 0) or 0),
+                "reverse_gate_error_samples": int(record["summary"].get("reverse_gate_error_samples", 0) or 0),
+                "reverse_gate_state_error_mean": safe_float(record["summary"], "reverse_gate_state_error_mean"),
+                "reverse_gate_momentum_error_mean": safe_float(record["summary"], "reverse_gate_momentum_error_mean"),
+                "reverse_gate_state_error_max": safe_float(record["summary"], "reverse_gate_state_error_max"),
+                "reverse_gate_momentum_error_max": safe_float(record["summary"], "reverse_gate_momentum_error_max"),
                 "transitions_failed": int(record["summary"]["transitions_failed"]),
                 "flow_time_min": safe_float(record["summary"], "flow_time_min"),
                 "flow_time_max": safe_float(record["summary"], "flow_time_max"),
@@ -258,6 +407,7 @@ def write_outputs(records, out_dir):
         ],
         "exact_reference": EXACT,
         "ratio_policy": "pooled numerator reconstructed as D_seed * O_hat_seed; denominator pooled as sum D_seed",
+        "flow_time_histogram": str(hist_path) if flow_hist or measurement_flow_hist else "",
     }
     metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
 
@@ -288,6 +438,20 @@ def write_outputs(records, out_dir):
         "Transition diagnostics:",
         "- Metropolis rejections: `{}`".format(srow["total_metropolis_rejected"]),
         "- Reverse-gate rejections: `{}`".format(srow["total_reverse_gate_rejected"]),
+        "- Reverse-gate checked/passed/failed: `{}` / `{}` / `{}`".format(
+            srow.get("total_reverse_gate_checked", ""),
+            srow.get("total_reverse_gate_passed", ""),
+            srow.get("total_reverse_gate_failed", ""),
+        ),
+        "- Reverse-gate finite error samples: `{}`".format(srow.get("total_reverse_gate_error_samples", "")),
+        "- Reverse-gate state error mean/max: `{:.6g}` / `{:.6g}`".format(
+            float(srow.get("reverse_gate_state_error_mean", "nan")),
+            float(srow.get("reverse_gate_state_error_max", "nan")),
+        ),
+        "- Reverse-gate momentum error mean/max: `{:.6g}` / `{:.6g}`".format(
+            float(srow.get("reverse_gate_momentum_error_mean", "nan")),
+            float(srow.get("reverse_gate_momentum_error_max", "nan")),
+        ),
         "- Forward construction failures: `{}`".format(srow["total_transitions_failed"]),
         "- ODE failures: `{}`".format(srow["total_odex_failure"]),
         "- Effective x jump sq / cycle: `{:.6g}`".format(float(srow["effective_x_jump_sq_mean"])),
@@ -295,6 +459,25 @@ def write_outputs(records, out_dir):
         "- Accepted x jump sq / accepted proposal: `{:.6g}`".format(float(srow["accepted_x_jump_sq_mean"])),
         "- Accepted z jump sq / accepted proposal: `{:.6g}`".format(float(srow["accepted_z_jump_sq_mean"])),
     ])
+    if flow_hist or measurement_flow_hist:
+        lines.extend([
+            "",
+            "Flow-time histogram diagnostics:",
+            "- Chain histogram zero bins / adjacent flatness / max-min ratio: `{}` / `{:.6g}` / `{:.6g}`".format(
+                srow.get("flow_hist_zero_bins", ""),
+                float(srow.get("flow_hist_adjacent_flatness", "nan")),
+                float(srow.get("flow_hist_max_min_ratio", "nan")),
+            ),
+            "- Chain tail low/high counts: `{}` / `{}`".format(
+                srow.get("flow_hist_low", ""),
+                srow.get("flow_hist_high", ""),
+            ),
+            "- Measurement histogram zero bins / adjacent flatness / max-min ratio: `{}` / `{:.6g}` / `{:.6g}`".format(
+                srow.get("measurement_flow_hist_zero_bins", ""),
+                float(srow.get("measurement_flow_hist_adjacent_flatness", "nan")),
+                float(srow.get("measurement_flow_hist_max_min_ratio", "nan")),
+            ),
+        ])
     lines.extend([
         "",
         "## Observables",
@@ -319,15 +502,27 @@ def write_outputs(records, out_dir):
         "- `{}`".format(obs_path),
         "- `{}`".format(metadata_path),
     ])
+    if flow_hist or measurement_flow_hist:
+        lines.append("- `{}`".format(hist_path))
     markdown_path.write_text("\n".join(lines) + "\n")
-    return summary_path, obs_path, metadata_path, markdown_path
+    outputs = [summary_path, obs_path, metadata_path, markdown_path]
+    if flow_hist or measurement_flow_hist:
+        outputs.append(hist_path)
+    return outputs
 
 
 def main():
+    global EXACT
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--out-dir", required=True, type=Path)
+    parser.add_argument("--exact-chiral", type=float, default=DEFAULT_EXACT["chiral_condensate"])
+    parser.add_argument("--exact-density", type=float, default=DEFAULT_EXACT["number_density"])
     args = parser.parse_args()
+    EXACT = {
+        "chiral_condensate": args.exact_chiral,
+        "number_density": args.exact_density,
+    }
     records = load_records(args.root)
     outputs = write_outputs(records, args.out_dir)
     for path in outputs:

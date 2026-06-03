@@ -44,3 +44,8 @@ codex/state/job_tracker.tsv
 codex/state/run_manifest_latest.env
 codex/workspaces/*/state/job_tracker.tsv
 codex/workspaces/*/context/LAST_REFRESH.txt
+
+# Codex generated run raw artifacts
+codex/workspaces/*/runbooks/generated/**/chunks/
+codex/workspaces/*/runbooks/generated/**/raw_*/*
+codex/workspaces/*/runbooks/generated/**/remote_artifacts/

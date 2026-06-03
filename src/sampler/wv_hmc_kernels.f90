@@ -12,6 +12,7 @@ module wv_hmc_kernels
              wv_force_from_sigma_components, wv_force_iterative_with_jacobian, wv_project_dense_with_jacobian, &
              wv_force_matrix_free_at, wv_project_from_sigma_components, wv_project_iterative_with_jacobian, &
              wv_project_matrix_free_at, &
+             wv_reflect_flow_component_dense_with_jacobian, &
              wv_real_inner_product, wv_simplified_newton_update_from_sigma_decomposition, &
              wv_simplified_newton_update_dense_with_jacobian, wv_simplified_newton_update_iterative_with_jacobian, &
              wv_simplified_newton_update_matrix_free_at, wv_simplified_newton_linear_residuals, &
@@ -180,6 +181,47 @@ contains
       call wv_project_from_sigma_components(w_tangent, w_normal, xi_tangent, xi_normal, w_parallel, w_perp, c, &
                                             alpha2, error)
    end subroutine wv_project_dense_with_jacobian
+
+   subroutine wv_reflect_flow_component_dense_with_jacobian(w, xi, jac, w_reflected, c, alpha2, error)
+      real(dp), intent(in) :: w(:), xi(:)
+      complex(dp), intent(in) :: jac(:, :)
+      real(dp), intent(out) :: w_reflected(:)
+      real(dp), intent(out) :: c, alpha2
+      logical, intent(out) :: error
+
+      real(dp) :: w_coords(size(w)), w_tangent(size(w)), w_normal(size(w))
+      real(dp) :: xi_coords(size(xi)), xi_tangent(size(xi)), xi_normal(size(xi))
+      real(dp) :: numerator
+      logical :: ierr
+
+      w_reflected = 0.0_dp
+      c = 0.0_dp
+      alpha2 = 0.0_dp
+      error = .true.
+      if (.not. valid_pair(w, xi)) return
+      if (size(w_reflected) /= size(w)) return
+
+      call decompose_tangent_projection(w, w_coords, w_tangent, w_normal, jac, ierr)
+      if (ierr) return
+      call decompose_tangent_projection(xi, xi_coords, xi_tangent, xi_normal, jac, ierr)
+      if (ierr) return
+
+      call wv_alpha2(xi_normal, alpha2, error)
+      if (error) return
+      numerator = dot_product(xi_normal, w_normal)
+      if (.not. ieee_is_finite(numerator)) return
+      c = numerator/alpha2
+      if (.not. ieee_is_finite(c)) return
+
+      w_reflected = w_tangent - c*xi_normal
+      if (.not. valid_vector(w_reflected)) then
+         w_reflected = 0.0_dp
+         c = 0.0_dp
+         alpha2 = 0.0_dp
+         return
+      end if
+      error = .false.
+   end subroutine wv_reflect_flow_component_dense_with_jacobian
 
    subroutine wv_decompose_iterative_with_jacobian(b, jac, coords, tangent, normal, residual_norm, iterations, &
                                                    tol, max_iter, error)

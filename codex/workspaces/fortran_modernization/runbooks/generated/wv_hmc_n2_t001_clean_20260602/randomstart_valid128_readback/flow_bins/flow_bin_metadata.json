@@ -1,0 +1,33 @@
+{
+  "bins": [
+    [
+      0.0,
+      0.0025
+    ],
+    [
+      0.0025,
+      0.005
+    ],
+    [
+      0.005,
+      0.0075
+    ],
+    [
+      0.0075,
+      0.01
+    ]
+  ],
+  "root": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_n2_t001_clean_20260602/wv_hmc_n2_t001_fullflip_g0_e003n20_128x5000_r2_20260602_valid_input",
+  "exact": {
+    "chiral_condensate": 0.380047505938398,
+    "number_density": 0.0387173396674602
+  },
+  "observable_names": [
+    "chiral_condensate",
+    "number_density",
+    "logdet_dirac",
+    "phase_factor",
+    "min_singular_ba_m2"
+  ],
+  "history_files": 128
+}

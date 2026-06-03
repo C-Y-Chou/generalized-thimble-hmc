@@ -1,0 +1,82 @@
+{
+  "recorded_at_jst": "2026-06-02 17:07:08 JST",
+  "purpose": "Pin the active WV-HMC T0=0 long-validation dataset and initial bank before further analysis.",
+  "active_dataset_label": "n6_t0_long_old_boundary_sourcepin_8ec6dc0d9b87_86f750bba994",
+  "model": {
+    "name": "Stephanov",
+    "n": 6,
+    "mu": 0.6,
+    "tau": 0.0
+  },
+  "dataset": {
+    "remote_output_root": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_t0_long_validation_20260601/wv_hmc_n6_t0_g65e009n10_m025_64x15000_12h_20260601",
+    "remote_logs_root": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/wv_hmc_t0_long_validation_20260601/wv_hmc_n6_t0_g65e009n10_m025_64x15000_12h_20260601",
+    "jobs": ["18680.anode01", "18681.anode01", "18682.anode01", "18683.anode01"],
+    "queue": "C17",
+    "nodes": ["cnode37", "cnode38"],
+    "requested_seeds": 64,
+    "requested_cycles_per_seed": 15000,
+    "usable_measurement_histories": 63,
+    "failed_no_measurement_seed": 9630023,
+    "snapshot_files": 0,
+    "observable_histories": 64,
+    "summaries": 63,
+    "observables": 63,
+    "final_states": 63
+  },
+  "protocol": {
+    "sampler_t0": 0.0,
+    "sampler_t1": 0.03,
+    "measurement_t0": 0.025,
+    "measurement_t1": 0.03,
+    "measurement_start_cycle": 1001,
+    "w_profile": "paper_wall",
+    "w_gamma": 65.0,
+    "d0": 0.0001,
+    "d1": 0.005,
+    "step_size": 0.009,
+    "num_steps": 10,
+    "trajectory_length": 0.09,
+    "constraint_tol": 1e-10,
+    "constraint_max_iter": 192,
+    "ode_backend": "dop853"
+  },
+  "initial_bank": {
+    "type": "fixed_tau_t0_state_bank",
+    "path": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_initial_banks_20260601/stephanov_n6_tau0_hmc_eps080_n8_64x3000_20260601/state_bank_tau0/x_bank.dat",
+    "current_symlink": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_initial_banks_20260601/current_stephanov_n6_t0_state_bank",
+    "tau_bank": 0.0,
+    "builder_step_size": 0.08,
+    "builder_num_steps": 8,
+    "builder_trajectory_length": 0.64,
+    "records": 16064,
+    "record_width": 73,
+    "layout": "flow_time + x",
+    "flow_time": 0.0,
+    "builder_acceptance": 0.7716979167,
+    "builder_proposal_failure": 0,
+    "builder_reverse_gate_reject": 0
+  },
+  "source_pin": {
+    "source_pin_id": "8ec6dc0d9b87-86f750bba994",
+    "commit": "8ec6dc0d9b8768c5432e8c9df883a9cd870a82ba",
+    "dirty_count": 51,
+    "runtime_snapshot": "/lustre1/home/cychou/TLTM_worktrees/runtime_snapshots/wv_hmc_n6_t003_prod15k_gitless_r3_20260601",
+    "boundary_policy_status": "old_implementation_before_simplified_paper_full_flip_fix"
+  },
+  "code_audit_status": {
+    "closed": false,
+    "deterministic_kernel_gates": "passed after full-flip boundary-policy patch",
+    "boundary_policy": "old normal/component reflection mismatch found; current code patched to simplified-paper full pi flip",
+    "n2_bankinit_observable_gate": "passed for T0=0,T1=0.01",
+    "n6_highflow_postfix_diagnostic": "compatible at current precision but not a full production gate",
+    "leading_unclosed_item": "independent n=6 measurement-factor alpha/W oracle",
+    "active_dataset_is_current_code_validation": false
+  },
+  "do_not_confuse_with": [
+    "wv_hmc_n6_gamma55_validation_20260601",
+    "wv_hmc_n6_prod15k_20260601",
+    "wv_hmc_t0_retune_20260601/wv_hmc_n6_t0_retuned_g65e009n10_validation_32x1500_20260601",
+    "wv_hmc_fast_audit_20260602/wv_hmc_fast_audit_n6_paperflip_highcut_32x3000_20260602"
+  ]
+}

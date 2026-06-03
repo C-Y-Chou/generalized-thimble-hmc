@@ -1,0 +1,127 @@
+#!/bin/bash
+#PBS -N wv6trace
+#PBS -q C17
+#PBS -l select=1:ncpus=16:mpiprocs=16:mem=16gb
+#PBS -l walltime=00:30:00
+#PBS -j oe
+
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization}"
+: "${TLTM_SOURCE_PIN_FILE:=${TLTM_WORKTREE}/codex/workspaces/fortran_modernization/state/CLUSTER02_SOURCE_PIN.env}"
+: "${TLTM_EXPECTED_SOURCE_PIN_ID:=}"
+: "${TLTM_OUTPUT_ROOT:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_n6_lowend_trace_20260603}"
+: "${TLTM_LOG_ROOT:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/wv_hmc_n6_lowend_trace_20260603}"
+: "${TLTM_PARAMETERS_FILE:=data/parameters_stephanov_n6_mu06_t0.dat}"
+
+LOWEND_STATE_BANK="/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_initial_banks_20260603/stephanov_n6_wv_hmc_t0001_warm_bank_16x5000_20260603_18860.anode01/state_bank_t0p0001/state_bank_t0p0001.bin"
+OLD_INTERVAL_WARM_BANK="/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_n6_retune_validation_20260531/wv_hmc_n6_t003_retuned_g0_eps010_n8_max192_32x1000_20260531/warm_bank/x_bank.dat"
+
+export TLTM_ODE_BACKEND=dop853
+export TLTM_DOP853_HINIT_ENABLED=1
+export TLTM_DOP853_STIFFNESS_CHECK_ENABLED=1
+export TLTM_DOP853_STIFFNESS_CHECK_INTERVAL=1000
+export TLTM_DOP853_STIFFNESS_MAX_HITS=15
+export TLTM_DOP853_STIFFNESS_THRESHOLD=6.1
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export OMP_DYNAMIC=FALSE
+export MKL_DYNAMIC=FALSE
+
+cd "${TLTM_WORKTREE}"
+mkdir -p "${TLTM_LOG_ROOT}"
+exec > "${TLTM_LOG_ROOT}/pbs_boot_${PBS_JOBID:-manual}.log" 2>&1
+
+echo "RUN_DATE=$(date -Is)"
+echo "HOSTNAME=$(hostname)"
+echo "PBS_JOBID=${PBS_JOBID:-manual}"
+echo "TLTM_WORKTREE=${TLTM_WORKTREE}"
+echo "TLTM_SOURCE_PIN_FILE=${TLTM_SOURCE_PIN_FILE}"
+if [ -f "${TLTM_SOURCE_PIN_FILE}" ]; then
+  . "${TLTM_SOURCE_PIN_FILE}"
+  echo "TLTM_SOURCE_PIN_ID=${TLTM_SOURCE_PIN_ID:-}"
+  echo "TLTM_SOURCE_PIN_COMMIT=${TLTM_SOURCE_PIN_COMMIT:-}"
+  echo "TLTM_SOURCE_PIN_DIRTY_COUNT=${TLTM_SOURCE_PIN_DIRTY_COUNT:-}"
+  if [ -n "${TLTM_EXPECTED_SOURCE_PIN_ID}" ] && [ "${TLTM_SOURCE_PIN_ID:-}" != "${TLTM_EXPECTED_SOURCE_PIN_ID}" ]; then
+    echo "[ERROR] expected source pin ${TLTM_EXPECTED_SOURCE_PIN_ID}, got ${TLTM_SOURCE_PIN_ID:-missing}" >&2
+    exit 2
+  fi
+else
+  echo "[ERROR] missing source pin file ${TLTM_SOURCE_PIN_FILE}" >&2
+  exit 2
+fi
+
+. codex/workspaces/fortran_modernization/tasks/scripts/python_embed_env.sh
+make -C build -j 16 OMP=1 PYTHON="${PYTHON}" PYTHON_EMBED_CFLAGS="${PYTHON_EMBED_CFLAGS}" \
+  PYTHON_EMBED_LDFLAGS="${PYTHON_EMBED_LDFLAGS}" ../bin/run_wv_hmc
+
+RUN_ROOT="${TLTM_OUTPUT_ROOT}/sample_${PBS_JOBID:-manual}"
+mkdir -p "${RUN_ROOT}"
+
+run_case() {
+  local name="$1"
+  local bank="$2"
+  local gamma="$3"
+  local seed="$4"
+  local root="${RUN_ROOT}/${name}"
+  mkdir -p "${root}/trace"
+  echo "CASE_START ${name} bank=${bank} gamma=${gamma} seed=${seed}"
+  "${PYTHON}" codex/workspaces/fortran_modernization/tasks/scripts/run_wv_hmc_dense_observable_validation_20260529.py \
+    --binary bin/run_wv_hmc \
+    --parameters-file "${TLTM_PARAMETERS_FILE}" \
+    --output-root "${root}" \
+    --seed-start "${seed}" \
+    --seed-count 1 \
+    --cycles 20 \
+    --measurement-start-cycle 1 \
+    --step-size 0.010 \
+    --num-steps 8 \
+    --init-mode state_bank \
+    --init-bank-file "${bank}" \
+    --init-bank-record 0 \
+    --init-bank-record-mode fixed \
+    --reverse-gate-state-tol 1.0e-5 \
+    --reverse-gate-momentum-tol 1.0e-3 \
+    --constraint-tol 1.0e-10 \
+    --constraint-max-iter 192 \
+    --adaptive-newton-stop-enabled 0 \
+    --large-residual-stop-enabled 0 \
+    --sampler-t0 0.0001 \
+    --sampler-t1 0.03 \
+    --d0 0.0001 \
+    --d1 0.005 \
+    --measurement-t0 0.0001 \
+    --measurement-t1 0.03 \
+    --initial-flow-time 0.0001 \
+    --w-profile paper_wall \
+    --boundary-policy paper_full_flip \
+    --w-gamma "${gamma}" \
+    --w-c0 1.0 \
+    --w-c1 1.0 \
+    --newton-trace-dir "${root}/trace" \
+    --write-observable-history \
+    --history-stride 1 \
+    --jobs 1 \
+    --timeout-sec 1200
+  echo "CASE_DONE ${name}"
+}
+
+run_case lowend_g55 "${LOWEND_STATE_BANK}" 55.0 9300001
+run_case lowend_g0 "${LOWEND_STATE_BANK}" 0.0 9300002
+run_case oldwarm_g55 "${OLD_INTERVAL_WARM_BANK}" 55.0 9300003
+
+echo "RUN_ROOT=${RUN_ROOT}"
+echo "WV_HMC_N6_LOWEND_TRACE_COMPLETE"

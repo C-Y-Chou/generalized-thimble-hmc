@@ -104,20 +104,41 @@ authority gate or preserve the same environment/request-ledger contract.
 4. Fast-forward the target cluster worktree only if no pinned jobs from that worktree are running.
 5. Verify branch, commit, clean status, and `qsub`.
 6. Run the scheduler agent snapshot.
-7. If the batch is large or queue pressure is ambiguous, run short production-shape probes before bulk optimization.
-8. Verify there is a request row in `CLUSTER02_SCHEDULER_REQUESTS.tsv`, export
+7. For large or long CPU-bound production, refresh node inventory and queue
+   ranking. Queue names are not enough: the same queue class can hide very
+   different CPU generations or node-local tool availability.
+8. If the batch is large or queue pressure is ambiguous, run short production-shape probes before bulk optimization.
+9. Verify there is a request row in `CLUSTER02_SCHEDULER_REQUESTS.tsv`, export
    the scheduler authority variables, then run the dynamic launcher or a
    job-specific launcher that consumes the same knowledge file.
-9. Record the manifest, queue plan, and any follow-up observations.
+10. Record the manifest, queue plan, and any follow-up observations.
 
 ## Current Long-Term Policy
 
 - CPU-only TLTM chunks use `C8`, `C12`, `C16`, `C8-LONG`, `C12-LONG`, or `F` by default.
 - GPU queues are excluded for CPU-only chunks unless explicitly approved.
 - `C24` and `C36` are excluded for one-node jobs because their manual node ranges start above one node.
-- `C17` and `C17-LONG` are conditional only: cnode37 passed current Stephanov N6 withfb DOP853/DFO-LS 8-core probes, but cnode38/cnode39 placements lack node-local `git` and fail the current PBS git guard with `Exit_status=127`. Do not use them automatically until placement is constrained or the guard is gitless.
+- Current WV-HMC production uses a gitless runtime snapshot plus source pin.
+  Compute nodes no longer need node-local `git` for this workflow.
+- `C17` and `C17-LONG` are now preferred WV-HMC production candidates when live
+  queue pressure allows it. The 2026-05-31 full inventory found `C17` hardware
+  is fast (`Gold 6542Y`); the previous node-local `git` blocker is bypassed by
+  the source-pin workflow.
+- The same inventory found `C16` is uniformly compatible but older/slower
+  (`Gold 6142`). A 16-core WV-HMC N6 t=0.03 production run was about 2.6x
+  slower on `C16/cnode01` than on `C17/cnode37`. Treat C16 as an eligible slow
+  fallback, not as an equal substitute for long CPU-bound production.
+- `C8`/`C8-LONG` are currently uniform `Gold 6242R` CPU queues and passed the
+  current node-local git compatibility check in the inventory.
+- `C12`/`C12-LONG` are faster `Gold 6342` CPU queues. They are usable for
+  gitless source-pin jobs; legacy PBS scripts that still call `git` on compute
+  nodes must keep treating `cnode36` as a placement risk.
 - One-core probes do not validate an 8-core TLTM chunk shape; use production-shape probes when revalidating a queue or node placement.
 - Probe-passed queues are preferred only as compatibility priors. Current queue pressure still comes from fresh `qstat -Qf` and, when useful, new probes.
+- For WV-HMC production health checks, count exact Fortran kernels with
+  `pgrep -x run_wv_hmc`. Do not use `pgrep -af bin/run_wv_hmc` as a process
+  count, because wrapper Python commands include `--binary bin/run_wv_hmc` in
+  their arguments.
 
 ## Utility Commands
 
@@ -132,6 +153,53 @@ Capture a live cluster queue snapshot from the cluster worktree:
 ```bash
 python3 codex/workspaces/fortran_modernization/tasks/scripts/cluster02_scheduler_agent.py snapshot
 ```
+
+Refresh full node inventory and queue-to-node matrix from the cluster worktree:
+
+```bash
+python3 codex/workspaces/fortran_modernization/tasks/scripts/cluster02_scheduler_agent.py inventory \
+  --hardware-probe \
+  --max-workers 16 \
+  --ssh-timeout 5
+```
+
+This writes:
+
+- `codex/workspaces/fortran_modernization/state/CLUSTER02_NODE_INVENTORY.json`
+- `codex/workspaces/fortran_modernization/state/CLUSTER02_NODE_INVENTORY.csv`
+- `codex/workspaces/fortran_modernization/state/CLUSTER02_QUEUE_NODE_MATRIX.csv`
+
+Create a gitless runtime snapshot and source pin before large production:
+
+```bash
+python3 codex/workspaces/fortran_modernization/tasks/scripts/cluster02_scheduler_agent.py runtime-snapshot \
+  --snapshot-root /lustre1/home/cychou/TLTM_worktrees/runtime_snapshots/<run-id> \
+  --allow-dirty \
+  --delete
+```
+
+The production PBS script must set:
+
+```bash
+TLTM_WORKTREE=/lustre1/home/cychou/TLTM_worktrees/runtime_snapshots/<run-id>
+TLTM_REQUIRE_SOURCE_PIN=1
+TLTM_SOURCE_PIN_FILE=/lustre1/home/cychou/TLTM_worktrees/runtime_snapshots/<run-id>/codex/workspaces/fortran_modernization/state/CLUSTER02_SOURCE_PIN.env
+```
+
+Rank queues for a gitless production-shaped CPU job:
+
+```bash
+python3 codex/workspaces/fortran_modernization/tasks/scripts/cluster02_scheduler_agent.py rank-queues \
+  --ncpus 16 \
+  --mem-gb 32 \
+  --walltime 12:00:00 \
+  --gitless-guard \
+  --output-csv codex/workspaces/fortran_modernization/state/CLUSTER02_QUEUE_RANKING_WV_HMC_N6_16CPU_12H.csv
+```
+
+Default ranking still protects legacy PBS scripts that require node-local
+`git`. Use `--gitless-guard` only for jobs that run from a source-pinned
+runtime snapshot and do not call `git` as a correctness gate on compute nodes.
 
 Summarize jobs:
 

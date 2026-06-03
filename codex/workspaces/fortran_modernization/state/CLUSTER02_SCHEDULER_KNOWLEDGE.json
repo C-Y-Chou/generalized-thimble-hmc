@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "cluster": "iTHEMS cluster02",
-  "updated_at_jst": "2026-05-26T00:14:00+09:00",
+  "updated_at_jst": "2026-05-31T23:58:00+09:00",
   "resource_model": {
     "type": "shared_dynamic_cluster",
     "principle": "Persistent observations are priors; current qstat/probes decide present scheduling.",
@@ -37,10 +37,34 @@
     "Pin PBS jobs with TLTM_EXPECTED_GIT_COMMIT.",
     "Repair failed chunks by cancel/resubmit/rebuild-merge, not qmove."
   ],
+  "node_inventory_policy": {
+    "inventory_json": "codex/workspaces/fortran_modernization/state/CLUSTER02_NODE_INVENTORY.json",
+    "inventory_csv": "codex/workspaces/fortran_modernization/state/CLUSTER02_NODE_INVENTORY.csv",
+    "queue_node_matrix_csv": "codex/workspaces/fortran_modernization/state/CLUSTER02_QUEUE_NODE_MATRIX.csv",
+    "fresh_inventory_required_for_large_batches": true,
+    "current_pbs_guard_requires_node_local_git": false,
+    "current_wv_hmc_production_source_guard": "gitless_runtime_snapshot_with_source_pin",
+    "reject_mixed_node_compatibility_without_placement_or_gitless_guard": true,
+    "cpu_speed_priors_for_cpu_bound_wv_hmc": {
+      "Intel(R) Xeon(R) Gold 6142 CPU @ 2.60GHz": 1.0,
+      "Intel(R) Xeon(R) Gold 6242R CPU @ 3.10GHz": 1.6,
+      "Intel(R) Xeon(R) Gold 6342 CPU @ 2.80GHz": 1.9,
+      "INTEL(R) XEON(R) GOLD 6542Y": 2.6
+    },
+    "current_wv_hmc_n6_t003_16cpu_observation": {
+      "timestamp_jst": "2026-05-31T23:55:00+09:00",
+      "shape": "select=1:ncpus=16:mpiprocs=16:mem=32gb walltime=12:00:00",
+      "slow_reference": "C16 on cnode01: about 1.65k-1.70k cycles after 1.7h",
+      "fast_reference": "C17 on cnode37: about 4.5k cycles after 1.7h",
+      "decision": "Treat C16/Gold6142 as eligible but slow for long CPU-bound WV-HMC production; after the gitless runtime snapshot/source-pin guard, treat C17/Gold6542Y as the preferred CPU-bound WV-HMC queue class when live queue pressure allows it."
+    }
+  },
   "queue_policy": {
     "default_cpu_candidates": [
       "C8",
       "C12",
+      "C17",
+      "C17-LONG",
       "C16",
       "C8-LONG",
       "C12-LONG",
@@ -50,8 +74,6 @@
       "C24": "Manual node range starts at 17 nodes; M6 chunks are one-node jobs.",
       "C36": "Manual node range starts at 25 nodes; M6 chunks are one-node jobs.",
       "C12-LONG2": "Observed stopped in live queue state; keep out of automatic scheduling.",
-      "C17": "Conditional only: cnode37 passed 8-core Stephanov probes, but cnode38/cnode39 lack git and current PBS git guard exits 127; use only with known-good placement or a gitless guard.",
-      "C17-LONG": "Conditional only: cnode37 passed 8-core Stephanov probes, but cnode38/cnode39 lack git and current PBS git guard exits 127; use only with known-good placement or a gitless guard.",
       "G": "GPU queue reserves GPU resources by default; not for CPU-only TLTM chunks.",
       "G-LONG": "GPU queue reserves GPU resources by default; not for CPU-only TLTM chunks.",
       "G-A100": "GPU queue reserves GPU resources by default; not for CPU-only TLTM chunks."
@@ -62,13 +84,18 @@
       "C12-LONG": 6,
       "F": 8,
       "C16": 9,
-      "C8-LONG": 10
+      "C8-LONG": 10,
+      "C17": -20,
+      "C17-LONG": -12
     },
     "default_chunk_shape": "select=1:ncpus=8:mpiprocs=8:mem=16gb",
     "scoring_rules": [
       "Reject queues outside manual node/core/walltime limits.",
       "Reject disabled or stopped queues from live qstat -Qf.",
       "Reject excluded_by_default unless explicitly overridden.",
+      "For gitless runtime-snapshot/source-pin jobs, do not reject nodes only because node-local git is missing.",
+      "For legacy PBS scripts that still run git on compute nodes, reject mixed node compatibility unless placement is constrained.",
+      "Score queues by node inventory hardware class for CPU-bound jobs, not by queue name alone.",
       "Penalize queued, waiting, and held backlog.",
       "Penalize queues already assigned many chunks in the current launch.",
       "Prefer short CPU queues before long queues when comparable.",

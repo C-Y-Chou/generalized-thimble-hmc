@@ -3,6 +3,10 @@
 This records the initialization policy change after the dense WV-HMC `n=2`
 observable pilots.
 
+Repository-wide bank tuning is governed by
+`INIT_BANK_TUNING_SOP_20260531.md`.  This file records the WV-HMC-specific
+safe-initialization decision that motivated that broader policy.
+
 ## Decision
 
 Production-shaped WV-HMC pilots should not tune the initial ensemble by changing
@@ -22,6 +26,29 @@ The default production-shaped initialization route is:
 
 This keeps initialization tied to the physical `t=0` ensemble and separates
 initial-state coverage from trajectory tuning.
+
+For larger WV-HMC intervals, the preferred replacement for a too-small or
+target-mismatched warm bank is a lower fixed-tau flow-state bank:
+
+1. Default to `tau_bank = 0`, the physical-manifold lower endpoint.  Do not use
+   a positive lower `tau_bank` to compensate for solver/reflow failures.
+2. Run a fixed-tau sampler at `tau_bank` after independently tuning that
+   builder sampler.  Since lower flow time is numerically easier, the builder
+   should test larger `epsilon` and larger `L` than the production WV-HMC
+   kernel, using acceptance and configuration-space movement as the criteria.
+   If a positive `tau_bank` is intentionally used, it must have zero
+   proposal/reflow solver failures at the selected fixed-tau builder
+   `epsilon/L`; otherwise lower `tau_bank`, not `epsilon`.
+3. Harvest post-burn-in cyclic snapshots, final states, or x-history from that
+   fixed-tau run.
+4. Pack the bank as WV-HMC state records with binary layout `flow_time + x`,
+   where `flow_time = tau_bank`.
+5. Use the resulting state bank with `WV_HMC_INIT_MODE=state_bank`.
+
+This lower fixed-tau bank is an initialization source.  It does not replace the
+final WV-HMC observable/readback validation, and changing `tau_bank` or the
+fixed-tau builder HMC protocol invalidates downstream solver/HMC tuning unless
+an equivalence check is recorded.
 
 ## Rationale
 
@@ -87,18 +114,47 @@ initial-flow failure mode.  It does not by itself freeze the final WV-HMC HMC
 parameters; subsequent tuning should use bank initialization and judge
 movement, observable stability, and acceptance diagnostics under that policy.
 
+## Safe-Initialization Versus Physical-Quality Bank
+
+The current bank is a safe-initialization bank, not yet a physical-quality bank.
+The construction chain used short `t=0` checkpoint runs and then filtered records
+that can flow safely to the WV-HMC start time.  That is sufficient for avoiding
+Gaussian initial-flow aborts, but it is not evidence that the bank itself is an
+equilibrated physical ensemble.
+
+The 2026-05-30 measurement-only discriminator confirmed this distinction.  With
+`num_steps=0`, 1024 one-cycle bank draws measured at `T0=0.005` gave grossly
+wrong `n=2` exact-reference z scores.  Because the transition kernel is not used
+in that discriminator, this diagnoses bank quality / bank coverage, not WV-HMC
+transition correctness.
+
+Future WV-HMC production work should therefore keep two separate gates:
+
+- Safe-init gate: enough records can flow to the requested start time without
+  initial-flow failures.
+- Physical-quality gate: the bank is built from a sufficiently mixed `t=0`
+  physical sampler, or its measurement-only WV ratio check is statistically
+  compatible with the `n=2` exact references before relying on bank-only
+  coverage claims.
+
+Until the physical-quality gate is satisfied, use the bank only as an initial
+condition source for burn-in-capable WV-HMC runs.
+
 ## Implemented Hooks
 
 WV-HMC app initialization accepts:
 
 - `WV_HMC_INIT_MODE=bank`
+- `WV_HMC_INIT_MODE=state_bank`
 - `WV_HMC_INIT_BANK_FILE=<path>`
 - `WV_HMC_INIT_BANK_RECORD=<record>` for a fixed record
 - omitted or negative `WV_HMC_INIT_BANK_RECORD` for deterministic seed-based
   record selection from the bank
 
 The bank file is a raw unformatted stream of `real(dp)` records with width
-`config%state%physical_size`.
+`config%state%physical_size` for `bank` mode, or width
+`config%state%physical_size + 1` for `state_bank` mode.  In `state_bank` mode
+the first field is the flow-time label for that replica start.
 
 Cluster runner/PBS wrappers pass the corresponding `--init-bank-file` and
 `--init-bank-record` options.
@@ -112,6 +168,9 @@ Cluster runner/PBS wrappers pass the corresponding `--init-bank-file` and
   `diagnostics.csv`.
 - `filter_x_bank_by_flow_diagnostics_20260530.py`
   copies only prevalidated source records into a safe WV-HMC initial bank.
+- `pack_wv_hmc_state_bank_from_x_bank.py`
+  packs a fixed-tau x-bank or x-history into WV-HMC `flow_time + x`
+  state-bank records.
 
 ## Validation Policy
 
@@ -123,4 +182,5 @@ must report:
 - state size and record count;
 - prevalidation target flow time;
 - initial-flow failure count;
+- whether the bank is safe-init only or physical-quality validated;
 - observable z-scores against the `n=2` exact references.

@@ -11,6 +11,16 @@ public-docs migration remains deferred until after WV-HMC is added or the
 project explicitly enters productization.  The pre-WV gate only corrects stale
 WV-HMC claims and records canonical TLTM status.
 
+Status, 2026-06-03: the project is entering productization closure using the
+completed Stephanov `n=6` long dense WV-HMC validation readback in
+`runbooks/generated/wv_hmc_n6_t0001_validation_20260603/N6_LONG_VALIDATION_READBACK_20260603.md`.
+The product docs must follow
+`runbooks/generated/productization_closure_workflow_20260603/PRODUCTIZATION_CLOSURE_WORKFLOW_20260603.md`.
+DFO-LS/`withfb` is legacy diagnostic only and must not appear in the active
+install/build dependency path.  Matrix-free/BiCGStab and high-dimensional
+performance optimization are roadmap items, not publication blockers.  Public
+WV-HMC claims must include the observed burn-in/startup-transient caveat.
+
 ## Goal
 
 Final product documentation should be small, stable, and user-facing.  It should
@@ -39,7 +49,7 @@ Target public files:
 | File | Purpose | Current source material |
 | --- | --- | --- |
 | `README.md` | First-page overview, supported samplers, quick start, minimal example, links to deeper docs. | `docs/readme.md`, `TLTM_CANONICAL_SOP_20260528.md` |
-| `docs/INSTALL.md` | Build dependencies, compiler/MKL/Python/DFO-LS notes, local and cluster build commands. | `docs/commands.md`, `build/makefile`, third-party notices |
+| `docs/INSTALL.md` | Build dependencies, compiler/MKL/Python notes, local and cluster build commands.  No active DFO-LS install path. | `docs/commands.md`, `build/makefile`, third-party notices |
 | `docs/USER_GUIDE.md` | Ordinary user workflow: choose model, prepare parameters, build flow bank/snapshot if needed, run TLTM, evaluate observables. | `TLTM_CANONICAL_SOP_20260528.md`, `docs/file_layout.md` |
 | `docs/MODEL_PROVIDER.md` | Model API contract: scalar action, manual gradient, Hessian/Hv, complexification, observables, AD/FD validation. | `docs/model_observables.md`, `STEPHANOV_MANUAL_PROVIDER_DECISION_20260522.md`, `model_specs/high_dimensional/` |
 | `docs/SAMPLERS.md` | Concise algorithm-level docs for canonical TLTM and future WV-HMC sibling path.  No historical tuning narrative. | `WV_HMC_SIMPLIFIED_ALGORITHM_READBACK_20260528.md`, TLTM SOP |
@@ -166,18 +176,20 @@ Recommended order after production closes:
 1. Finish final criterion analysis and four dataset archive groups.
 2. Freeze public sampler status: TLTM nofb canonical, withfb legacy or promoted
    only if frozen gates require it.
-3. Create `README.md` at repo root from `docs/readme.md`.
-4. Split current `docs/readme.md`, `commands.md`, `file_layout.md`,
+3. Remove DFO-LS from active public install/build/license/dependency surfaces;
+   keep historical DFO-LS evidence archive-only.
+4. Create `README.md` at repo root from `docs/readme.md`.
+5. Split current `docs/readme.md`, `commands.md`, `file_layout.md`,
    `module_architecture.md`, `state_vector_convention.md`, and
    `model_observables.md` into the target public docs set.
-5. Move result JSON files from `docs/` into `archive/evidence/` with an
+6. Move result JSON files from `docs/` into `archive/evidence/` with an
    `archive/evidence/INDEX.md`.
-6. Move papers/PDFs from `docs/` into `references/` and summarize them in
+7. Move papers/PDFs from `docs/` into `references/` and summarize them in
    `docs/REFERENCES.md`.
-7. Keep current active runbooks under `codex/.../runbooks/` until WV-HMC gate is
+8. Keep current active runbooks under `codex/.../runbooks/` until WV-HMC gate is
    opened; then archive superseded runbooks with a generated index.
-8. Run docs link checks and script evidence audit.
-9. Run source guardrails only if source, scripts, or build behavior changed.
+9. Run docs link checks and script evidence audit.
+10. Run source guardrails only if source, scripts, or build behavior changed.
 
 ## Migration Gates
 
@@ -210,3 +222,5 @@ must use the post-TLTM source guardrails.
 - No public doc claims WV-HMC is implemented until the sibling sampler exists.
 - No public doc presents `withfb` as canonical unless final frozen gates require
   it.
+- No public doc lists DFO-LS as an active dependency unless a future explicit
+  reopen decision promotes `withfb` again.

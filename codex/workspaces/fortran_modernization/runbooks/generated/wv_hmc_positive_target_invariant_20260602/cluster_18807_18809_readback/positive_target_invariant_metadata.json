@@ -1,0 +1,46 @@
+{
+  "failed_metrics": [
+    "positive.chiral_condensate.mean",
+    "positive.number_density.mean"
+  ],
+  "oracle": {
+    "direct_denominator_im": 3.0967660002442526e-16,
+    "direct_denominator_re": 0.4993544266517324,
+    "flow_bank_dir": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_positive_target_invariant_20260602/wv_hmc_positive_target_invariant_n2_t001_current_4597ced50bd8_20260602/oracle_work/positive_target_flow_bank_k3_t5",
+    "max_pointwise_ratio_direct_rel_error": 1.21217487951527e-19,
+    "oracle_samples": 30668,
+    "oracle_unavailable_slots": 2137,
+    "order": 3,
+    "positive_denominator": 0.5907742415733105,
+    "ratio_abs_denominator": 0.5667059328065654,
+    "ratio_denominator_im": 2.9408529103409495e-16,
+    "ratio_denominator_re": 0.4993544266517324,
+    "t_order": 5,
+    "target_time_weights": [
+      0.0011846344252809454,
+      0.0023931433524968324,
+      0.0028444444444444446,
+      0.0023931433524968324,
+      0.0011846344252809454
+    ],
+    "target_times": [
+      0.0004691007703066805,
+      0.0023076534494715843,
+      0.005,
+      0.0076923465505284155,
+      0.009530899229693319
+    ]
+  },
+  "output_root": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_positive_target_invariant_20260602/wv_hmc_positive_target_invariant_n2_t001_current_4597ced50bd8_20260602/readback",
+  "run_root": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_positive_target_invariant_20260602/wv_hmc_positive_target_invariant_n2_t001_current_4597ced50bd8_20260602/sample",
+  "samples": 116485,
+  "seeds": 64,
+  "status": "fail",
+  "warn_metrics": [
+    "positive.flow_time_mean",
+    "positive.flow_time_second"
+  ],
+  "x2_samples": 116485,
+  "z_fail_threshold": 4.0,
+  "z_warn_threshold": 3.0
+}

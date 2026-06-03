@@ -1,0 +1,107 @@
+#!/bin/bash
+#PBS -N wvzspeed
+#PBS -q C8
+#PBS -l select=1:ncpus=8:mpiprocs=8:mem=16gb
+#PBS -l walltime=00:30:00
+#PBS -j oe
+
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization_wv_wprime_fd_debug_20260530}"
+: "${TLTM_RUN_NAME:=wv_hmc_n6_zonly_residual_speed_probe_4x200_20260531}"
+: "${TLTM_OUTPUT_ROOT:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_n6_speed_probes_20260531}"
+: "${TLTM_PARAMETERS_FILE:=data/parameters_stephanov_n6_mu06_t0.dat}"
+: "${WV_OBS_SEED_START:=8870000}"
+: "${WV_OBS_SEED_COUNT:=4}"
+: "${WV_OBS_CYCLES:=200}"
+: "${WV_OBS_MEASUREMENT_START_CYCLE:=1}"
+: "${WV_OBS_STEP_SIZE:=0.010}"
+: "${WV_OBS_NUM_STEPS:=8}"
+: "${WV_OBS_INIT_MODE:=bank}"
+: "${WV_OBS_INIT_SIGMA:=0.8}"
+: "${WV_OBS_INIT_BANK_FILE:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_initial_banks_20260531/stephanov_n6_wv_hmc_t0_bank_16x5000_t0001_20260531_18328.anode01/safe_bank_t0p0001/x_bank.dat}"
+: "${WV_OBS_INIT_BANK_RECORD:=-1}"
+: "${WV_OBS_JOBS:=4}"
+: "${WV_OBS_TIMEOUT_SEC:=1200}"
+: "${TLTM_ODE_BACKEND:=dop853}"
+: "${TLTM_DOP853_HINIT_ENABLED:=1}"
+
+cd "${TLTM_WORKTREE}"
+RUN_ROOT="${TLTM_OUTPUT_ROOT}/${TLTM_RUN_NAME}_${PBS_JOBID:-manual}"
+mkdir -p "${RUN_ROOT}"
+
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export OMP_DYNAMIC=FALSE
+export MKL_DYNAMIC=FALSE
+export WV_OBS_WRITE_FINAL_STATE=0
+export WV_OBS_WRITE_OBSERVABLE_HISTORY=0
+export WV_OBS_WRITE_X_HISTORY=0
+export WV_OBS_WRITE_STATE_HISTORY=0
+export WV_OBS_HISTORY_STRIDE=1
+export WV_HMC_REVERSE_GATE_STATE_TOL=1.0e-5
+export WV_HMC_REVERSE_GATE_MOMENTUM_TOL=1.0e-3
+export WV_OBS_CONSTRAINT_TOL=1.0e-10
+export WV_OBS_CONSTRAINT_MAX_ITER=24
+export WV_OBS_ADAPTIVE_NEWTON_STOP_ENABLED=0
+export WV_OBS_T0=0.0
+export WV_OBS_T1=0.001
+export WV_OBS_D0=0.0001
+export WV_OBS_D1=0.00025
+export WV_OBS_MEASUREMENT_T0=0.0
+export WV_OBS_MEASUREMENT_T1=0.001
+export WV_OBS_FLOW_TIME=0.00055
+export WV_OBS_W_PROFILE=paper_wall
+export WV_OBS_W_GAMMA=0.2
+export WV_OBS_W_C0=1.0
+export WV_OBS_W_C1=1.0
+
+/usr/bin/time -p python3 codex/workspaces/fortran_modernization/tasks/scripts/run_wv_hmc_dense_observable_validation_20260529.py \
+  --binary bin/run_wv_hmc \
+  --parameters-file "${TLTM_PARAMETERS_FILE}" \
+  --output-root "${RUN_ROOT}" \
+  --seed-start "${WV_OBS_SEED_START}" \
+  --seed-count "${WV_OBS_SEED_COUNT}" \
+  --cycles "${WV_OBS_CYCLES}" \
+  --measurement-start-cycle "${WV_OBS_MEASUREMENT_START_CYCLE}" \
+  --step-size "${WV_OBS_STEP_SIZE}" \
+  --num-steps "${WV_OBS_NUM_STEPS}" \
+  --init-mode "${WV_OBS_INIT_MODE}" \
+  --init-sigma "${WV_OBS_INIT_SIGMA}" \
+  --init-bank-file "${WV_OBS_INIT_BANK_FILE}" \
+  --init-bank-record "${WV_OBS_INIT_BANK_RECORD}" \
+  --reverse-gate-state-tol "${WV_HMC_REVERSE_GATE_STATE_TOL}" \
+  --reverse-gate-momentum-tol "${WV_HMC_REVERSE_GATE_MOMENTUM_TOL}" \
+  --constraint-tol "${WV_OBS_CONSTRAINT_TOL}" \
+  --constraint-max-iter "${WV_OBS_CONSTRAINT_MAX_ITER}" \
+  --adaptive-newton-stop-enabled "${WV_OBS_ADAPTIVE_NEWTON_STOP_ENABLED}" \
+  --sampler-t0 "${WV_OBS_T0}" \
+  --sampler-t1 "${WV_OBS_T1}" \
+  --d0 "${WV_OBS_D0}" \
+  --d1 "${WV_OBS_D1}" \
+  --measurement-t0 "${WV_OBS_MEASUREMENT_T0}" \
+  --measurement-t1 "${WV_OBS_MEASUREMENT_T1}" \
+  --initial-flow-time "${WV_OBS_FLOW_TIME}" \
+  --w-profile "${WV_OBS_W_PROFILE}" \
+  --w-gamma "${WV_OBS_W_GAMMA}" \
+  --w-c0 "${WV_OBS_W_C0}" \
+  --w-c1 "${WV_OBS_W_C1}" \
+  --jobs "${WV_OBS_JOBS}" \
+  --timeout-sec "${WV_OBS_TIMEOUT_SEC}"
+
+echo "RUN_ROOT=${RUN_ROOT}"
+echo "MANIFEST=${RUN_ROOT}/wv_hmc_dense_observable_validation_manifest.csv"
+cat "${RUN_ROOT}/wv_hmc_dense_observable_validation_manifest.csv"

@@ -1,0 +1,109 @@
+#!/bin/bash
+#PBS -N wvbuild
+#PBS -q C17
+#PBS -l select=1:ncpus=16:mpiprocs=16:mem=32gb
+#PBS -l walltime=00:30:00
+#PBS -j oe
+
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  # shellcheck source=/dev/null
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:?TLTM_WORKTREE is required}"
+: "${TLTM_SOURCE_PIN_FILE:=}"
+: "${TLTM_REQUIRE_SOURCE_PIN:=1}"
+: "${TLTM_EXPECTED_SOURCE_PIN_ID:=}"
+: "${TLTM_LOG_ROOT:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/wv_hmc_build_gate_20260602}"
+: "${TLTM_BUILD_JOBS:=1}"
+
+cd "${TLTM_WORKTREE}"
+mkdir -p "${TLTM_LOG_ROOT}"
+exec > "${TLTM_LOG_ROOT}/pbs_boot_${PBS_JOBID:-manual}.log" 2>&1
+
+echo "RUN_DATE=$(date -Is)"
+echo "HOSTNAME=$(hostname)"
+echo "PBS_JOBID=${PBS_JOBID:-manual}"
+echo "PBS_QUEUE=${PBS_QUEUE:-unknown}"
+echo "TLTM_WORKTREE=${TLTM_WORKTREE}"
+echo "TLTM_SOURCE_PIN_FILE=${TLTM_SOURCE_PIN_FILE}"
+echo "TLTM_REQUIRE_SOURCE_PIN=${TLTM_REQUIRE_SOURCE_PIN}"
+echo "TLTM_EXPECTED_SOURCE_PIN_ID=${TLTM_EXPECTED_SOURCE_PIN_ID}"
+echo "TLTM_BUILD_JOBS=${TLTM_BUILD_JOBS}"
+
+if [ -z "${TLTM_SOURCE_PIN_FILE}" ] && [ -f "${TLTM_WORKTREE}/codex/workspaces/fortran_modernization/state/CLUSTER02_SOURCE_PIN.env" ]; then
+  TLTM_SOURCE_PIN_FILE="${TLTM_WORKTREE}/codex/workspaces/fortran_modernization/state/CLUSTER02_SOURCE_PIN.env"
+fi
+if [ -n "${TLTM_SOURCE_PIN_FILE}" ]; then
+  if [ ! -f "${TLTM_SOURCE_PIN_FILE}" ]; then
+    echo "[ERROR] TLTM_SOURCE_PIN_FILE does not exist: ${TLTM_SOURCE_PIN_FILE}" >&2
+    exit 2
+  fi
+  echo "SOURCE_PIN_START"
+  sed 's/^/SOURCE_PIN_FILE: /' "${TLTM_SOURCE_PIN_FILE}"
+  echo "SOURCE_PIN_END"
+  # shellcheck source=/dev/null
+  . "${TLTM_SOURCE_PIN_FILE}"
+  echo "TLTM_SOURCE_PIN_ID=${TLTM_SOURCE_PIN_ID:-}"
+  echo "TLTM_SOURCE_PIN_COMMIT=${TLTM_SOURCE_PIN_COMMIT:-}"
+  echo "TLTM_SOURCE_PIN_DIRTY_COUNT=${TLTM_SOURCE_PIN_DIRTY_COUNT:-}"
+  if [ -n "${TLTM_EXPECTED_SOURCE_PIN_ID}" ] && [ "${TLTM_SOURCE_PIN_ID:-}" != "${TLTM_EXPECTED_SOURCE_PIN_ID}" ]; then
+    echo "[ERROR] expected source pin ${TLTM_EXPECTED_SOURCE_PIN_ID}, got ${TLTM_SOURCE_PIN_ID:-missing}" >&2
+    exit 2
+  fi
+elif [ "${TLTM_REQUIRE_SOURCE_PIN}" = "1" ]; then
+  echo "[ERROR] TLTM_REQUIRE_SOURCE_PIN=1 but no source pin file was provided or found." >&2
+  exit 2
+fi
+
+if [ -x .venv-dfols/bin/python ]; then
+  DFOLS_SITE_PACKAGES="$(.venv-dfols/bin/python - <<'PY'
+import sysconfig
+print(sysconfig.get_paths()["purelib"])
+PY
+)"
+  export TLTM_OFFICIAL_DFOLS_PYTHONPATH="${DFOLS_SITE_PACKAGES}${TLTM_OFFICIAL_DFOLS_PYTHONPATH:+:${TLTM_OFFICIAL_DFOLS_PYTHONPATH}}"
+fi
+
+# shellcheck source=/dev/null
+. codex/workspaces/fortran_modernization/tasks/scripts/python_embed_env.sh
+
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export OMP_DYNAMIC=FALSE
+export MKL_DYNAMIC=FALSE
+
+test -f build/makefile
+make -C build clean
+make -C build -j "${TLTM_BUILD_JOBS}" OMP=1 PYTHON="${PYTHON}" PYTHON_EMBED_CFLAGS="${PYTHON_EMBED_CFLAGS}" \
+  PYTHON_EMBED_LDFLAGS="${PYTHON_EMBED_LDFLAGS}" ../bin/test_wv_hmc_math_kernels ../bin/test_wv_hmc_constraint_kernels
+bin/test_wv_hmc_math_kernels > "${TLTM_LOG_ROOT}/test_wv_hmc_math_kernels.${PBS_JOBID:-manual}.log" 2>&1
+cat "${TLTM_LOG_ROOT}/test_wv_hmc_math_kernels.${PBS_JOBID:-manual}.log"
+grep -q "wv_worldvolume_measure_factor_identity_case ok=T n=6" "${TLTM_LOG_ROOT}/test_wv_hmc_math_kernels.${PBS_JOBID:-manual}.log"
+constraint_status=0
+bin/test_wv_hmc_constraint_kernels > "${TLTM_LOG_ROOT}/test_wv_hmc_constraint_kernels.${PBS_JOBID:-manual}.log" 2>&1 || constraint_status=$?
+cat "${TLTM_LOG_ROOT}/test_wv_hmc_constraint_kernels.${PBS_JOBID:-manual}.log"
+grep -q "wv_boundary_paper_full_flip ok=T" "${TLTM_LOG_ROOT}/test_wv_hmc_constraint_kernels.${PBS_JOBID:-manual}.log"
+grep -q "wv_boundary_normal_reflect_policy ok=T" "${TLTM_LOG_ROOT}/test_wv_hmc_constraint_kernels.${PBS_JOBID:-manual}.log"
+grep -q "wv_transition_boundary_bounce_rg ok=T" "${TLTM_LOG_ROOT}/test_wv_hmc_constraint_kernels.${PBS_JOBID:-manual}.log"
+if [ "${constraint_status}" != "0" ]; then
+  echo "[ERROR] test_wv_hmc_constraint_kernels exited ${constraint_status}." >&2
+  exit "${constraint_status}"
+fi
+make -C build -j "${TLTM_BUILD_JOBS}" OMP=1 PYTHON="${PYTHON}" PYTHON_EMBED_CFLAGS="${PYTHON_EMBED_CFLAGS}" \
+  PYTHON_EMBED_LDFLAGS="${PYTHON_EMBED_LDFLAGS}" ../bin/run_wv_hmc
+
+test -x bin/run_wv_hmc
+echo "WV_HMC_GITLESS_BUILD_GATE_COMPLETE"

@@ -1,0 +1,77 @@
+#!/bin/bash
+#PBS -N wvdbg
+#PBS -q C16
+#PBS -l select=1:ncpus=16:mpiprocs=16:mem=32gb
+#PBS -l walltime=00:30:00
+#PBS -j oe
+
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  # shellcheck source=/dev/null
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:?TLTM_WORKTREE is required}"
+: "${TLTM_LOG_ROOT:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/wv_hmc_debug_tests_20260530/${PBS_JOBID:-manual}}"
+: "${TLTM_ODE_BACKEND:=dop853}"
+: "${TLTM_DOP853_HINIT_ENABLED:=1}"
+: "${TLTM_DOP853_STIFFNESS_CHECK_ENABLED:=1}"
+: "${TLTM_DOP853_STIFFNESS_CHECK_INTERVAL:=1000}"
+: "${TLTM_DOP853_STIFFNESS_MAX_HITS:=15}"
+: "${TLTM_DOP853_STIFFNESS_THRESHOLD:=6.1}"
+export TLTM_ODE_BACKEND
+export TLTM_DOP853_HINIT_ENABLED
+export TLTM_DOP853_STIFFNESS_CHECK_ENABLED
+export TLTM_DOP853_STIFFNESS_CHECK_INTERVAL
+export TLTM_DOP853_STIFFNESS_MAX_HITS
+export TLTM_DOP853_STIFFNESS_THRESHOLD
+
+cd "${TLTM_WORKTREE}"
+mkdir -p "${TLTM_LOG_ROOT}"
+exec > "${TLTM_LOG_ROOT}/pbs_boot_${PBS_JOBID:-manual}.log" 2>&1
+
+echo "RUN_DATE=$(date -Is)"
+echo "HOSTNAME=$(hostname)"
+echo "PBS_JOBID=${PBS_JOBID:-manual}"
+echo "PBS_QUEUE=${PBS_QUEUE:-unknown}"
+echo "TLTM_WORKTREE=${TLTM_WORKTREE}"
+echo "GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)"
+echo "GIT_COMMIT=$(git rev-parse HEAD)"
+echo "GIT_STATUS_START"
+git status --short
+echo "GIT_STATUS_END"
+echo "TLTM_ODE_BACKEND=${TLTM_ODE_BACKEND}"
+
+if [ -x .venv-dfols/bin/python ]; then
+  DFOLS_SITE_PACKAGES="$(.venv-dfols/bin/python - <<'PY'
+import sysconfig
+print(sysconfig.get_paths()["purelib"])
+PY
+)"
+  export TLTM_OFFICIAL_DFOLS_PYTHONPATH="${DFOLS_SITE_PACKAGES}${TLTM_OFFICIAL_DFOLS_PYTHONPATH:+:${TLTM_OFFICIAL_DFOLS_PYTHONPATH}}"
+fi
+
+# shellcheck source=/dev/null
+. codex/workspaces/fortran_modernization/tasks/scripts/python_embed_env.sh
+
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export OMP_DYNAMIC=FALSE
+export MKL_DYNAMIC=FALSE
+
+make -C build clean
+make -C build OMP=1 PYTHON="${PYTHON}" PYTHON_EMBED_CFLAGS="${PYTHON_EMBED_CFLAGS}" \
+  PYTHON_EMBED_LDFLAGS="${PYTHON_EMBED_LDFLAGS}" test_wv_hmc_math_kernels test_wv_hmc_constraint_kernels ../bin/run_wv_hmc
+
+echo "WV_HMC_DEBUG_TESTS_COMPLETE"

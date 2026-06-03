@@ -117,6 +117,10 @@ a second sampler path.
 
 Authoritative workflow documents:
 
+- `PARAMETER_TUNING_SOP_20260531.md`: repository-wide dependency order for
+  sampler parameter tuning across TLTM and WV-HMC.
+- `INIT_BANK_TUNING_SOP_20260531.md`: repository-wide initial-bank build,
+  validation, safe-flow filtering, and record-selection policy.
 - `TLTM_CANONICAL_SOP_20260528.md`: TLTM production workflow order and canonical
   nofb boundary.
 - `MODERNIZATION_POST_TLTM_WORKFLOW_20260528.md`: repository-level sequence for
@@ -130,6 +134,14 @@ Authoritative workflow documents:
   artifacts.
 - `WV_HMC_IMPLEMENTATION_PLAN_20260529.md`: staged WV-HMC implementation plan,
   starting with deterministic math kernels before any sampler driver.
+- `runbooks/generated/wv_hmc_verification_workflow_20260602/CURRENT_CODE_VERIFICATION_LEDGER_AND_TODO_WORKFLOW.md`:
+  current WV-HMC trust-boundary ledger and follow-up workflow.  This is the
+  active gate for distinguishing code that is actually verified from code that
+  is only partially checked or still open.
+- `runbooks/generated/productization_closure_workflow_20260603/PRODUCTIZATION_CLOSURE_WORKFLOW_20260603.md`:
+  current publication/credit-application closure workflow.  This document is
+  the active source of truth for what must happen before the repository is
+  packaged for external review.
 - `runbooks/generated/post_tltm_wv_hmc_ready_20260529/FINAL_WITHFB_NOFB_CRITERION_CLOSURE_20260529.md`:
   final frozen-gate closure for the Stephanov `n=6` `nofb`/`withfb`
   comparison.
@@ -152,6 +164,31 @@ WV-HMC must follow both
 `WV_HMC_IMPLEMENTATION_PLAN_20260529.md`, and must not reuse the old dead `wv`
 flag semantics.  The first WV-HMC source slice should be math-kernel and
 dense-oracle validation, not a production driver.
+
+WV-HMC update, 2026-06-02:
+
+- deterministic math/constraint/oracle gates are recorded, but WV-HMC
+  production correctness remains open;
+- the next blocking item is an exact positive-target invariant-measure test of
+  the dense explicit-J production kernel;
+- long validation and matrix-free/BiCGStab trajectory wiring are deferred until
+  that trust-boundary gate is closed.
+
+Productization closure update, 2026-06-03:
+
+- TLTM is frozen around canonical `nofb`; `withfb`/DFO-LS is legacy diagnostic
+  and must be removed from the active product dependency/license surface;
+- WV-HMC dense explicit-J is the only active WV-HMC path before publication;
+- the Stephanov `n=6` long dense WV-HMC validation readback is recorded in
+  `runbooks/generated/wv_hmc_n6_t0001_validation_20260603/N6_LONG_VALIDATION_READBACK_20260603.md`;
+- that readback is not a clean all-cycle pass, but it is bounded by a
+  startup-transient caveat and supports moving to productization closure with
+  WV-HMC burn-in/claim boundaries documented;
+- the current blockers are license cleanup, public docs, evidence packet,
+  guardrails, and OSS/credit application package;
+- matrix-free/BiCGStab, high-dimensional performance optimization, deep module
+  refactor, and any DFO-LS revival are deferred until after the
+  credit-application-ready package is complete.
 
 ## Success criteria
 - major modules have stable, limited responsibilities

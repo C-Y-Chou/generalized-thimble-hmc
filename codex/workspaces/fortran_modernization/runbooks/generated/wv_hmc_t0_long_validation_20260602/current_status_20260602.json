@@ -1,0 +1,80 @@
+{
+  "recorded_at_jst": "2026-06-02 17:35",
+  "settled_fact": {
+    "scope": "Pinned old-boundary Stephanov n=6 WV-HMC long-validation dataset, broad measurement window [0.025,0.03].",
+    "statement": "Same-history no-W offline recomputation with phase_over_alpha = phase / alpha still fails the observable gate.",
+    "confirmed": true,
+    "not_a_current_source_validation": true,
+    "evidence": {
+      "seeds": 63,
+      "samples": 148397,
+      "current_wv_factor_max_abs_z": 3.1978916394901744,
+      "phase_over_alpha_max_abs_z": 3.1759428254592637,
+      "phase_over_alpha_chiral_z_re": -3.1759428254592637,
+      "phase_over_alpha_chiral_z_im": -0.7805572462261595,
+      "phase_over_alpha_density_z_re": 1.293836364367728,
+      "phase_over_alpha_density_z_im": 1.3480726457864471,
+      "source_csv": "codex/workspaces/fortran_modernization/runbooks/generated/wv_hmc_t0_long_validation_20260602/long_validation_weight_variants.csv"
+    }
+  },
+  "active_dataset": {
+    "label": "n6_t0_long_old_boundary_sourcepin_8ec6dc0d9b87_86f750bba994",
+    "remote_output_root": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_t0_long_validation_20260601/wv_hmc_n6_t0_g65e009n10_m025_64x15000_12h_20260601",
+    "remote_logs_root": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/wv_hmc_t0_long_validation_20260601/wv_hmc_n6_t0_g65e009n10_m025_64x15000_12h_20260601",
+    "model": "Stephanov n=6 mu=0.6 tau=0",
+    "sampler_interval": [0.0, 0.03],
+    "measurement_interval": [0.025, 0.03],
+    "measurement_start_cycle": 1001,
+    "w_profile": "paper_wall",
+    "w_gamma": 65.0,
+    "epsilon": 0.009,
+    "nstep": 10,
+    "trajectory_length": 0.09,
+    "constraint_tol": 1.0e-10,
+    "constraint_max_iter": 192,
+    "ode_backend": "dop853",
+    "requested_seeds": 64,
+    "requested_cycles_per_seed": 15000,
+    "usable_histories": 63,
+    "failed_no_measurement_seed": 9630023,
+    "snapshots": 0,
+    "source_pin_commit": "8ec6dc0d9b8768c5432e8c9df883a9cd870a82ba",
+    "source_dirty_count": 51,
+    "boundary_policy_status": "old implementation before simplified-paper full-flip fix"
+  },
+  "active_initial_bank": {
+    "path": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_initial_banks_20260601/stephanov_n6_tau0_hmc_eps080_n8_64x3000_20260601/state_bank_tau0/x_bank.dat",
+    "records": 16064,
+    "flow_time": 0.0,
+    "builder_acceptance": 0.7716979167,
+    "builder_proposal_failure": 0,
+    "builder_reverse_gate_reject": 0
+  },
+  "worktree_status": {
+    "clean": false,
+    "modified_files": 23,
+    "untracked_paths": 68,
+    "total_status_rows": 91
+  },
+  "current_code_status": {
+    "measurement_factor_no_w_fixed": true,
+    "source_still_contains_exp_w_in_wv_factor": false,
+    "tests_still_enforce_exp_w_in_wv_factor": false,
+    "docs_still_inconsistent": false,
+    "cluster_deterministic_verification_complete": true,
+    "independent_n6_alpha_measure_oracle_complete": true,
+    "current_source_production_ready": false
+  },
+  "cluster_status": {
+    "checked_host": "ithems_fe02.intra.riken.jp",
+    "checked_at_jst": "2026-06-02 18:02",
+    "qstat_user_rows_seen": true,
+    "jobs_submitted_during_cleanup": true,
+    "measurement_oracle_gate_job_id": "18806.anode01",
+    "measurement_oracle_gate_exit_status": 0
+  },
+  "blocking_next_steps": [
+    "Run short current-source n=6 validation with predeclared measurement window.",
+    "Only then run longer production-scale validation."
+  ]
+}

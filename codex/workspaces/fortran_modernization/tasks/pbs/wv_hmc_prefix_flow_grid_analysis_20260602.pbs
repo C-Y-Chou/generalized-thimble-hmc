@@ -1,0 +1,35 @@
+#!/bin/bash
+#PBS -N wvgrid
+#PBS -q C17
+#PBS -l select=1:ncpus=4:mpiprocs=4:mem=16gb
+#PBS -l walltime=01:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+: "${TLTM_WORKTREE:?TLTM_WORKTREE is required}"
+: "${TLTM_REMOTE_ROOT:?TLTM_REMOTE_ROOT is required}"
+: "${TLTM_ANALYSIS_OUT:?TLTM_ANALYSIS_OUT is required}"
+: "${TLTM_PREFIXES:=2500,5000}"
+: "${TLTM_CUTS:=0.0001,0.02,0.025,0.028,0.029}"
+
+cd "${TLTM_WORKTREE}"
+mkdir -p "${TLTM_ANALYSIS_OUT}"
+exec > "${TLTM_ANALYSIS_OUT}/pbs_boot_${PBS_JOBID:-manual}.log" 2>&1
+
+echo "RUN_DATE=$(date -Is)"
+echo "HOSTNAME=$(hostname)"
+echo "PBS_JOBID=${PBS_JOBID:-manual}"
+echo "TLTM_WORKTREE=${TLTM_WORKTREE}"
+echo "TLTM_REMOTE_ROOT=${TLTM_REMOTE_ROOT}"
+echo "TLTM_ANALYSIS_OUT=${TLTM_ANALYSIS_OUT}"
+echo "TLTM_PREFIXES=${TLTM_PREFIXES}"
+echo "TLTM_CUTS=${TLTM_CUTS}"
+
+python3 codex/workspaces/fortran_modernization/tasks/scripts/analyze_wv_hmc_prefix_flow_cut_grid_20260601.py \
+  --root "${TLTM_REMOTE_ROOT}" \
+  --out "${TLTM_ANALYSIS_OUT}/prefix_flow_cut_grid.csv" \
+  --prefixes "${TLTM_PREFIXES}" \
+  --cuts "${TLTM_CUTS}"
+
+echo "WV_HMC_PREFIX_FLOW_GRID_ANALYSIS_COMPLETE"

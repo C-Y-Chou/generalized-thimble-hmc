@@ -1,0 +1,8 @@
+{
+  "group_keys": [
+    "constraint_max_iter"
+  ],
+  "groups": 4,
+  "records": 16,
+  "root": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_n6_solver_cap_20260531"
+}

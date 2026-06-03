@@ -7,6 +7,15 @@ simplified-algorithm readback and the math/physics review as implementation
 contracts.  This plan is deliberately staged so formula and convention mistakes
 are caught in small deterministic tests before any production driver exists.
 
+Parameter tuning is governed first by the repository-wide
+`PARAMETER_TUNING_SOP_20260531.md`, with WV-HMC-specific Newton/RATTLE details
+in `WV_HMC_PARAMETER_TUNING_SOP_20260531.md`.  In particular, Newton
+constraint fail-fast policy is calibrated by fixing the tolerance first,
+observing raw residual convergence with adaptive stop disabled and a generous
+iteration cap, then A/B verifying any cap or adaptive predicate before using it
+in production.  `epsilon` is tuned for acceptance only after that solver gate is
+fixed, and `nstep`/`L` are then tuned for configuration-space movement.
+
 ## Source Boundary
 
 WV-HMC must not be implemented as a hidden mode in TLTM Stage2 and must not
@@ -22,6 +31,55 @@ Formula recovery is governed by
 formula is not implementation-ready until its source location, repo-convention
 translation, independent derivation, invariant consequences, and validation test
 are recorded.
+
+## Current Verification Gate - 2026-06-03
+
+Before any WV-HMC production claim or matrix-free trajectory wiring, use
+`runbooks/generated/wv_hmc_verification_workflow_20260602/CURRENT_CODE_VERIFICATION_LEDGER_AND_TODO_WORKFLOW.md`
+as the active trust-boundary ledger.
+
+Before publication/productization, also use
+`runbooks/generated/productization_closure_workflow_20260603/PRODUCTIZATION_CLOSURE_WORKFLOW_20260603.md`
+as the release-order authority.  It freezes the current decision that the next
+step after the Stephanov `n=6` long dense explicit-J validation readback is
+productization closure.
+
+Current status:
+
+- deterministic math/constraint/oracle gates passed on cluster job
+  `18806.anode01`, and the current-source gitless build gate passed on
+  `18842.anode01`;
+- the source-level `W(t)` measurement-factor bug is fixed locally, so
+  `wv_factor = phase / alpha`;
+- exact positive-target invariant gates found and then closed a real
+  boundary/Newton construction bug: the no-boundary Newton solve must not use
+  `[T0-d0,T1+d1]` as an iterative fail-fast interval; it may guard only the
+  physical flow domain `t >= 0`, with measurement/wall handling applied after a
+  converged no-boundary trial;
+- post-fix source pin `4597ced50bd8-e99b1c4b19b1` passes the tested `n=2`,
+  `[0,0.01]`, `gamma=0`, high-boundary-stress positive-target invariant gates;
+- current source pin `77ffdb4e4771-f24205a0c2e9` passes the `n=2`
+  medium/long physical ratio gate; long z-scores are chiral Re `-0.366`,
+  chiral Im `-1.263`, density Re `0.469`, density Im `1.684`;
+- direct positive-target ensemble moments still warn and remain diagnostic
+  caveats, not physical-ratio failures;
+- fixed-kernel Stephanov `n=6` tuning and bank-startup work are recorded in
+  `runbooks/generated/wv_hmc_n6_t0001_warm_bank_20260603/README.md`;
+- current-source WV-HMC `n=6` long validation is recorded in
+  `runbooks/generated/wv_hmc_n6_t0001_validation_20260603/N6_LONG_VALIDATION_READBACK_20260603.md`;
+- the `n=6` validation has a bounded startup-transient caveat: the all-cycle
+  estimator is not clean, but post-burn-in cuts pass the four primary z checks;
+- matrix-free/BiCGStab trajectory wiring remains deferred until after
+  productization closure and after the dense explicit-J path has a clean
+  validation packet.
+
+Publication-facing scope:
+
+- dense explicit-J WV-HMC may be documented as the sibling sampler only to the
+  level supported by the completed `n=6` readback, including explicit
+  burn-in/thermalization handling;
+- matrix-free/BiCGStab is a future high-dimensional/performance roadmap item;
+- TLTM `withfb`/DFO-LS is not part of the active WV-HMC or TLTM product path.
 
 ## Phase 1. Math Kernel Slice
 
@@ -118,6 +176,10 @@ Exit criteria:
 ## Phase 5. Matrix-Free Projection Backend
 
 Goal: add the scalable backend needed for high-dimensional WV-HMC.
+
+Current gate: deferred until the dense explicit-J production kernel is closed by
+the verification ledger's exact positive-target and current-source validation
+gates.
 
 Deliverables:
 
@@ -282,16 +344,24 @@ Additional completed kernel-level validation:
   MD-time energy-error reduction for `W=0`, `W'=0` when the substep size is
   halved and the constraint solve tolerance is tightened.
 - `wv_apply_simplified_boundary_rule` implements the simplified-paper
-  deterministic boundary rule as a separate kernel: trial states inside
+  flow-time wall rule as a separate kernel: trial states inside
   `[T0-d0,T1+d1]` are accepted, while trial states outside that extended
-  interval return to the current `(t,x,z,J)` and flip `pi -> -pi`.  This slice
-  intentionally does not guess a partial boundary-crossing or penetration-depth
-  integration algorithm beyond the explicit deep-outside bounce rule.
+  interval return to the current `(t,x,z,J)` and apply the full momentum flip
+  `pi -> -pi`.  This slice intentionally does not guess a partial
+  boundary-crossing or penetration-depth integration algorithm beyond the
+  explicit deep-outside bounce rule.
 - `wv_rattle_step_dense_with_boundary` wraps the no-boundary dense step with
   the explicit boundary rule and returns a separate `bounced` diagnostic.  The
   contract test verifies both the inside-interval path, which must match the
   no-boundary trial, and the outside-interval path, which must restore the
-  current state and flip the incoming momentum.
+  current state and apply the full momentum flip.
+- A 2026-06-02 exact positive-target gate found a stricter contract for this
+  wrapper: it must not pass the measurement/wall interval into the no-boundary
+  Newton solver as `target_flow_time_max`.  The no-boundary solve may use only
+  the physical nonnegative-flow guard; after convergence the wrapper applies the
+  explicit boundary rule.  The pre-fix high-L kernel was over-accepting and
+  failed the exact positive target; the fixed source pin
+  `4597ced50bd8-e99b1c4b19b1` passes the tested high-L `n=2` invariant gates.
 - The first iterative backend slice is present as an explicit-J BiCGStab
   projection oracle: `wv_decompose_iterative_with_jacobian` and
   `wv_project_iterative_with_jacobian` solve the same real Jacobian system as
@@ -358,13 +428,14 @@ Additional completed kernel-level validation:
   CSV summary through
   `WV_HMC_SMOKE_SUMMARY_FILE` (default:
   `output/tests/wv_hmc_smoke_summary.csv` via the Makefile target).
-- `wv_hmc_measurement.f90` adds the first dense measurement oracle for
+- `wv_hmc_measurement.f90` adds the dense measurement oracle for
   `F_WV = alpha^{-1} det(E)/|det(E)| exp(-i Im S)`.  It computes `alpha^2`
   from the fixed-surface split of `xi`, keeps the existing dense
-  `log_determinant` phase convention, and returns both the unit phase factor
-  and the full `alpha^{-1}`-weighted WV factor.  The current contract test
-  checks the `t=0` real-plane case against an explicit hand calculation where
-  `det(E)=1` and `alpha^2` is the squared imaginary component of `xi`.
+  `log_determinant` phase convention, records the supplied `W(t)` for
+  diagnostics, and returns the no-W `phase/alpha` WV factor.  The current
+  contract test checks the `t=0` real-plane case against an explicit hand
+  calculation where `det(E)=1`, `alpha^2` is the squared imaginary component of
+  `xi`, and a nonzero `W` does not change the WV factor.
 - The measurement module also exposes a ratio-preserving weighted-observable
   accumulator.  It stores `sum F_WV O`, `sum F_WV`, `sum |F_WV|`, sample count,
   phase coherence, and final estimates as a single numerator/denominator
@@ -399,9 +470,9 @@ Additional completed kernel-level validation:
 - `wv_rattle_step_dense_with_boundary` now also handles lower hard-wall
   crossings for the current nonnegative-flow backend.  If the first
   simplified-Newton flow-time displacement would require a negative flow-time
-  evaluation, the wrapper applies the simplified-paper bounce directly: keep
-  current `(t,x,z,J)` and flip `pi -> -pi`.  This is a domain guard for the
-  explicit hard wall, not a partial boundary-crossing integrator.  General
+  evaluation, the wrapper applies the wall bounce directly: keep current
+  `(t,x,z,J)` and apply `pi -> -pi`.  This is a domain guard for the explicit
+  hard wall, not a partial boundary-crossing integrator.  General
   outside-interval trials that remain in the nonnegative flow domain still go
   through the no-boundary trial and the explicit boundary rule.  Negative
   `T0-d0` remains unsupported until the flow backend defines negative-time
@@ -439,3 +510,11 @@ pass.  Exact lower hard-wall startup and near-lower-wall negative crossing now
 have source-level contract tests; negative-flow startup and any future partial
 boundary-crossing integrator remain separate source-supported features, not
 implicit behavior.
+
+As of the 2026-06-02 boundary/Newton readback, the exact positive-target gate is
+the controlling ensemble-kernel test for boundary correctness.  One-step
+reversibility and source fixture tests remain necessary but were not sufficient
+to catch the wall-interval/Newton misuse.  The gitless build gate must hard-fail
+on a nonzero constraint-kernel test exit, and the constraint fixtures still need
+to be rebaselined as a separate hygiene item before claiming full micro-suite
+closure.

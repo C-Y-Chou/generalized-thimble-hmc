@@ -1,0 +1,9 @@
+RUN_DATE=2026-06-02T16:49:17+09:00
+HOSTNAME=cnode37
+PBS_JOBID=18802.anode01
+TLTM_WORKTREE=/lustre1/home/cychou/TLTM_worktrees/runtime_snapshots/wv_hmc_boundary_bounce_rg_20260602
+TLTM_REMOTE_ROOT=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_n6_production_20260601/wv_hmc_n6_t003_prod768x15000_gitless_r3_20260601
+TLTM_ANALYSIS_OUT=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/analysis/wv_hmc_weight_variants_20260602/prod15k_all
+TLTM_CYCLE_END=0
+/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/analysis/wv_hmc_weight_variants_20260602/prod15k_all/weight_variants_cycle0.csv
+WV_HMC_WEIGHT_VARIANT_ANALYSIS_COMPLETE

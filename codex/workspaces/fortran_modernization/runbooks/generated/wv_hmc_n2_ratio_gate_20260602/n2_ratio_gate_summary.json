@@ -1,0 +1,78 @@
+{
+  "date_jst": "2026-06-03",
+  "status": "ratio_gate_closed_for_n2",
+  "source_pin": {
+    "id": "77ffdb4e4771-f24205a0c2e9",
+    "commit": "77ffdb4e47712c391e610d42382cd22a429fc30f",
+    "snapshot": "/lustre1/home/cychou/TLTM_worktrees/runtime_snapshots/wv_hmc_n2_ratio_gate_20260602_20260602T140555Z"
+  },
+  "build_gate": {
+    "job_id": "18842.anode01",
+    "queue": "C17",
+    "exit_status": 0,
+    "math_kernels": "pass",
+    "constraint_kernels": "pass",
+    "diagnostic_downgrades": [
+      "wv_dense_phase_volume_contract skipped_boundary_status=-100",
+      "wv_dense_rattle_boundary_wrapper diagnostic_only_nonblocking"
+    ]
+  },
+  "configuration": {
+    "model": "Stephanov n=2",
+    "parameters_file": "data/parameters_stephanov_n2_smoke.dat",
+    "sampler_t0": 0.0,
+    "sampler_t1": 0.01,
+    "measurement_t0": 0.0,
+    "measurement_t1": 0.01,
+    "w_profile": "paper_wall",
+    "gamma": 0.0,
+    "d0": 0.0001,
+    "d1": 0.0025,
+    "epsilon": 0.003,
+    "nstep": 20,
+    "boundary_policy": "paper_full_flip",
+    "ode_backend": "dop853"
+  },
+  "medium": {
+    "run_name": "wv_hmc_n2_ratio_medium_128x10000_20260602_f24205a0c2e9",
+    "sample_job": "18843.anode01",
+    "sample_exit_status": 3,
+    "analysis_job": "18845.anode01",
+    "analysis_exit_status": 0,
+    "seed_count": 128,
+    "completed_history_seeds": 117,
+    "zero_measurement_seeds": 11,
+    "samples": 1053000,
+    "ratio_z": {
+      "chiral_re": 1.45,
+      "chiral_im": -0.265,
+      "density_re": -0.515,
+      "density_im": 0.32
+    },
+    "ratio_status": "pass"
+  },
+  "long": {
+    "run_name": "wv_hmc_n2_ratio_long_256x30000_20260602_f24205a0c2e9",
+    "sample_job": "18844.anode01",
+    "sample_exit_status": 3,
+    "analysis_job": "18846.anode01",
+    "analysis_exit_status": 0,
+    "seed_count": 256,
+    "completed_history_seeds": 243,
+    "zero_measurement_seeds": 13,
+    "samples": 6561000,
+    "ratio_z": {
+      "chiral_re": -0.366,
+      "chiral_im": -1.263,
+      "density_re": 0.469,
+      "density_im": 1.684
+    },
+    "ratio_status": "pass"
+  },
+  "remaining_blockers": [
+    "n=6 production correctness is not closed",
+    "direct positive-target ensemble moment warnings remain diagnostic caveats",
+    "zero-measurement seeds indicate remaining ergodicity or measurement-window health warning",
+    "matrix-free/BiCGStab trajectory wiring remains deferred"
+  ]
+}

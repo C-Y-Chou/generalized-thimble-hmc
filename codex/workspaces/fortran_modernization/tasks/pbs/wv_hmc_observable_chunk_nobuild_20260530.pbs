@@ -1,0 +1,295 @@
+#!/bin/bash
+#PBS -N wvobsnb
+#PBS -q C16
+#PBS -l select=1:ncpus=16:mpiprocs=16:mem=32gb
+#PBS -l walltime=03:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  # shellcheck source=/dev/null
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:?TLTM_WORKTREE is required}"
+: "${TLTM_SOURCE_PIN_FILE:=}"
+: "${TLTM_REQUIRE_SOURCE_PIN:=0}"
+: "${TLTM_EXPECTED_SOURCE_PIN_ID:=}"
+: "${TLTM_EXPECTED_GIT_COMMIT:=}"
+: "${TLTM_RUN_NAME:=wv_hmc_observable_chunk_nobuild_20260530}"
+: "${TLTM_OUTPUT_ROOT:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_observable_validation_20260530}"
+: "${TLTM_LOG_ROOT:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/wv_hmc_observable_validation_20260530/${TLTM_RUN_NAME}}"
+: "${TLTM_PARAMETERS_FILE:=data/parameters_stephanov_n2_smoke.dat}"
+: "${WV_OBS_CHUNK_ID:=00}"
+: "${WV_OBS_SEED_START:=12001}"
+: "${WV_OBS_SEED_COUNT:=16}"
+: "${WV_OBS_CYCLES:=8000}"
+: "${WV_OBS_MEASUREMENT_START_CYCLE:=1001}"
+: "${WV_OBS_STEP_SIZE:=0.0075}"
+: "${WV_OBS_NUM_STEPS:=6}"
+: "${WV_OBS_INIT_MODE:=bank}"
+: "${WV_OBS_INIT_SIGMA:=0.8}"
+: "${WV_OBS_INIT_BANK_FILE:=}"
+: "${WV_OBS_INIT_BANK_RECORD:=-1}"
+: "${WV_OBS_WRITE_FINAL_STATE:=0}"
+: "${WV_OBS_WRITE_OBSERVABLE_HISTORY:=0}"
+: "${WV_OBS_WRITE_X_HISTORY:=0}"
+: "${WV_OBS_WRITE_STATE_HISTORY:=0}"
+: "${WV_OBS_HISTORY_STRIDE:=1}"
+: "${WV_OBS_WRITE_CYCLIC_SNAPSHOT:=0}"
+: "${WV_OBS_SNAPSHOT_INTERVAL:=500}"
+: "${WV_OBS_SNAPSHOT_SLOTS:=8}"
+: "${WV_OBS_NEWTON_TRACE_DIR:=}"
+: "${WV_OBS_JOBS:=16}"
+: "${WV_OBS_TIMEOUT_SEC:=7200}"
+: "${WV_HMC_REVERSE_GATE_STATE_TOL:=1.0e-5}"
+: "${WV_HMC_REVERSE_GATE_MOMENTUM_TOL:=1.0e-3}"
+: "${WV_OBS_CONSTRAINT_TOL:=1.0e-10}"
+: "${WV_OBS_CONSTRAINT_MAX_ITER:=48}"
+: "${WV_OBS_ADAPTIVE_NEWTON_STOP_ENABLED:=0}"
+: "${WV_OBS_LARGE_RESIDUAL_STOP_ENABLED:=0}"
+: "${WV_OBS_LARGE_RESIDUAL_THRESHOLD:=1.0e-4}"
+: "${WV_OBS_LARGE_RESIDUAL_MIN_ITER:=8}"
+: "${WV_OBS_LARGE_RESIDUAL_PATIENCE:=4}"
+: "${WV_OBS_LARGE_RESIDUAL_MIN_REL_IMPROVEMENT:=5.0e-4}"
+: "${WV_OBS_T0:=0.0}"
+: "${WV_OBS_T1:=0.2}"
+: "${WV_OBS_D0:=0.005}"
+: "${WV_OBS_D1:=0.05}"
+: "${WV_OBS_MEASUREMENT_T0:=${WV_OBS_T0}}"
+: "${WV_OBS_MEASUREMENT_T1:=${WV_OBS_T1}}"
+: "${WV_OBS_FLOW_TIME:=${WV_OBS_T0}}"
+: "${WV_OBS_W_PROFILE:=paper_wall}"
+: "${WV_OBS_BOUNDARY_POLICY:=paper_full_flip}"
+: "${WV_OBS_W_GAMMA:=1.0}"
+: "${WV_OBS_W_C0:=1.0}"
+: "${WV_OBS_W_C1:=1.0}"
+: "${TLTM_ODE_BACKEND:=dop853}"
+: "${TLTM_DOP853_HINIT_ENABLED:=1}"
+: "${TLTM_DOP853_STIFFNESS_CHECK_ENABLED:=1}"
+: "${TLTM_DOP853_STIFFNESS_CHECK_INTERVAL:=1000}"
+: "${TLTM_DOP853_STIFFNESS_MAX_HITS:=15}"
+: "${TLTM_DOP853_STIFFNESS_THRESHOLD:=6.1}"
+export TLTM_ODE_BACKEND
+export TLTM_DOP853_HINIT_ENABLED
+export TLTM_DOP853_STIFFNESS_CHECK_ENABLED
+export TLTM_DOP853_STIFFNESS_CHECK_INTERVAL
+export TLTM_DOP853_STIFFNESS_MAX_HITS
+export TLTM_DOP853_STIFFNESS_THRESHOLD
+
+if [ "${WV_OBS_INIT_MODE}" = "bank" ] && [ -z "${WV_OBS_INIT_BANK_FILE}" ]; then
+  echo "[ERROR] WV_OBS_INIT_BANK_FILE is required when WV_OBS_INIT_MODE=bank" >&2
+  exit 2
+fi
+
+cd "${TLTM_WORKTREE}"
+mkdir -p "${TLTM_LOG_ROOT}"
+exec > "${TLTM_LOG_ROOT}/pbs_boot_${PBS_JOBID:-manual}.log" 2>&1
+
+echo "RUN_DATE=$(date -Is)"
+echo "HOSTNAME=$(hostname)"
+echo "PBS_JOBID=${PBS_JOBID:-manual}"
+echo "PBS_QUEUE=${PBS_QUEUE:-unknown}"
+echo "TLTM_WORKTREE=${TLTM_WORKTREE}"
+echo "TLTM_RUN_NAME=${TLTM_RUN_NAME}"
+echo "TLTM_SOURCE_PIN_FILE=${TLTM_SOURCE_PIN_FILE}"
+echo "TLTM_REQUIRE_SOURCE_PIN=${TLTM_REQUIRE_SOURCE_PIN}"
+echo "TLTM_EXPECTED_SOURCE_PIN_ID=${TLTM_EXPECTED_SOURCE_PIN_ID}"
+echo "TLTM_EXPECTED_GIT_COMMIT=${TLTM_EXPECTED_GIT_COMMIT}"
+echo "WV_OBS_CHUNK_ID=${WV_OBS_CHUNK_ID}"
+echo "WV_OBS_SEED_START=${WV_OBS_SEED_START}"
+echo "WV_OBS_SEED_COUNT=${WV_OBS_SEED_COUNT}"
+echo "WV_OBS_CYCLES=${WV_OBS_CYCLES}"
+echo "WV_OBS_MEASUREMENT_START_CYCLE=${WV_OBS_MEASUREMENT_START_CYCLE}"
+echo "WV_OBS_STEP_SIZE=${WV_OBS_STEP_SIZE}"
+echo "WV_OBS_NUM_STEPS=${WV_OBS_NUM_STEPS}"
+echo "WV_OBS_INIT_MODE=${WV_OBS_INIT_MODE}"
+echo "WV_OBS_INIT_BANK_FILE=${WV_OBS_INIT_BANK_FILE}"
+echo "WV_OBS_WRITE_FINAL_STATE=${WV_OBS_WRITE_FINAL_STATE}"
+echo "WV_OBS_WRITE_OBSERVABLE_HISTORY=${WV_OBS_WRITE_OBSERVABLE_HISTORY}"
+echo "WV_OBS_WRITE_X_HISTORY=${WV_OBS_WRITE_X_HISTORY}"
+echo "WV_OBS_WRITE_STATE_HISTORY=${WV_OBS_WRITE_STATE_HISTORY}"
+echo "WV_OBS_HISTORY_STRIDE=${WV_OBS_HISTORY_STRIDE}"
+echo "WV_OBS_WRITE_CYCLIC_SNAPSHOT=${WV_OBS_WRITE_CYCLIC_SNAPSHOT}"
+echo "WV_OBS_SNAPSHOT_INTERVAL=${WV_OBS_SNAPSHOT_INTERVAL}"
+echo "WV_OBS_SNAPSHOT_SLOTS=${WV_OBS_SNAPSHOT_SLOTS}"
+echo "WV_OBS_NEWTON_TRACE_DIR=${WV_OBS_NEWTON_TRACE_DIR}"
+echo "WV_OBS_JOBS=${WV_OBS_JOBS}"
+echo "WV_HMC_REVERSE_GATE_STATE_TOL=${WV_HMC_REVERSE_GATE_STATE_TOL}"
+echo "WV_HMC_REVERSE_GATE_MOMENTUM_TOL=${WV_HMC_REVERSE_GATE_MOMENTUM_TOL}"
+echo "WV_OBS_CONSTRAINT_TOL=${WV_OBS_CONSTRAINT_TOL}"
+echo "WV_OBS_CONSTRAINT_MAX_ITER=${WV_OBS_CONSTRAINT_MAX_ITER}"
+echo "WV_OBS_ADAPTIVE_NEWTON_STOP_ENABLED=${WV_OBS_ADAPTIVE_NEWTON_STOP_ENABLED}"
+echo "WV_OBS_LARGE_RESIDUAL_STOP_ENABLED=${WV_OBS_LARGE_RESIDUAL_STOP_ENABLED}"
+echo "WV_OBS_LARGE_RESIDUAL_THRESHOLD=${WV_OBS_LARGE_RESIDUAL_THRESHOLD}"
+echo "WV_OBS_LARGE_RESIDUAL_MIN_ITER=${WV_OBS_LARGE_RESIDUAL_MIN_ITER}"
+echo "WV_OBS_LARGE_RESIDUAL_PATIENCE=${WV_OBS_LARGE_RESIDUAL_PATIENCE}"
+echo "WV_OBS_LARGE_RESIDUAL_MIN_REL_IMPROVEMENT=${WV_OBS_LARGE_RESIDUAL_MIN_REL_IMPROVEMENT}"
+echo "WV_OBS_T0=${WV_OBS_T0}"
+echo "WV_OBS_T1=${WV_OBS_T1}"
+echo "WV_OBS_D0=${WV_OBS_D0}"
+echo "WV_OBS_D1=${WV_OBS_D1}"
+echo "WV_OBS_MEASUREMENT_T0=${WV_OBS_MEASUREMENT_T0}"
+echo "WV_OBS_MEASUREMENT_T1=${WV_OBS_MEASUREMENT_T1}"
+echo "WV_OBS_FLOW_TIME=${WV_OBS_FLOW_TIME}"
+echo "WV_OBS_W_PROFILE=${WV_OBS_W_PROFILE}"
+echo "WV_OBS_BOUNDARY_POLICY=${WV_OBS_BOUNDARY_POLICY}"
+echo "WV_OBS_W_GAMMA=${WV_OBS_W_GAMMA}"
+echo "WV_OBS_W_C0=${WV_OBS_W_C0}"
+echo "WV_OBS_W_C1=${WV_OBS_W_C1}"
+echo "TLTM_ODE_BACKEND=${TLTM_ODE_BACKEND}"
+
+if [ -z "${TLTM_SOURCE_PIN_FILE}" ] && [ -f "${TLTM_WORKTREE}/codex/workspaces/fortran_modernization/state/CLUSTER02_SOURCE_PIN.env" ]; then
+  TLTM_SOURCE_PIN_FILE="${TLTM_WORKTREE}/codex/workspaces/fortran_modernization/state/CLUSTER02_SOURCE_PIN.env"
+fi
+if [ -n "${TLTM_SOURCE_PIN_FILE}" ]; then
+  if [ ! -f "${TLTM_SOURCE_PIN_FILE}" ]; then
+    echo "[ERROR] TLTM_SOURCE_PIN_FILE does not exist: ${TLTM_SOURCE_PIN_FILE}" >&2
+    exit 2
+  fi
+  echo "SOURCE_PIN_START"
+  sed 's/^/SOURCE_PIN_FILE: /' "${TLTM_SOURCE_PIN_FILE}"
+  echo "SOURCE_PIN_END"
+  # shellcheck source=/dev/null
+  . "${TLTM_SOURCE_PIN_FILE}"
+  echo "TLTM_SOURCE_PIN_ID=${TLTM_SOURCE_PIN_ID:-}"
+  echo "TLTM_SOURCE_PIN_COMMIT=${TLTM_SOURCE_PIN_COMMIT:-}"
+  echo "TLTM_SOURCE_PIN_DIRTY_COUNT=${TLTM_SOURCE_PIN_DIRTY_COUNT:-}"
+  if [ -n "${TLTM_EXPECTED_SOURCE_PIN_ID}" ] && [ "${TLTM_SOURCE_PIN_ID:-}" != "${TLTM_EXPECTED_SOURCE_PIN_ID}" ]; then
+    echo "[ERROR] expected source pin ${TLTM_EXPECTED_SOURCE_PIN_ID}, got ${TLTM_SOURCE_PIN_ID:-missing}" >&2
+    exit 2
+  fi
+  if [ -n "${TLTM_EXPECTED_GIT_COMMIT}" ] && [ "${TLTM_SOURCE_PIN_COMMIT:-}" != "${TLTM_EXPECTED_GIT_COMMIT}" ]; then
+    echo "[ERROR] expected commit ${TLTM_EXPECTED_GIT_COMMIT}, source pin has ${TLTM_SOURCE_PIN_COMMIT:-missing}" >&2
+    exit 2
+  fi
+elif [ "${TLTM_REQUIRE_SOURCE_PIN}" = "1" ]; then
+  echo "[ERROR] TLTM_REQUIRE_SOURCE_PIN=1 but no source pin file was provided or found." >&2
+  exit 2
+else
+  echo "SOURCE_PIN_UNAVAILABLE=1"
+fi
+
+if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)"
+  echo "GIT_COMMIT=$(git rev-parse HEAD)"
+  echo "GIT_STATUS_START"
+  git status --short || true
+  echo "GIT_STATUS_END"
+else
+  echo "GIT_UNAVAILABLE=1"
+fi
+
+if [ ! -x bin/run_wv_hmc ]; then
+  echo "[ERROR] bin/run_wv_hmc is missing or not executable; run the WV-HMC preflight/build job first." >&2
+  exit 2
+fi
+
+if [ -x .venv-dfols/bin/python ]; then
+  DFOLS_SITE_PACKAGES="$(.venv-dfols/bin/python - <<'PY'
+import sysconfig
+print(sysconfig.get_paths()["purelib"])
+PY
+)"
+  export TLTM_OFFICIAL_DFOLS_PYTHONPATH="${DFOLS_SITE_PACKAGES}${TLTM_OFFICIAL_DFOLS_PYTHONPATH:+:${TLTM_OFFICIAL_DFOLS_PYTHONPATH}}"
+fi
+if [ -f codex/workspaces/fortran_modernization/tasks/scripts/python_embed_env.sh ]; then
+  # Configure libpython runtime path for prebuilt binaries on gitless snapshots.
+  # shellcheck source=/dev/null
+  . codex/workspaces/fortran_modernization/tasks/scripts/python_embed_env.sh
+fi
+export PYTHONPATH="${TLTM_OFFICIAL_DFOLS_PYTHONPATH:-}${PYTHONPATH:+:${PYTHONPATH}}"
+echo "TLTM_PYTHON_DEVEL_ROOT=${TLTM_PYTHON_DEVEL_ROOT:-}"
+echo "PYTHON_EMBED_LDFLAGS=${PYTHON_EMBED_LDFLAGS:-}"
+echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}"
+echo "TLTM_OFFICIAL_DFOLS_PYTHONPATH=${TLTM_OFFICIAL_DFOLS_PYTHONPATH:-}"
+
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export OMP_DYNAMIC=FALSE
+export MKL_DYNAMIC=FALSE
+
+RUN_ROOT="${TLTM_OUTPUT_ROOT}/${TLTM_RUN_NAME}/chunks/chunk_${WV_OBS_CHUNK_ID}_${PBS_JOBID:-manual}"
+mkdir -p "${RUN_ROOT}"
+
+FINAL_STATE_ARGS=()
+if [ "${WV_OBS_WRITE_FINAL_STATE}" = "1" ]; then
+  FINAL_STATE_ARGS+=(--write-final-state)
+fi
+NEWTON_TRACE_ARGS=()
+if [ -n "${WV_OBS_NEWTON_TRACE_DIR}" ]; then
+  NEWTON_TRACE_ARGS+=(--newton-trace-dir "${WV_OBS_NEWTON_TRACE_DIR}")
+fi
+HISTORY_ARGS=()
+if [ "${WV_OBS_WRITE_OBSERVABLE_HISTORY}" = "1" ]; then
+  HISTORY_ARGS+=(--write-observable-history)
+fi
+if [ "${WV_OBS_WRITE_X_HISTORY}" = "1" ]; then
+  HISTORY_ARGS+=(--write-x-history)
+fi
+if [ "${WV_OBS_WRITE_STATE_HISTORY}" = "1" ]; then
+  HISTORY_ARGS+=(--write-state-history)
+fi
+SNAPSHOT_ARGS=()
+if [ "${WV_OBS_WRITE_CYCLIC_SNAPSHOT}" = "1" ]; then
+  SNAPSHOT_ARGS+=(--write-cyclic-snapshot --snapshot-interval "${WV_OBS_SNAPSHOT_INTERVAL}" --snapshot-slots "${WV_OBS_SNAPSHOT_SLOTS}")
+fi
+
+/usr/bin/time -p python3 codex/workspaces/fortran_modernization/tasks/scripts/run_wv_hmc_dense_observable_validation_20260529.py \
+  --binary bin/run_wv_hmc \
+  --parameters-file "${TLTM_PARAMETERS_FILE}" \
+  --output-root "${RUN_ROOT}" \
+  --seed-start "${WV_OBS_SEED_START}" \
+  --seed-count "${WV_OBS_SEED_COUNT}" \
+  --cycles "${WV_OBS_CYCLES}" \
+  --measurement-start-cycle "${WV_OBS_MEASUREMENT_START_CYCLE}" \
+  --step-size "${WV_OBS_STEP_SIZE}" \
+  --num-steps "${WV_OBS_NUM_STEPS}" \
+  --init-mode "${WV_OBS_INIT_MODE}" \
+  --init-sigma "${WV_OBS_INIT_SIGMA}" \
+  --init-bank-file "${WV_OBS_INIT_BANK_FILE}" \
+  --init-bank-record "${WV_OBS_INIT_BANK_RECORD}" \
+  --reverse-gate-state-tol "${WV_HMC_REVERSE_GATE_STATE_TOL}" \
+  --reverse-gate-momentum-tol "${WV_HMC_REVERSE_GATE_MOMENTUM_TOL}" \
+  --constraint-tol "${WV_OBS_CONSTRAINT_TOL}" \
+  --constraint-max-iter "${WV_OBS_CONSTRAINT_MAX_ITER}" \
+  --adaptive-newton-stop-enabled "${WV_OBS_ADAPTIVE_NEWTON_STOP_ENABLED}" \
+  --large-residual-stop-enabled "${WV_OBS_LARGE_RESIDUAL_STOP_ENABLED}" \
+  --large-residual-threshold "${WV_OBS_LARGE_RESIDUAL_THRESHOLD}" \
+  --large-residual-min-iter "${WV_OBS_LARGE_RESIDUAL_MIN_ITER}" \
+  --large-residual-patience "${WV_OBS_LARGE_RESIDUAL_PATIENCE}" \
+  --large-residual-min-rel-improvement "${WV_OBS_LARGE_RESIDUAL_MIN_REL_IMPROVEMENT}" \
+  --sampler-t0 "${WV_OBS_T0}" \
+  --sampler-t1 "${WV_OBS_T1}" \
+  --d0 "${WV_OBS_D0}" \
+  --d1 "${WV_OBS_D1}" \
+  --measurement-t0 "${WV_OBS_MEASUREMENT_T0}" \
+  --measurement-t1 "${WV_OBS_MEASUREMENT_T1}" \
+  --initial-flow-time "${WV_OBS_FLOW_TIME}" \
+  --w-profile "${WV_OBS_W_PROFILE}" \
+  --boundary-policy "${WV_OBS_BOUNDARY_POLICY}" \
+  --w-gamma "${WV_OBS_W_GAMMA}" \
+  --w-c0 "${WV_OBS_W_C0}" \
+  --w-c1 "${WV_OBS_W_C1}" \
+  --jobs "${WV_OBS_JOBS}" \
+  --timeout-sec "${WV_OBS_TIMEOUT_SEC}" \
+  --history-stride "${WV_OBS_HISTORY_STRIDE}" \
+  "${NEWTON_TRACE_ARGS[@]}" \
+  "${HISTORY_ARGS[@]}" \
+  "${SNAPSHOT_ARGS[@]}" \
+  "${FINAL_STATE_ARGS[@]}"
+
+echo "RUN_ROOT=${RUN_ROOT}"
+echo "MANIFEST=${RUN_ROOT}/wv_hmc_dense_observable_validation_manifest.csv"
+echo "WV_HMC_OBSERVABLE_CHUNK_COMPLETE"

@@ -70,6 +70,27 @@ Closure update, 2026-05-29:
 - The pre-WV local guardrail gate passes after high-dimensional fixture cleanup:
   `make -C build modernization_guardrails`.
 
+Publication closure update, 2026-06-03:
+
+- The active path is no longer broad modernization expansion.  It is:
+
+```text
+finish current n=6 dense WV-HMC long validation readback ->
+if clean, close product docs/license/evidence package ->
+publish/apply for compute credits ->
+defer matrix-free/high-dimensional optimization until after credits
+```
+
+- The release-order authority is
+  `runbooks/generated/productization_closure_workflow_20260603/PRODUCTIZATION_CLOSURE_WORKFLOW_20260603.md`.
+- `withfb`/DFO-LS remains legacy diagnostic only and must be removed from active
+  product dependency/license/install surfaces before publication.
+- The current WV-HMC dense explicit-J implementation may be documented only to
+  the claim level supported by the completed `n=6` readback.
+- Matrix-free/BiCGStab, high-dimensional performance optimization, and deeper
+  behavior-preserving refactors are deferred roadmap work, not pre-publication
+  blockers.
+
 Primary decisions:
 
 - TLTM canonical production default is `nofb`.

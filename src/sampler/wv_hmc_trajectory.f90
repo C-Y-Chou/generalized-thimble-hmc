@@ -6,6 +6,7 @@ module wv_hmc_trajectory
    use wv_hmc_constraints, only: wv_calculate_hamiltonian, wv_newton_stop_converged, &
                                  wv_newton_stop_divergence, wv_newton_stop_max_iter, &
                                  wv_newton_stop_not_run, wv_newton_stop_stagnation, &
+                                 wv_newton_stop_boundary_exit, wv_newton_stop_large_residual, &
                                  wv_newton_stop_unknown, wv_newton_trace_context_t, &
                                  wv_rattle_step_dense_with_boundary
    use wv_hmc_kernels, only: wv_project_dense_with_jacobian, wv_xi_from_action_gradient
@@ -29,6 +30,8 @@ module wv_hmc_trajectory
       integer :: solver_stop_divergence_count = 0
       integer :: solver_stop_stagnation_count = 0
       integer :: solver_stop_not_run_count = 0
+      integer :: solver_stop_boundary_exit_count = 0
+      integer :: solver_stop_large_residual_count = 0
       integer :: solver_stop_failure_count = 0
       integer :: last_solver_stop_reason = wv_newton_stop_unknown
       integer :: last_status = intode_status_unknown
@@ -151,7 +154,7 @@ contains
                                                     jac_next, pi_next, residual_norm, iterations, bounced, local_error, &
                                                     step_status, flow_workspace, intode_diagnostics, constraint_tol, &
                                                     constraint_max_iter, solver_stop_reason, adaptive_stop_enabled, &
-                                                    trace_context)
+                                                    trace_context, potential)
          else
             call wv_rattle_step_dense_with_boundary(step_size, wprime, t0, t1, d0, d1, t_current, x_current, &
                                                     z_current, jac_current, pi_current, t_next, x_next, z_next, &
@@ -159,7 +162,8 @@ contains
                                                     step_status, intode_diagnostics=intode_diagnostics, &
                                                     constraint_tol=constraint_tol, constraint_max_iter=constraint_max_iter, &
                                                     solver_stop_reason=solver_stop_reason, &
-                                                    adaptive_stop_enabled=adaptive_stop_enabled, trace_context=trace_context)
+                                                    adaptive_stop_enabled=adaptive_stop_enabled, trace_context=trace_context, &
+                                                    potential=potential)
          end if
          diagnostics%last_status = step_status
          diagnostics%last_solver_stop_reason = solver_stop_reason
@@ -408,6 +412,10 @@ contains
          diagnostics%solver_stop_stagnation_count = diagnostics%solver_stop_stagnation_count + 1
       case (wv_newton_stop_not_run)
          diagnostics%solver_stop_not_run_count = diagnostics%solver_stop_not_run_count + 1
+      case (wv_newton_stop_boundary_exit)
+         diagnostics%solver_stop_boundary_exit_count = diagnostics%solver_stop_boundary_exit_count + 1
+      case (wv_newton_stop_large_residual)
+         diagnostics%solver_stop_large_residual_count = diagnostics%solver_stop_large_residual_count + 1
       case default
          diagnostics%solver_stop_failure_count = diagnostics%solver_stop_failure_count + 1
       end select

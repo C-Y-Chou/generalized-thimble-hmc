@@ -919,7 +919,11 @@ contains
       close (z_unit)
 
       z_stride = int(z_size, kind=8)*complex_bytes
-      if (z_stride <= 0_8 .or. mod(z_bytes, z_stride) /= 0_8) then
+      if (z_stride <= 0_8) then
+         io_status = 1
+         return
+      end if
+      if (mod(z_bytes, z_stride) /= 0_8) then
          io_status = 1
          return
       end if
@@ -2194,7 +2198,13 @@ contains
 
       inquire (unit=io_unit, size=file_size_bytes)
       z_stride = int(z_size, kind=8)*complex_bytes
-      if (z_stride <= 0_8 .or. mod(file_size_bytes, z_stride) /= 0_8) then
+      if (z_stride <= 0_8) then
+         write (*, '(A)') "[ERROR] z-history vector size is invalid."
+         io_status = 1
+         close (io_unit)
+         return
+      end if
+      if (mod(file_size_bytes, z_stride) /= 0_8) then
          write (*, '(A)') "[ERROR] z-history file size is not divisible by z vector size."
          io_status = 1
          close (io_unit)

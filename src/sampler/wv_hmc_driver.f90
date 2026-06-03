@@ -10,12 +10,13 @@ module wv_hmc_driver
    use wv_hmc_measurement, only: wv_accumulate_weighted_observables, wv_dense_measurement_factor, &
                                  wv_measurement_factor_t, wv_weighted_observable_accumulator_t, &
                                  wv_weighted_observable_phase_coherence
-   use wv_hmc_potential, only: wv_potential_profile_t
+   use wv_hmc_potential, only: wv_potential_profile_t, wv_potential_value_and_derivative
    use wv_hmc_trajectory, only: wv_transition_dense, wv_transition_diagnostics_t
    implicit none
 
    private
    public :: wv_dense_chain_summary_t, wv_run_dense_chain
+   integer, parameter :: wv_flow_hist_bins = 32
 
    type :: wv_dense_chain_summary_t
       integer :: cycles_requested = 0
@@ -36,15 +37,23 @@ module wv_hmc_driver
       integer :: solver_stop_divergence_count = 0
       integer :: solver_stop_stagnation_count = 0
       integer :: solver_stop_not_run_count = 0
+      integer :: solver_stop_boundary_exit_count = 0
+      integer :: solver_stop_large_residual_count = 0
       integer :: solver_stop_failure_count = 0
       integer :: reverse_solver_stop_converged_count = 0
       integer :: reverse_solver_stop_max_iter_count = 0
       integer :: reverse_solver_stop_divergence_count = 0
       integer :: reverse_solver_stop_stagnation_count = 0
       integer :: reverse_solver_stop_not_run_count = 0
+      integer :: reverse_solver_stop_boundary_exit_count = 0
+      integer :: reverse_solver_stop_large_residual_count = 0
       integer :: reverse_solver_stop_failure_count = 0
       integer :: last_solver_stop_reason = 0
       integer :: last_reverse_solver_stop_reason = 0
+      integer :: reverse_gate_checked_count = 0
+      integer :: reverse_gate_passed_count = 0
+      integer :: reverse_gate_failed_count = 0
+      integer :: reverse_gate_error_sample_count = 0
       integer :: last_status = intode_status_unknown
       integer :: last_attempted_steps = 0
       integer :: last_completed_steps = 0
@@ -54,8 +63,14 @@ module wv_hmc_driver
       integer :: measurement_included = 0
       integer :: measurement_skipped = 0
       integer :: measurement_failed = 0
+      integer :: snapshots_written = 0
+      integer :: snapshot_write_errors = 0
       integer :: measurement_start_cycle = 1
       integer :: flow_time_observations = 0
+      integer :: flow_time_hist_low = 0
+      integer :: flow_time_hist_high = 0
+      integer :: flow_time_hist_inside(wv_flow_hist_bins) = 0
+      integer :: measurement_flow_time_hist_inside(wv_flow_hist_bins) = 0
       integer :: accepted_jump_count = 0
       real(dp) :: accept_probability_sum = 0.0_dp
       real(dp) :: max_constraint_residual = 0.0_dp
@@ -79,6 +94,10 @@ module wv_hmc_driver
       real(dp) :: last_projection_rejected_norm = 0.0_dp
       real(dp) :: last_reverse_gate_state_error = 0.0_dp
       real(dp) :: last_reverse_gate_momentum_error = 0.0_dp
+      real(dp) :: reverse_gate_state_error_sum = 0.0_dp
+      real(dp) :: reverse_gate_momentum_error_sum = 0.0_dp
+      real(dp) :: reverse_gate_state_error_max = 0.0_dp
+      real(dp) :: reverse_gate_momentum_error_max = 0.0_dp
       real(dp) :: measurement_phase_coherence = 0.0_dp
    end type wv_dense_chain_summary_t
 
@@ -88,7 +107,9 @@ contains
                                  flow_time, x_initial, flow_time_out, x_out, z_out, jac_out, summary, error, &
                                  status, constraint_tol, constraint_max_iter, observable_accumulator, &
                                  measurement_t0, measurement_t1, reverse_gate_state_tol, reverse_gate_momentum_tol, &
-                                 measurement_start_cycle, adaptive_stop_enabled, newton_trace_context)
+                                 measurement_start_cycle, adaptive_stop_enabled, newton_trace_context, &
+                                 observable_history_unit, x_history_unit, state_history_unit, history_stride, &
+                                 snapshot_prefix, snapshot_interval, snapshot_slots, snapshot_index_unit)
       integer, intent(in) :: base_seed, cycle_count, num_steps
       real(dp), intent(in) :: step_size, t0, t1, d0, d1, flow_time, x_initial(:)
       type(wv_potential_profile_t), intent(in) :: potential
@@ -105,14 +126,19 @@ contains
       integer, intent(in), optional :: measurement_start_cycle
       logical, intent(in), optional :: adaptive_stop_enabled
       type(wv_newton_trace_context_t), intent(inout), optional :: newton_trace_context
+      integer, intent(in), optional :: observable_history_unit, x_history_unit, state_history_unit, history_stride
+      character(len=*), intent(in), optional :: snapshot_prefix
+      integer, intent(in), optional :: snapshot_interval, snapshot_slots, snapshot_index_unit
 
-      integer :: n, cycle_idx, local_status, observable_count, local_measurement_start_cycle
+      integer :: n, cycle_idx, local_status, observable_count, local_measurement_start_cycle, local_history_stride
+      integer :: local_snapshot_interval, local_snapshot_slots, snapshot_count
       real(dp) :: flow_time_current, flow_time_next, uniform01, coherence, local_measurement_t0, local_measurement_t1
+      real(dp) :: measurement_w_value, measurement_wprime
       real(dp) :: x_jump_sq, z_jump_sq, flow_time_jump_abs
       real(dp), allocatable :: x_current(:), x_next(:), raw_pi(:)
       complex(dp), allocatable :: observable_values(:)
       complex(dp), allocatable :: z_current(:), z_next(:), jac_current(:, :), jac_next(:, :)
-      logical :: local_error
+      logical :: local_error, has_reverse_gate_error_sample, should_write_history, has_snapshot, snapshot_error
       type(flow_workspace_t) :: flow_workspace
       type(intode_diagnostics_context_t) :: intode_diagnostics
       type(wv_transition_diagnostics_t) :: transition
@@ -134,11 +160,21 @@ contains
       local_measurement_start_cycle = 1
       if (present(measurement_start_cycle)) local_measurement_start_cycle = measurement_start_cycle
       summary%measurement_start_cycle = local_measurement_start_cycle
+      local_history_stride = 1
+      if (present(history_stride)) local_history_stride = history_stride
+      local_snapshot_interval = 0
+      if (present(snapshot_interval)) local_snapshot_interval = snapshot_interval
+      local_snapshot_slots = 1
+      if (present(snapshot_slots)) local_snapshot_slots = snapshot_slots
+      has_snapshot = present(snapshot_prefix) .and. len_trim(snapshot_prefix) > 0
+      snapshot_count = 0
 
       n = size(x_initial)
       if (n <= 0) return
       if (cycle_count < 0 .or. num_steps < 0) return
       if (local_measurement_start_cycle < 1) return
+      if (local_history_stride < 1) return
+      if (has_snapshot .and. (local_snapshot_interval < 1 .or. local_snapshot_slots < 1)) return
       if ((.not. ieee_is_finite(step_size)) .or. step_size <= 0.0_dp) return
       if (.not. all(ieee_is_finite([t0, t1, d0, d1, flow_time, local_measurement_t0, local_measurement_t1]))) return
       if (flow_time < 0.0_dp) return
@@ -170,7 +206,19 @@ contains
          summary%odex_failure = intode_diagnostics%odex_failure
          return
       end if
-      call wv_record_flow_time(summary, flow_time_current)
+      call wv_record_flow_time(summary, flow_time_current, t0, t1)
+      if (has_snapshot) then
+         call wv_write_cyclic_snapshot(snapshot_prefix, snapshot_count, local_snapshot_slots, 0, &
+                                       flow_time_current, x_current, snapshot_index_unit, snapshot_error)
+         if (snapshot_error) then
+            summary%snapshot_write_errors = summary%snapshot_write_errors + 1
+            summary%odex_calls = intode_diagnostics%odex_calls
+            summary%odex_failure = intode_diagnostics%odex_failure
+            return
+         end if
+         snapshot_count = snapshot_count + 1
+         summary%snapshots_written = summary%snapshots_written + 1
+      end if
 
       do cycle_idx = 1, cycle_count
          summary%cycles_attempted = summary%cycles_attempted + 1
@@ -193,6 +241,25 @@ contains
          summary%last_projection_rejected_norm = transition%projection_rejected_norm
          summary%last_reverse_gate_state_error = transition%reverse_gate_state_error
          summary%last_reverse_gate_momentum_error = transition%reverse_gate_momentum_error
+         if (transition%reverse_gate_checked) then
+            summary%reverse_gate_checked_count = summary%reverse_gate_checked_count + 1
+            if (transition%reverse_gate_passed) summary%reverse_gate_passed_count = summary%reverse_gate_passed_count + 1
+            if (transition%reverse_gate_failed) summary%reverse_gate_failed_count = summary%reverse_gate_failed_count + 1
+            has_reverse_gate_error_sample = (.not. transition%reverse_gate_failed) .and. &
+                                            ieee_is_finite(transition%reverse_gate_state_error) .and. &
+                                            ieee_is_finite(transition%reverse_gate_momentum_error)
+            if (has_reverse_gate_error_sample) then
+               summary%reverse_gate_error_sample_count = summary%reverse_gate_error_sample_count + 1
+               summary%reverse_gate_state_error_sum = summary%reverse_gate_state_error_sum + &
+                                                      transition%reverse_gate_state_error
+               summary%reverse_gate_state_error_max = max(summary%reverse_gate_state_error_max, &
+                                                          transition%reverse_gate_state_error)
+               summary%reverse_gate_momentum_error_sum = summary%reverse_gate_momentum_error_sum + &
+                                                         transition%reverse_gate_momentum_error
+               summary%reverse_gate_momentum_error_max = max(summary%reverse_gate_momentum_error_max, &
+                                                             transition%reverse_gate_momentum_error)
+            end if
+         end if
          if (present(status)) status = local_status
          summary%bounced_steps = summary%bounced_steps + transition%trajectory%bounced_steps
          summary%trajectory_steps = summary%trajectory_steps + transition%trajectory%completed_steps
@@ -253,7 +320,25 @@ contains
          x_current = x_next
          z_current = z_next
          jac_current = jac_next
-         call wv_record_flow_time(summary, flow_time_current)
+         call wv_record_flow_time(summary, flow_time_current, t0, t1)
+         if (has_snapshot) then
+            if (mod(cycle_idx, local_snapshot_interval) == 0) then
+               call wv_write_cyclic_snapshot(snapshot_prefix, snapshot_count, local_snapshot_slots, cycle_idx, &
+                                             flow_time_current, x_current, snapshot_index_unit, snapshot_error)
+               if (snapshot_error) then
+                  summary%snapshot_write_errors = summary%snapshot_write_errors + 1
+                  summary%odex_calls = intode_diagnostics%odex_calls
+                  summary%odex_failure = intode_diagnostics%odex_failure
+                  flow_time_out = flow_time_current
+                  x_out = x_current
+                  z_out = z_current
+                  jac_out = jac_current
+                  return
+               end if
+               snapshot_count = snapshot_count + 1
+               summary%snapshots_written = summary%snapshots_written + 1
+            end if
+         end if
 
          if (present(observable_accumulator)) then
             if (cycle_idx < local_measurement_start_cycle) then
@@ -265,7 +350,12 @@ contains
                cycle
             end if
             summary%measurement_attempted = summary%measurement_attempted + 1
-            call wv_dense_measurement_factor(z_current, jac_current, measurement_factor, local_error)
+            call wv_potential_value_and_derivative(potential, flow_time_current, measurement_w_value, &
+                                                   measurement_wprime, local_error)
+            if (.not. local_error) then
+               call wv_dense_measurement_factor(z_current, jac_current, measurement_factor, local_error, &
+                                                w_value=measurement_w_value)
+            end if
             if (.not. local_error) then
                call evaluate_model_observables(z_current, observable_values)
                call wv_accumulate_weighted_observables(observable_accumulator, measurement_factor%wv_factor, &
@@ -278,6 +368,18 @@ contains
                return
             end if
             summary%measurement_included = summary%measurement_included + 1
+            call wv_record_measurement_flow_time(summary, flow_time_current, local_measurement_t0, local_measurement_t1)
+            should_write_history = mod(summary%measurement_included - 1, local_history_stride) == 0
+            if (should_write_history .and. present(observable_history_unit) .and. observable_history_unit /= 0) then
+               call wv_write_observable_history_row(observable_history_unit, cycle_idx, flow_time_current, &
+                                                    measurement_factor, observable_values)
+            end if
+            if (should_write_history .and. present(x_history_unit) .and. x_history_unit /= 0) then
+               call wv_write_x_history_row(x_history_unit, x_current)
+            end if
+            if (should_write_history .and. present(state_history_unit) .and. state_history_unit /= 0) then
+               call wv_write_state_history_row(state_history_unit, flow_time_current, x_current)
+            end if
             call wv_weighted_observable_phase_coherence(observable_accumulator, coherence, local_error)
             if (.not. local_error) summary%measurement_phase_coherence = coherence
          end if
@@ -307,6 +409,10 @@ contains
                                              transition%trajectory%solver_stop_stagnation_count
       summary%solver_stop_not_run_count = summary%solver_stop_not_run_count + &
                                           transition%trajectory%solver_stop_not_run_count
+      summary%solver_stop_boundary_exit_count = summary%solver_stop_boundary_exit_count + &
+                                                transition%trajectory%solver_stop_boundary_exit_count
+      summary%solver_stop_large_residual_count = summary%solver_stop_large_residual_count + &
+                                                 transition%trajectory%solver_stop_large_residual_count
       summary%solver_stop_failure_count = summary%solver_stop_failure_count + &
                                           transition%trajectory%solver_stop_failure_count
       summary%reverse_solver_stop_converged_count = summary%reverse_solver_stop_converged_count + &
@@ -319,19 +425,127 @@ contains
                                                      transition%reverse_trajectory%solver_stop_stagnation_count
       summary%reverse_solver_stop_not_run_count = summary%reverse_solver_stop_not_run_count + &
                                                   transition%reverse_trajectory%solver_stop_not_run_count
+      summary%reverse_solver_stop_boundary_exit_count = summary%reverse_solver_stop_boundary_exit_count + &
+                                                       transition%reverse_trajectory%solver_stop_boundary_exit_count
+      summary%reverse_solver_stop_large_residual_count = summary%reverse_solver_stop_large_residual_count + &
+                                                        transition%reverse_trajectory%solver_stop_large_residual_count
       summary%reverse_solver_stop_failure_count = summary%reverse_solver_stop_failure_count + &
                                                   transition%reverse_trajectory%solver_stop_failure_count
    end subroutine accumulate_solver_stop_counts
 
-   subroutine wv_record_flow_time(summary, flow_time)
+   subroutine wv_record_flow_time(summary, flow_time, hist_t0, hist_t1)
       type(wv_dense_chain_summary_t), intent(inout) :: summary
-      real(dp), intent(in) :: flow_time
+      real(dp), intent(in) :: flow_time, hist_t0, hist_t1
+      integer :: bin_idx
 
       if (.not. ieee_is_finite(flow_time)) return
       summary%flow_time_observations = summary%flow_time_observations + 1
       summary%flow_time_sum = summary%flow_time_sum + flow_time
       summary%flow_time_min = min(summary%flow_time_min, flow_time)
       summary%flow_time_max = max(summary%flow_time_max, flow_time)
+      if (hist_t1 <= hist_t0) return
+      if (flow_time < hist_t0) then
+         summary%flow_time_hist_low = summary%flow_time_hist_low + 1
+      else if (flow_time > hist_t1) then
+         summary%flow_time_hist_high = summary%flow_time_hist_high + 1
+      else
+         bin_idx = min(wv_flow_hist_bins, max(1, int((flow_time - hist_t0)/(hist_t1 - hist_t0) &
+                                                    *real(wv_flow_hist_bins, dp)) + 1))
+         summary%flow_time_hist_inside(bin_idx) = summary%flow_time_hist_inside(bin_idx) + 1
+      end if
    end subroutine wv_record_flow_time
+
+   subroutine wv_record_measurement_flow_time(summary, flow_time, hist_t0, hist_t1)
+      type(wv_dense_chain_summary_t), intent(inout) :: summary
+      real(dp), intent(in) :: flow_time, hist_t0, hist_t1
+      integer :: bin_idx
+
+      if (.not. ieee_is_finite(flow_time)) return
+      if (hist_t1 <= hist_t0) return
+      if (flow_time < hist_t0 .or. flow_time > hist_t1) return
+      bin_idx = min(wv_flow_hist_bins, max(1, int((flow_time - hist_t0)/(hist_t1 - hist_t0) &
+                                                 *real(wv_flow_hist_bins, dp)) + 1))
+      summary%measurement_flow_time_hist_inside(bin_idx) = summary%measurement_flow_time_hist_inside(bin_idx) + 1
+   end subroutine wv_record_measurement_flow_time
+
+   subroutine wv_write_observable_history_row(unit_id, cycle_idx, flow_time, factor, observable_values)
+      integer, intent(in) :: unit_id, cycle_idx
+      real(dp), intent(in) :: flow_time
+      type(wv_measurement_factor_t), intent(in) :: factor
+      complex(dp), intent(in) :: observable_values(:)
+
+      integer :: idx
+      complex(dp) :: numerator_value
+
+      write (unit_id, '(I0,",",g0,",",g0,",",g0,",",g0,",",g0,",",g0,",",g0,",",g0)', advance='no') &
+         cycle_idx, flow_time, real(factor%wv_factor, dp), aimag(factor%wv_factor), abs(factor%wv_factor), &
+         real(factor%phase_factor, dp), aimag(factor%phase_factor), factor%alpha, factor%alpha2
+      do idx = 1, size(observable_values)
+         numerator_value = factor%wv_factor*observable_values(idx)
+         write (unit_id, '(",",g0,",",g0,",",g0,",",g0)', advance='no') &
+            real(observable_values(idx), dp), aimag(observable_values(idx)), &
+            real(numerator_value, dp), aimag(numerator_value)
+      end do
+      write (unit_id, '(A)') ""
+   end subroutine wv_write_observable_history_row
+
+   subroutine wv_write_x_history_row(unit_id, x_state)
+      integer, intent(in) :: unit_id
+      real(dp), intent(in) :: x_state(:)
+
+      write (unit_id) x_state
+   end subroutine wv_write_x_history_row
+
+   subroutine wv_write_state_history_row(unit_id, flow_time, x_state)
+      integer, intent(in) :: unit_id
+      real(dp), intent(in) :: flow_time, x_state(:)
+
+      real(dp) :: packed_state(size(x_state) + 1)
+
+      packed_state(1) = flow_time
+      packed_state(2:) = x_state
+      write (unit_id) packed_state
+   end subroutine wv_write_state_history_row
+
+   subroutine wv_write_cyclic_snapshot(prefix, snapshot_count, slot_count, cycle_idx, flow_time, x_state, &
+                                       index_unit, error)
+      character(len=*), intent(in) :: prefix
+      integer, intent(in) :: snapshot_count, slot_count, cycle_idx
+      real(dp), intent(in) :: flow_time, x_state(:)
+      integer, intent(in), optional :: index_unit
+      logical, intent(out) :: error
+
+      integer :: slot, unit_id, ios
+      character(len=32) :: slot_text
+      character(len=1024) :: path
+      real(dp) :: packed_state(size(x_state) + 1)
+
+      error = .true.
+      if (slot_count < 1) return
+      if ((.not. ieee_is_finite(flow_time)) .or. flow_time < 0.0_dp) return
+      if (any(.not. ieee_is_finite(x_state))) return
+
+      slot = mod(snapshot_count, slot_count)
+      write (slot_text, '(I0)') slot
+      if (len_trim(prefix) + len("_slot_.bin") + len_trim(slot_text) > len(path)) return
+      path = trim(prefix)//"_slot_"//trim(slot_text)//".bin"
+
+      packed_state(1) = flow_time
+      packed_state(2:) = x_state
+      open (newunit=unit_id, file=trim(path), status='replace', access='stream', form='unformatted', &
+            action='write', iostat=ios)
+      if (ios /= 0) return
+      write (unit_id, iostat=ios) packed_state
+      close (unit_id)
+      if (ios /= 0) return
+
+      if (present(index_unit)) then
+         if (index_unit /= 0) then
+            write (index_unit, '(I0,",",I0,",",g0,",",A)') cycle_idx, slot, flow_time, trim(path)
+            flush (index_unit)
+         end if
+      end if
+      error = .false.
+   end subroutine wv_write_cyclic_snapshot
 
 end module wv_hmc_driver

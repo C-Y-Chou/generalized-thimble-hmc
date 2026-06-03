@@ -13,6 +13,10 @@ canonical policy: `nofb` production, `withfb` default-off legacy diagnostic.
 See
 `runbooks/generated/post_tltm_wv_hmc_ready_20260529/FINAL_WITHFB_NOFB_CRITERION_CLOSURE_20260529.md`.
 
+Parameter tuning update, 2026-05-31: the repository-wide tuning order is frozen
+in `PARAMETER_TUNING_SOP_20260531.md`.  This TLTM SOP supplies the TLTM-specific
+workflow under that broader dependency order.
+
 ## 0. Canonical Policy
 
 Canonical TLTM production mode:

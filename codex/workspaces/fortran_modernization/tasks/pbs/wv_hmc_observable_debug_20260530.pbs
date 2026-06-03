@@ -1,0 +1,146 @@
+#!/bin/bash
+#PBS -N wvobsdbg
+#PBS -q C16
+#PBS -l select=1:ncpus=16:mpiprocs=16:mem=32gb
+#PBS -l walltime=03:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+if [ -f /etc/profile.d/modules.sh ]; then
+  # shellcheck source=/dev/null
+  . /etc/profile.d/modules.sh
+fi
+if [ -f /usr/share/Modules/init/bash ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/Modules/init/bash
+fi
+module purge
+module load compiler/2025.3.0
+module load mpi/2021.17
+module load mkl/2025.3
+
+: "${TLTM_WORKTREE:?TLTM_WORKTREE is required}"
+: "${TLTM_RUN_NAME:=wv_hmc_observable_debug_20260530}"
+: "${TLTM_OUTPUT_ROOT:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_observable_debug_20260530}"
+: "${TLTM_LOG_ROOT:=/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/logs/wv_hmc_observable_debug_20260530/${TLTM_RUN_NAME}}"
+: "${TLTM_PARAMETERS_FILE:=data/parameters_stephanov_n2_smoke.dat}"
+: "${WV_OBS_SEED_START:=11001}"
+: "${WV_OBS_SEED_COUNT:=64}"
+: "${WV_OBS_CYCLES:=4000}"
+: "${WV_OBS_MEASUREMENT_START_CYCLE:=1001}"
+: "${WV_OBS_STEP_SIZE:=0.015}"
+: "${WV_OBS_NUM_STEPS:=3}"
+: "${WV_OBS_INIT_MODE:=bank}"
+: "${WV_OBS_INIT_SIGMA:=0.8}"
+: "${WV_OBS_INIT_BANK_FILE:?WV_OBS_INIT_BANK_FILE is required}"
+: "${WV_OBS_INIT_BANK_RECORD:=-1}"
+: "${WV_OBS_JOBS:=16}"
+: "${WV_OBS_TIMEOUT_SEC:=3600}"
+: "${WV_HMC_CONSTRAINT_TOL:=1.0e-8}"
+: "${WV_HMC_CONSTRAINT_MAX_ITER:=16}"
+: "${WV_HMC_ADAPTIVE_NEWTON_STOP_ENABLED:=0}"
+: "${WV_HMC_REVERSE_GATE_STATE_TOL:=1.0e-5}"
+: "${WV_HMC_REVERSE_GATE_MOMENTUM_TOL:=1.0e-3}"
+: "${TLTM_ODE_BACKEND:=dop853}"
+: "${TLTM_DOP853_HINIT_ENABLED:=1}"
+: "${TLTM_DOP853_STIFFNESS_CHECK_ENABLED:=1}"
+: "${TLTM_DOP853_STIFFNESS_CHECK_INTERVAL:=1000}"
+: "${TLTM_DOP853_STIFFNESS_MAX_HITS:=15}"
+: "${TLTM_DOP853_STIFFNESS_THRESHOLD:=6.1}"
+export TLTM_ODE_BACKEND
+export TLTM_DOP853_HINIT_ENABLED
+export TLTM_DOP853_STIFFNESS_CHECK_ENABLED
+export TLTM_DOP853_STIFFNESS_CHECK_INTERVAL
+export TLTM_DOP853_STIFFNESS_MAX_HITS
+export TLTM_DOP853_STIFFNESS_THRESHOLD
+export WV_HMC_CONSTRAINT_TOL
+export WV_HMC_CONSTRAINT_MAX_ITER
+export WV_HMC_ADAPTIVE_NEWTON_STOP_ENABLED
+
+cd "${TLTM_WORKTREE}"
+mkdir -p "${TLTM_LOG_ROOT}"
+exec > "${TLTM_LOG_ROOT}/pbs_boot_${PBS_JOBID:-manual}.log" 2>&1
+
+echo "RUN_DATE=$(date -Is)"
+echo "HOSTNAME=$(hostname)"
+echo "PBS_JOBID=${PBS_JOBID:-manual}"
+echo "PBS_QUEUE=${PBS_QUEUE:-unknown}"
+echo "TLTM_WORKTREE=${TLTM_WORKTREE}"
+echo "TLTM_RUN_NAME=${TLTM_RUN_NAME}"
+echo "TLTM_PARAMETERS_FILE=${TLTM_PARAMETERS_FILE}"
+echo "WV_OBS_SEED_START=${WV_OBS_SEED_START}"
+echo "WV_OBS_SEED_COUNT=${WV_OBS_SEED_COUNT}"
+echo "WV_OBS_CYCLES=${WV_OBS_CYCLES}"
+echo "WV_OBS_MEASUREMENT_START_CYCLE=${WV_OBS_MEASUREMENT_START_CYCLE}"
+echo "WV_OBS_STEP_SIZE=${WV_OBS_STEP_SIZE}"
+echo "WV_OBS_NUM_STEPS=${WV_OBS_NUM_STEPS}"
+echo "WV_OBS_INIT_MODE=${WV_OBS_INIT_MODE}"
+echo "WV_OBS_INIT_BANK_FILE=${WV_OBS_INIT_BANK_FILE}"
+echo "WV_OBS_JOBS=${WV_OBS_JOBS}"
+echo "WV_HMC_CONSTRAINT_TOL=${WV_HMC_CONSTRAINT_TOL}"
+echo "WV_HMC_CONSTRAINT_MAX_ITER=${WV_HMC_CONSTRAINT_MAX_ITER}"
+echo "WV_HMC_ADAPTIVE_NEWTON_STOP_ENABLED=${WV_HMC_ADAPTIVE_NEWTON_STOP_ENABLED}"
+echo "WV_HMC_REVERSE_GATE_STATE_TOL=${WV_HMC_REVERSE_GATE_STATE_TOL}"
+echo "WV_HMC_REVERSE_GATE_MOMENTUM_TOL=${WV_HMC_REVERSE_GATE_MOMENTUM_TOL}"
+echo "TLTM_ODE_BACKEND=${TLTM_ODE_BACKEND}"
+echo "GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)"
+echo "GIT_COMMIT=$(git rev-parse HEAD)"
+echo "GIT_STATUS_START"
+git status --short
+echo "GIT_STATUS_END"
+
+if [ -x .venv-dfols/bin/python ]; then
+  DFOLS_SITE_PACKAGES="$(.venv-dfols/bin/python - <<'PY'
+import sysconfig
+print(sysconfig.get_paths()["purelib"])
+PY
+)"
+  export TLTM_OFFICIAL_DFOLS_PYTHONPATH="${DFOLS_SITE_PACKAGES}${TLTM_OFFICIAL_DFOLS_PYTHONPATH:+:${TLTM_OFFICIAL_DFOLS_PYTHONPATH}}"
+fi
+
+# shellcheck source=/dev/null
+. codex/workspaces/fortran_modernization/tasks/scripts/python_embed_env.sh
+
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export OMP_DYNAMIC=FALSE
+export MKL_DYNAMIC=FALSE
+
+make -C build clean
+make -C build OMP=1 PYTHON="${PYTHON}" PYTHON_EMBED_CFLAGS="${PYTHON_EMBED_CFLAGS}" \
+  PYTHON_EMBED_LDFLAGS="${PYTHON_EMBED_LDFLAGS}" test_wv_hmc_math_kernels test_wv_hmc_constraint_kernels ../bin/run_wv_hmc
+
+RUN_ROOT="${TLTM_OUTPUT_ROOT}/${TLTM_RUN_NAME}_${PBS_JOBID:-manual}"
+READBACK_ROOT="${RUN_ROOT}/readback"
+mkdir -p "${RUN_ROOT}" "${READBACK_ROOT}"
+
+/usr/bin/time -p python3 codex/workspaces/fortran_modernization/tasks/scripts/run_wv_hmc_dense_observable_validation_20260529.py \
+  --binary bin/run_wv_hmc \
+  --parameters-file "${TLTM_PARAMETERS_FILE}" \
+  --output-root "${RUN_ROOT}" \
+  --seed-start "${WV_OBS_SEED_START}" \
+  --seed-count "${WV_OBS_SEED_COUNT}" \
+  --cycles "${WV_OBS_CYCLES}" \
+  --measurement-start-cycle "${WV_OBS_MEASUREMENT_START_CYCLE}" \
+  --step-size "${WV_OBS_STEP_SIZE}" \
+  --num-steps "${WV_OBS_NUM_STEPS}" \
+  --init-mode "${WV_OBS_INIT_MODE}" \
+  --init-sigma "${WV_OBS_INIT_SIGMA}" \
+  --init-bank-file "${WV_OBS_INIT_BANK_FILE}" \
+  --init-bank-record "${WV_OBS_INIT_BANK_RECORD}" \
+  --reverse-gate-state-tol "${WV_HMC_REVERSE_GATE_STATE_TOL}" \
+  --reverse-gate-momentum-tol "${WV_HMC_REVERSE_GATE_MOMENTUM_TOL}" \
+  --jobs "${WV_OBS_JOBS}" \
+  --timeout-sec "${WV_OBS_TIMEOUT_SEC}"
+
+python3 codex/workspaces/fortran_modernization/tasks/scripts/write_wv_hmc_pilot_readback_20260529.py \
+  --root "${RUN_ROOT}" \
+  --out-dir "${READBACK_ROOT}"
+
+echo "RUN_ROOT=${RUN_ROOT}"
+echo "READBACK_ROOT=${READBACK_ROOT}"
+echo "MANIFEST=${RUN_ROOT}/wv_hmc_dense_observable_validation_manifest.csv"
+cat "${READBACK_ROOT}/wv_hmc_pilot_readback.md"

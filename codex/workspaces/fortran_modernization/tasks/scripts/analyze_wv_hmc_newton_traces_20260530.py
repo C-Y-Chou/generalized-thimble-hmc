@@ -27,7 +27,11 @@ STOP_REASON_NAMES = {
     7: "stagnation",
     8: "invalid_input",
     9: "not_run",
+    10: "boundary_exit",
+    11: "large_residual",
 }
+
+RESOLVED_STOP_REASONS = {1, 10}
 
 
 def to_float(value):
@@ -79,13 +83,50 @@ def safe_ratio(numerator, denominator):
     return "{:.17g}".format(float(numerator)/float(denominator))
 
 
-def read_scan_summary(run_root):
-    summary_path = run_root / "dense_pilot_scan_summary.csv"
-    rows = []
-    if summary_path.exists():
+def read_scan_summary(run_root, trace_dir=None):
+    candidates = [
+        ("dense_pilot_scan_summary.csv", "pilot_scan"),
+        ("wv_hmc_dense_observable_validation_manifest.csv", "observable_validation"),
+    ]
+    for filename, source in candidates:
+        summary_path = run_root / filename
+        if not summary_path.exists():
+            continue
         with summary_path.open(newline="") as handle:
             rows = list(csv.DictReader(handle))
-    return rows
+        if source == "observable_validation":
+            rows = [normalize_validation_row(row) for row in rows]
+        return rows, summary_path, source
+    if trace_dir is not None and trace_dir.exists():
+        rows = []
+        for trace_path in sorted(trace_dir.glob("seed_*_newton_trace.csv")):
+            stem = trace_path.name
+            seed = stem[len("seed_"):-len("_newton_trace.csv")]
+            rows.append({
+                "label": "seed_{}".format(seed),
+                "seed": seed,
+                "cycles_completed": "",
+                "step_size": "",
+                "num_steps": "",
+                "trajectory_length": "",
+                "return_code": "",
+                "timed_out": "",
+                "runtime_sec": "",
+                "newton_trace_path": str(trace_path),
+            })
+        if rows:
+            return rows, trace_dir, "trace_dir"
+    return [], None, "missing"
+
+
+def normalize_validation_row(row):
+    normalized = dict(row)
+    seed = normalized.get("seed", "")
+    if not normalized.get("label"):
+        normalized["label"] = "seed_{}".format(seed) if seed else "seed_unknown"
+    if not normalized.get("cycles_completed"):
+        normalized["cycles_completed"] = normalized.get("cycles", "")
+    return normalized
 
 
 def trace_path_for_row(run_root, row):
@@ -173,7 +214,8 @@ def summarize_candidate(row, trace_solves):
         reason_counts[solve["final_stop_name"]] += 1
         direction_counts[solve["direction"]] += 1
     converged = [solve for solve in solve_summaries if solve["final_stop_reason"] == 1]
-    failed = [solve for solve in solve_summaries if solve["final_stop_reason"] != 1]
+    boundary_exit = [solve for solve in solve_summaries if solve["final_stop_reason"] == 10]
+    failed = [solve for solve in solve_summaries if solve["final_stop_reason"] not in RESOLVED_STOP_REASONS]
     return {
         "label": row.get("label", ""),
         "return_code": row.get("return_code", ""),
@@ -186,6 +228,7 @@ def summarize_candidate(row, trace_solves):
         "forward_solve_count": direction_counts.get(1, 0),
         "reverse_solve_count": direction_counts.get(-1, 0),
         "converged_count": len(converged),
+        "boundary_exit_count": len(boundary_exit),
         "max_iter_count": reason_counts.get("max_iter", 0),
         "divergence_count": reason_counts.get("divergence", 0),
         "stagnation_count": reason_counts.get("stagnation", 0),
@@ -196,6 +239,7 @@ def summarize_candidate(row, trace_solves):
         - reason_counts.get("stagnation", 0) - reason_counts.get("residual_error", 0)
         - reason_counts.get("update_error", 0) - reason_counts.get("nonfinite", 0),
         "converged_rate": safe_ratio(len(converged), len(solve_summaries)),
+        "resolved_rate": safe_ratio(len(converged) + len(boundary_exit), len(solve_summaries)),
         "converged_iter_q50": quantile([solve["final_iter"] for solve in converged], 0.5),
         "converged_iter_q90": quantile([solve["final_iter"] for solve in converged], 0.9),
         "converged_iter_max": finite_max([solve["final_iter"] for solve in converged]),
@@ -249,19 +293,23 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-root", required=True)
     parser.add_argument("--output-dir", default="")
+    parser.add_argument("--trace-dir", default="", help="Fallback trace directory when the run manifest is absent or incomplete.")
     args = parser.parse_args()
 
     run_root = Path(args.run_root)
+    trace_dir = Path(args.trace_dir) if args.trace_dir else None
     output_dir = Path(args.output_dir) if args.output_dir else run_root / "newton_trace_analysis"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    scan_rows = read_scan_summary(run_root)
+    scan_rows, scan_summary_path, scan_summary_source = read_scan_summary(run_root, trace_dir)
     candidate_rows = []
     solve_rows = []
     per_iter_rows = []
     availability = {
         "run_root": str(run_root),
-        "scan_summary_exists": (run_root / "dense_pilot_scan_summary.csv").exists(),
+        "scan_summary_exists": scan_summary_path is not None,
+        "scan_summary_path": str(scan_summary_path) if scan_summary_path is not None else "",
+        "scan_summary_source": scan_summary_source,
         "candidate_count": len(scan_rows),
         "trace_files_present": 0,
         "total_solves": 0,
@@ -284,9 +332,9 @@ def main():
 
     candidate_fields = [
         "label", "return_code", "timed_out", "cycles_completed", "step_size", "num_steps", "trajectory_length",
-        "solve_count", "forward_solve_count", "reverse_solve_count", "converged_count", "max_iter_count",
+        "solve_count", "forward_solve_count", "reverse_solve_count", "converged_count", "boundary_exit_count", "max_iter_count",
         "divergence_count", "stagnation_count", "residual_error_count", "update_error_count", "nonfinite_count",
-        "other_stop_count", "converged_rate", "converged_iter_q50", "converged_iter_q90", "converged_iter_max",
+        "other_stop_count", "converged_rate", "resolved_rate", "converged_iter_q50", "converged_iter_q90", "converged_iter_max",
         "failed_iter_q50", "failed_iter_min", "initial_residual_q50", "initial_residual_q90",
         "final_residual_q50", "final_residual_q90", "best_to_initial_q50", "final_to_initial_q50",
         "candidate_runtime_sec", "trace_path",
@@ -312,18 +360,20 @@ def main():
         "",
         "This is a calibration aid only.  Newton fail-fast thresholds must be recalibrated per model, parameter set, `W(t)`, HMC trajectory setting, DOP853 policy, and initial-bank distribution.",
         "",
-        "| label | cycles | solves | conv | max_iter | conv rate | conv iter q50/q90/max | init res q50 | final res q50 | best/init q50 |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| label | cycles | solves | conv | boundary | max_iter | conv rate | resolved rate | conv iter q50/q90/max | init res q50 | final res q50 | best/init q50 |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in candidate_rows:
         md_lines.append(
-            "| {label} | {cycles} | {solves} | {conv} | {max_iter} | {rate} | {iq50}/{iq90}/{imax} | {r0} | {rf} | {best} |".format(
+            "| {label} | {cycles} | {solves} | {conv} | {boundary} | {max_iter} | {rate} | {resolved_rate} | {iq50}/{iq90}/{imax} | {r0} | {rf} | {best} |".format(
                 label=row["label"],
                 cycles=row["cycles_completed"],
                 solves=row["solve_count"],
                 conv=row["converged_count"],
+                boundary=row["boundary_exit_count"],
                 max_iter=row["max_iter_count"],
                 rate=row["converged_rate"],
+                resolved_rate=row["resolved_rate"],
                 iq50=row["converged_iter_q50"],
                 iq90=row["converged_iter_q90"],
                 imax=row["converged_iter_max"],

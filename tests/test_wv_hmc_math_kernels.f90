@@ -1,9 +1,11 @@
 program test_wv_hmc_math_kernels
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use hmc_kernels, only: decompose_tangent_projection
    use model, only: calculate_action, ds, hessian_vec
-   use param_mod, only: set_derivative_mode, stephanov_emit_diagnostics, stephanov_include_mu_prefactor, &
+   use param_mod, only: at, rt, set_derivative_mode, stephanov_emit_diagnostics, stephanov_include_mu_prefactor, &
                         stephanov_mass, stephanov_mu, stephanov_n, stephanov_nf, stephanov_tau
-   use utils, only: complex_to_real, dp, real_vec
+   use solve_flow, only: flow_at
+   use utils, only: complex_to_real, dp, log_determinant, real_vec
    use wv_hmc_potential, only: wv_potential_paper_wall, wv_potential_polynomial, wv_potential_profile_t, &
                                wv_potential_value_and_derivative, wv_potential_zero
    use wv_hmc_kernels, only: wv_alpha2, wv_decompose_iterative_with_jacobian, wv_force_dense_with_jacobian, &
@@ -15,6 +17,7 @@ program test_wv_hmc_math_kernels
                              wv_simplified_newton_update_iterative_with_jacobian, &
                              wv_simplified_newton_linear_residuals, wv_xi_from_action_gradient, &
                              wv_tangent_flow_rhs_from_hessian_vec, wv_normal_flow_rhs_from_hessian_vec
+   use wv_hmc_measurement, only: wv_dense_alpha2, wv_dense_measurement_factor, wv_measurement_factor_t
    implicit none
 
    integer :: failures
@@ -29,6 +32,9 @@ program test_wv_hmc_math_kernels
    call check_potential_provider(failures)
    call check_force_contract(failures)
    call check_random_complex_force_flow_conventions(failures)
+   call check_nonzero_flow_projection_geometry(failures)
+   call check_worldvolume_force_finite_difference(failures)
+   call check_worldvolume_measure_factor_identity(failures)
    call check_simplified_newton_contract(failures)
    call check_dense_simplified_newton_oracle(failures)
    call check_fail_closed_guards(failures)
@@ -388,6 +394,428 @@ contains
       if (.not. ok) failures = failures + 1
    end subroutine check_random_complex_force_flow_conventions
 
+   subroutine check_nonzero_flow_projection_geometry(failures)
+      integer, intent(inout) :: failures
+      integer, parameter :: n_model = 2
+      integer :: n_state, status, i, case_idx
+      real(dp), allocatable :: x(:), w(:), xi_real(:), w_parallel(:), w_perp(:), dx(:), tangent_real(:)
+      complex(dp), allocatable :: z(:), jac(:, :), grad(:), xi(:), tangent_complex(:)
+      real(dp) :: flow_time, c, alpha2, reconstruction_norm, orthogonality_max, tangent_norm, scale
+      real(dp) :: direction_t
+      logical :: error, ok
+
+      call configure_stephanov_test_model(n_model)
+      stephanov_tau = 0.1_dp
+      n_state = 2*stephanov_n*stephanov_n
+      allocate (x(n_state), w(2*n_state), xi_real(2*n_state), w_parallel(2*n_state), w_perp(2*n_state), &
+                dx(n_state), tangent_real(2*n_state), z(n_state), jac(n_state, n_state), grad(n_state), &
+                xi(n_state), tangent_complex(n_state))
+
+      call prepare_nonzero_flow_fixture(n_state, flow_time, x, z, jac, ok, status)
+      do i = 1, n_state
+         w(2*i - 1) = 0.17_dp*cos(0.23_dp*real(i, dp)) - 0.04_dp*sin(0.41_dp*real(i, dp))
+         w(2*i) = -0.11_dp*sin(0.29_dp*real(i, dp)) + 0.03_dp*cos(0.53_dp*real(i, dp))
+      end do
+      c = 0.0_dp
+      alpha2 = 0.0_dp
+      if (ok) then
+         call ds(z, grad)
+         call wv_xi_from_action_gradient(grad, xi, error)
+         ok = ok .and. (.not. error)
+      end if
+      if (ok) call complex_to_real(xi, xi_real)
+      if (ok) then
+         call wv_project_dense_with_jacobian(w, xi_real, jac, w_parallel, w_perp, c, alpha2, error)
+         ok = ok .and. (.not. error) .and. alpha2 > 0.0_dp
+      end if
+
+      reconstruction_norm = huge(1.0_dp)
+      orthogonality_max = huge(1.0_dp)
+      if (ok) then
+         reconstruction_norm = norm2(w_parallel + w_perp - w)
+         orthogonality_max = 0.0_dp
+         do case_idx = 1, 5
+            do i = 1, n_state
+               dx(i) = 0.09_dp*cos((0.17_dp + 0.03_dp*real(case_idx, dp))*real(i, dp)) + &
+                       0.04_dp*sin((0.11_dp + 0.02_dp*real(case_idx, dp))*real(i*i, dp))
+            end do
+            direction_t = -0.35_dp + 0.17_dp*real(case_idx, dp)
+            tangent_complex = matmul(jac, cmplx(dx, 0.0_dp, dp)) + direction_t*xi
+            call complex_to_real(tangent_complex, tangent_real)
+            tangent_norm = norm2(tangent_real)
+            scale = max(1.0_dp, norm2(w_perp)*tangent_norm)
+            orthogonality_max = max(orthogonality_max, abs(dot_product(w_perp, tangent_real))/scale)
+         end do
+         ok = ok .and. reconstruction_norm <= 1.0e-10_dp .and. orthogonality_max <= 1.0e-9_dp
+      end if
+
+      write (*, '(A,L1,A,I0,A,ES12.4,A,ES12.4,A,ES12.4)') &
+         "[CHECK] wv_nonzero_flow_projection_geometry ok=", ok, " status=", status, &
+         " reconstruction=", reconstruction_norm, " orthogonality=", orthogonality_max, " alpha2=", alpha2
+      if (.not. ok) failures = failures + 1
+   end subroutine check_nonzero_flow_projection_geometry
+
+   subroutine check_worldvolume_force_finite_difference(failures)
+      integer, intent(inout) :: failures
+      integer, parameter :: n_model = 2
+      integer :: n_state, status, i
+      real(dp), allocatable :: x(:), dx(:), xi_real(:), tangent_real(:), force(:)
+      complex(dp), allocatable :: z(:), jac(:, :), grad(:), xi(:), tangent_complex(:)
+      type(wv_potential_profile_t) :: profile
+      real(dp) :: flow_time, direction_t, eps_fd, w_value, wprime, alpha2
+      real(dp) :: value_p2, value_p1, value_m1, value_m2, directional_fd, force_directional
+      logical :: error, ok, fd_ready
+      logical :: err_p2, err_p1, err_m1, err_m2
+      integer :: status_p2, status_p1, status_m1, status_m2
+
+      call configure_stephanov_test_model(n_model)
+      stephanov_tau = 0.1_dp
+      n_state = 2*stephanov_n*stephanov_n
+      allocate (x(n_state), dx(n_state), xi_real(2*n_state), tangent_real(2*n_state), force(2*n_state), &
+                z(n_state), jac(n_state, n_state), grad(n_state), xi(n_state), tangent_complex(n_state))
+
+      call prepare_nonzero_flow_fixture(n_state, flow_time, x, z, jac, ok, status)
+      do i = 1, n_state
+         dx(i) = 0.00035_dp*cos(0.37_dp*real(i, dp)) - 0.00020_dp*sin(0.19_dp*real(i, dp))
+      end do
+      direction_t = 0.02_dp
+      profile = wv_potential_paper_wall(flow_time - 2.0e-4_dp, flow_time + 2.0e-4_dp, &
+                                        1.0e-4_dp, 2.5e-4_dp, 0.2_dp, 1.0_dp, 1.0_dp)
+
+      alpha2 = 0.0_dp
+      directional_fd = 0.0_dp
+      force_directional = 0.0_dp
+      if (ok) then
+         call ds(z, grad)
+         call wv_xi_from_action_gradient(grad, xi, error)
+         ok = ok .and. (.not. error)
+      end if
+      if (ok) call complex_to_real(xi, xi_real)
+      if (ok) then
+         call wv_potential_value_and_derivative(profile, flow_time, w_value, wprime, error)
+         ok = ok .and. (.not. error)
+      end if
+      if (ok) then
+         call wv_force_dense_with_jacobian(xi_real, jac, wprime, force, alpha2, error)
+         ok = ok .and. (.not. error)
+      end if
+      fd_ready = .false.
+      status_p2 = -999
+      status_p1 = -999
+      status_m1 = -999
+      status_m2 = -999
+      if (ok) then
+         tangent_complex = matmul(jac, cmplx(dx, 0.0_dp, dp)) + direction_t*xi
+         call complex_to_real(tangent_complex, tangent_real)
+         eps_fd = 1.0e-4_dp
+         call evaluate_worldvolume_tangent_potential(flow_time, z, tangent_complex, direction_t, 2.0_dp*eps_fd, &
+                                                     profile, value_p2, err_p2, status_p2)
+         call evaluate_worldvolume_tangent_potential(flow_time, z, tangent_complex, direction_t, eps_fd, &
+                                                     profile, value_p1, err_p1, status_p1)
+         call evaluate_worldvolume_tangent_potential(flow_time, z, tangent_complex, direction_t, -eps_fd, &
+                                                     profile, value_m1, err_m1, status_m1)
+         call evaluate_worldvolume_tangent_potential(flow_time, z, tangent_complex, direction_t, -2.0_dp*eps_fd, &
+                                                     profile, value_m2, err_m2, status_m2)
+         fd_ready = (.not. err_p2) .and. (.not. err_p1) .and. (.not. err_m1) .and. (.not. err_m2) .and. &
+                    ieee_is_finite(value_p2) .and. ieee_is_finite(value_p1) .and. &
+                    ieee_is_finite(value_m1) .and. ieee_is_finite(value_m2)
+         ok = ok .and. fd_ready
+      end if
+
+      if (ok .and. fd_ready) then
+         force_directional = 2.0_dp*dot_product(force, tangent_real)
+         directional_fd = (-value_p2 + 8.0_dp*value_p1 - 8.0_dp*value_m1 + value_m2)/(12.0_dp*eps_fd)
+         ok = ok .and. ieee_is_finite(directional_fd) .and. ieee_is_finite(force_directional)
+         ok = ok .and. abs(directional_fd - force_directional) <= 5.0e-7_dp*max(1.0_dp, abs(directional_fd))
+      end if
+
+      write (*, '(A,L1,A,ES12.4,A,L1,A,4(I0,1X),A,ES12.4,A,ES12.4)') &
+         "[CHECK] wv_worldvolume_force_fd ok=", ok, " fd=", directional_fd, &
+         " fd_ready=", fd_ready, " status=", status_p2, status_p1, status_m1, status_m2, &
+         " force_dir=", force_directional, " diff=", abs(directional_fd - force_directional)
+      if (.not. ok) failures = failures + 1
+   end subroutine check_worldvolume_force_finite_difference
+
+   subroutine check_worldvolume_measure_factor_identity(failures)
+      integer, intent(inout) :: failures
+      logical :: ok
+      real(dp) :: max_alpha_rel_error, max_logabs_identity_error, max_logdet_volume_error
+
+      ok = .true.
+      max_alpha_rel_error = 0.0_dp
+      max_logabs_identity_error = 0.0_dp
+      max_logdet_volume_error = 0.0_dp
+      call check_worldvolume_measure_factor_identity_case(2, 1.0e-3_dp, 0.125_dp, ok, max_alpha_rel_error, &
+                                                          max_logabs_identity_error, max_logdet_volume_error)
+      call check_worldvolume_measure_factor_identity_case(6, 3.0e-3_dp, 0.125_dp, ok, max_alpha_rel_error, &
+                                                          max_logabs_identity_error, max_logdet_volume_error)
+
+      write (*, '(A,L1,A,ES12.4,A,ES12.4,A,ES12.4)') &
+         "[CHECK] wv_worldvolume_measure_factor_identity ok=", ok, &
+         " alpha_rel=", max_alpha_rel_error, " logabs_identity=", max_logabs_identity_error, &
+         " logdet_volume=", max_logdet_volume_error
+      if (.not. ok) failures = failures + 1
+   end subroutine check_worldvolume_measure_factor_identity
+
+   subroutine check_worldvolume_measure_factor_identity_case(n_model, flow_time, w_value, ok, max_alpha_rel_error, &
+                                                            max_logabs_identity_error, max_logdet_volume_error)
+      integer, intent(in) :: n_model
+      real(dp), intent(in) :: flow_time, w_value
+      logical, intent(inout) :: ok
+      real(dp), intent(inout) :: max_alpha_rel_error, max_logabs_identity_error, max_logdet_volume_error
+
+      integer :: n_state, status, i
+      real(dp), allocatable :: x(:), xi_real(:), e_real(:, :), gamma(:, :), gram(:, :)
+      complex(dp), allocatable :: z(:), jac(:, :), grad(:), xi(:)
+      complex(dp) :: action_value, log_det_j
+      real(dp) :: alpha2_code, alpha_code, alpha_gram, logdet_gamma, logdet_gram
+      real(dp) :: log_abs_det_j, log_volume_sigma, log_abs_direct, log_abs_from_wv_measure
+      logical :: error, det_error, local_ok
+      type(wv_measurement_factor_t) :: factor
+
+      call configure_stephanov_test_model(n_model)
+      stephanov_tau = 0.1_dp
+      n_state = 2*stephanov_n*stephanov_n
+      allocate (x(n_state), xi_real(2*n_state), e_real(2*n_state, n_state), gamma(n_state, n_state), &
+                gram(n_state + 1, n_state + 1), z(n_state), jac(n_state, n_state), grad(n_state), xi(n_state))
+
+      do i = 1, n_state
+         x(i) = 0.012_dp*cos(0.17_dp*real(i, dp)) + 0.006_dp*sin(0.11_dp*real(i*i, dp))
+      end do
+      call flow_at(flow_time, x, z, jac, error, status)
+      if (error) then
+         write (*, '(A,I0,A,I0)') "[CHECK] wv_worldvolume_measure_factor_identity flow_failed n=", n_model, &
+            " status=", status
+         ok = .false.
+         return
+      end if
+
+      call ds(z, grad)
+      call wv_xi_from_action_gradient(grad, xi, error)
+      if (error) then
+         write (*, '(A,I0)') "[CHECK] wv_worldvolume_measure_factor_identity xi_failed n=", n_model
+         ok = .false.
+         return
+      end if
+      call complex_to_real(xi, xi_real)
+      call wv_dense_alpha2(z, jac, alpha2_code, error)
+      if (error) then
+         write (*, '(A,I0)') "[CHECK] wv_worldvolume_measure_factor_identity alpha_failed n=", n_model
+         ok = .false.
+         return
+      end if
+      alpha_code = sqrt(alpha2_code)
+
+      call tangent_real_matrix_from_jacobian(jac, e_real)
+      gamma = matmul(transpose(e_real), e_real)
+      gram = 0.0_dp
+      gram(1, 1) = dot_product(xi_real, xi_real)
+      do i = 1, n_state
+         gram(1, i + 1) = dot_product(xi_real, e_real(:, i))
+         gram(i + 1, 1) = gram(1, i + 1)
+      end do
+      gram(2:n_state + 1, 2:n_state + 1) = gamma
+      call log_abs_det_real_square(gamma, logdet_gamma, det_error)
+      if (det_error) then
+         write (*, '(A,I0)') "[CHECK] wv_worldvolume_measure_factor_identity gamma_det_failed n=", n_model
+         ok = .false.
+         return
+      end if
+      call log_abs_det_real_square(gram, logdet_gram, det_error)
+      if (det_error) then
+         write (*, '(A,I0)') "[CHECK] wv_worldvolume_measure_factor_identity gram_det_failed n=", n_model
+         ok = .false.
+         return
+      end if
+      alpha_gram = exp(0.5_dp*(logdet_gram - logdet_gamma))
+
+      call log_determinant(jac, log_det_j, det_error)
+      if (det_error) then
+         write (*, '(A,I0)') "[CHECK] wv_worldvolume_measure_factor_identity complex_det_failed n=", n_model
+         ok = .false.
+         return
+      end if
+      log_abs_det_j = real(log_det_j, dp)
+      log_volume_sigma = 0.5_dp*logdet_gamma
+
+      call calculate_action(z, action_value)
+      call wv_dense_measurement_factor(z, jac, factor, error, w_value=w_value)
+      if (error) then
+         write (*, '(A,I0)') "[CHECK] wv_worldvolume_measure_factor_identity factor_failed n=", n_model
+         ok = .false.
+         return
+      end if
+
+      log_abs_direct = -real(action_value, dp) - w_value + log_abs_det_j
+      log_abs_from_wv_measure = -real(action_value, dp) - w_value + log(alpha_gram) + log_abs_det_j + &
+                                 log(abs(factor%wv_factor))
+      local_ok = abs(alpha_gram - alpha_code) <= 1.0e-7_dp*max(1.0_dp, alpha_gram, alpha_code) .and. &
+                 abs(log_abs_from_wv_measure - log_abs_direct) <= 1.0e-7_dp .and. &
+                 abs(log_volume_sigma - log_abs_det_j) <= 1.0e-7_dp*max(1.0_dp, abs(log_abs_det_j))
+      max_alpha_rel_error = max(max_alpha_rel_error, abs(alpha_gram - alpha_code)/max(1.0_dp, alpha_gram, alpha_code))
+      max_logabs_identity_error = max(max_logabs_identity_error, abs(log_abs_from_wv_measure - log_abs_direct))
+      max_logdet_volume_error = max(max_logdet_volume_error, abs(log_volume_sigma - log_abs_det_j))
+      if (.not. local_ok) then
+         write (*, '(A,I0,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4)') &
+            "[CHECK] wv_worldvolume_measure_factor_identity case_failed n=", n_model, &
+            " alpha_code=", alpha_code, " alpha_gram=", alpha_gram, &
+            " log_identity=", log_abs_from_wv_measure - log_abs_direct, &
+            " logdet_vol=", log_volume_sigma, " logdet_complex=", log_abs_det_j, &
+            " factor_abs=", abs(factor%wv_factor)
+      end if
+      write (*, '(A,L1,A,I0,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4)') &
+         "[CHECK] wv_worldvolume_measure_factor_identity_case ok=", local_ok, " n=", n_model, &
+         " flow_time=", flow_time, &
+         " alpha_rel=", abs(alpha_gram - alpha_code)/max(1.0_dp, alpha_gram, alpha_code), &
+         " logabs_identity=", abs(log_abs_from_wv_measure - log_abs_direct), &
+         " logdet_volume=", abs(log_volume_sigma - log_abs_det_j)
+      ok = ok .and. local_ok
+   end subroutine check_worldvolume_measure_factor_identity_case
+
+   subroutine tangent_real_matrix_from_jacobian(jac, e_real)
+      complex(dp), intent(in) :: jac(:, :)
+      real(dp), intent(out) :: e_real(:, :)
+      integer :: i, j, n
+
+      n = size(jac, 1)
+      e_real = 0.0_dp
+      do j = 1, n
+         do i = 1, n
+            e_real(2*i - 1, j) = real(jac(i, j), dp)
+            e_real(2*i, j) = aimag(jac(i, j))
+         end do
+      end do
+   end subroutine tangent_real_matrix_from_jacobian
+
+   subroutine log_abs_det_real_square(matrix, log_abs_det, error)
+      real(dp), intent(in) :: matrix(:, :)
+      real(dp), intent(out) :: log_abs_det
+      logical, intent(out) :: error
+
+      integer :: n, info, i
+      integer, allocatable :: ipiv(:)
+      real(dp), allocatable :: lu(:, :)
+      external :: dgetrf
+
+      log_abs_det = 0.0_dp
+      error = .true.
+      n = size(matrix, 1)
+      if (n <= 0 .or. size(matrix, 2) /= n) return
+      if (.not. all(ieee_is_finite(matrix))) return
+      allocate (lu(n, n), ipiv(n))
+      lu = matrix
+      call dgetrf(n, n, lu, n, ipiv, info)
+      if (info /= 0) return
+      do i = 1, n
+         if ((.not. ieee_is_finite(lu(i, i))) .or. abs(lu(i, i)) <= 0.0_dp) return
+         log_abs_det = log_abs_det + log(abs(lu(i, i)))
+      end do
+      error = .false.
+   end subroutine log_abs_det_real_square
+
+   subroutine prepare_nonzero_flow_fixture(n_state, flow_time, x, z, jac, ok, status)
+      integer, intent(in) :: n_state
+      real(dp), intent(out) :: flow_time, x(:)
+      complex(dp), intent(out) :: z(:), jac(:, :)
+      logical, intent(out) :: ok
+      integer, intent(out) :: status
+
+      integer :: i, scale_idx, time_idx
+      real(dp), parameter :: scales(6) = [0.01_dp, 0.03_dp, 0.08_dp, 0.16_dp, 0.32_dp, 0.64_dp]
+      real(dp), parameter :: times(8) = [5.0e-3_dp, 1.0e-3_dp, 3.0e-4_dp, 1.0e-4_dp, 3.0e-5_dp, &
+                                         1.0e-5_dp, 3.0e-6_dp, 1.0e-6_dp]
+      logical :: flow_error
+
+      ok = .false.
+      status = -999
+      flow_time = 0.0_dp
+      x = 0.0_dp
+      z = cmplx(0.0_dp, 0.0_dp, dp)
+      jac = cmplx(0.0_dp, 0.0_dp, dp)
+      if (size(x) /= n_state .or. size(z) /= n_state) return
+      if (size(jac, 1) /= n_state .or. size(jac, 2) /= n_state) return
+
+      if (n_state == 8) then
+         x = [0.076085349224890866_dp, 0.18799367260748823_dp, 0.032189982075346159_dp, &
+              -0.099477108823300978_dp, -0.25101485205581014_dp, 0.39002871581192344_dp, &
+              -1.0899446745680696_dp, -0.42841450356707877_dp]
+         do time_idx = 1, size(times)
+            call flow_at(times(time_idx), x, z, jac, flow_error, status)
+            if ((.not. flow_error) .and. status >= 0 .and. valid_complex_vector_for_test(z) .and. &
+                valid_complex_matrix_for_test(jac)) then
+               flow_time = times(time_idx)
+               ok = .true.
+               return
+            end if
+         end do
+
+         x = [0.0067898307652725608_dp, 0.21230054292167105_dp, 0.046613173758163672_dp, &
+              -0.08609827338729012_dp, -0.31423804203734262_dp, 0.46948395070341509_dp, &
+              -1.0659519313958072_dp, -0.44017779479105279_dp]
+         do time_idx = 1, size(times)
+            call flow_at(times(time_idx), x, z, jac, flow_error, status)
+            if ((.not. flow_error) .and. status >= 0 .and. valid_complex_vector_for_test(z) .and. &
+                valid_complex_matrix_for_test(jac)) then
+               flow_time = times(time_idx)
+               ok = .true.
+               return
+            end if
+         end do
+      end if
+
+      do scale_idx = 1, size(scales)
+         do i = 1, n_state
+            x(i) = scales(scale_idx)*(0.37_dp*sin(0.31_dp*real(i, dp)) + &
+                                      0.29_dp*cos(0.47_dp*real(i*i, dp)))
+         end do
+         do time_idx = 1, size(times)
+            call flow_at(times(time_idx), x, z, jac, flow_error, status)
+            if ((.not. flow_error) .and. status >= 0 .and. valid_complex_vector_for_test(z) .and. &
+                valid_complex_matrix_for_test(jac)) then
+               flow_time = times(time_idx)
+               ok = .true.
+               return
+            end if
+         end do
+      end do
+   end subroutine prepare_nonzero_flow_fixture
+
+   subroutine evaluate_worldvolume_tangent_potential(flow_time_base, z_base, tangent, direction_t, offset, profile, value, &
+                                                     error, status)
+      real(dp), intent(in) :: flow_time_base, direction_t, offset
+      complex(dp), intent(in) :: z_base(:), tangent(:)
+      type(wv_potential_profile_t), intent(in) :: profile
+      real(dp), intent(out) :: value
+      logical, intent(out) :: error
+      integer, intent(out) :: status
+
+      real(dp) :: shifted_time, w_shifted, wprime_shifted
+      complex(dp) :: z_shifted(size(z_base)), action_shifted
+
+      value = huge(1.0_dp)
+      error = .true.
+      status = 0
+      if (size(tangent) /= size(z_base)) then
+         status = -1
+         return
+      end if
+      shifted_time = flow_time_base + offset*direction_t
+      z_shifted = z_base + offset*tangent
+      call calculate_action(z_shifted, action_shifted)
+      if ((.not. ieee_is_finite(real(action_shifted, dp))) .or. (.not. ieee_is_finite(aimag(action_shifted)))) then
+         status = -2
+         return
+      end if
+      call wv_potential_value_and_derivative(profile, shifted_time, w_shifted, wprime_shifted, error)
+      if (error) then
+         status = -3
+         return
+      end if
+      value = real(action_shifted, dp) + w_shifted
+      error = .not. ieee_is_finite(value)
+      if (error) status = -4
+   end subroutine evaluate_worldvolume_tangent_potential
+
    subroutine configure_stephanov_test_model(n_model)
       integer, intent(in) :: n_model
 
@@ -398,6 +826,11 @@ contains
       stephanov_tau = 0.0_dp
       stephanov_include_mu_prefactor = .false.
       stephanov_emit_diagnostics = .true.
+      ! The nonzero-flow fixture only supports geometry/force finite-difference
+      ! checks at O(1e-7); 1e-12 full-Jacobian flow can fail h_min before adding
+      ! useful test signal.
+      at = 1.0e-9_dp
+      rt = 1.0e-9_dp
       call set_derivative_mode("manual")
    end subroutine configure_stephanov_test_model
 
@@ -550,5 +983,18 @@ contains
          end if
       end do
    end function all_close
+
+   logical function valid_complex_vector_for_test(values) result(ok)
+      complex(dp), intent(in) :: values(:)
+
+      ok = size(values) > 0 .and. all(ieee_is_finite(real(values, dp))) .and. all(ieee_is_finite(aimag(values)))
+   end function valid_complex_vector_for_test
+
+   logical function valid_complex_matrix_for_test(values) result(ok)
+      complex(dp), intent(in) :: values(:, :)
+
+      ok = size(values, 1) > 0 .and. size(values, 2) > 0 .and. &
+           all(ieee_is_finite(real(values, dp))) .and. all(ieee_is_finite(aimag(values)))
+   end function valid_complex_matrix_for_test
 
 end program test_wv_hmc_math_kernels

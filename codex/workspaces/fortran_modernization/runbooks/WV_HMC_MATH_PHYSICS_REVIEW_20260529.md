@@ -266,14 +266,20 @@ The worldvolume positive measure is
 |dz|_R = alpha * |dz_t| * dt.
 ```
 
-Therefore the WV-HMC measurement factor is
+If the sampler Hamiltonian is
+`H = 0.5 ||pi||^2 + Re S(z) + W(t)`, the positive worldvolume density contains
+`exp[-Re S(z)-W(t)]`.  The complex worldvolume integral carries the same
+`exp[-W(t)]` weight, so `W(t)` cancels in the reweighting factor.  Therefore
+the WV-HMC measurement factor is
 
 ```text
 F_WV(z) = alpha^{-1} * det(E)/|det(E)| * exp(-i Im S(z)).
 ```
 
-This `alpha^{-1}` is mandatory.  Omitting it samples the correct positive
-worldvolume density but measures the wrong complex ratio.
+The `alpha^{-1}` factor is mandatory.  `W(t)` belongs to the sampling potential
+and to the W-weighted target integral, but it must not be multiplied into
+`F_WV`; doing so measures a different ratio except in the special `W(t)=0`
+case.
 
 Degeneracy condition:
 
@@ -420,18 +426,41 @@ text extraction around the exponential walls is ambiguous.  The implementation
 should support a configurable `W(t)` first, then add a tested example wall
 profile.
 
-The simplified paper's boundary step for a trial outside the extended interval
-`[T0 - d0, T1 + d1]` is
+The simplified paper presents a terse boundary step for a trial outside the
+extended interval `[T0 - d0, T1 + d1]` as
 
 ```text
 z'  = z
 pi' = -pi.
 ```
 
-The original WV paper describes a boundary-normal reflection for the earlier
-RATTLE formulation.  These are not identical.  The first implementation should
-follow the simplified paper for the simplified-RATTLE route and test exact
-reversibility of the chosen boundary map.
+The production simplified-WV kernel uses this literal full momentum flip for
+boundary exits.  A 2026-06-02 fast audit first separated this paper policy from
+the earlier normal/component-reflection variant.  That was necessary but not
+the final bug: the decisive exact positive-target invariant gate later showed
+that the no-boundary Newton/RATTLE solve must not use the measurement/wall
+interval as an iterative fail-fast bound.
+
+Correct construction rule:
+
+- the no-boundary Newton solve may guard only the physical ODE domain, currently
+  nonnegative flow time `t >= 0`;
+- the extended interval `[T0-d0,T1+d1]` is a post-trial boundary rule applied to
+  a converged no-boundary RATTLE trial;
+- treating a temporary Newton iterate outside the measurement/wall interval as
+  a boundary exit can produce an over-accepting, biased kernel even when local
+  RATTLE/Newton/force/order/reverse identities pass.
+
+The 2026-06-02 boundary/Newton readback records the A/B evidence:
+pre-fix high-boundary-stress positive-target gates failed at large z-score,
+while the fixed source pin `4597ced50bd8-e99b1c4b19b1` passed the same exact
+target gates.
+
+Normal/component reflection is not the default simplified-WV production rule.
+It may only be revisited as a separately named geometry variant with its own
+detailed-balance and observable validation.  Only numerical construction
+failures that cannot be classified as boundary exits remain diagnostic rejected
+proposals.
 
 ## Measurement And Physics Interpretation
 
@@ -467,7 +496,7 @@ Physics expectation:
 | WV-MATH-006 | `alpha^{-1}` measurement weight can be omitted. | Add estimator tests where dense `E` and `alpha` are explicit; compare to direct integration or exact small-N reference. |
 | WV-MATH-007 | Simplified Newton may accidentally use moving `E_new, xi_new` but simplified updates. | Freeze `E, xi, xi_n, xi0_v` per RATTLE substep. If full Newton is added later, make it a separate backend. |
 | WV-MATH-008 | `Delta lambda` must be normal to `R`, not merely normal to `Sigma_t`. | Verify `<Delta lambda, T_z R> = 0` after each update. |
-| WV-MATH-009 | Boundary handling differs between original WV and simplified paper. | Choose one boundary map explicitly. For this implementation, start with simplified `z'=z, pi'=-pi` and test reversibility. |
+| WV-MATH-009 | Boundary handling differs between geometry variants and the simplified paper, and wall handling can be accidentally inserted into Newton iteration instead of post-trial boundary handling. | Default simplified-WV production uses the paper full flip `pi -> -pi` for boundary exits. The no-boundary solve may use only the physical flow-domain guard `t >= 0`; apply `[T0-d0,T1+d1]` only to the converged trial. Test with exact positive-target invariant gates, not only one-step reversibility. Treat normal/component reflection only as a separately validated nondefault variant. |
 | WV-MATH-010 | Example `W(t)` wall formula is vulnerable to transcription error. | Implement configurable `W(t)`. Add rendered-source note and FD derivative tests before adding a paper-example profile. |
 | WV-MATH-011 | `alpha^2` near zero makes the worldvolume coordinate singular. | Fail closed with typed diagnostics; do not divide by a clipped value in production. |
 | WV-MATH-012 | Dense and matrix-free projection backends can drift numerically. | Certify BiCGStab against dense small-N oracle on the same seeds/residuals before enabling high-dimensional production. |
@@ -518,9 +547,14 @@ Physics expectation:
 
 7. Boundary validation:
    - inside interval: trial accepted into ordinary Metropolis decision;
-   - outside extended interval: `z'=z, pi'=-pi`;
+   - outside extended interval: simplified-WV default restores the current
+     state and applies the paper full flip `pi -> -pi`;
+   - the measurement/wall interval is not passed as a Newton-iterate fail-fast
+     bound; only the physical ODE domain guard is allowed inside the no-boundary
+     solve;
    - boundary map is reversible and volume-preserving in the tested discrete
-     proposal sense.
+     proposal sense;
+   - exact positive-target invariant gates pass under high boundary stress.
 
 8. Measurement validation:
    - dense small-N `F_WV = alpha^{-1} det(E)/|det(E)| exp(-i Im S)`;
