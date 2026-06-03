@@ -1,15 +1,31 @@
 # Generalized Thimble HMC
 
-Fortran tools for generalized thimble simulations with model-owned actions,
-manual derivatives, and observable streams.
+Fortran tools for Monte Carlo simulations on deformed integration surfaces for
+systems with a numerical sign problem.  The terminology follows the Fukuma
+program around the tempered Lefschetz thimble method (TLTM), generalized
+thimble HMC (GT-HMC), and worldvolume HMC (WV-HMC).
 
 Author: CHOU CHIEN YU
 
+## Physics Scope
+
+The central object is a complexified path integral whose original real
+integration surface is continuously deformed by the antiholomorphic gradient
+flow.  TLTM uses the flow time as a tempering parameter between flowed surfaces
+to control both residual phase fluctuations and multimodal barriers.  WV-HMC
+instead samples the worldvolume swept out by those flowed surfaces.
+
+This repository is intended to make that workflow model-general: a physics
+provider supplies the action, derivatives, and observables; the sampler code
+handles constrained HMC transitions, flow-time bookkeeping, ratio estimators,
+histories, and restart metadata.
+
 ## What Is Included
 
-- TLTM: the current canonical tempered-ladder generalized-thimble workflow.
-- WV-HMC: a dense explicit-J sibling sampler with validation on the Stephanov
-  `n=6` benchmark after burn-in.
+- TLTM: the current canonical tempered Lefschetz thimble workflow.
+- GT-HMC/WV-HMC kernels: dense explicit-J generalized-thimble and worldvolume
+  HMC components, with WV-HMC validation on the Stephanov `n=6` benchmark after
+  burn-in.
 - Model provider interface: scalar action, manual gradient, Hessian-vector
   product, complexified validation, and model-owned observables.
 - Product runner: `scripts/run_tltm_product.py` exposes build, test, TLTM, and
@@ -74,6 +90,15 @@ development examples.
 - [Development](docs/DEVELOPMENT.md)
 - [References](docs/REFERENCES.md)
 - [Reproducibility Records](docs/REPRODUCIBILITY_RECORDS.md)
+
+For the physics background and citation guidance, start from
+[References](docs/REFERENCES.md).
+
+## Citation
+
+Repository citation metadata is provided in [CITATION.cff](CITATION.cff).  A
+scientific paper should also cite the relevant TLTM, GT-HMC, or WV-HMC algorithm
+references listed in [References](docs/REFERENCES.md).
 
 ## License
 

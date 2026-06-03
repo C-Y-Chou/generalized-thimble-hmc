@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this repository, cite it together with the relevant TLTM, GT-HMC, or WV-HMC algorithm papers."
+title: "Generalized Thimble HMC"
+authors:
+  - family-names: "Chou"
+    given-names: "Chien Yu"
+repository-code: "https://github.com/C-Y-Chou/generalized-thimble-hmc"
+license: "GPL-3.0-or-later"
+date-released: "2026-06-03"
+keywords:
+  - "tempered Lefschetz thimble method"
+  - "generalized thimble HMC"
+  - "worldvolume HMC"
+  - "sign problem"
+  - "lattice field theory"
