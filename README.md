@@ -75,9 +75,9 @@ python3 scripts/run_tltm_product.py tltm \
   --output-dir output/product/tltm_example
 ```
 
-Production-scale runs should use the scheduler environment documented for the
-target cluster. Local runs are intended for build checks, smoke tests, and small
-development examples.
+Local runs are intended for build checks, smoke tests, and small development
+examples.  Larger studies should record the source commit, parameter files,
+run options, and output directory so the analysis can be reproduced.
 
 ## Documentation
 

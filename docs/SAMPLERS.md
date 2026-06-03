@@ -64,4 +64,4 @@ Use this order:
 3. Tune HMC step size for a reasonable acceptance scale.
 4. Tune trajectory length through the number of integration steps.
 5. Inspect movement, burn-in, observable histories, and seed stability.
-6. Freeze parameters before production-shaped runs.
+6. Freeze parameters before large validation or production runs.

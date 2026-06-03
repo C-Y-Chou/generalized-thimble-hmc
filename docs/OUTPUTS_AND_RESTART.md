@@ -41,7 +41,7 @@ TLTM runs through the product runner write:
 For WV-HMC, use snapshots or `final_state.bin` as restart material. A restart
 protocol should record:
 
-- source commit or source pin;
+- source commit;
 - parameter file;
 - wrapper options;
 - initial state file;

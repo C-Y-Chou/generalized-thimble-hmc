@@ -28,7 +28,8 @@ git diff --check
 - Keep model formulas inside the provider.
 - Preserve ratio-estimator structure when analyzing observables.
 - Keep burn-in decisions explicit in run manifests and readbacks.
-- Use scheduler-gated runs for production-shaped validation.
+- Record source commit, parameters, run options, and output paths for validation
+  runs.
 - Re-run public tests after wrapper, build, or model-provider edits.
 
 ## Source Layout

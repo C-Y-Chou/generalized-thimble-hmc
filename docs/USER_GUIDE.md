@@ -8,8 +8,8 @@
 4. Run a smoke test.
 5. Run TLTM or WV-HMC through `scripts/run_tltm_product.py`.
 6. Read observables from the generated CSV files.
-7. For production-scale runs, submit through the scheduler environment used by
-   the target cluster.
+7. For larger studies, record the source commit, parameter file, run options,
+   and output directory.
 
 ## WV-HMC Example
 
@@ -59,6 +59,6 @@ from the initial bank. Treat burn-in as part of the production protocol:
 
 ## Production Runs
 
-Local examples are for development. Production-shaped jobs should use the
-cluster scheduler, source pinning, and run metadata workflow maintained for the
-deployment environment.
+Local examples are for development.  Larger studies should use an appropriate
+batch or HPC environment when needed, and should keep enough metadata to
+reproduce the run.
