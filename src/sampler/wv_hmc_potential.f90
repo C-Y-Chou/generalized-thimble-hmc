@@ -68,7 +68,7 @@ contains
       value = 0.0_dp
       derivative = 0.0_dp
       error = .true.
-      if ((.not. ieee_is_finite(flow_time)) .or. flow_time < 0.0_dp) return
+      if (.not. ieee_is_finite(flow_time)) return
 
       select case (profile%kind)
       case (wv_potential_kind_polynomial)

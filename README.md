@@ -25,7 +25,8 @@ histories, and restart metadata.
 - TLTM: the current canonical tempered Lefschetz thimble workflow.
 - GT-HMC/WV-HMC kernels: dense explicit-J generalized-thimble and worldvolume
   HMC components, with WV-HMC validation on the Stephanov `n=6` benchmark after
-  burn-in.
+  burn-in.  Dense WV-HMC defaults to normal-reflection boundary handling; full
+  bounce is retained as an optional benchmark policy.
 - Model provider interface: scalar action, manual gradient, Hessian-vector
   product, complexified validation, and model-owned observables.
 - Product runner: `scripts/run_tltm_product.py` exposes build, test, TLTM, and
@@ -61,6 +62,7 @@ Run a longer dense WV-HMC example:
 python3 scripts/run_tltm_product.py wv-hmc \
   --parameters data/parameters_stephanov_n6_mu06_t0.dat \
   --cycles 1000 \
+  --boundary-policy normal_reflect \
   --output-dir output/product/wv_hmc_example \
   --history \
   --snapshot-interval 250

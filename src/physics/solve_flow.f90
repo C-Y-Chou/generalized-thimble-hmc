@@ -2005,14 +2005,31 @@ contains
    pure logical function dense_target_times_valid(target_times) result(valid)
       real(dp), intent(in) :: target_times(:)
       integer :: i
+      real(dp) :: final_t, order_sign, order_tol
 
       valid = .true.
+      if (size(target_times) <= 0) return
+      if (any(.not. ieee_is_finite(target_times))) then
+         valid = .false.
+         return
+      end if
+      final_t = target_times(size(target_times))
+      order_tol = 16.0_dp*epsilon(1.0_dp)*max(1.0_dp, abs(final_t))
+      if (final_t == 0.0_dp) then
+         valid = all(abs(target_times) <= order_tol)
+         return
+      end if
+      order_sign = sign(1.0_dp, final_t)
       do i = 1, size(target_times)
-         if ((.not. ieee_is_finite(target_times(i))) .or. target_times(i) < 0.0_dp) then
+         if (target_times(i)*order_sign < -order_tol) then
             valid = .false.
             return
          end if
-         if (i > 1 .and. target_times(i) < target_times(i - 1)) then
+         if ((target_times(i) - final_t)*order_sign > order_tol) then
+            valid = .false.
+            return
+         end if
+         if (i > 1 .and. (target_times(i) - target_times(i - 1))*order_sign < -order_tol) then
             valid = .false.
             return
          end if

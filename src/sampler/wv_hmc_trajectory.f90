@@ -24,6 +24,9 @@ module wv_hmc_trajectory
       integer :: attempted_steps = 0
       integer :: completed_steps = 0
       integer :: bounced_steps = 0
+      integer :: buffer_exit_bounced_steps = 0
+      integer :: buffer_exit_low_steps = 0
+      integer :: buffer_exit_high_steps = 0
       integer :: solver_iterations_total = 0
       integer :: solver_stop_converged_count = 0
       integer :: solver_stop_max_iter_count = 0
@@ -107,7 +110,7 @@ contains
       real(dp) :: t_current, t_next
       real(dp) :: x_current(size(x)), x_next(size(x)), pi_current(size(pi)), pi_next(size(pi))
       complex(dp) :: z_current(size(z)), z_next(size(z)), jac_current(size(z), size(z)), jac_next(size(z), size(z))
-      logical :: local_error, bounced
+      logical :: local_error, bounced, buffer_exit, buffer_exit_low, buffer_exit_high
 
       diagnostics = wv_trajectory_diagnostics_t()
       flow_time_out = flow_time
@@ -154,7 +157,8 @@ contains
                                                     jac_next, pi_next, residual_norm, iterations, bounced, local_error, &
                                                     step_status, flow_workspace, intode_diagnostics, constraint_tol, &
                                                     constraint_max_iter, solver_stop_reason, adaptive_stop_enabled, &
-                                                    trace_context, potential)
+                                                    trace_context, potential, buffer_exit, buffer_exit_low, &
+                                                    buffer_exit_high)
          else
             call wv_rattle_step_dense_with_boundary(step_size, wprime, t0, t1, d0, d1, t_current, x_current, &
                                                     z_current, jac_current, pi_current, t_next, x_next, z_next, &
@@ -163,12 +167,18 @@ contains
                                                     constraint_tol=constraint_tol, constraint_max_iter=constraint_max_iter, &
                                                     solver_stop_reason=solver_stop_reason, &
                                                     adaptive_stop_enabled=adaptive_stop_enabled, trace_context=trace_context, &
-                                                    potential=potential)
+                                                    potential=potential, buffer_exit=buffer_exit, &
+                                                    buffer_exit_low=buffer_exit_low, buffer_exit_high=buffer_exit_high)
          end if
          diagnostics%last_status = step_status
          diagnostics%last_solver_stop_reason = solver_stop_reason
          call record_solver_stop_reason(diagnostics, solver_stop_reason)
          if (present(status)) status = step_status
+         if (buffer_exit) then
+            diagnostics%buffer_exit_bounced_steps = diagnostics%buffer_exit_bounced_steps + 1
+            if (buffer_exit_low) diagnostics%buffer_exit_low_steps = diagnostics%buffer_exit_low_steps + 1
+            if (buffer_exit_high) diagnostics%buffer_exit_high_steps = diagnostics%buffer_exit_high_steps + 1
+         end if
          if (local_error) return
 
          diagnostics%completed_steps = diagnostics%completed_steps + 1

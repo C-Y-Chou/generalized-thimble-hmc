@@ -43,9 +43,9 @@ def parse_init_log(log_path):
 
 
 def run_seed(args):
-    (binary, output_root, parameters_file, seed, cycles, measurement_start_cycle, timeout_sec,
+    (binary, output_root, parameters_file, seed, cycles, cycle_offset, measurement_start_cycle, timeout_sec,
      step_size, num_steps, init_mode, init_sigma, init_bank_file, init_bank_record,
-     init_bank_record_mode, seed_offset,
+     init_bank_record_mode, init_bank_flow_time_policy, seed_offset,
      reverse_gate_state_tol, reverse_gate_momentum_tol, constraint_tol, constraint_max_iter,
      adaptive_newton_stop_enabled, large_residual_stop_enabled, large_residual_threshold,
      large_residual_min_iter, large_residual_patience, large_residual_min_rel_improvement,
@@ -81,6 +81,7 @@ def run_seed(args):
         "WV_HMC_OBSERVABLE_FILE": str(observable_path),
         "WV_HMC_BASE_SEED": str(seed),
         "WV_HMC_CYCLES": str(cycles),
+        "WV_HMC_CYCLE_OFFSET": str(cycle_offset),
         "WV_HMC_MEASUREMENT_START_CYCLE": str(measurement_start_cycle),
         "WV_HMC_STEP_SIZE": str(step_size),
         "WV_HMC_NUM_STEPS": str(num_steps),
@@ -93,6 +94,7 @@ def run_seed(args):
         "WV_HMC_MEASUREMENT_T0": str(measurement_t0),
         "WV_HMC_MEASUREMENT_T1": str(measurement_t1),
         "WV_HMC_INIT_MODE": init_mode,
+        "WV_HMC_INIT_BANK_FLOW_TIME_POLICY": init_bank_flow_time_policy,
         "WV_HMC_INIT_SIGMA": str(init_sigma),
         "WV_HMC_W_PROFILE": w_profile,
         "WV_HMC_W_GAMMA": str(w_gamma),
@@ -152,8 +154,14 @@ def run_seed(args):
     if write_cyclic_snapshot:
         snapshot_slot_count = len(list(output_root.glob("seed_{:05d}_snapshot_slot_*.bin".format(seed))))
     return {
+        "source_pin_id": os.environ.get("TLTM_SOURCE_PIN_ID", ""),
+        "source_pin_commit": os.environ.get("TLTM_SOURCE_PIN_COMMIT", ""),
+        "source_pin_dirty_count": os.environ.get("TLTM_SOURCE_PIN_DIRTY_COUNT", ""),
+        "source_pin_manifest_sha256": os.environ.get("TLTM_SOURCE_PIN_MANIFEST_SHA256", ""),
+        "source_pin_status_sha256": os.environ.get("TLTM_SOURCE_PIN_STATUS_SHA256", ""),
         "seed": seed,
         "cycles": cycles,
+        "cycle_offset": cycle_offset,
         "measurement_start_cycle": measurement_start_cycle,
         "step_size": step_size,
         "num_steps": num_steps,
@@ -163,6 +171,7 @@ def run_seed(args):
         "init_bank_file": str(init_bank_file) if init_bank_file else "",
         "init_bank_record": effective_init_bank_record,
         "init_bank_record_mode": init_bank_record_mode,
+        "init_bank_flow_time_policy": init_bank_flow_time_policy,
         "init_bank_record_actual": init_info["init_bank_record_actual"],
         "init_bank_record_count_actual": init_info["init_bank_record_count_actual"],
         "reverse_gate_state_tol": reverse_gate_state_tol,
@@ -220,8 +229,14 @@ def run_seed(args):
 def write_manifest(rows, output_root):
     path = output_root / "wv_hmc_dense_observable_validation_manifest.csv"
     fieldnames = [
+        "source_pin_id",
+        "source_pin_commit",
+        "source_pin_dirty_count",
+        "source_pin_manifest_sha256",
+        "source_pin_status_sha256",
         "seed",
         "cycles",
+        "cycle_offset",
         "measurement_start_cycle",
         "step_size",
         "num_steps",
@@ -231,6 +246,7 @@ def write_manifest(rows, output_root):
         "init_bank_file",
         "init_bank_record",
         "init_bank_record_mode",
+        "init_bank_flow_time_policy",
         "init_bank_record_actual",
         "init_bank_record_count_actual",
         "reverse_gate_state_tol",
@@ -299,6 +315,7 @@ def main():
     parser.add_argument("--seed-start", type=int, default=4001)
     parser.add_argument("--seed-count", type=int, default=64)
     parser.add_argument("--cycles", type=int, default=4000)
+    parser.add_argument("--cycle-offset", type=int, default=0)
     parser.add_argument("--measurement-start-cycle", type=int, default=1001)
     parser.add_argument("--step-size", type=float, default=0.002)
     parser.add_argument("--num-steps", type=int, default=2)
@@ -325,10 +342,15 @@ def main():
     parser.add_argument("--measurement-t0", type=float, default=None)
     parser.add_argument("--measurement-t1", type=float, default=None)
     parser.add_argument("--initial-flow-time", type=float, default=None)
+    parser.add_argument(
+        "--init-bank-flow-time-policy",
+        choices=("load_record", "record", "from_record", "keep_configured", "configured", "fixed", "env"),
+        default="load_record",
+    )
     parser.add_argument("--w-profile", default="paper_wall")
-    parser.add_argument("--boundary-policy", default="paper_full_flip",
-                        choices=("paper_full_flip", "full_flip", "normal_reflect", "normal_reflection",
-                                 "legacy_normal", "legacy"))
+    parser.add_argument("--boundary-policy", default="normal_reflect",
+                        choices=("paper_full_flip", "full_flip", "full_bounce", "normal_reflect", "normal_reflection",
+                                 "legacy_normal", "legacy", "stay", "no_flip", "keep", "identity"))
     parser.add_argument("--w-gamma", type=float, default=1.0)
     parser.add_argument("--w-c0", type=float, default=1.0)
     parser.add_argument("--w-c1", type=float, default=1.0)
@@ -341,6 +363,13 @@ def main():
     parser.add_argument("--write-cyclic-snapshot", action="store_true")
     parser.add_argument("--snapshot-interval", type=int, default=500)
     parser.add_argument("--snapshot-slots", type=int, default=8)
+    parser.add_argument(
+        "--allow-failed-seeds",
+        action="store_true",
+        help="Write the manifest and return success even when some seeds fail. "
+             "This is intended for diagnostic gates that analyze valid records "
+             "and report skipped seeds separately.",
+    )
     parser.add_argument("--jobs", type=int, default=8)
     parser.add_argument("--timeout-sec", type=float, default=1200.0)
     args = parser.parse_args()
@@ -354,15 +383,18 @@ def main():
     initial_flow_time = args.sampler_t0 if args.initial_flow_time is None else args.initial_flow_time
     if args.history_stride < 1:
         raise SystemExit("--history-stride must be >= 1")
+    if args.cycle_offset < 0:
+        raise SystemExit("--cycle-offset must be >= 0")
     if args.write_cyclic_snapshot and args.snapshot_interval < 1:
         raise SystemExit("--snapshot-interval must be >= 1 when --write-cyclic-snapshot is used")
     if args.write_cyclic_snapshot and args.snapshot_slots < 1:
         raise SystemExit("--snapshot-slots must be >= 1 when --write-cyclic-snapshot is used")
 
     work = [
-        (binary, output_root, parameters_file, args.seed_start + offset, args.cycles, args.measurement_start_cycle,
-         args.timeout_sec, args.step_size, args.num_steps, args.init_mode, args.init_sigma, args.init_bank_file,
-         args.init_bank_record, args.init_bank_record_mode, offset,
+        (binary, output_root, parameters_file, args.seed_start + offset, args.cycles, args.cycle_offset,
+         args.measurement_start_cycle, args.timeout_sec, args.step_size, args.num_steps, args.init_mode, args.init_sigma,
+         args.init_bank_file,
+         args.init_bank_record, args.init_bank_record_mode, args.init_bank_flow_time_policy, offset,
          args.reverse_gate_state_tol, args.reverse_gate_momentum_tol, args.constraint_tol,
          args.constraint_max_iter, bool(args.adaptive_newton_stop_enabled),
          bool(args.large_residual_stop_enabled), args.large_residual_threshold, args.large_residual_min_iter,
@@ -401,7 +433,12 @@ def main():
         for row in failures[:20]:
             print("FAILED seed={seed} return_code={return_code} timed_out={timed_out} summary={summary_present} "
                   "observable={observable_present} log={log_path}".format(**row))
-        raise SystemExit(3)
+        if args.allow_failed_seeds:
+            print("WARNING allow_failed_seeds=1 continuing with {0}/{1} failed seeds".format(
+                len(failures), len(rows)
+            ))
+        else:
+            raise SystemExit(3)
 
 
 if __name__ == "__main__":

@@ -30,6 +30,7 @@ contains
       logical, intent(in) :: default_write_files
 
       integer :: n, num_steps, cycle_count, base_seed, status, observable_count, measurement_start_cycle
+      integer :: cycle_offset
       integer :: init_bank_record, init_bank_selected_record, init_bank_record_count, constraint_max_iter
       integer :: large_residual_min_iter, large_residual_patience
       integer :: newton_trace_unit, observable_history_unit, x_history_unit, state_history_unit, history_stride
@@ -46,11 +47,11 @@ contains
       logical :: found_summary_file, found_observable_file, has_newton_trace_file, has_final_state_file
       logical :: has_observable_history_file, has_x_history_file, has_state_history_file
       logical :: has_snapshot_prefix, has_snapshot_index_file
-      logical :: has_boundary_policy
+      logical :: has_boundary_policy, has_init_bank_flow_time_policy
       character(len=512) :: summary_file, observable_file, final_state_file
       character(len=512) :: init_bank_file, newton_trace_file, observable_history_file, x_history_file, state_history_file
       character(len=512) :: snapshot_prefix, snapshot_index_file
-      character(len=64) :: w_profile_name, init_mode_name, boundary_policy_name
+      character(len=64) :: w_profile_name, init_mode_name, boundary_policy_name, init_bank_flow_time_policy
       type(wv_dense_chain_summary_t) :: summary
       type(wv_measurement_factor_t) :: measurement_factor
       type(wv_potential_profile_t) :: potential
@@ -73,6 +74,7 @@ contains
       base_seed = 20260529
       flow_time = default_flow_time
       measurement_start_cycle = 1
+      cycle_offset = 0
       sampler_t0 = 0.0_dp
       sampler_t1 = 0.2_dp
       d0 = 0.0_dp
@@ -112,10 +114,12 @@ contains
       init_bank_record_count = 0
       w_profile_name = "zero"
       init_mode_name = "deterministic"
-      boundary_policy_name = "paper_full_flip"
+      boundary_policy_name = "normal_reflect"
+      init_bank_flow_time_policy = "load_record"
       call parse_real_env(env_name(env_prefix, "STEP_SIZE"), step_size)
       call parse_int_env(env_name(env_prefix, "NUM_STEPS"), num_steps)
       call parse_int_env(env_name(env_prefix, "CYCLES"), cycle_count)
+      call parse_int_env(env_name(env_prefix, "CYCLE_OFFSET"), cycle_offset)
       call parse_int_env(env_name(env_prefix, "BASE_SEED"), base_seed)
       call parse_int_env(env_name(env_prefix, "MEASUREMENT_START_CYCLE"), measurement_start_cycle)
       call parse_real_env(env_name(env_prefix, "FLOW_TIME"), flow_time)
@@ -135,6 +139,9 @@ contains
          stop 3
       end if
       call read_string_env(env_name(env_prefix, "INIT_BANK_FILE"), init_bank_file, has_init_bank_file)
+      call read_string_env(env_name(env_prefix, "INIT_BANK_FLOW_TIME_POLICY"), init_bank_flow_time_policy, &
+                           has_init_bank_flow_time_policy)
+      init_bank_flow_time_policy = to_lower_ascii(adjustl(init_bank_flow_time_policy))
       call parse_int_env(env_name(env_prefix, "INIT_BANK_RECORD"), init_bank_record)
       call parse_real_env(env_name(env_prefix, "W_GAMMA"), w_gamma)
       call parse_real_env(env_name(env_prefix, "W_C0"), w_c0)
@@ -176,14 +183,16 @@ contains
 
       allocate (x(n), x_out(n), z_out(n), jac_out(n, n))
       call fill_initial_state(x, flow_time, trim(init_mode_name), init_sigma, base_seed, trim(init_bank_file), &
-                              init_bank_record, init_bank_selected_record, init_bank_record_count, error)
+                              trim(init_bank_flow_time_policy), init_bank_record, init_bank_selected_record, &
+                              init_bank_record_count, error)
       if (error) then
          write (*, '(*(g0,1X))') "ERROR", "invalid_initial_state", trim(init_mode_name), init_sigma, &
-            trim(init_bank_file), init_bank_record
+            trim(init_bank_file), init_bank_record, trim(init_bank_flow_time_policy)
          stop 3
       end if
       write (*, '(*(g0,1X))') "WV_HMC_INIT", "base_seed", base_seed, "init_mode", trim(init_mode_name), &
          "flow_time", flow_time, "init_bank_file", trim(init_bank_file), &
+         "init_bank_flow_time_policy", trim(init_bank_flow_time_policy), &
          "init_bank_record_request", init_bank_record, "init_bank_record", init_bank_selected_record, &
          "init_bank_record_count", init_bank_record_count
       observable_count = model_observable_count()
@@ -220,6 +229,10 @@ contains
                                              large_residual_min_rel_improvement)
       if (history_stride < 1) then
          write (*, '(*(g0,1X))') "ERROR", "invalid_wv_history_stride", history_stride
+         stop 3
+      end if
+      if (cycle_offset < 0) then
+         write (*, '(*(g0,1X))') "ERROR", "invalid_wv_cycle_offset", cycle_offset
          stop 3
       end if
       if (has_snapshot_prefix .and. len_trim(snapshot_prefix) > 0) then
@@ -294,7 +307,8 @@ contains
                               observable_history_unit=observable_history_unit, x_history_unit=x_history_unit, &
                               state_history_unit=state_history_unit, history_stride=history_stride, &
                               snapshot_prefix=snapshot_prefix, snapshot_interval=snapshot_interval, &
-                              snapshot_slots=snapshot_slots, snapshot_index_unit=snapshot_index_unit)
+                              snapshot_slots=snapshot_slots, snapshot_index_unit=snapshot_index_unit, &
+                              cycle_offset=cycle_offset)
       if (newton_trace_unit /= 0) close (newton_trace_unit)
       if (observable_history_unit /= 0) close (observable_history_unit)
       if (x_history_unit /= 0) close (x_history_unit)
@@ -336,6 +350,7 @@ contains
          "base_seed", base_seed, &
          "cycles_requested", summary%cycles_requested, &
          "cycles_completed", summary%cycles_completed, &
+         "cycle_offset", cycle_offset, &
          "accepted", summary%accepted, &
          "rejected", summary%rejected, &
          "metropolis_rejected", summary%metropolis_rejected, &
@@ -396,11 +411,17 @@ contains
                                                         summary%reverse_gate_error_sample_count), &
          "reverse_gate_state_error_max", summary%reverse_gate_state_error_max, &
          "reverse_gate_momentum_error_max", summary%reverse_gate_momentum_error_max, &
-         "trajectory_steps", summary%trajectory_steps, &
-         "bounced_steps", summary%bounced_steps, &
-         "solver_iterations", summary%solver_iterations_total, &
-         "reverse_trajectory_steps", summary%reverse_trajectory_steps, &
-         "reverse_solver_iterations", summary%reverse_solver_iterations_total, &
+        "trajectory_steps", summary%trajectory_steps, &
+        "bounced_steps", summary%bounced_steps, &
+        "buffer_exit_bounced_steps", summary%buffer_exit_bounced_steps, &
+        "buffer_exit_low_steps", summary%buffer_exit_low_steps, &
+        "buffer_exit_high_steps", summary%buffer_exit_high_steps, &
+        "solver_iterations", summary%solver_iterations_total, &
+        "reverse_trajectory_steps", summary%reverse_trajectory_steps, &
+        "reverse_buffer_exit_bounced_steps", summary%reverse_buffer_exit_bounced_steps, &
+        "reverse_buffer_exit_low_steps", summary%reverse_buffer_exit_low_steps, &
+        "reverse_buffer_exit_high_steps", summary%reverse_buffer_exit_high_steps, &
+        "reverse_solver_iterations", summary%reverse_solver_iterations_total, &
          "last_solver_stop_reason", summary%last_solver_stop_reason, &
          "last_reverse_solver_stop_reason", summary%last_reverse_solver_stop_reason, &
          "solver_stop_converged", summary%solver_stop_converged_count, &
@@ -444,7 +465,7 @@ contains
       if (has_summary_file) call write_summary_file(trim(summary_file), base_seed, flow_time, flow_time_out, summary, &
                                                     measurement_factor, observable_accumulator, sampler_t0, sampler_t1, &
                                                     d0, d1, trim(w_profile_name), w_gamma, w_c0, w_c1, &
-                                                    measurement_t0, measurement_t1, measurement_start_cycle, &
+                                                    measurement_t0, measurement_t1, measurement_start_cycle, cycle_offset, &
                                                     reverse_gate_state_tol, reverse_gate_momentum_tol, constraint_tol, &
                                                     constraint_max_iter, adaptive_newton_stop_enabled, &
                                                     large_residual_stop_enabled, large_residual_threshold, &
@@ -476,19 +497,23 @@ contains
    end subroutine fill_deterministic_x
 
    subroutine fill_initial_state(x_values, flow_time_value, init_mode, init_sigma, base_seed, init_bank_file, &
-                                 init_bank_record_request, init_bank_selected_record, init_bank_record_count, error)
+                                 init_bank_flow_time_policy, init_bank_record_request, init_bank_selected_record, &
+                                 init_bank_record_count, error)
       real(dp), intent(out) :: x_values(:)
       real(dp), intent(inout) :: flow_time_value
-      character(len=*), intent(in) :: init_mode, init_bank_file
+      character(len=*), intent(in) :: init_mode, init_bank_file, init_bank_flow_time_policy
       real(dp), intent(in) :: init_sigma
       integer, intent(in) :: base_seed, init_bank_record_request
       integer, intent(out) :: init_bank_selected_record, init_bank_record_count
       logical, intent(out) :: error
 
+      real(dp) :: configured_flow_time
+
       error = .true.
       init_bank_selected_record = -1
       init_bank_record_count = 0
       x_values = 0.0_dp
+      configured_flow_time = flow_time_value
       select case (trim(init_mode))
       case ("deterministic")
          call fill_deterministic_x(x_values)
@@ -505,12 +530,25 @@ contains
       case ("state_bank", "wv_state_bank")
          call fill_state_bank_initial_state(flow_time_value, x_values, trim(init_bank_file), init_bank_record_request, &
                                             base_seed, init_bank_selected_record, init_bank_record_count, error)
+         if (error) return
+         select case (trim(init_bank_flow_time_policy))
+         case ("load_record", "record", "from_record")
+         case ("keep_configured", "configured", "fixed", "env")
+            flow_time_value = configured_flow_time
+         case default
+            write (*, '(A,1X,A)') "ERROR invalid_wv_init_bank_flow_time_policy", trim(init_bank_flow_time_policy)
+            error = .true.
+            return
+         end select
+         if (any(.not. ieee_is_finite(x_values))) return
+         if (.not. ieee_is_finite(flow_time_value)) return
+         error = .false.
          return
       case default
          return
       end select
       if (any(.not. ieee_is_finite(x_values))) return
-      if ((.not. ieee_is_finite(flow_time_value)) .or. flow_time_value < 0.0_dp) return
+      if (.not. ieee_is_finite(flow_time_value)) return
       error = .false.
    end subroutine fill_initial_state
 
@@ -730,7 +768,7 @@ contains
       end if
       flow_time_value = packed_state(1)
       x_state = packed_state(2:)
-      if ((.not. ieee_is_finite(flow_time_value)) .or. flow_time_value < 0.0_dp) then
+      if (.not. ieee_is_finite(flow_time_value)) then
          write (*, '(A,I0)') "ERROR invalid_wv_init_state_bank_flow_time_record=", record_index
          return
       end if
@@ -781,7 +819,8 @@ contains
                                  local_measurement_factor, local_observable_accumulator, local_sampler_t0, local_sampler_t1, &
                                  local_sampler_d0, local_sampler_d1, local_w_profile_name, local_w_gamma, local_w_c0, &
                                  local_w_c1, local_measurement_t0, local_measurement_t1, local_measurement_start_cycle, &
-                                 local_reverse_gate_state_tol, local_reverse_gate_momentum_tol, local_constraint_tol, &
+                                 local_cycle_offset, local_reverse_gate_state_tol, local_reverse_gate_momentum_tol, &
+                                 local_constraint_tol, &
                                  local_constraint_max_iter, local_adaptive_newton_stop_enabled, &
                                  local_large_residual_stop_enabled, local_large_residual_threshold, &
                                  local_large_residual_min_iter, local_large_residual_patience, &
@@ -804,7 +843,7 @@ contains
       logical, intent(in) :: local_adaptive_newton_stop_enabled, local_large_residual_stop_enabled
       character(len=*), intent(in) :: local_newton_trace_file, local_init_mode, local_init_bank_file
       character(len=*), intent(in) :: local_snapshot_prefix, local_snapshot_index_file
-      integer, intent(in) :: local_measurement_start_cycle
+      integer, intent(in) :: local_measurement_start_cycle, local_cycle_offset
       integer, intent(in) :: local_init_bank_record_request, local_init_bank_selected_record, local_init_bank_record_count
       integer, intent(in) :: local_snapshot_interval, local_snapshot_slots
       type(wv_dense_chain_summary_t), intent(in) :: local_summary
@@ -817,14 +856,15 @@ contains
          write (*, '(A,1X,A)') "ERROR cannot_write_summary_file", trim(path)
          stop 6
       end if
-      write (unit_id, '(A)') "base_seed,cycles_requested,cycles_completed,accepted,rejected,transitions_failed,"// &
+      write (unit_id, '(A)') "base_seed,cycles_requested,cycles_completed,cycle_offset,accepted,rejected,transitions_failed,"// &
          "metropolis_rejected,reverse_gate_rejected,accept_probability_mean,delta_hamiltonian_mean,"// &
          "flow_time_in,flow_time_out,flow_time_min,flow_time_max,"// &
          "flow_time_mean,flow_time_observations,flow_time_hist_bins,flow_time_hist_low,flow_time_hist_high,"// &
          "flow_time_hist_inside,measurement_flow_time_hist_inside,accepted_jump_count,accepted_x_jump_sq_mean,"// &
          "accepted_z_jump_sq_mean,accepted_flow_time_jump_abs_mean,effective_x_jump_sq_mean,"// &
          "effective_z_jump_sq_mean,effective_flow_time_jump_abs_mean,max_x_jump_sq,max_z_jump_sq,"// &
-         "max_flow_time_jump_abs,trajectory_steps,bounced_steps,"// &
+         "max_flow_time_jump_abs,trajectory_steps,bounced_steps,buffer_exit_bounced_steps,"// &
+         "buffer_exit_low_steps,buffer_exit_high_steps,"// &
          "solver_iterations,max_constraint_residual,sampler_t0,sampler_t1,sampler_d0,sampler_d1,"// &
          "init_mode,init_bank_file,init_bank_record_request,init_bank_record,init_bank_record_count,w_profile,"// &
          "boundary_policy,"// &
@@ -836,7 +876,8 @@ contains
          "reverse_gate_checked,reverse_gate_passed,reverse_gate_failed,reverse_gate_error_samples,"// &
          "reverse_gate_state_error_mean,reverse_gate_momentum_error_mean,"// &
          "reverse_gate_state_error_max,reverse_gate_momentum_error_max,"// &
-         "reverse_trajectory_steps,reverse_solver_iterations,reverse_max_constraint_residual,"// &
+         "reverse_trajectory_steps,reverse_buffer_exit_bounced_steps,reverse_buffer_exit_low_steps,"// &
+         "reverse_buffer_exit_high_steps,reverse_solver_iterations,reverse_max_constraint_residual,"// &
          "last_solver_stop_reason,last_reverse_solver_stop_reason,"// &
          "solver_stop_converged,solver_stop_max_iter,solver_stop_divergence,solver_stop_stagnation,"// &
          "solver_stop_not_run,solver_stop_boundary_exit,solver_stop_large_residual,solver_stop_failure,"// &
@@ -850,6 +891,7 @@ contains
          "snapshots_written,snapshot_write_errors,"// &
          "alpha,alpha2,phase_re,phase_im,wv_factor_re,wv_factor_im"
       write (unit_id, '(*(g0,:,","))') local_base_seed, local_summary%cycles_requested, local_summary%cycles_completed, &
+         local_cycle_offset, &
          local_summary%accepted, local_summary%rejected, local_summary%transitions_failed, &
          local_summary%metropolis_rejected, local_summary%reverse_gate_rejected, &
          safe_ratio(local_summary%accept_probability_sum, local_summary%cycles_completed), &
@@ -869,6 +911,8 @@ contains
          safe_ratio(local_summary%effective_flow_time_jump_abs_sum, local_summary%cycles_completed), &
          local_summary%max_x_jump_sq, local_summary%max_z_jump_sq, local_summary%max_flow_time_jump_abs, &
          local_summary%trajectory_steps, local_summary%bounced_steps, &
+         local_summary%buffer_exit_bounced_steps, local_summary%buffer_exit_low_steps, &
+         local_summary%buffer_exit_high_steps, &
          local_summary%solver_iterations_total, local_summary%max_constraint_residual, &
          local_sampler_t0, local_sampler_t1, local_sampler_d0, local_sampler_d1, &
          trim(local_init_mode), trim(local_init_bank_file), local_init_bank_record_request, &
@@ -885,7 +929,9 @@ contains
          safe_ratio(local_summary%reverse_gate_state_error_sum, local_summary%reverse_gate_error_sample_count), &
          safe_ratio(local_summary%reverse_gate_momentum_error_sum, local_summary%reverse_gate_error_sample_count), &
          local_summary%reverse_gate_state_error_max, local_summary%reverse_gate_momentum_error_max, &
-         local_summary%reverse_trajectory_steps, local_summary%reverse_solver_iterations_total, &
+         local_summary%reverse_trajectory_steps, local_summary%reverse_buffer_exit_bounced_steps, &
+         local_summary%reverse_buffer_exit_low_steps, local_summary%reverse_buffer_exit_high_steps, &
+         local_summary%reverse_solver_iterations_total, &
          local_summary%reverse_max_constraint_residual, local_summary%last_solver_stop_reason, &
          local_summary%last_reverse_solver_stop_reason, local_summary%solver_stop_converged_count, &
          local_summary%solver_stop_max_iter_count, local_summary%solver_stop_divergence_count, &
@@ -973,7 +1019,7 @@ contains
       integer :: unit_id, ios
       real(dp) :: packed_state(size(x_state) + 1)
 
-      if ((.not. ieee_is_finite(flow_time_value)) .or. flow_time_value < 0.0_dp) then
+      if (.not. ieee_is_finite(flow_time_value)) then
          write (*, '(A,1X,A)') "ERROR invalid_wv_final_state_flow_time", trim(path)
          stop 8
       end if

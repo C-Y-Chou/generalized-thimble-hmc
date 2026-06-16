@@ -296,7 +296,7 @@ contains
       error = .true.
       flow_status = intode_status_unknown
       if (present(status)) status = flow_status
-      if ((.not. ieee_is_finite(flow_time)) .or. flow_time < 0.0_dp) return
+      if (.not. ieee_is_finite(flow_time)) return
       if (.not. valid_state_vector(x_base)) return
       if (.not. valid_vector(b)) return
       if (size(coords) /= size(b) .or. size(tangent) /= size(b) .or. size(normal) /= size(b)) return

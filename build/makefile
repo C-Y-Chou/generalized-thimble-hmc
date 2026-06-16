@@ -219,6 +219,10 @@ APP_COMPARE_SWAP_REFLOW = apps/compare_swap_reflow_backends
 APP_WV_HMC_COMMON = apps/wv_hmc_app_common
 APP_WV_HMC = apps/run_wv_hmc
 APP_WV_HMC_SMOKE = apps/run_wv_hmc_smoke
+APP_WV_HMC_TRANSITION_PROBE = apps/probe_wv_hmc_transition_states
+APP_WV_HMC_VOLUME_PROBE = apps/probe_wv_hmc_production_volume
+APP_WV_HMC_STATE_GEOMETRY_DUMP = apps/dump_wv_hmc_state_geometry
+APP_WV_HMC_STEP_TRACE = apps/probe_wv_hmc_step_trace
 
 COMMON_SRC   = $(CORE_SRC) $(CONFIG_SRC) $(PHYSICS_SRC) $(SAMPLER_SRC)
 
@@ -238,6 +242,10 @@ SOURCES_FLOW_BANK_DENSE := $(call mk_src,$(CORE_SRC) $(CONFIG_SRC) $(PHYSICS_SRC
 SOURCES_COMPARE_SWAP_REFLOW := $(call mk_src,$(CORE_SRC) $(CONFIG_SRC) $(PHYSICS_SRC) $(APP_COMPARE_SWAP_REFLOW))
 SOURCES_WV_HMC := $(SOURCES_COMMON) $(call mk_src,$(APP_WV_HMC_COMMON) $(APP_WV_HMC))
 SOURCES_WV_HMC_SMOKE := $(SOURCES_COMMON) $(call mk_src,$(APP_WV_HMC_COMMON) $(APP_WV_HMC_SMOKE))
+SOURCES_WV_HMC_TRANSITION_PROBE := $(SOURCES_COMMON) $(call mk_src,$(APP_WV_HMC_TRANSITION_PROBE))
+SOURCES_WV_HMC_VOLUME_PROBE := $(SOURCES_COMMON) $(call mk_src,$(APP_WV_HMC_VOLUME_PROBE))
+SOURCES_WV_HMC_STATE_GEOMETRY_DUMP := $(SOURCES_COMMON) $(call mk_src,$(APP_WV_HMC_STATE_GEOMETRY_DUMP))
+SOURCES_WV_HMC_STEP_TRACE := $(SOURCES_COMMON) $(call mk_src,$(APP_WV_HMC_STEP_TRACE))
 SOURCES_TEST1  := $(SOURCES_COMMON) $(TEST_DIR)/test_hamiltonian_conservation.f90
 SOURCES_TEST2  := $(SOURCES_COMMON) $(TEST_DIR)/test_action_derivatives.f90
 SOURCES_TEST_ODEX := $(SOURCES_COMMON) $(TEST_DIR)/test_odex_solver.f90
@@ -285,6 +293,10 @@ OBJECTS_FLOW_BANK_DENSE := $(call src_to_obj,$(SOURCES_FLOW_BANK_DENSE))
 OBJECTS_COMPARE_SWAP_REFLOW := $(call src_to_obj,$(SOURCES_COMPARE_SWAP_REFLOW))
 OBJECTS_WV_HMC := $(call src_to_obj,$(SOURCES_WV_HMC)) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_WV_HMC_SMOKE := $(call src_to_obj,$(SOURCES_WV_HMC_SMOKE)) $(OFFICIAL_DFOLS_C_OBJECT)
+OBJECTS_WV_HMC_TRANSITION_PROBE := $(call src_to_obj,$(SOURCES_WV_HMC_TRANSITION_PROBE)) $(OFFICIAL_DFOLS_C_OBJECT)
+OBJECTS_WV_HMC_VOLUME_PROBE := $(call src_to_obj,$(SOURCES_WV_HMC_VOLUME_PROBE)) $(OFFICIAL_DFOLS_C_OBJECT)
+OBJECTS_WV_HMC_STATE_GEOMETRY_DUMP := $(call src_to_obj,$(SOURCES_WV_HMC_STATE_GEOMETRY_DUMP)) $(OFFICIAL_DFOLS_C_OBJECT)
+OBJECTS_WV_HMC_STEP_TRACE := $(call src_to_obj,$(SOURCES_WV_HMC_STEP_TRACE)) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_TEST1 := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST1))) \
                  $(call test_to_obj,$(filter $(TEST_DIR)/%.f90,$(SOURCES_TEST1))) $(OFFICIAL_DFOLS_C_OBJECT)
 OBJECTS_TEST2 := $(call src_to_obj,$(filter $(SRC_DIR)/%.f90,$(SOURCES_TEST2))) \
@@ -346,6 +358,10 @@ OBJECTS_FLOW_BANK_DENSE += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_COMPARE_SWAP_REFLOW += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_WV_HMC += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_WV_HMC_SMOKE += $(SUNDIALS_CVODE_C_OBJECT)
+OBJECTS_WV_HMC_TRANSITION_PROBE += $(SUNDIALS_CVODE_C_OBJECT)
+OBJECTS_WV_HMC_VOLUME_PROBE += $(SUNDIALS_CVODE_C_OBJECT)
+OBJECTS_WV_HMC_STATE_GEOMETRY_DUMP += $(SUNDIALS_CVODE_C_OBJECT)
+OBJECTS_WV_HMC_STEP_TRACE += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST1 += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST2 += $(SUNDIALS_CVODE_C_OBJECT)
 OBJECTS_TEST_ODEX += $(SUNDIALS_CVODE_C_OBJECT)
@@ -382,6 +398,9 @@ OBJECTS_FLOW_BANK_DENSE += $(LINALG_MODE_STAMP)
 OBJECTS_COMPARE_SWAP_REFLOW += $(LINALG_MODE_STAMP)
 OBJECTS_WV_HMC += $(LINALG_MODE_STAMP)
 OBJECTS_WV_HMC_SMOKE += $(LINALG_MODE_STAMP)
+OBJECTS_WV_HMC_TRANSITION_PROBE += $(LINALG_MODE_STAMP)
+OBJECTS_WV_HMC_VOLUME_PROBE += $(LINALG_MODE_STAMP)
+OBJECTS_WV_HMC_STATE_GEOMETRY_DUMP += $(LINALG_MODE_STAMP)
 OBJECTS_TEST1 += $(LINALG_MODE_STAMP)
 OBJECTS_TEST2 += $(LINALG_MODE_STAMP)
 OBJECTS_TEST_ODEX += $(LINALG_MODE_STAMP)
@@ -412,6 +431,9 @@ SOURCES_DEP := $(sort $(SOURCES_STEP2) $(SOURCES_STEP3) $(SOURCES_STEP9) $(SOURC
                 $(SOURCES_FLOW_BANK_DENSE) \
                 $(SOURCES_COMPARE_SWAP_REFLOW) \
                 $(SOURCES_WV_HMC_SMOKE) \
+                $(SOURCES_WV_HMC_TRANSITION_PROBE) \
+                $(SOURCES_WV_HMC_VOLUME_PROBE) \
+                $(SOURCES_WV_HMC_STATE_GEOMETRY_DUMP) \
                 $(SOURCES_STEP10) $(SOURCES_TEST1) $(SOURCES_TEST2) $(SOURCES_TEST_ODEX) \
                 $(SOURCES_TEST_ODEX_FOUNDATION) $(SOURCES_TEST_ODEX_ASSIST_POLICY) \
                 $(SOURCES_TEST_ODEX_RESULT) $(SOURCES_TEST_ODEX_FLOW_JAC) \
@@ -440,7 +462,8 @@ endif
 BINARIES     = generate_markov_chain evaluate_expectations \
                run_tltm_stage1 run_tltm_stage2 \
                evaluate_btn_residual_case replay_flowz_cases build_flow_bank_dense compare_swap_reflow_backends \
-               run_wv_hmc run_wv_hmc_smoke \
+               run_wv_hmc run_wv_hmc_smoke probe_wv_hmc_transition_states probe_wv_hmc_production_volume \
+               dump_wv_hmc_state_geometry probe_wv_hmc_step_trace \
                test_program test_program2 test_odex_solver test_odex_foundation_contract \
                test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract \
                test_odex_backend_package_contract test_odex_controller_observation_contract \
@@ -462,7 +485,7 @@ EXECUTABLES  = $(addprefix $(BIN_DIR)/,$(BINARIES))
 .DEFAULT_GOAL := all
 override FFLAGS := $(FFLAGS_OPT) $(FFLAGS_INC)
 
-.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_odex_controller_observation_contract test_odex_controller_alignment_spec test_sundials_cvode_backend_contract test_official_dfols_preset_contract evaluate_btn_residual_case replay_flowz_cases build_flow_bank_dense compare_swap_reflow_backends run_wv_hmc run_wv_hmc_smoke test_tltm_swap_kernel_contract test_tltm_swap_kernel_contract_dense test_mt95_state_contract test_tltm_rng_contract test_perf_profile_context_contract test_numerical_helper_contracts test_wv_hmc_math_kernels test_wv_hmc_constraint_kernels test_hmc_reversibility_context_contract test_newton_eval_flow_status_context_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails f14_pre_redo_complete_gate official_line_kernel_correctness_gate post_b_rng_reference_anchor stage2_rng_v2_anchor script_evidence_audit_gate precision_readiness_audit FORCE \
+.PHONY: all fast help chain expect tltm_stage1 test_tltm_stage1 tltm_stage2 tltm_stage2_ref stage3_1 stage3_3 test_tltm_stage2 test1 test2 test_odex_solver test_odex_foundation_contract test_odex_assist_policy test_odex_result_contract test_odex_flow_jacobian_contract test_odex_backend_package_contract test_odex_controller_observation_contract test_odex_controller_alignment_spec test_sundials_cvode_backend_contract test_official_dfols_preset_contract evaluate_btn_residual_case replay_flowz_cases build_flow_bank_dense compare_swap_reflow_backends run_wv_hmc run_wv_hmc_smoke probe_wv_hmc_transition_states probe_wv_hmc_production_volume dump_wv_hmc_state_geometry probe_wv_hmc_step_trace test_tltm_swap_kernel_contract test_tltm_swap_kernel_contract_dense test_mt95_state_contract test_tltm_rng_contract test_perf_profile_context_contract test_numerical_helper_contracts test_wv_hmc_math_kernels test_wv_hmc_constraint_kernels test_hmc_reversibility_context_contract test_newton_eval_flow_status_context_contract test_retained_core_newton_contract test_retained_core_rattle_rg_contract test_retained_core_qn_route_contract test_retained_core_rg_reject_identity modernization_guardrails f14_pre_redo_complete_gate official_line_kernel_correctness_gate post_b_rng_reference_anchor stage2_rng_v2_anchor script_evidence_audit_gate precision_readiness_audit FORCE \
         test1_fb_on test1_fb_off test2_fb_on test2_fb_off test_fb_matrix \
         prepare_outputs clean_outputs clean veryclean
 all: $(EXECUTABLES)
@@ -537,6 +560,18 @@ $(BIN_DIR)/run_wv_hmc: $(OBJECTS_WV_HMC) $(OFFICIAL_DFOLS_MODE_STAMP) | $(BIN_DI
 	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
 
 $(BIN_DIR)/run_wv_hmc_smoke: $(OBJECTS_WV_HMC_SMOKE) $(OFFICIAL_DFOLS_MODE_STAMP) | $(BIN_DIR)
+	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
+
+$(BIN_DIR)/probe_wv_hmc_transition_states: $(OBJECTS_WV_HMC_TRANSITION_PROBE) $(OFFICIAL_DFOLS_MODE_STAMP) | $(BIN_DIR)
+	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
+
+$(BIN_DIR)/probe_wv_hmc_production_volume: $(OBJECTS_WV_HMC_VOLUME_PROBE) $(OFFICIAL_DFOLS_MODE_STAMP) | $(BIN_DIR)
+	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
+
+$(BIN_DIR)/dump_wv_hmc_state_geometry: $(OBJECTS_WV_HMC_STATE_GEOMETRY_DUMP) $(OFFICIAL_DFOLS_MODE_STAMP) | $(BIN_DIR)
+	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
+
+$(BIN_DIR)/probe_wv_hmc_step_trace: $(OBJECTS_WV_HMC_STEP_TRACE) $(OFFICIAL_DFOLS_MODE_STAMP) | $(BIN_DIR)
 	$(FC) $(LDFLAGS) -o $@ $(filter %.o,$^) $(LDLIBS)
 
 $(BIN_DIR)/test_program: $(OBJECTS_TEST1) $(OFFICIAL_DFOLS_MODE_STAMP) | $(BIN_DIR)
@@ -634,6 +669,8 @@ help:
 	@echo "Run targets:"
 	@echo "  make run_wv_hmc - run the dense WV-HMC executable"
 	@echo "  make run_wv_hmc_smoke - run a deterministic WV-HMC smoke"
+	@echo "  make probe_wv_hmc_transition_states - build WV-HMC transition-state diagnostic"
+	@echo "  make probe_wv_hmc_production_volume - build WV-HMC production-state volume diagnostic"
 	@echo "  make chain    - run the single-chain compatibility app"
 	@echo "  make expect   - run observable evaluation for single-chain outputs"
 	@echo "  make tltm_stage1 - run the Stage1 TLTM compatibility executable"
@@ -697,6 +734,18 @@ run_wv_hmc_smoke: $(BIN_DIR)/run_wv_hmc_smoke prepare_outputs
 	WV_HMC_SMOKE_SUMMARY_FILE="$(WV_HMC_SMOKE_SUMMARY_FILE)" \
 	WV_HMC_SMOKE_OBSERVABLE_FILE="$(WV_HMC_SMOKE_OBSERVABLE_FILE)" \
 	$(BIN_DIR)/run_wv_hmc_smoke 2>&1 | tee $(OUT_LOG_DIR)/run_wv_hmc_smoke.log
+
+probe_wv_hmc_transition_states: $(BIN_DIR)/probe_wv_hmc_transition_states
+	@echo "[DONE] Built $(BIN_DIR)/probe_wv_hmc_transition_states"
+
+probe_wv_hmc_production_volume: $(BIN_DIR)/probe_wv_hmc_production_volume
+	@echo "[DONE] Built $(BIN_DIR)/probe_wv_hmc_production_volume"
+
+dump_wv_hmc_state_geometry: $(BIN_DIR)/dump_wv_hmc_state_geometry
+	@echo "[DONE] Built $(BIN_DIR)/dump_wv_hmc_state_geometry"
+
+probe_wv_hmc_step_trace: $(BIN_DIR)/probe_wv_hmc_step_trace
+	@echo "[DONE] Built $(BIN_DIR)/probe_wv_hmc_step_trace"
 
 TLTM_STAGE1_NUM_REPLICAS ?= 2
 TLTM_STAGE1_CYCLES ?= 20

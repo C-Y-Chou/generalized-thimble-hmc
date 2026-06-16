@@ -32,6 +32,7 @@ DEFAULT_WV_D1 = 5.0e-3
 DEFAULT_WV_STEP_SIZE = 1.6e-2
 DEFAULT_WV_STEPS = 10
 DEFAULT_WV_GAMMA = 55.0
+DEFAULT_WV_BOUNDARY_POLICY = "normal_reflect"
 
 
 def parse_args() -> argparse.Namespace:
@@ -88,6 +89,12 @@ def parse_args() -> argparse.Namespace:
     wv.add_argument("--w-gamma", type=float, default=DEFAULT_WV_GAMMA, help="Flow-time potential strength.")
     wv.add_argument("--w-c0", type=float, default=1.0, help="Lower wall coefficient.")
     wv.add_argument("--w-c1", type=float, default=1.0, help="Upper wall coefficient.")
+    wv.add_argument(
+        "--boundary-policy",
+        default=DEFAULT_WV_BOUNDARY_POLICY,
+        choices=("normal_reflect", "normal_reflection", "paper_full_flip", "full_flip", "full_bounce"),
+        help="WV-HMC boundary policy. Default: normal_reflect. Use full_bounce/paper_full_flip for the optional bounce benchmark.",
+    )
     wv.add_argument(
         "--init-mode",
         default="deterministic",
@@ -249,6 +256,7 @@ def wv_env(repo_root: Path, args: argparse.Namespace, out_dir: Path) -> Dict[str
         "WV_HMC_W_GAMMA": str(args.w_gamma),
         "WV_HMC_W_C0": str(args.w_c0),
         "WV_HMC_W_C1": str(args.w_c1),
+        "WV_HMC_BOUNDARY_POLICY": args.boundary_policy,
         "WV_HMC_INIT_MODE": args.init_mode,
         "WV_HMC_INIT_SIGMA": str(args.init_sigma),
         "WV_HMC_INIT_BANK_RECORD": str(args.init_bank_record),
@@ -323,6 +331,7 @@ def command_wv_hmc(repo_root: Path, args: argparse.Namespace) -> int:
             "measurement_start_cycle": args.measurement_start_cycle,
             "w_profile": args.w_profile,
             "w_gamma": args.w_gamma,
+            "boundary_policy": args.boundary_policy,
             "init_mode": args.init_mode,
             "ode_backend": "dop853",
             "outputs": {

@@ -26,12 +26,15 @@ python3 scripts/run_tltm_product.py wv-hmc \
   --d1 0.005 \
   --w-profile paper_wall \
   --w-gamma 55 \
+  --boundary-policy normal_reflect \
   --history \
   --snapshot-interval 250 \
   --output-dir output/product/wv_hmc_example
 ```
 
 The wrapper writes a `product_run_manifest.json` into the output directory.
+Use `--boundary-policy full_bounce` only for the optional bounce-policy
+benchmark.
 
 ## TLTM Example
 

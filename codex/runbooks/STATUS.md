@@ -1,20 +1,17 @@
 # TLTM Codex Status
 
-Updated: 2026-05-01 10:22 JST
+Updated: 2026-06-16 JST
 
-## Control-plane objective
-- Keep multi-task queue and state management continuously synchronized in `codex`.
+The active modernization status has been consolidated.
 
-## Managed active tasks
-- `tltm_production_comparison`: provisional `nofb` vs `withfb` production comparison; legacy alias `stage3_4`.
-- `stage3_3_rg_redo`: 50-seed 200k RG redo queue/merge.
-- `ngport_rg_single_replica_t03_nstep_grid`: protocol-prepared, pending queue submission.
+Read:
 
-## Single live status source
-- `/home/cychou/TLTM/codex/runbooks/LIVE_BOARD.md`
-- Refresh command: `bash /home/cychou/TLTM/codex/tasks/refresh_live_board.sh`
+1. `codex/runbooks/MODERNIZATION_WORKFLOW.md`
+2. `codex/runbooks/MODERNIZATION_STATUS.md`
 
-## Operating rule
-1. After submit/cancel/requeue/merge, refresh live board immediately.
-2. Keep workspace `run_manifest.env` and `session_log.md` aligned with queue state.
-3. Use workspace-local `tasks/refresh_context.sh` for task-specific updates.
+This file remains only as the stable top-level pointer for older workflows that
+expect `codex/runbooks/STATUS.md`.
+
+Current status: WV-HMC dense explicit-J boundary routing is closed with
+`normal_reflect` as the main policy and `full_bounce` as the optional benchmark
+policy.

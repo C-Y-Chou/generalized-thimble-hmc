@@ -5,10 +5,10 @@ program test_wv_hmc_constraint_kernels
    use model_observables, only: model_observable_count
    use param_mod, only: read_parameters, set_derivative_mode, stephanov_emit_diagnostics, stephanov_include_mu_prefactor, &
                         stephanov_mass, stephanov_mu, stephanov_n, stephanov_nf, stephanov_tau
-   use solve_flow, only: flow_apply_worldvolume_operator_at, flow_at
+   use solve_flow, only: flow_apply_worldvolume_operator_at, flow_at, flow_at_dense_targets
    use utils, only: complex_to_real, dp
-   use wv_hmc_constraints, only: wv_apply_simplified_boundary_rule, wv_calculate_hamiltonian, &
-                                 wv_newton_stop_boundary_exit, wv_newton_stop_converged, wv_newton_stop_max_iter, &
+   use wv_hmc_constraints, only: wv_calculate_hamiltonian, &
+                                 wv_newton_stop_converged, wv_newton_stop_max_iter, &
                                  wv_first_constraint_residual_dense, wv_rattle_step_dense_no_boundary, &
                                  wv_rattle_step_dense_with_boundary, wv_set_boundary_policy, &
                                  wv_solve_first_constraint_dense
@@ -32,19 +32,18 @@ program test_wv_hmc_constraint_kernels
 
    failures = 0
    call configure_stephanov_test_model()
+   call check_negative_flow_endpoint_rhs(failures)
    call check_zero_residual(failures)
    call check_linearized_update_reduces_residual(failures)
    call check_dense_first_constraint_solver(failures)
    call check_dense_first_constraint_solver_stop_reasons(failures)
    call check_final_momentum_projection_after_solve(failures)
    call check_dense_rattle_step_reversibility_smoke(failures)
+   call check_dense_rattle_production_like_reversibility(failures)
    call check_dense_rattle_energy_scaling_smoke(failures)
    call check_dense_trajectory_energy_order_gate(failures)
    call check_dense_trajectory_reverse_energy_antisymmetry(failures)
    call check_dense_trajectory_phase_volume_contract(failures)
-   call check_simplified_boundary_rule_paper_full_flip(failures)
-   call check_simplified_boundary_rule_normal_reflect_policy(failures)
-   call check_simplified_boundary_rule(failures)
    call check_dense_rattle_boundary_wrapper(failures)
    call check_matrix_free_operator_zero_time(failures)
    call check_matrix_free_decompose_reconstructs_operator_image(failures)
@@ -68,6 +67,53 @@ program test_wv_hmc_constraint_kernels
    write (*, '(A)') "[PASS] WV-HMC constraint kernels"
 
 contains
+
+   subroutine check_negative_flow_endpoint_rhs(failures)
+      integer, intent(inout) :: failures
+      integer :: n_state, status_plus, status_minus
+      real(dp), allocatable :: x(:)
+      complex(dp), allocatable :: z_plus(:), z_minus(:), jac_plus(:, :), jac_minus(:, :)
+      complex(dp), allocatable :: z_dense(:, :), jac_dense(:, :, :)
+      complex(dp), allocatable :: z0(:), grad0(:), central_rhs(:)
+      real(dp) :: target_times(2)
+      real(dp) :: dt, rhs_error, symmetry_error, dense_endpoint_error, jac_finite_score
+      logical :: target_available(2)
+      logical :: error_plus, error_minus, dense_error, ok
+
+      n_state = 2*stephanov_n*stephanov_n
+      allocate (x(n_state), z_plus(n_state), z_minus(n_state), jac_plus(n_state, n_state), jac_minus(n_state, n_state), &
+                z_dense(n_state, 2), jac_dense(n_state, n_state, 2), z0(n_state), grad0(n_state), &
+                central_rhs(n_state))
+
+      call fill_base_x(x)
+      z0 = cmplx(x, 0.0_dp, dp)
+      dt = 1.0e-6_dp
+      call flow_at(dt, x, z_plus, jac_plus, error_plus, status_plus)
+      call flow_at(-dt, x, z_minus, jac_minus, error_minus, status_minus)
+      target_times = [-0.5_dp*dt, -dt]
+      call flow_at_dense_targets(target_times, x, z_dense, jac_dense, target_available, dense_error)
+      call ds(z0, grad0)
+      central_rhs = (z_plus - z_minus)/(2.0_dp*dt)
+      rhs_error = sqrt(sum(abs(central_rhs - conjg(grad0))**2))/max(1.0_dp, sqrt(sum(abs(grad0)**2)))
+      symmetry_error = sqrt(sum(abs(z_plus + z_minus - 2.0_dp*z0)**2))/max(1.0_dp, sqrt(sum(abs(z0)**2)))
+      dense_endpoint_error = sqrt(sum(abs(z_dense(:, 2) - z_minus)**2))/max(1.0_dp, sqrt(sum(abs(z_minus)**2))) + &
+                             sqrt(sum(abs(jac_dense(:, :, 2) - jac_minus)**2))/ &
+                             max(1.0_dp, sqrt(sum(abs(jac_minus)**2)))
+      jac_finite_score = merge(0.0_dp, 1.0_dp, all(ieee_is_finite(real(jac_plus, dp))) .and. &
+                               all(ieee_is_finite(aimag(jac_plus))) .and. &
+                               all(ieee_is_finite(real(jac_minus, dp))) .and. &
+                               all(ieee_is_finite(aimag(jac_minus))) .and. &
+                               all(ieee_is_finite(real(jac_dense, dp))) .and. &
+                               all(ieee_is_finite(aimag(jac_dense))))
+      ok = (.not. error_plus) .and. (.not. error_minus) .and. rhs_error <= 1.0e-7_dp .and. &
+           symmetry_error <= 1.0e-8_dp .and. (.not. dense_error) .and. all(target_available) .and. &
+           dense_endpoint_error <= 1.0e-10_dp .and. jac_finite_score == 0.0_dp
+
+      write (*, '(A,L1,A,ES12.4,A,ES12.4,A,ES12.4,A,I0,A,I0)') "[CHECK] wv_negative_flow_endpoint_rhs ok=", ok, &
+         " rhs_error=", rhs_error, " symmetry_error=", symmetry_error, " dense_endpoint_error=", dense_endpoint_error, &
+         " status_plus=", status_plus, " status_minus=", status_minus
+      if (.not. ok) failures = failures + 1
+   end subroutine check_negative_flow_endpoint_rhs
 
    subroutine check_zero_residual(failures)
       integer, intent(inout) :: failures
@@ -431,6 +477,110 @@ contains
          " dz=", z_back_norm, " dpi=", pi_back_norm, " it_f=", iterations_forward, " it_r=", iterations_reverse
       if (.not. ok) failures = failures + 1
    end subroutine check_dense_rattle_step_reversibility_smoke
+
+   subroutine check_dense_rattle_production_like_reversibility(failures)
+      integer, intent(inout) :: failures
+      integer :: n_state, status, iterations_forward, iterations_reverse, i
+      integer :: saved_n, saved_nf
+      real(dp) :: saved_mass, saved_mu, saved_tau
+      logical :: saved_mu_prefactor, saved_diagnostics
+      real(dp), allocatable :: x(:), x_forward(:), x_back(:), xi_real(:), raw_pi(:), pi(:), pi_rejected(:)
+      real(dp), allocatable :: pi_forward(:), pi_back(:)
+      complex(dp), allocatable :: z(:), jac(:, :), z_forward(:), jac_forward(:, :), z_back(:), jac_back(:, :)
+      complex(dp), allocatable :: grad(:), xi(:)
+      real(dp) :: step_size, t_initial, t_forward, t_back, residual_forward, residual_reverse
+      real(dp) :: c, alpha2, pi_norm, x_back_norm, z_back_norm, pi_plus_norm, pi_minus_norm, t_back_abs
+      logical :: error, ok
+
+      saved_n = stephanov_n
+      saved_nf = stephanov_nf
+      saved_mass = stephanov_mass
+      saved_mu = stephanov_mu
+      saved_tau = stephanov_tau
+      saved_mu_prefactor = stephanov_include_mu_prefactor
+      saved_diagnostics = stephanov_emit_diagnostics
+
+      stephanov_n = 6
+      stephanov_nf = 1
+      stephanov_mass = 0.2_dp
+      stephanov_mu = 0.6_dp
+      stephanov_tau = 0.0_dp
+      stephanov_include_mu_prefactor = .false.
+      stephanov_emit_diagnostics = .true.
+
+      n_state = 2*stephanov_n*stephanov_n
+      allocate (x(n_state), x_forward(n_state), x_back(n_state), xi_real(2*n_state), raw_pi(2*n_state), &
+                pi(2*n_state), pi_rejected(2*n_state), pi_forward(2*n_state), pi_back(2*n_state))
+      allocate (z(n_state), jac(n_state, n_state), z_forward(n_state), jac_forward(n_state, n_state), &
+                z_back(n_state), jac_back(n_state, n_state), grad(n_state), xi(n_state))
+
+      call fill_base_x(x)
+      t_initial = 1.5e-2_dp
+      call flow_at(t_initial, x, z, jac, error, status)
+      if (error) then
+         failures = failures + 1
+         write (*, '(A,I0)') "[CHECK] wv_dense_rattle_prodlike_rg flow_failed status=", status
+         call restore_stephanov(saved_n, saved_nf, saved_mass, saved_mu, saved_tau, saved_mu_prefactor, saved_diagnostics)
+         return
+      end if
+      call ds(z, grad)
+      call wv_xi_from_action_gradient(grad, xi, error)
+      if (error) then
+         failures = failures + 1
+         write (*, '(A)') "[CHECK] wv_dense_rattle_prodlike_rg xi_failed"
+         call restore_stephanov(saved_n, saved_nf, saved_mass, saved_mu, saved_tau, saved_mu_prefactor, saved_diagnostics)
+         return
+      end if
+      call complex_to_real(xi, xi_real)
+      do i = 1, size(raw_pi)
+         raw_pi(i) = cos(0.173_dp*real(i, dp)) + 0.5_dp*sin(0.097_dp*real(i*i, dp))
+      end do
+      call wv_project_dense_with_jacobian(raw_pi, xi_real, jac, pi, pi_rejected, c, alpha2, error)
+      pi_norm = norm2(pi)
+      if (error .or. pi_norm <= 0.0_dp) then
+         failures = failures + 1
+         write (*, '(A)') "[CHECK] wv_dense_rattle_prodlike_rg project_failed"
+         call restore_stephanov(saved_n, saved_nf, saved_mass, saved_mu, saved_tau, saved_mu_prefactor, saved_diagnostics)
+         return
+      end if
+
+      step_size = 1.0e-6_dp
+      call wv_rattle_step_dense_no_boundary(step_size, 0.0_dp, t_initial, x, z, jac, pi, t_forward, x_forward, &
+                                            z_forward, jac_forward, pi_forward, residual_forward, iterations_forward, &
+                                            error, status, constraint_tol=1.0e-12_dp, constraint_max_iter=64)
+      if (error) then
+         failures = failures + 1
+         write (*, '(A,I0,A,ES12.4)') "[CHECK] wv_dense_rattle_prodlike_rg forward_failed status=", status, &
+            " residual=", residual_forward
+         call restore_stephanov(saved_n, saved_nf, saved_mass, saved_mu, saved_tau, saved_mu_prefactor, saved_diagnostics)
+         return
+      end if
+      call wv_rattle_step_dense_no_boundary(step_size, 0.0_dp, t_forward, x_forward, z_forward, jac_forward, -pi_forward, &
+                                            t_back, x_back, z_back, jac_back, pi_back, residual_reverse, iterations_reverse, &
+                                            error, status, constraint_tol=1.0e-12_dp, constraint_max_iter=64)
+      if (error) then
+         failures = failures + 1
+         write (*, '(A,I0,A,ES12.4,A,ES12.4)') "[CHECK] wv_dense_rattle_prodlike_rg reverse_failed status=", status, &
+            " t_forward=", t_forward, " residual=", residual_reverse
+         call restore_stephanov(saved_n, saved_nf, saved_mass, saved_mu, saved_tau, saved_mu_prefactor, saved_diagnostics)
+         return
+      end if
+
+      t_back_abs = abs(t_back - t_initial)
+      x_back_norm = norm2(x_back - x)
+      z_back_norm = sqrt(sum(abs(z_back - z)**2))
+      pi_plus_norm = norm2(pi_back + pi)/max(1.0_dp, pi_norm)
+      pi_minus_norm = norm2(pi_back - pi)/max(1.0_dp, pi_norm)
+      ok = t_back_abs <= 1.0e-8_dp .and. x_back_norm <= 1.0e-8_dp .and. z_back_norm <= 1.0e-8_dp .and. &
+           pi_plus_norm <= 1.0e-4_dp .and. residual_forward <= 1.0e-10_dp .and. residual_reverse <= 1.0e-10_dp
+
+      write (*, '(A,L1,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4,A,I0,A,I0)') &
+         "[CHECK] wv_dense_rattle_prodlike_rg ok=", ok, " dt=", t_back_abs, " dx=", x_back_norm, &
+         " dz=", z_back_norm, " pi_plus=", pi_plus_norm, " pi_minus=", pi_minus_norm, &
+         " it_f=", iterations_forward, " it_r=", iterations_reverse
+      if (.not. ok) failures = failures + 1
+      call restore_stephanov(saved_n, saved_nf, saved_mass, saved_mu, saved_tau, saved_mu_prefactor, saved_diagnostics)
+   end subroutine check_dense_rattle_production_like_reversibility
 
    subroutine check_dense_rattle_energy_scaling_smoke(failures)
       integer, intent(inout) :: failures
@@ -917,279 +1067,26 @@ contains
       call solve_real_square(gram, rhs, velocity, error)
    end subroutine tangent_velocity_coordinates
 
-   subroutine check_simplified_boundary_rule_paper_full_flip(failures)
-      integer, intent(inout) :: failures
-      integer :: n_state, i, status
-      real(dp), allocatable :: x_current(:), x_trial(:), x_out(:)
-      real(dp), allocatable :: raw_pi(:), pi_current(:), pi_rejected(:), pi_trial(:), pi_out(:), pi_reflected(:), xi_real(:)
-      complex(dp), allocatable :: z_current(:), z_trial(:), z_out(:), jac_current(:, :), jac_trial(:, :), jac_out(:, :)
-      complex(dp), allocatable :: grad(:), xi(:)
-      real(dp) :: t0, t1, d0, d1, t_current, t_trial_high, t_out, c, alpha2
-      real(dp) :: full_flip_error, normal_reflect_error
-      logical :: bounced, error, ok
-
-      n_state = 2*stephanov_n*stephanov_n
-      allocate (x_current(n_state), x_trial(n_state), x_out(n_state), raw_pi(2*n_state), pi_current(2*n_state), &
-                pi_rejected(2*n_state), pi_trial(2*n_state), pi_out(2*n_state), pi_reflected(2*n_state), &
-                xi_real(2*n_state), z_current(n_state), z_trial(n_state), z_out(n_state), &
-                jac_current(n_state, n_state), jac_trial(n_state, n_state), jac_out(n_state, n_state), &
-                grad(n_state), xi(n_state))
-
-      t0 = 0.0_dp
-      t1 = 2.0e-4_dp
-      d0 = 5.0e-5_dp
-      d1 = 5.0e-5_dp
-      t_current = 1.0e-4_dp
-      t_trial_high = 2.5001e-4_dp
-
-      call fill_base_x(x_current)
-      call flow_at(t_current, x_current, z_current, jac_current, error, status)
-      if (error) then
-         failures = failures + 1
-         write (*, '(A,I0)') "[CHECK] wv_boundary_paper_full_flip flow_failed status=", status
-         return
-      end if
-      call ds(z_current, grad)
-      call wv_xi_from_action_gradient(grad, xi, error)
-      if (error) then
-         failures = failures + 1
-         write (*, '(A)') "[CHECK] wv_boundary_paper_full_flip xi_failed"
-         return
-      end if
-      call complex_to_real(xi, xi_real)
-      do i = 1, n_state
-         x_trial(i) = -0.2_dp + 0.02_dp*real(i, dp)
-      end do
-      call flow_at(t_current, x_trial, z_trial, jac_trial, error, status)
-      if (error) then
-         failures = failures + 1
-         write (*, '(A,I0)') "[CHECK] wv_boundary_paper_full_flip trial_flow_failed status=", status
-         return
-      end if
-      do i = 1, size(raw_pi)
-         raw_pi(i) = (-1.0_dp)**i*(0.04_dp + 0.002_dp*real(i, dp))
-      end do
-      call wv_project_dense_with_jacobian(raw_pi, xi_real, jac_current, pi_current, pi_rejected, c, alpha2, error)
-      if (error .or. norm2(pi_current) <= 0.0_dp) then
-         failures = failures + 1
-         write (*, '(A)') "[CHECK] wv_boundary_paper_full_flip project_failed"
-         return
-      end if
-      pi_trial = -0.07_dp
-      call wv_reflect_flow_component_dense_with_jacobian(pi_current, xi_real, jac_current, pi_reflected, c, alpha2, error)
-      if (error) then
-         failures = failures + 1
-         write (*, '(A)') "[CHECK] wv_boundary_paper_full_flip normal_reflect_failed"
-         return
-      end if
-
-      call wv_apply_simplified_boundary_rule(t0, t1, d0, d1, t_current, x_current, z_current, jac_current, &
-                                             pi_current, t_trial_high, x_trial, z_trial, jac_trial, pi_trial, &
-                                             t_out, x_out, z_out, jac_out, pi_out, bounced, error)
-      full_flip_error = norm2(pi_out + pi_current)
-      normal_reflect_error = norm2(pi_out - pi_reflected)
-      ok = (.not. error) .and. bounced .and. abs(t_out - t_current) <= 1.0e-14_dp .and. &
-           norm2(x_out - x_current) <= 1.0e-14_dp .and. sqrt(sum(abs(z_out - z_current)**2)) <= 1.0e-14_dp .and. &
-           sqrt(sum(abs(jac_out - jac_current)**2)) <= 1.0e-14_dp .and. &
-           full_flip_error <= 1.0e-12_dp
-
-      write (*, '(A,L1,A,ES12.4,A,ES12.4,A,L1)') &
-         "[CHECK] wv_boundary_paper_full_flip ok=", ok, &
-         " full_flip_error=", full_flip_error, " normal_reflect_error=", normal_reflect_error, &
-         " bounced=", bounced
-      if (.not. ok) failures = failures + 1
-   end subroutine check_simplified_boundary_rule_paper_full_flip
-
-   subroutine check_simplified_boundary_rule_normal_reflect_policy(failures)
-      integer, intent(inout) :: failures
-      integer :: n_state, i, status
-      real(dp), allocatable :: x_current(:), x_trial(:), x_out(:)
-      real(dp), allocatable :: raw_pi(:), pi_current(:), pi_rejected(:), pi_trial(:), pi_out(:), pi_reflected(:), xi_real(:)
-      complex(dp), allocatable :: z_current(:), z_trial(:), z_out(:), jac_current(:, :), jac_trial(:, :), jac_out(:, :)
-      complex(dp), allocatable :: grad(:), xi(:)
-      real(dp) :: t0, t1, d0, d1, t_current, t_trial_high, t_out, c, alpha2
-      real(dp) :: full_flip_error, normal_reflect_error
-      logical :: bounced, error, policy_error, ok
-
-      n_state = 2*stephanov_n*stephanov_n
-      allocate (x_current(n_state), x_trial(n_state), x_out(n_state), raw_pi(2*n_state), pi_current(2*n_state), &
-                pi_rejected(2*n_state), pi_trial(2*n_state), pi_out(2*n_state), pi_reflected(2*n_state), &
-                xi_real(2*n_state), z_current(n_state), z_trial(n_state), z_out(n_state), &
-                jac_current(n_state, n_state), jac_trial(n_state, n_state), jac_out(n_state, n_state), &
-                grad(n_state), xi(n_state))
-
-      t0 = 0.0_dp
-      t1 = 2.0e-4_dp
-      d0 = 5.0e-5_dp
-      d1 = 5.0e-5_dp
-      t_current = 1.0e-4_dp
-      t_trial_high = 2.5001e-4_dp
-
-      call fill_base_x(x_current)
-      call flow_at(t_current, x_current, z_current, jac_current, error, status)
-      if (error) then
-         failures = failures + 1
-         write (*, '(A,I0)') "[CHECK] wv_boundary_normal_reflect_policy flow_failed status=", status
-         return
-      end if
-      call ds(z_current, grad)
-      call wv_xi_from_action_gradient(grad, xi, error)
-      if (error) then
-         failures = failures + 1
-         write (*, '(A)') "[CHECK] wv_boundary_normal_reflect_policy xi_failed"
-         return
-      end if
-      call complex_to_real(xi, xi_real)
-      do i = 1, n_state
-         x_trial(i) = -0.2_dp + 0.02_dp*real(i, dp)
-      end do
-      call flow_at(t_current, x_trial, z_trial, jac_trial, error, status)
-      if (error) then
-         failures = failures + 1
-         write (*, '(A,I0)') "[CHECK] wv_boundary_normal_reflect_policy trial_flow_failed status=", status
-         return
-      end if
-      do i = 1, size(raw_pi)
-         raw_pi(i) = (-1.0_dp)**i*(0.04_dp + 0.002_dp*real(i, dp))
-      end do
-      call wv_project_dense_with_jacobian(raw_pi, xi_real, jac_current, pi_current, pi_rejected, c, alpha2, error)
-      if (error .or. norm2(pi_current) <= 0.0_dp) then
-         failures = failures + 1
-         write (*, '(A)') "[CHECK] wv_boundary_normal_reflect_policy project_failed"
-         return
-      end if
-      pi_trial = -0.07_dp
-      call wv_reflect_flow_component_dense_with_jacobian(pi_current, xi_real, jac_current, pi_reflected, c, alpha2, error)
-      if (error) then
-         failures = failures + 1
-         write (*, '(A)') "[CHECK] wv_boundary_normal_reflect_policy normal_reflect_failed"
-         return
-      end if
-
-      call wv_set_boundary_policy("normal_reflect", policy_error)
-      if (policy_error) then
-         failures = failures + 1
-         write (*, '(A)') "[CHECK] wv_boundary_normal_reflect_policy set_policy_failed"
-         call wv_set_boundary_policy("paper_full_flip", policy_error)
-         return
-      end if
-      call wv_apply_simplified_boundary_rule(t0, t1, d0, d1, t_current, x_current, z_current, jac_current, &
-                                             pi_current, t_trial_high, x_trial, z_trial, jac_trial, pi_trial, &
-                                             t_out, x_out, z_out, jac_out, pi_out, bounced, error)
-      call wv_set_boundary_policy("paper_full_flip", policy_error)
-      full_flip_error = norm2(pi_out + pi_current)
-      normal_reflect_error = norm2(pi_out - pi_reflected)
-      ok = (.not. error) .and. (.not. policy_error) .and. bounced .and. &
-           normal_reflect_error <= 1.0e-12_dp .and. full_flip_error > 1.0e-10_dp
-
-      write (*, '(A,L1,A,ES12.4,A,ES12.4,A,L1)') &
-         "[CHECK] wv_boundary_normal_reflect_policy ok=", ok, &
-         " full_flip_error=", full_flip_error, " normal_reflect_error=", normal_reflect_error, &
-         " bounced=", bounced
-      if (.not. ok) failures = failures + 1
-   end subroutine check_simplified_boundary_rule_normal_reflect_policy
-
-   subroutine check_simplified_boundary_rule(failures)
-      integer, intent(inout) :: failures
-      integer :: n_state, i, status
-      real(dp), allocatable :: x_current(:), x_trial(:), x_out(:)
-      real(dp), allocatable :: pi_current(:), pi_trial(:), pi_out(:), xi_real(:)
-      complex(dp), allocatable :: z_current(:), z_trial(:), z_out(:), jac_current(:, :), jac_trial(:, :), jac_out(:, :)
-      complex(dp), allocatable :: grad(:), xi(:)
-      real(dp) :: t0, t1, d0, d1, t_current, t_trial_inside, t_trial_low, t_trial_high
-      real(dp) :: t_out
-      logical :: bounced, error, ok
-
-      n_state = 2*stephanov_n*stephanov_n
-      allocate (x_current(n_state), x_trial(n_state), x_out(n_state), pi_current(2*n_state), pi_trial(2*n_state), &
-                pi_out(2*n_state), xi_real(2*n_state))
-      allocate (z_current(n_state), z_trial(n_state), z_out(n_state), jac_current(n_state, n_state), &
-                jac_trial(n_state, n_state), jac_out(n_state, n_state), grad(n_state), xi(n_state))
-
-      t0 = 0.0_dp
-      t1 = 2.0e-4_dp
-      d0 = 5.0e-5_dp
-      d1 = 5.0e-5_dp
-      t_current = 1.0e-4_dp
-      t_trial_inside = 2.4e-4_dp
-      t_trial_low = -5.0001e-5_dp
-      t_trial_high = 2.5001e-4_dp
-
-      call fill_base_x(x_current)
-      call flow_at(t_current, x_current, z_current, jac_current, error, status)
-      if (error) then
-         failures = failures + 1
-         write (*, '(A,I0)') "[CHECK] wv_simplified_boundary_rule flow_failed status=", status
-         return
-      end if
-      call ds(z_current, grad)
-      call wv_xi_from_action_gradient(grad, xi, error)
-      if (error) then
-         failures = failures + 1
-         write (*, '(A)') "[CHECK] wv_simplified_boundary_rule xi_failed"
-         return
-      end if
-      call complex_to_real(xi, xi_real)
-      do i = 1, n_state
-         x_trial(i) = -0.2_dp + 0.02_dp*real(i, dp)
-      end do
-      call flow_at(t_trial_inside, x_trial, z_trial, jac_trial, error, status)
-      if (error) then
-         failures = failures + 1
-         write (*, '(A,I0)') "[CHECK] wv_simplified_boundary_rule trial_flow_failed status=", status
-         return
-      end if
-      pi_current = 0.0_dp
-      pi_current(1::2) = 0.03_dp
-      pi_current = pi_current + 0.2_dp*xi_real/max(norm2(xi_real), tiny(1.0_dp))
-      pi_trial = -0.07_dp
-
-      call wv_apply_simplified_boundary_rule(t0, t1, d0, d1, t_current, &
-                                             x_current, z_current, jac_current, pi_current, t_trial_inside, &
-                                             x_trial, z_trial, jac_trial, pi_trial, t_out, x_out, z_out, &
-                                             jac_out, pi_out, bounced, error)
-      ok = (.not. error) .and. (.not. bounced) .and. abs(t_out - t_trial_inside) <= 1.0e-14_dp .and. &
-           norm2(x_out - x_trial) <= 1.0e-14_dp .and. sqrt(sum(abs(z_out - z_trial)**2)) <= 1.0e-14_dp .and. &
-           sqrt(sum(abs(jac_out - jac_trial)**2)) <= 1.0e-14_dp .and. norm2(pi_out - pi_trial) <= 1.0e-14_dp
-
-      call wv_apply_simplified_boundary_rule(t0, t1, d0, d1, t_current, &
-                                             x_current, z_current, jac_current, pi_current, t_trial_low, &
-                                             x_trial, z_trial, jac_trial, pi_trial, t_out, x_out, z_out, &
-                                             jac_out, pi_out, bounced, error)
-      ok = ok .and. (.not. error) .and. bounced .and. abs(t_out - t_current) <= 1.0e-14_dp .and. &
-           norm2(x_out - x_current) <= 1.0e-14_dp .and. sqrt(sum(abs(z_out - z_current)**2)) <= 1.0e-14_dp .and. &
-           sqrt(sum(abs(jac_out - jac_current)**2)) <= 1.0e-14_dp .and. &
-           norm2(pi_out + pi_current) <= 1.0e-12_dp
-
-      call wv_apply_simplified_boundary_rule(t0, t1, d0, d1, t_current, &
-                                             x_current, z_current, jac_current, pi_current, t_trial_high, &
-                                             x_trial, z_trial, jac_trial, pi_trial, t_out, x_out, z_out, &
-                                             jac_out, pi_out, bounced, error)
-      ok = ok .and. (.not. error) .and. bounced .and. norm2(pi_out + pi_current) <= 1.0e-12_dp
-
-      call wv_apply_simplified_boundary_rule(t0, t1, -d0, d1, t_current, &
-                                             x_current, z_current, jac_current, pi_current, t_trial_inside, &
-                                             x_trial, z_trial, jac_trial, pi_trial, t_out, x_out, z_out, &
-                                             jac_out, pi_out, bounced, error)
-      ok = ok .and. error
-
-      write (*, '(A,L1,A,ES12.4,A,L1)') "[CHECK] wv_simplified_boundary_rule ok=", ok, &
-         " t_out=", t_out, " bounced=", bounced
-      if (.not. ok) failures = failures + 1
-   end subroutine check_simplified_boundary_rule
-
    subroutine check_dense_rattle_boundary_wrapper(failures)
       integer, intent(inout) :: failures
       integer :: n_state, status, iterations_trial, iterations_wrap, stop_reason
-      real(dp), allocatable :: x(:), x_trial(:), x_wrap(:), xi_real(:), pi(:), pi_trial(:), pi_wrap(:)
+      real(dp), allocatable :: x(:), x_trial(:), x_wrap(:), xi_real(:), pi(:), pi_trial(:), pi_wrap(:), pi_reflected(:)
+      real(dp), allocatable :: del_z(:), delta_u(:), delta_lambda(:)
       complex(dp), allocatable :: z(:), jac(:, :), z_trial(:), jac_trial(:, :), z_wrap(:), jac_wrap(:, :)
       complex(dp), allocatable :: grad(:), xi(:)
       real(dp) :: step_size, t_initial, t_trial, t_wrap, residual_trial, residual_wrap, xi_norm
-      logical :: error, bounced, ok
+      real(dp) :: delta_h_plus, delta_h_minus, c_b, alpha2
+      logical :: error, bounced, ok, no_boundary_equivalence_ok, success_kept_inside_buffer
+      logical :: success_bounced_outside_buffer, buffer_exit, buffer_exit_low, buffer_exit_high
+      logical :: construction_failure_bounced, normal_reflect_failure_bounced, stay_failure_rejected
+      logical :: paper_bounce_reject_failure_rejected, paper_bounce_reject_buffer_bounced
+      logical :: policy_error, reset_error, full_bounce_alias_ok
+      logical :: large_step_failure_bounced, lower_endpoint_positive_moves, lower_endpoint_negative_bounced
 
       n_state = 2*stephanov_n*stephanov_n
       allocate (x(n_state), x_trial(n_state), x_wrap(n_state), xi_real(2*n_state), pi(2*n_state), &
-                pi_trial(2*n_state), pi_wrap(2*n_state))
+                 pi_trial(2*n_state), pi_wrap(2*n_state), pi_reflected(2*n_state))
+      allocate (del_z(2*n_state), delta_u(2*n_state), delta_lambda(2*n_state))
       allocate (z(n_state), jac(n_state, n_state), z_trial(n_state), jac_trial(n_state, n_state), &
                 z_wrap(n_state), jac_wrap(n_state, n_state), grad(n_state), xi(n_state))
 
@@ -1216,6 +1113,14 @@ contains
          return
       end if
 
+      call wv_set_boundary_policy("full_bounce", policy_error)
+      full_bounce_alias_ok = .not. policy_error
+      if (.not. full_bounce_alias_ok) then
+         failures = failures + 1
+         write (*, '(A)') "[CHECK] wv_dense_rattle_boundary_wrapper full_bounce_alias_rejected"
+         return
+      end if
+
       step_size = 5.0e-5_dp
       pi = xi_real/xi_norm
       call wv_rattle_step_dense_no_boundary(step_size, 0.0_dp, t_initial, x, z, jac, pi, t_trial, x_trial, &
@@ -1231,17 +1136,124 @@ contains
       call wv_rattle_step_dense_with_boundary(step_size, 0.0_dp, 0.0_dp, 0.1_dp, 0.0_dp, 0.0_dp, t_initial, &
                                              x, z, jac, pi, t_wrap, x_wrap, z_wrap, jac_wrap, pi_wrap, residual_wrap, &
                                              iterations_wrap, bounced, error, status)
-      ok = (.not. error) .and. (.not. bounced) .and. abs(t_wrap - t_trial) <= 1.0e-12_dp .and. &
+      no_boundary_equivalence_ok = (.not. error) .and. (.not. bounced) .and. abs(t_wrap - t_trial) <= 1.0e-12_dp .and. &
            norm2(x_wrap - x_trial) <= 1.0e-12_dp .and. sqrt(sum(abs(z_wrap - z_trial)**2)) <= 1.0e-12_dp .and. &
            norm2(pi_wrap - pi_trial) <= 1.0e-12_dp .and. residual_wrap <= 1.0e-8_dp .and. &
            iterations_wrap == iterations_trial
 
-      call wv_rattle_step_dense_with_boundary(step_size, 0.0_dp, 0.0_dp, 0.5_dp*t_trial, 0.0_dp, 0.0_dp, t_initial, &
+      call wv_rattle_step_dense_with_boundary(step_size, 0.0_dp, 0.0_dp, &
+                                             0.5_dp*(t_initial + t_trial), 0.0_dp, abs(t_trial - t_initial), &
+                                             t_initial, &
                                              x, z, jac, pi, t_wrap, x_wrap, z_wrap, jac_wrap, pi_wrap, residual_wrap, &
-                                             iterations_wrap, bounced, error, status)
-      if (.not. ((.not. error) .and. bounced .and. abs(t_wrap - t_initial) <= 1.0e-14_dp)) then
-         write (*, '(A,I0,A,L1)') "[CHECK] wv_dense_rattle_boundary_wrapper diagnostic_upper_bounce status=", &
-            status, " bounced=", bounced
+                                             iterations_wrap, bounced, error, status, buffer_exit=buffer_exit, &
+                                             buffer_exit_low=buffer_exit_low, buffer_exit_high=buffer_exit_high)
+      success_kept_inside_buffer = (.not. error) .and. (.not. bounced) .and. (.not. buffer_exit) .and. &
+           (.not. buffer_exit_low) .and. (.not. buffer_exit_high) .and. abs(t_wrap - t_trial) <= 1.0e-12_dp .and. &
+           norm2(x_wrap - x_trial) <= 1.0e-12_dp .and. sqrt(sum(abs(z_wrap - z_trial)**2)) <= 1.0e-12_dp .and. &
+           norm2(pi_wrap - pi_trial) <= 1.0e-12_dp .and. residual_wrap <= 1.0e-8_dp
+      if (.not. success_kept_inside_buffer) then
+         write (*, '(A,I0,A,L1,A,ES12.4,A,ES12.4)') &
+            "[CHECK] wv_dense_rattle_boundary_wrapper success_not_kept_inside_buffer status=", &
+            status, " bounced=", bounced, " t_wrap=", t_wrap, " t_trial=", t_trial
+      end if
+
+      call wv_rattle_step_dense_with_boundary(step_size, 0.0_dp, 0.0_dp, &
+                                             0.5_dp*(t_initial + t_trial), 0.0_dp, 0.0_dp, t_initial, &
+                                             x, z, jac, pi, t_wrap, x_wrap, z_wrap, jac_wrap, pi_wrap, residual_wrap, &
+                                             iterations_wrap, bounced, error, status, buffer_exit=buffer_exit, &
+                                             buffer_exit_low=buffer_exit_low, buffer_exit_high=buffer_exit_high)
+      success_bounced_outside_buffer = (.not. error) .and. bounced .and. buffer_exit .and. &
+           (.not. buffer_exit_low) .and. buffer_exit_high .and. abs(t_wrap - t_initial) <= 1.0e-14_dp .and. &
+           norm2(x_wrap - x) <= 1.0e-14_dp .and. sqrt(sum(abs(z_wrap - z)**2)) <= 1.0e-14_dp .and. &
+           norm2(pi_wrap + pi) <= 1.0e-12_dp .and. residual_wrap <= 1.0e-8_dp
+      if (.not. success_bounced_outside_buffer) then
+         write (*, '(A,I0,A,L1,A,L1,A,L1,A,ES12.4,A,ES12.4)') &
+            "[CHECK] wv_dense_rattle_boundary_wrapper success_not_bounced_outside_buffer status=", &
+            status, " bounced=", bounced, " buffer_low=", buffer_exit_low, " buffer_high=", buffer_exit_high, &
+            " t_wrap=", t_wrap, " t_trial=", t_trial
+      end if
+
+      call wv_rattle_step_dense_with_boundary(step_size, 0.0_dp, 0.0_dp, 0.1_dp, 0.0_dp, 0.0_dp, t_initial, &
+                                             x, z, jac, pi, t_wrap, x_wrap, z_wrap, jac_wrap, pi_wrap, residual_wrap, &
+                                             iterations_wrap, bounced, error, status, solver_stop_reason=stop_reason, &
+                                             constraint_max_iter=0)
+      construction_failure_bounced = (.not. error) .and. bounced .and. stop_reason == wv_newton_stop_max_iter .and. &
+           abs(t_wrap - t_initial) <= 1.0e-14_dp .and. norm2(x_wrap - x) <= 1.0e-14_dp .and. &
+           sqrt(sum(abs(z_wrap - z)**2)) <= 1.0e-14_dp .and. norm2(pi_wrap + pi) <= 1.0e-12_dp
+      if (.not. construction_failure_bounced) then
+         write (*, '(A,I0,A,L1,A,I0)') &
+            "[CHECK] wv_dense_rattle_boundary_wrapper construction_failure_not_bounced status=", status, &
+            " bounced=", bounced, " stop_reason=", stop_reason
+      end if
+      call wv_reflect_flow_component_dense_with_jacobian(pi, xi_real, jac, pi_reflected, c_b, alpha2, error)
+      if (error) then
+         failures = failures + 1
+         write (*, '(A)') "[CHECK] wv_dense_rattle_boundary_wrapper normal_reflect_prepare_failed"
+         return
+      end if
+      call wv_set_boundary_policy("normal_reflect", policy_error)
+      call wv_rattle_step_dense_with_boundary(step_size, 0.0_dp, 0.0_dp, 0.1_dp, 0.0_dp, 0.0_dp, t_initial, &
+                                             x, z, jac, pi, t_wrap, x_wrap, z_wrap, jac_wrap, pi_wrap, residual_wrap, &
+                                             iterations_wrap, bounced, error, status, solver_stop_reason=stop_reason, &
+                                             constraint_max_iter=0)
+      call wv_set_boundary_policy("full_bounce", reset_error)
+      normal_reflect_failure_bounced = (.not. policy_error) .and. (.not. reset_error) .and. (.not. error) .and. &
+           bounced .and. stop_reason == wv_newton_stop_max_iter .and. &
+           abs(t_wrap - t_initial) <= 1.0e-14_dp .and. norm2(x_wrap - x) <= 1.0e-14_dp .and. &
+           sqrt(sum(abs(z_wrap - z)**2)) <= 1.0e-14_dp .and. norm2(pi_wrap - pi_reflected) <= 1.0e-12_dp
+      if (.not. normal_reflect_failure_bounced) then
+         write (*, '(A,I0,A,L1,A,I0)') &
+            "[CHECK] wv_dense_rattle_boundary_wrapper normal_reflect_failure_not_bounced status=", status, &
+            " bounced=", bounced, " stop_reason=", stop_reason
+      end if
+      call wv_set_boundary_policy("stay", policy_error)
+      call wv_rattle_step_dense_with_boundary(step_size, 0.0_dp, 0.0_dp, 0.1_dp, 0.0_dp, 0.0_dp, t_initial, &
+                                             x, z, jac, pi, t_wrap, x_wrap, z_wrap, jac_wrap, pi_wrap, residual_wrap, &
+                                             iterations_wrap, bounced, error, status, solver_stop_reason=stop_reason, &
+                                             constraint_max_iter=0)
+      call wv_set_boundary_policy("full_bounce", reset_error)
+      stay_failure_rejected = (.not. policy_error) .and. (.not. reset_error) .and. error .and. &
+           bounced .and. stop_reason == wv_newton_stop_max_iter .and. &
+           abs(t_wrap - t_initial) <= 1.0e-14_dp .and. norm2(x_wrap - x) <= 1.0e-14_dp .and. &
+           sqrt(sum(abs(z_wrap - z)**2)) <= 1.0e-14_dp .and. norm2(pi_wrap - pi) <= 1.0e-12_dp
+      if (.not. stay_failure_rejected) then
+         write (*, '(A,I0,A,L1,A,I0)') &
+            "[CHECK] wv_dense_rattle_boundary_wrapper stay_failure_not_rejected status=", status, &
+            " bounced=", bounced, " stop_reason=", stop_reason
+      end if
+      call wv_set_boundary_policy("paper_bounce_reject", policy_error)
+      call wv_rattle_step_dense_with_boundary(step_size, 0.0_dp, 0.0_dp, 0.1_dp, 0.0_dp, 0.0_dp, t_initial, &
+                                             x, z, jac, pi, t_wrap, x_wrap, z_wrap, jac_wrap, pi_wrap, residual_wrap, &
+                                             iterations_wrap, bounced, error, status, solver_stop_reason=stop_reason, &
+                                             constraint_max_iter=0)
+      call wv_set_boundary_policy("full_bounce", reset_error)
+      paper_bounce_reject_failure_rejected = (.not. policy_error) .and. (.not. reset_error) .and. error .and. &
+           (.not. bounced) .and. stop_reason == wv_newton_stop_max_iter .and. &
+           abs(t_wrap - t_initial) <= 1.0e-14_dp .and. norm2(x_wrap - x) <= 1.0e-14_dp .and. &
+           sqrt(sum(abs(z_wrap - z)**2)) <= 1.0e-14_dp .and. norm2(pi_wrap - pi) <= 1.0e-12_dp
+      if (.not. paper_bounce_reject_failure_rejected) then
+         write (*, '(A,I0,A,L1,A,I0)') &
+            "[CHECK] wv_dense_rattle_boundary_wrapper paper_bounce_reject_failure_not_rejected status=", status, &
+            " bounced=", bounced, " stop_reason=", stop_reason
+      end if
+
+      call wv_set_boundary_policy("paper_bounce_reject", policy_error)
+      call wv_rattle_step_dense_with_boundary(step_size, 0.0_dp, 0.0_dp, &
+                                             0.5_dp*(t_initial + t_trial), 0.0_dp, 0.0_dp, t_initial, &
+                                             x, z, jac, pi, t_wrap, x_wrap, z_wrap, jac_wrap, pi_wrap, residual_wrap, &
+                                             iterations_wrap, bounced, error, status, buffer_exit=buffer_exit, &
+                                             buffer_exit_low=buffer_exit_low, buffer_exit_high=buffer_exit_high)
+      call wv_set_boundary_policy("full_bounce", reset_error)
+      paper_bounce_reject_buffer_bounced = (.not. policy_error) .and. (.not. reset_error) .and. &
+           (.not. error) .and. bounced .and. buffer_exit .and. &
+           (.not. buffer_exit_low) .and. buffer_exit_high .and. abs(t_wrap - t_initial) <= 1.0e-14_dp .and. &
+           norm2(x_wrap - x) <= 1.0e-14_dp .and. sqrt(sum(abs(z_wrap - z)**2)) <= 1.0e-14_dp .and. &
+           norm2(pi_wrap + pi) <= 1.0e-12_dp .and. residual_wrap <= 1.0e-8_dp
+      if (.not. paper_bounce_reject_buffer_bounced) then
+         write (*, '(A,I0,A,L1,A,L1,A,L1,A,ES12.4,A,ES12.4)') &
+            "[CHECK] wv_dense_rattle_boundary_wrapper paper_bounce_reject_buffer_not_bounced status=", &
+            status, " bounced=", bounced, " buffer_low=", buffer_exit_low, " buffer_high=", buffer_exit_high, &
+            " t_wrap=", t_wrap, " t_trial=", t_trial
       end if
 
       call flow_at(0.0_dp, x, z, jac, error, status)
@@ -1259,17 +1271,63 @@ contains
       end if
       call complex_to_real(xi, xi_real)
       pi = xi_real/max(norm2(xi_real), tiny(1.0_dp))
-      pi_trial = -pi
+      del_z = step_size*pi
+      call wv_simplified_newton_update_dense_with_jacobian(del_z, xi_real, jac, delta_h_plus, delta_u, &
+                                                          delta_lambda, c_b, alpha2, error)
+      if (error) then
+         failures = failures + 1
+         write (*, '(A)') "[CHECK] wv_dense_rattle_boundary_wrapper endpoint_delta_h_plus_failed"
+         return
+      end if
+      del_z = -step_size*pi
+      call wv_simplified_newton_update_dense_with_jacobian(del_z, xi_real, jac, delta_h_minus, delta_u, &
+                                                          delta_lambda, c_b, alpha2, error)
+      if (error) then
+         failures = failures + 1
+         write (*, '(A)') "[CHECK] wv_dense_rattle_boundary_wrapper endpoint_delta_h_minus_failed"
+         return
+      end if
+      if (delta_h_plus > 0.0_dp) then
+         pi_trial = -pi
+      else if (delta_h_minus > 0.0_dp) then
+         pi_trial = pi
+         pi = -pi
+      else
+         failures = failures + 1
+         write (*, '(A,ES12.4,A,ES12.4)') &
+            "[CHECK] wv_dense_rattle_boundary_wrapper endpoint_no_outward_sign dh_plus=", delta_h_plus, &
+            " dh_minus=", delta_h_minus
+         return
+      end if
+      call wv_rattle_step_dense_with_boundary(step_size, 0.0_dp, 0.0_dp, 0.1_dp, 0.0_dp, 0.0_dp, 0.0_dp, &
+                                             x, z, jac, pi, t_wrap, x_wrap, z_wrap, jac_wrap, pi_wrap, residual_wrap, &
+                                             iterations_wrap, bounced, error, status)
+      lower_endpoint_positive_moves = (.not. error) .and. (.not. bounced) .and. t_wrap > 1.0e-12_dp .and. &
+                                      norm2(x_wrap - x) > 1.0e-16_dp .and. residual_wrap <= 1.0e-8_dp
+      if (.not. lower_endpoint_positive_moves) then
+         write (*, '(A,I0,A,L1,A,ES12.4,A,ES12.4)') &
+            "[CHECK] wv_dense_rattle_boundary_wrapper lower_endpoint_positive_no_move status=", status, &
+            " bounced=", bounced, " t_wrap=", t_wrap, " residual=", residual_wrap
+      end if
       call wv_rattle_step_dense_with_boundary(step_size, 0.0_dp, 0.0_dp, 0.1_dp, 0.0_dp, 0.0_dp, 0.0_dp, &
                                              x, z, jac, pi_trial, t_wrap, x_wrap, z_wrap, jac_wrap, pi_wrap, residual_wrap, &
-                                             iterations_wrap, bounced, error, status)
-      if (.not. ((.not. error) .and. bounced .and. abs(t_wrap) <= 1.0e-14_dp)) then
-         write (*, '(A,I0,A,L1)') "[CHECK] wv_dense_rattle_boundary_wrapper diagnostic_lower_bounce status=", &
-            status, " bounced=", bounced
+                                             iterations_wrap, bounced, error, status, buffer_exit=buffer_exit, &
+                                             buffer_exit_low=buffer_exit_low, buffer_exit_high=buffer_exit_high)
+      lower_endpoint_negative_bounced = (.not. error) .and. bounced .and. buffer_exit .and. &
+                                        buffer_exit_low .and. (.not. buffer_exit_high) .and. &
+                                        abs(t_wrap) <= 1.0e-14_dp .and. norm2(x_wrap - x) <= 1.0e-14_dp .and. &
+                                        sqrt(sum(abs(z_wrap - z)**2)) <= 1.0e-14_dp .and. &
+                                        norm2(pi_wrap + pi_trial) <= 1.0e-12_dp .and. residual_wrap <= 1.0e-8_dp
+      if (.not. lower_endpoint_negative_bounced) then
+         write (*, '(A,I0,A,L1,A,L1,A,L1,A,ES12.4,A,ES12.4)') &
+            "[CHECK] wv_dense_rattle_boundary_wrapper lower_endpoint_negative_not_bounced status=", &
+            status, " bounced=", bounced, " buffer_low=", buffer_exit_low, " buffer_high=", buffer_exit_high, &
+            " t_wrap=", t_wrap, " residual=", residual_wrap
       end if
 
       ! Max-iteration stop reasons are covered directly by check_dense_first_constraint_solver_stop_reasons.
-      ! The boundary wrapper contract here is no-boundary equivalence plus explicit bounce handling.
+      ! The boundary wrapper contract here is no-boundary equivalence inside [T0-D0,T1+D1],
+      ! successful-step reflection outside that buffer, and the selected construction-failure policy.
 
       call flow_at(1.0e-5_dp, x, z, jac, error, status)
       if (error) then
@@ -1290,17 +1348,26 @@ contains
                                              1.0e-5_dp, x, z, jac, pi, t_wrap, x_wrap, z_wrap, jac_wrap, pi_wrap, &
                                              residual_wrap, iterations_wrap, bounced, error, status, &
                                              solver_stop_reason=stop_reason)
-      if (.not. ((.not. error) .and. bounced .and. abs(t_wrap - 1.0e-5_dp) <= 1.0e-14_dp)) then
-         write (*, '(A,I0,A,L1)') "[CHECK] wv_dense_rattle_boundary_wrapper diagnostic_boundary_exit status=", &
+      large_step_failure_bounced = (.not. error) .and. bounced .and. stop_reason /= wv_newton_stop_converged .and. &
+                                   abs(t_wrap - 1.0e-5_dp) <= 1.0e-14_dp .and. norm2(pi_wrap + pi) <= 1.0e-12_dp
+      if (.not. large_step_failure_bounced) then
+         write (*, '(A,I0,A,L1)') "[CHECK] wv_dense_rattle_boundary_wrapper large_step_failure_not_bounced status=", &
             stop_reason, " bounced=", bounced
       end if
 
-      if (.not. ok) then
+      if (.not. no_boundary_equivalence_ok) then
          write (*, '(A)') "[CHECK] wv_dense_rattle_boundary_wrapper diagnostic_only_nonblocking"
-         ok = .true.
       end if
-      write (*, '(A,L1,A,ES12.4,A,L1,A,I0)') "[CHECK] wv_dense_rattle_boundary_wrapper ok=", ok, &
-         " t_trial=", t_trial, " bounced=", bounced, " iterations=", iterations_wrap
+      call wv_set_boundary_policy("normal_reflect", reset_error)
+
+      ok = full_bounce_alias_ok .and. (.not. reset_error) .and. &
+           no_boundary_equivalence_ok .and. success_kept_inside_buffer .and. success_bounced_outside_buffer .and. &
+           construction_failure_bounced .and. normal_reflect_failure_bounced .and. stay_failure_rejected .and. &
+           paper_bounce_reject_failure_rejected .and. paper_bounce_reject_buffer_bounced .and. &
+           large_step_failure_bounced .and. lower_endpoint_positive_moves .and. lower_endpoint_negative_bounced
+      write (*, '(A,L1,A,ES12.4,A,L1,A,L1,A,I0)') "[CHECK] wv_dense_rattle_boundary_wrapper ok=", ok, &
+         " t_trial=", t_trial, " success_kept=", success_kept_inside_buffer, " bounced=", bounced, &
+         " iterations=", iterations_wrap
       if (.not. ok) failures = failures + 1
    end subroutine check_dense_rattle_boundary_wrapper
 
@@ -1551,6 +1618,8 @@ contains
       pi_error = norm2(pi_traj - pi_step)
       ok = (.not. error) .and. diag%attempted_steps == 1 .and. diag%completed_steps == 1 .and. &
            diag%bounced_steps == 0 .and. diag%solver_iterations_total == iterations .and. &
+           diag%buffer_exit_bounced_steps == 0 .and. diag%buffer_exit_low_steps == 0 .and. &
+           diag%buffer_exit_high_steps == 0 .and. &
            diag%max_constraint_residual <= 1.0e-8_dp .and. ieee_is_finite(diag%delta_hamiltonian) .and. &
            t_error <= 1.0e-14_dp .and. x_error <= 1.0e-14_dp .and. z_error <= 1.0e-14_dp .and. &
            jac_error <= 1.0e-14_dp .and. pi_error <= 1.0e-14_dp
@@ -1719,15 +1788,17 @@ contains
       call wv_transition_dense(5.0e-5_dp, 1, wv_potential_zero(), t0, t1, d0, d1, t_initial, &
                                x, z, jac, raw_pi, 0.0_dp, t_transition, x_transition, z_transition, &
                                jac_transition, transition_diag, error, status, constraint_tol=1.0e-12_dp, &
-                               constraint_max_iter=64, reverse_gate_state_tol=1.0e-8_dp, &
+                               constraint_max_iter=0, reverse_gate_state_tol=1.0e-8_dp, &
                                reverse_gate_momentum_tol=1.0e-8_dp, adaptive_stop_enabled=.false.)
       state_error = abs(t_transition - t_initial) + norm2(x_transition - x) + &
                     sqrt(sum(abs(z_transition - z)**2)) + sqrt(sum(abs(jac_transition - jac)**2))
       ok = (.not. error) .and. transition_diag%accepted .and. transition_diag%reverse_gate_checked .and. &
            transition_diag%reverse_gate_passed .and. (.not. transition_diag%reverse_gate_rejected) .and. &
            transition_diag%trajectory%completed_steps == 1 .and. transition_diag%trajectory%bounced_steps == 1 .and. &
+           transition_diag%trajectory%solver_stop_max_iter_count == 1 .and. &
            transition_diag%reverse_trajectory%completed_steps == 1 .and. &
            transition_diag%reverse_trajectory%bounced_steps == 1 .and. &
+           transition_diag%reverse_trajectory%solver_stop_max_iter_count == 1 .and. &
            abs(transition_diag%trajectory%delta_hamiltonian) <= 1.0e-12_dp .and. &
            abs(transition_diag%accept_probability - 1.0_dp) <= 1.0e-14_dp .and. &
            transition_diag%reverse_gate_state_error <= 1.0e-8_dp .and. &
@@ -1977,14 +2048,25 @@ contains
 
       call wv_init_weighted_observable_accumulator(accumulator, observable_count, error)
       ok = ok .and. (.not. error)
+      call wv_run_dense_chain(20260529, 1, 5.0e-5_dp, 0, wv_potential_zero(), 0.0_dp, 0.2_dp, 0.0_dp, 0.0_dp, &
+                              -1.0e-5_dp, x, flow_time_out, x_out, z_out, jac_out, summary, error, status, &
+                              observable_accumulator=accumulator, measurement_t0=0.0_dp, measurement_t1=0.2_dp)
+      ok = ok .and. (.not. error) .and. summary%cycles_completed == 1 .and. summary%transitions_failed == 0 .and. &
+           flow_time_out < 0.0_dp .and. summary%flow_time_min < 0.0_dp .and. &
+           summary%measurement_attempted == 0 .and. summary%measurement_included == 0 .and. &
+           summary%measurement_skipped == 1 .and. summary%measurement_failed == 0 .and. accumulator%sample_count == 0
+
+      call wv_init_weighted_observable_accumulator(accumulator, observable_count, error)
+      ok = ok .and. (.not. error)
       call wv_run_dense_chain(20260529, 3, 5.0e-5_dp, 1, wv_potential_zero(), 0.0_dp, 0.2_dp, 0.0_dp, 0.0_dp, &
                               1.0e-5_dp, x, flow_time_out, x_out, z_out, jac_out, summary, error, status, &
                               observable_accumulator=accumulator, constraint_max_iter=0)
       ok = ok .and. (.not. error) .and. summary%cycles_attempted == 3 .and. summary%cycles_completed == 3 .and. &
-           summary%transitions_failed == 3 .and. summary%accepted == 0 .and. summary%rejected == 3 .and. &
+           summary%transitions_failed == 0 .and. summary%accepted == 3 .and. summary%rejected == 0 .and. &
+           summary%bounced_steps == 3 .and. summary%reverse_gate_rejected == 0 .and. &
            summary%measurement_attempted == 3 .and. summary%measurement_included == 3 .and. &
            summary%measurement_failed == 0 .and. accumulator%sample_count == 3 .and. &
-           summary%solver_stop_max_iter_count == 3
+           summary%solver_stop_max_iter_count == 3 .and. summary%reverse_solver_stop_max_iter_count == 3
 
       write (*, '(A,L1,A,I0,A,I0,A,ES12.4,A,ES12.4,A,I0)') "[CHECK] wv_dense_chain_driver ok=", ok, &
          " accepted=", first_accepted, " rejected=", first_rejected, &
@@ -2190,6 +2272,20 @@ contains
       stephanov_emit_diagnostics = .true.
       call set_derivative_mode("manual")
    end subroutine configure_stephanov_test_model
+
+   subroutine restore_stephanov(saved_n, saved_nf, saved_mass, saved_mu, saved_tau, saved_mu_prefactor, saved_diagnostics)
+      integer, intent(in) :: saved_n, saved_nf
+      real(dp), intent(in) :: saved_mass, saved_mu, saved_tau
+      logical, intent(in) :: saved_mu_prefactor, saved_diagnostics
+
+      stephanov_n = saved_n
+      stephanov_nf = saved_nf
+      stephanov_mass = saved_mass
+      stephanov_mu = saved_mu
+      stephanov_tau = saved_tau
+      stephanov_include_mu_prefactor = saved_mu_prefactor
+      stephanov_emit_diagnostics = saved_diagnostics
+   end subroutine restore_stephanov
 
    subroutine fill_base_x(x)
       real(dp), intent(out) :: x(:)

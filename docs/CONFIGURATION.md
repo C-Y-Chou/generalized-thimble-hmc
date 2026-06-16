@@ -36,6 +36,7 @@ Common options:
 - `--d0`, `--d1`
 - `--w-profile`
 - `--w-gamma`
+- `--boundary-policy`
 - `--init-mode`
 - `--init-bank-file`
 - `--measurement-start-cycle`
@@ -47,6 +48,9 @@ Use:
 ```bash
 python3 scripts/run_tltm_product.py wv-hmc --help
 ```
+
+`--boundary-policy` defaults to `normal_reflect`.  Use `full_bounce` or
+`paper_full_flip` only when running the optional bounce-policy benchmark.
 
 ## Flow Backend
 
