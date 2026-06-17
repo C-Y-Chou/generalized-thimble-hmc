@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-06-18 - Minimal Reproducible Examples
+
+- Added a runnable Stephanov `n=6` WV-HMC smoke example.
+- Documented expected output files and manifest fields for the example.
+- Clarified that the example is a wrapper/output-shape check, not a standalone
+  production physics estimate.
+
 ## 2026-06-18 - DOP853 Public Surface Cleanup
 
 - Documented DOP853 as the public flow-backend path.

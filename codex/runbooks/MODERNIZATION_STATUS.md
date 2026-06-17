@@ -78,9 +78,9 @@ Current result:
 ## Current Next Step
 
 Modernization work is now organized by GitHub-commit milestones.  After
-`GHM-003`, the next public-facing milestone is:
+`GHM-004`, the next public-facing milestone is:
 
-`GHM-004: Minimal Reproducible Examples`
+`GHM-005: Dense WV-HMC Follow-up Validation Packet`
 
 Use `normal_reflect` as the main WV-HMC policy for any subsequent dense
 explicit-J validation.  If comparing policies, compare only:
@@ -98,8 +98,8 @@ specifically targets rejection semantics.
 | `GHM-001` | complete | Public WV-HMC validation path | Docs/examples/release note only; no private scheduler state |
 | `GHM-002` | complete | Model-provider onboarding contract | Public model-provider docs/checklist |
 | `GHM-003` | complete | DOP853 public surface cleanup | Public backend docs and scoped ODEX deletion plan |
-| `GHM-004` | next | Minimal reproducible examples | Small examples, no large datasets |
-| `GHM-005` | queued after new run | Dense WV-HMC follow-up validation packet | Compact readback and reproducibility metadata |
+| `GHM-004` | complete | Minimal reproducible examples | Small examples, no large datasets |
+| `GHM-005` | next | Dense WV-HMC follow-up validation packet | Compact readback and reproducibility metadata |
 
 Internal workspace cleanup supports these milestones but is not itself a
 public GitHub milestone.  Scheduler ledgers, queue observations, source-pin

@@ -3,11 +3,27 @@
 This example exercises the dense explicit-J WV-HMC public wrapper on the
 Stephanov `n=6`, `mu=0.6` benchmark parameter file.
 
+Parameter file:
+
+```text
+data/parameters_stephanov_n6_mu06_t0.dat
+```
+
 ## Smoke
 
 ```bash
 make wv-hmc-smoke
 ```
+
+or:
+
+```bash
+examples/stephanov_n6/run_wv_hmc_smoke.sh
+```
+
+The smoke path is intentionally short.  It verifies the wrapper, DOP853 backend
+selection, normal-reflection boundary default, manifest writing, and output
+shape.
 
 ## Validation-Style Run
 
@@ -34,6 +50,8 @@ The output directory should contain a `product_run_manifest.json` plus the
 CSV files written by the WV-HMC executable.  Treat this as a reproducibility
 and wrapper check, not as a standalone production physics estimate.
 
+See [Expected Outputs](EXPECTED_OUTPUTS.md) for the output-file contract.
+
 ## Optional Boundary-Policy Benchmark
 
 To compare against the optional full-bounce policy, rerun with the same
@@ -42,3 +60,6 @@ parameters, seed, cycle count, burn rule, and measurement window, changing only:
 ```bash
 --boundary-policy full_bounce
 ```
+
+Do not compare policy results unless the run protocol and ratio-estimator
+analysis are matched.
