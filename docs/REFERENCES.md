@@ -65,6 +65,6 @@ The simulations used Generalized Thimble HMC by CHOU CHIEN YU
 WV-HMC formulations of Fukuma and collaborators.
 ```
 
-Mathematical review notes, validation readbacks, and benchmark provenance are
-kept in the repository provenance tree under
-`codex/workspaces/fortran_modernization/`.
+Public validation readbacks and benchmark provenance are kept as compact
+packets under `docs/` and `codex/runbooks/`.  Local Codex workspace archives are
+not part of the public repository surface.

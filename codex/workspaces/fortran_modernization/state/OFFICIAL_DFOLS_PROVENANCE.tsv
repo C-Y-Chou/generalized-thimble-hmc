@@ -1,2 +1,0 @@
-date_jst	status	expected_version	expected_license	python_executable	python_version	module_version	dist_version	dist_license	module_file	error
-2026-05-11 19:07:34 JST	pass	1.6.5	GPL-3.0-or-later	/Users/ccy/Documents/TLTM_qn_error_handling/.venv-dfols/bin/python	3.11.14	1.6.5	1.6.5	GPL-3.0-or-later	/Users/ccy/Documents/TLTM_qn_error_handling/.venv-dfols/lib/python3.11/site-packages/dfols/__init__.py	none

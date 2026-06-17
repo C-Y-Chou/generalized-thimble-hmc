@@ -1,9 +1,0 @@
-{
-  "candidate_count": 8,
-  "run_root": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_n6_retune_validation_20260531/wv_hmc_n6_t003_large_residual_trace_off_statebank_8x100_20260531/chunks/chunk_00_18421.anode01",
-  "scan_summary_exists": true,
-  "scan_summary_path": "/lustre1/home/cychou/TLTM_worktrees/fortran_modernization/output/wv_hmc_n6_retune_validation_20260531/wv_hmc_n6_t003_large_residual_trace_off_statebank_8x100_20260531/chunks/chunk_00_18421.anode01/wv_hmc_dense_observable_validation_manifest.csv",
-  "scan_summary_source": "observable_validation",
-  "total_solves": 12347,
-  "trace_files_present": 8
-}

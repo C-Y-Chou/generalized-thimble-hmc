@@ -1,6 +1,0 @@
-date_jst	scope	observation	impact	source
-2026-05-10	control_plane	Long runbooks accumulated enough to waste tokens and hide current state	L0/L1/L2 compaction introduced	user discussion
-2026-05-10	remote	Remote worktree pinning must be tracked separately from local git state	REMOTE_TARGETS/WORKTREES/JOBS registries introduced	user discussion
-2026-05-10	tltm_production_comparison	Old Stage3_4 queue playbook conflicts with current scheduler knowledge	It must remain marked superseded under the new production-comparison workspace	codex/workspaces/tltm_production_comparison/runbooks/QUEUE_OPTIMIZATION.md
-2026-05-12	remote	qn_error_handling_validation has no unique code commits or active jobs, but still owns unique remote artifacts	Do not delete the worktree until M6 reference and ODEX/QN-clean artifacts are migrated or explicitly abandoned	codex/runbooks/QN_VALIDATION_TREE_RETIREMENT_20260512.md
-2026-05-12	remote	qn_error_handling_validation was retired after artifact rehome/archive	The confusing worktree path and qn branch refs are gone; accepted M6 artifacts now live under the canonical fortran_modernization remote output tree	codex/runbooks/QN_VALIDATION_TREE_RETIREMENT_20260512.md

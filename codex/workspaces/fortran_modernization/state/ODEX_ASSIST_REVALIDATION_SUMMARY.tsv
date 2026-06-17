@@ -1,7 +1,0 @@
-metric	odex_only_50k	solver_assist_50k	delta_50k	odex_only_100k	solver_assist_100k	delta_100k	pct_delta_100k	interpretation
-unresolved_failures	40715	28206	-12509	326569	224580	-101989	-31.23046	assist recovers robustness
-mean_projection_failures	2053.15625	1660.40625	-392.75	4133.6015625	3321.1875	-812.4140625	-19.653904	diagnostic improvement
-mean_unresolved_failures	1272.34375	881.4375	-390.90625	2551.3203125	1754.53125	-796.7890625	-31.23046	diagnostic improvement
-rg_rejects	24986	24927	-59	202530	200530	-2000	-0.98750802	stable physics/proposal boundary
-pair0_accept	0.438705	0.438588	-0.000117	0.438907	0.438762	-0.000145	-0.033036611	stable physics/proposal boundary
-mean_runtime	3605.528	4130.746	525.218	7127.015	8170.916	1043.901	14.6471	assist costs runtime but reduces unresolved failures

@@ -1,7 +1,0 @@
-gate,status,basis
-observable_correctness,passes_nofb_no_withfb_rescue,All four nofb primary z scores have abs(z)<2; withfb all-available also abs(z)<2 but does not improve over nofb.
-ratio_estimator_stability,passes_nofb_no_withfb_rescue,"Final pooled phase coherence: nofb_all=0.117377, withfb_all=0.120014, nofb_same_size=0.116900; no denominator rescue signal."
-ladder_transport_high_flow,transport_warning_secondary_no_switch,"Interim failure-mediated transport warning exists, but zero-round-trip fraction was 0 and final summaries show positive round trips."
-failure_mediated_repair,diagnostic_only_no_downstream_rescue,Failure count is not a criterion; final data do not show observable or ratio-quality rescue.
-wall_clock_efficiency,equal_wall_clock_blocked_by_exclusion_manifest,Runtime repair/outlier exclusions prevent a clean all-available equal-wall-clock cut; segment diagnostics show withfb is substantially slower per 2500-cycle row.
-production_method,keep_nofb_canonical_withfb_legacy_default_off,Frozen gates do not justify promoting withfb; TLTM remains canonical nofb before WV-HMC work starts.

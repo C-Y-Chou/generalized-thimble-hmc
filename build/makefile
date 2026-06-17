@@ -831,40 +831,28 @@ modernization_guardrails: prepare_outputs
 F14_PREREDO_FC ?= $(FC)
 F14_PREREDO_LDFLAGS ?= $(LDFLAGS)
 f14_pre_redo_complete_gate: prepare_outputs
-	@set -o pipefail; \
-	$(PYTHON) ../codex/workspaces/fortran_modernization/tasks/scripts/f14_complete_pre_redo_gate.py --repo-root .. --fc "$(F14_PREREDO_FC)" --ldflags "$(F14_PREREDO_LDFLAGS)" \
-	2>&1 | tee $(OUT_LOG_DIR)/f14_pre_redo_complete_gate.log
+	@echo "[RETIRED] f14_pre_redo_complete_gate used local Codex workspace evidence that is no longer part of the public repo surface." | tee $(OUT_LOG_DIR)/f14_pre_redo_complete_gate.log
 
 OFFICIAL_LINE_KERNEL_FC ?= $(FC)
 OFFICIAL_LINE_KERNEL_LDFLAGS ?= $(LDFLAGS)
 official_line_kernel_correctness_gate: prepare_outputs
-	@set -o pipefail; \
-	$(PYTHON) ../codex/workspaces/fortran_modernization/tasks/scripts/official_line_kernel_correctness_gate.py --repo-root .. --fc "$(OFFICIAL_LINE_KERNEL_FC)" --ldflags "$(OFFICIAL_LINE_KERNEL_LDFLAGS)" \
-	2>&1 | tee $(OUT_LOG_DIR)/official_line_kernel_correctness_gate.log
+	@echo "[RETIRED] official_line_kernel_correctness_gate used local Codex workspace evidence that is no longer part of the public repo surface." | tee $(OUT_LOG_DIR)/official_line_kernel_correctness_gate.log
 
 POST_B_RNG_FC ?= $(FC)
 POST_B_RNG_LDFLAGS ?= $(LDFLAGS)
 post_b_rng_reference_anchor: prepare_outputs
-	@set -o pipefail; \
-	$(PYTHON) ../codex/workspaces/fortran_modernization/tasks/scripts/post_b_rng_reference_anchor.py --repo-root .. --fc "$(POST_B_RNG_FC)" --ldflags "$(POST_B_RNG_LDFLAGS)" \
-	2>&1 | tee $(OUT_LOG_DIR)/post_b_rng_reference_anchor.log
+	@echo "[RETIRED] post_b_rng_reference_anchor used local Codex workspace evidence that is no longer part of the public repo surface." | tee $(OUT_LOG_DIR)/post_b_rng_reference_anchor.log
 
 STAGE2_RNG_V2_FC ?= $(FC)
 STAGE2_RNG_V2_LDFLAGS ?= $(LDFLAGS)
 stage2_rng_v2_anchor: prepare_outputs
-	@set -o pipefail; \
-	$(PYTHON) ../codex/workspaces/fortran_modernization/tasks/scripts/stage2_rng_v2_anchor.py --repo-root .. --fc "$(STAGE2_RNG_V2_FC)" --ldflags "$(STAGE2_RNG_V2_LDFLAGS)" \
-	2>&1 | tee $(OUT_LOG_DIR)/stage2_rng_v2_anchor.log
+	@echo "[RETIRED] stage2_rng_v2_anchor used local Codex workspace evidence that is no longer part of the public repo surface." | tee $(OUT_LOG_DIR)/stage2_rng_v2_anchor.log
 
 script_evidence_audit_gate: prepare_outputs
-	@set -o pipefail; \
-	$(PYTHON) ../codex/workspaces/fortran_modernization/tasks/scripts/validate_script_evidence_audit.py --repo-root .. \
-	2>&1 | tee $(OUT_LOG_DIR)/script_evidence_audit_gate.log
+	@echo "[RETIRED] script_evidence_audit_gate used local Codex workspace evidence that is no longer part of the public repo surface." | tee $(OUT_LOG_DIR)/script_evidence_audit_gate.log
 
 precision_readiness_audit: prepare_outputs
-	@set -o pipefail; \
-	$(PYTHON) ../codex/workspaces/fortran_modernization/tasks/scripts/precision_readiness_audit.py --repo-root .. \
-	2>&1 | tee $(OUT_LOG_DIR)/precision_readiness_audit.log
+	@echo "[RETIRED] precision_readiness_audit used local Codex workspace evidence that is no longer part of the public repo surface." | tee $(OUT_LOG_DIR)/precision_readiness_audit.log
 
 test1: $(BIN_DIR)/test_program prepare_outputs
 	@set -o pipefail; $(BIN_DIR)/test_program 2>&1 | tee $(OUT_LOG_DIR)/test_hamiltonian_conservation.log

@@ -1,6 +1,0 @@
-{
-  "generated_at": "2026-05-29T03:59:47.852235+00:00",
-  "nofb_root": "output/stephanov_tltm_production/stephanov_n6_nofb15k_512_equalcost_20260526f",
-  "same_config_size": 5001,
-  "withfb_root": "output/stephanov_tltm_production/stephanov_n6_5000_complete_512_optimal_20260526e"
-}

@@ -1,6 +1,0 @@
-kind	path	mode
-workspace	/home/cychou/TLTM/codex/workspaces/tltm_production_comparison	write
-shared	/home/cychou/TLTM/codex/runbooks/GLOBAL_STATUS.md	read
-shared	/home/cychou/TLTM/codex/runbooks/task_registry.tsv	read
-repo	/home/cychou/TLTM/output/production_comparison/provisional	write
-repo	/home/cychou/TLTM/output/tests/stage3_4	read_legacy

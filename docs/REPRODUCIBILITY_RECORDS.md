@@ -1,16 +1,18 @@
 # Reproducibility Records
 
-The public entry point is the root README and the stable docs in this directory.
-Detailed run records, validation readbacks, and benchmark metadata are kept in
-the repository provenance tree:
+The public entry point is the root README and the stable docs in this
+directory.  Public reproducibility records are compact packets that can be
+reviewed without private cluster state:
 
-- `codex/workspaces/fortran_modernization/runbooks/`
-- `codex/workspaces/fortran_modernization/state/`
+- `docs/`
+- `codex/runbooks/`
 - `model_specs/`
 
 Use these records when auditing a historical result, reproducing a validation
-packet, or preparing a new benchmark report. User-facing build and run commands
-should start from `scripts/run_tltm_product.py`.
+packet, or preparing a new benchmark report. Local scheduler ledgers, source
+pins, raw output dumps, and exploratory Codex workspaces are internal archives,
+not public reproducibility records. User-facing build and run commands should
+start from `scripts/run_tltm_product.py`.
 
 ## Public Compact Packets
 

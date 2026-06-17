@@ -1,6 +1,6 @@
 # Modernization Main Workflow
 
-Updated: 2026-06-16 JST
+Updated: 2026-06-18 JST
 
 This is the single active operational workflow for the current TLTM Fortran
 modernization effort.  Use this file together with
@@ -53,13 +53,13 @@ pin manifests, or large generated dumps to the public repository.
 
 ## Execution Rules
 
-- Production and validation simulations run on the cluster, not locally.
-- Cluster submission must use the cluster02 scheduler authority:
-  `TLTM_CLUSTER02_SCHEDULER_AUTHORITY=cluster02_scheduler`,
-  `TLTM_SCHEDULER_REQUEST_ID=<request-id>`, and
-  `codex/agents/cluster02_scheduler/cluster02_qsub_gate.sh`.
-- Before choosing a queue or repairing a failed job, consult persistent
-  scheduler observations and live PBS state.
+- Production-scale validation should use the authorized scheduler workflow for
+  the target cluster, not ad hoc local runs.
+- Private scheduler implementations, queue ledgers, source pins, remote live
+  caches, and repair records are local control-plane state.  They must not be
+  committed as modernization evidence.
+- Before choosing a queue or repairing a failed job, consult the local
+  scheduler observations for the target cluster.
 - WV-HMC production-like jobs must use a source pin or runtime snapshot and
   must not depend on compute-node `git` or node-local Python.
 - Generated evidence packets are not workflow entrypoints.
@@ -174,8 +174,14 @@ Commit target:
 
 ### CLEAN-002: Full Modernization Cleanup Sprint
 
-Target window: 2026-06-19 to 2026-06-23, after `GHM-001` and before the next
-release-candidate tag.
+Status: complete on 2026-06-18.
+
+Completion record:
+
+- `codex/runbooks/CLEAN_002_RECONCILIATION_20260618.md`
+
+Original target window: 2026-06-19 to 2026-06-23, after `GHM-001` and before
+the next release-candidate tag.
 
 Goal: make the workspace and governance state match the active modernization
 workflow.
@@ -192,8 +198,9 @@ Completion criteria:
 - `MODERNIZATION_WORKFLOW.md` and `MODERNIZATION_STATUS.md` remain the only
   active entrypoints.
 
-This cleanup sprint is mandatory before a release-candidate/tag decision, even
-though most of its raw artifacts should not be committed to GitHub.
+This cleanup sprint is complete.  The local archives remain available in the
+working tree but are ignored by Git unless a future milestone deliberately
+promotes a compact evidence artifact.
 
 ### TECH-001: DOP853 Default / ODEX Deletion
 
@@ -292,7 +299,7 @@ Completion criteria:
 
 Surface: `github`.
 
-Status: after `GHM-001`, `CLEAN-002`, and any required public docs updates.
+Status: next after `CLEAN-002`.
 
 Goal: prepare a coherent release-candidate state for external review.
 

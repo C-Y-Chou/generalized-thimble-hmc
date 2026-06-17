@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Run the local M4 modernization guardrail suite.
+"""Run the public modernization guardrail suite.
 
 This script is intentionally small-run only. It does not submit production jobs
-or generate official datasets. Its purpose is to make the current ad hoc
-build/audit/smoke checks repeatable before wider M5 refactors.
+or generate official datasets. Its purpose is to keep the public build/test and
+wrapper smoke checks repeatable after local Codex workspaces have been moved
+out of the public repository surface.
 """
 
 import argparse
@@ -20,7 +21,6 @@ GUARDRAIL_SOURCE_ROOTS = (
     "tests",
     "scripts",
     "codex/tasks",
-    "codex/workspaces/fortran_modernization/tasks",
     "build",
 )
 
@@ -417,47 +417,6 @@ def run_guardrails(args):
             "scripts/audit_tltm_tempering_protocol.py",
             "scripts/run_tltm_product.py",
             "scripts/run_m4_guardrails.py",
-            "codex/workspaces/fortran_modernization/tasks/scripts/odex_assist_revalidation.py",
-            "codex/workspaces/fortran_modernization/tasks/scripts/odex_official_assist_onoff_readback.py",
-            "codex/workspaces/fortran_modernization/tasks/scripts/odex_official_assist_observable_degeneracy.py",
-            "codex/workspaces/fortran_modernization/tasks/scripts/official_dfols_small_assist_degeneracy.py",
-            "codex/workspaces/fortran_modernization/tasks/scripts/official_dfols_provenance_readback.py",
-            "codex/workspaces/fortran_modernization/tasks/scripts/f14_complete_pre_redo_gate.py",
-            "codex/workspaces/fortran_modernization/tasks/scripts/official_line_kernel_correctness_gate.py",
-            "codex/workspaces/fortran_modernization/tasks/scripts/post_b_rng_reference_anchor.py",
-            "codex/workspaces/fortran_modernization/tasks/scripts/stage2_rng_v2_anchor.py",
-            "codex/workspaces/fortran_modernization/tasks/scripts/validate_script_evidence_audit.py",
-            "codex/workspaces/fortran_modernization/tasks/scripts/precision_readiness_audit.py",
-        ],
-        repo_root,
-        failures,
-        args.keep_going,
-        guardrail_env,
-    )
-    run_step(
-        "CV-005 script evidence audit",
-        [
-            sys.executable,
-            "codex/workspaces/fortran_modernization/tasks/scripts/validate_script_evidence_audit.py",
-            "--repo-root",
-            ".",
-            "--output-root",
-            str(output_root / "script_evidence_audit"),
-        ],
-        repo_root,
-        failures,
-        args.keep_going,
-        guardrail_env,
-    )
-    run_step(
-        "F20 precision readiness audit",
-        [
-            sys.executable,
-            "codex/workspaces/fortran_modernization/tasks/scripts/precision_readiness_audit.py",
-            "--repo-root",
-            ".",
-            "--output-root",
-            str(output_root / "precision_readiness"),
         ],
         repo_root,
         failures,
@@ -494,22 +453,13 @@ def run_guardrails(args):
 
     if not args.skip_build:
         run_step(
-            "build Stage2/eval and run ODEX/swap tests",
+            "build Stage2/eval and run public TLTM/WV/core tests",
             make_cmd(
                 repo_root,
                 args,
                 [
                     "../bin/run_tltm_stage2",
                     "../bin/evaluate_expectations",
-                    "test_odex_solver",
-                    "test_odex_foundation_contract",
-                    "test_odex_assist_policy",
-                    "test_odex_result_contract",
-                    "test_odex_flow_jacobian_contract",
-                    "test_odex_backend_package_contract",
-                    "test_odex_controller_observation_contract",
-                    "test_odex_controller_alignment_spec",
-                    "test_official_dfols_preset_contract",
                     "test_tltm_swap_kernel_contract",
                     "test_mt95_state_contract",
                     "test_tltm_rng_contract",
@@ -519,10 +469,6 @@ def run_guardrails(args):
                     "test_wv_hmc_constraint_kernels",
                     "test_hmc_reversibility_context_contract",
                     "test_newton_eval_flow_status_context_contract",
-                    "test_retained_core_newton_contract",
-                    "test_retained_core_rattle_rg_contract",
-                    "test_retained_core_qn_route_contract",
-                    "test_retained_core_rg_reject_identity",
                 ],
             ),
             repo_root,
@@ -530,32 +476,6 @@ def run_guardrails(args):
             args.keep_going,
             guardrail_env,
         )
-
-    run_step(
-        "Stage3 sidecar dry-run",
-        [
-            sys.executable,
-            "scripts/run_stage3_3_multiseed.py",
-            "--repo-root",
-            ".",
-            "--config",
-            "docs/stage_3_3_todo.json",
-            "--max-seeds",
-            "1",
-            "--methods",
-            "no_fb",
-            "--dry-run",
-            "--stage2-v1-sidecars",
-            "on",
-            "--stage2-protocol-audit",
-            "auto",
-            "--allow-oversubscribe",
-        ],
-        repo_root,
-        failures,
-        args.keep_going,
-        guardrail_env,
-    )
 
     fixture_summary = repo_root / "output" / "tests" / "tltm_stage2_summary.dat"
     if fixture_summary.exists():
@@ -668,118 +588,23 @@ def run_guardrails(args):
     )
 
     run_step(
-        "F12 product wrapper validates sidecar-on output",
+        "product wrapper public test command",
         [
             sys.executable,
             "scripts/run_tltm_product.py",
             "--repo-root",
             ".",
-            "--config",
-            str(tiny_config),
-            "--output-subdir",
-            str(sidecar_out),
-            "--validate-only",
+            "test",
+            "--target",
+            "test_wv_hmc_math_kernels",
+            "--target",
+            "test_wv_hmc_constraint_kernels",
         ],
         repo_root,
         failures,
         args.keep_going,
         guardrail_env,
     )
-    product_wrapper_manifest = sidecar_out / "product_wrapper_manifest.json"
-    if product_wrapper_manifest.exists():
-        product_wrapper_data = json.loads(product_wrapper_manifest.read_text())
-    else:
-        product_wrapper_data = {}
-    assert_condition(
-        "product wrapper readback manifest passes",
-        product_wrapper_data.get("schema_version") == "tltm.product.wrapper.v1alpha1"
-        and product_wrapper_data.get("validation", {}).get("status") == "pass",
-        "Manifest {0}\n{1}".format(product_wrapper_manifest, json.dumps(product_wrapper_data, indent=2, sort_keys=True)),
-        failures,
-        args.keep_going,
-    )
-    run_step(
-        "F14 complete pre-redo gate validates F3/F4/F7/F8 plus F12 wrapper readback",
-        [
-            sys.executable,
-            "codex/workspaces/fortran_modernization/tasks/scripts/f14_complete_pre_redo_gate.py",
-            "--repo-root",
-            ".",
-            "--skip-build",
-            "--existing-stage3-output",
-            str(sidecar_out),
-            "--existing-product-wrapper-output",
-            str(sidecar_out),
-            "--output-root",
-            str(output_root / "f14_complete_pre_redo_gate"),
-            "--logs-root",
-            str(logs_root / "f14_complete_pre_redo_gate"),
-        ],
-        repo_root,
-        failures,
-        args.keep_going,
-        guardrail_env,
-    )
-
-    run_step(
-        "CV-001 official-line kernel correctness gate",
-        [
-            sys.executable,
-            "codex/workspaces/fortran_modernization/tasks/scripts/official_line_kernel_correctness_gate.py",
-            "--repo-root",
-            ".",
-            "--skip-build",
-            "--output-root",
-            str(output_root / "official_line_kernel_correctness_gate"),
-            "--logs-root",
-            str(logs_root / "official_line_kernel_correctness_gate"),
-        ],
-        repo_root,
-        failures,
-        args.keep_going,
-        guardrail_env,
-    )
-
-    run_step(
-        "post-B RNG reference anchor",
-        [
-            sys.executable,
-            "codex/workspaces/fortran_modernization/tasks/scripts/post_b_rng_reference_anchor.py",
-            "--repo-root",
-            ".",
-            "--fc",
-            args.fc,
-            "--ldflags",
-            args.ldflags,
-            "--output-root",
-            str(output_root / "post_b_rng_reference_anchor"),
-        ],
-        repo_root,
-        failures,
-        args.keep_going,
-        guardrail_env,
-    )
-
-    run_step(
-        "Stage2 RNG v2 deterministic anchor",
-        [
-            sys.executable,
-            "codex/workspaces/fortran_modernization/tasks/scripts/stage2_rng_v2_anchor.py",
-            "--repo-root",
-            ".",
-            "--fc",
-            args.fc,
-            "--ldflags",
-            args.ldflags,
-            "--output-root",
-            str(output_root / "stage2_rng_v2_anchor"),
-        ],
-        repo_root,
-        failures,
-        args.keep_going,
-        guardrail_env,
-    )
-
     no_sidecar_out = run_stage3_smoke(
         repo_root,
         tiny_config,

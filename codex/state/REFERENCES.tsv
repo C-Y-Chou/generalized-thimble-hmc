@@ -1,8 +1,0 @@
-reference_id	scope	path	status	used_for	notes
-tltm_hmc	fortran_modernization	codex/workspaces/fortran_modernization/references/1912.13303_TLTM_HMC.pdf	collected	TLTM HMC implementation reference	Primary TLTM paper.
-gt_hmc	fortran_modernization	codex/workspaces/fortran_modernization/references/2311.10663v4.pdf	collected	Simplified Newton/RATTLE/HMC mapping	Used for retained-core audit.
-dfols	fortran_modernization	codex/workspaces/fortran_modernization/references/1804.00154v2.pdf	collected	DFO-LS/DFOLS background	Does not fully define user QN loss.
-dfo_gn	fortran_modernization	codex/workspaces/fortran_modernization/references/s12532-019-00161-7_DFO_GN.pdf	collected	DFO-GN background	Legacy route removed from active p28 path.
-odex_hairer	fortran_modernization	codex/workspaces/fortran_modernization/references/Hairer_SODE_I_II9_Extrapolation_Methods_pdfpages_237_270.pdf	collected	ODEX design/reference	Appendix and location guide also collected.
-user_qn	fortran_modernization	codex/workspaces/fortran_modernization/references/new_algorithm__Copy_.pdf	collected	User original QN formulation	Defines standard/BTN formulation context.
-cluster02_manual	global	/Users/ccy/Downloads/ithems_cluster02_users_guide_rev10.0_en.pdf	local_external	iTHEMS cluster02 queue/manual source	Summarized into scheduler knowledge.

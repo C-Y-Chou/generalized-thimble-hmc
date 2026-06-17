@@ -45,6 +45,24 @@ codex/state/run_manifest_latest.env
 codex/workspaces/*/state/job_tracker.tsv
 codex/workspaces/*/context/LAST_REFRESH.txt
 
+# Codex local control-plane archives.
+# These files are useful during active cluster/debug work, but they are not part
+# of the public modernization surface. Compact evidence may still be added with
+# `git add -f` when a milestone explicitly calls for it.
+codex/agents/
+codex/state/
+codex/workspaces/
+codex/runbooks/*
+!codex/runbooks/CLEAN_002_RECONCILIATION_20260618.md
+!codex/runbooks/MODERNIZATION_STATUS.md
+!codex/runbooks/MODERNIZATION_WORKFLOW.md
+!codex/runbooks/STATUS.md
+!codex/runbooks/WORKFLOW.md
+!codex/runbooks/WV_HMC_POLICY_BENCHMARK_SUMMARY_20260616.md
+!codex/runbooks/generated/
+codex/runbooks/generated/*
+lustre1/
+
 # Codex generated run raw artifacts
 codex/workspaces/*/runbooks/generated/**/chunks/
 codex/workspaces/*/runbooks/generated/**/raw_*/*

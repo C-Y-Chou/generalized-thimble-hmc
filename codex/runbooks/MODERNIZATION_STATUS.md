@@ -1,6 +1,6 @@
 # Modernization Main Status
 
-Updated: 2026-06-16 JST
+Updated: 2026-06-18 JST
 
 This is the single active status file for the current modernization workflow.
 If another runbook disagrees with this file, treat that runbook as historical
@@ -77,10 +77,10 @@ Current result:
 
 ## Current Next Step
 
-Modernization work is now organized by GitHub-commit milestones.  After
-`GHM-005`, the next required step is:
+Modernization work is organized by GitHub-commit milestones.  `CLEAN-002` is
+closed.  The next required step is:
 
-`CLEAN-002: Full Modernization Cleanup Sprint`
+`DOC-001: Release Candidate / Funding-Facing Package`
 
 Use `normal_reflect` as the main WV-HMC policy for any subsequent dense
 explicit-J validation.  If comparing policies, compare only:
@@ -103,21 +103,21 @@ specifically targets rejection semantics.
 
 Internal workspace cleanup supports these milestones but is not itself a
 public GitHub milestone.  Scheduler ledgers, queue observations, source-pin
-manifests, live caches, and large generated dumps should stay unstaged unless a
-specific milestone requires a compact provenance artifact.
+manifests, live caches, and large generated dumps are local-only archives unless
+a specific milestone requires a compact provenance artifact.
 
 ## Full Modernization TODO Status
 
 | id | surface | status | purpose |
 |---|---|---|---|
-| `CLEAN-001` | internal | next before `GHM-001` | Classify current dirty worktree and exclude private artifacts from public commit |
-| `CLEAN-002` | internal/governance | next before release candidate | Reconcile open-item/caveat registries and archive old generated evidence paths |
+| `CLEAN-001` | internal | complete | Classify current dirty worktree and exclude private artifacts from public commit |
+| `CLEAN-002` | internal/governance | complete | Reconcile open-item/caveat registries and archive old generated evidence paths |
 | `TECH-001` | technical/github | queued after `GHM-003` | Finish DOP853 default / legacy ODEX deletion route |
 | `TECH-002` | technical/github | deferred | Implement matrix-free / BiCGStab WV-HMC trajectory |
 | `TECH-003` | technical/github | deferred | Validate high-dimensional model support |
 | `TECH-004` | technical/github | deferred | Reentrancy / OpenMP readiness |
 | `TECH-005` | technical/github | queued when selected | TLTM follow-up validation / compact production evidence |
-| `DOC-001` | github | after `CLEAN-002` | Release-candidate / funding-facing package |
+| `DOC-001` | github | next | Release-candidate / funding-facing package |
 | `EXT-001` | external | boundary only | Keep production-comparison and nofb-diagnostics outside this repo's active milestones |
 
 ## Nonblocking / Deferred
@@ -125,5 +125,5 @@ specific milestone requires a compact provenance artifact.
 - Matrix-free / BiCGStab WV-HMC trajectory wiring.
 - High-dimensional performance validation.
 - Reentrancy/context cleanup before OpenMP or library-level parallel claims.
-- Historical runbook/data archive cleanup.
-- Open item / caveat registry reconciliation with this milestone queue.
+- Local-only historical archives may still exist in the working tree, but they
+  are ignored and no longer public workflow inputs.

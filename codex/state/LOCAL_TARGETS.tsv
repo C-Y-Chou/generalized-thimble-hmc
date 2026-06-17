@@ -1,3 +1,0 @@
-target_id	path	purpose	fast_forward_policy	notes
-local_fortran_modernization	/Users/ccy/Documents/TLTM_qn_error_handling	Local canonical modernization checkout	check_dirty_and_ahead	Branch codex/fortran-modernization; source/product closure line.
-local_legacy_diagnostic_checkout	/Users/ccy/Documents/New project/TLTM_repo	Legacy local diagnostic checkout	check_dirty_and_ahead	Currently an observable-regression diagnostic checkout, not the canonical modernization or production-comparison source of truth unless explicitly requested.

@@ -1,15 +1,9 @@
 # Scripts Guide
 
-This directory currently contains both active utility scripts and historical
-experiment scripts. The machine-checked evidence boundary lives in
-`codex/workspaces/fortran_modernization/state/SCRIPT_EVIDENCE_AUDIT_20260512.tsv`;
-run `make -C build script_evidence_audit_gate` before using any newly added or
-reclassified helper as modernization evidence.
-
-Modernization task-local guardrails live under
-`codex/workspaces/fortran_modernization/tasks/scripts/`; current M4 includes
-the CV-001 official-line kernel gate, CV-005 script/evidence audit, F14
-pre-redo gate, and post-B route-B RNG reference anchor.
+This directory contains active public utility scripts plus historical
+experiment scripts. The public guardrail target is now
+`make -C build modernization_guardrails`, which covers build/test and wrapper
+smoke checks without depending on local Codex workspace archives.
 
 ## Active scripts (current baseline support)
 
@@ -18,7 +12,7 @@ pre-redo gate, and post-B route-B RNG reference anchor.
 - `benchmark_hamiltonian.sh`
   - Reproducible Hamiltonian benchmark helper.
 - `run_m4_guardrails.py`
-  - Local modernization guardrail orchestration used by `make -C build modernization_guardrails`.
+  - Public modernization guardrail orchestration used by `make -C build modernization_guardrails`.
 - `run_stage3_3_multiseed.py`, `merge_stage3_multiseed_chunks.py`, `run_tltm_product.py`
   - Current Stage3/product-wrapper compatibility helpers.  Raw Stage script
     deprecation is blocked until wrapper handoff and production-comparison
@@ -29,14 +23,12 @@ tree.  Current model changes replace the active provider behind
 `src/physics/model.f90`; the Stephanov provider lives in
 `src/physics/model_stephanov.f90`.
 
-## Task-local production and readback scripts
+## Local-only production and readback scripts
 
-Current Stephanov `n=6` production, fixed-tau checks, runtime benchmarks, and
-observable readbacks live under
-`codex/workspaces/fortran_modernization/tasks/scripts/` and
-`codex/workspaces/fortran_modernization/tasks/pbs/`.  Use the script evidence
-audit and the TLTM SOP before treating any task-local helper as current
-evidence.
+Production-specific submission helpers, queue records, and exploratory readback
+scripts are local control-plane archives. They are not part of the public
+script surface. Promote only compact, reviewed evidence into `docs/` or
+`codex/runbooks/` when a milestone explicitly requires it.
 
 ## Historical scripts (kept for reference)
 
