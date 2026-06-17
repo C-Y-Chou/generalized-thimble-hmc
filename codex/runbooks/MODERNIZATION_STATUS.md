@@ -77,6 +77,11 @@ Current result:
 
 ## Current Next Step
 
+Modernization work is now organized by GitHub-commit milestones.  The next
+public-facing milestone is:
+
+`GHM-001: Public WV-HMC Validation Path`
+
 Use `normal_reflect` as the main WV-HMC policy for any subsequent dense
 explicit-J validation.  If comparing policies, compare only:
 
@@ -86,9 +91,39 @@ explicit-J validation.  If comparing policies, compare only:
 Do not reopen `stay_reject` or `paper_bounce_reject` unless a new diagnostic
 specifically targets rejection semantics.
 
+## GitHub Milestone Status
+
+| id | status | purpose | commit boundary |
+|---|---|---|---|
+| `GHM-001` | next | Public WV-HMC validation path | Docs/examples/release note only; no private scheduler state |
+| `GHM-002` | queued | Model-provider onboarding contract | Public model-provider docs/checklist |
+| `GHM-003` | queued | DOP853 public surface cleanup | Public backend docs and scoped ODEX deletion plan |
+| `GHM-004` | queued | Minimal reproducible examples | Small examples, no large datasets |
+| `GHM-005` | queued after new run | Dense WV-HMC follow-up validation packet | Compact readback and reproducibility metadata |
+
+Internal workspace cleanup supports these milestones but is not itself a
+public GitHub milestone.  Scheduler ledgers, queue observations, source-pin
+manifests, live caches, and large generated dumps should stay unstaged unless a
+specific milestone requires a compact provenance artifact.
+
+## Full Modernization TODO Status
+
+| id | surface | status | purpose |
+|---|---|---|---|
+| `CLEAN-001` | internal | next before `GHM-001` | Classify current dirty worktree and exclude private artifacts from public commit |
+| `CLEAN-002` | internal/governance | required before release candidate | Reconcile open-item/caveat registries and archive old generated evidence paths |
+| `TECH-001` | technical/github | queued | Finish DOP853 default / legacy ODEX deletion route |
+| `TECH-002` | technical/github | deferred | Implement matrix-free / BiCGStab WV-HMC trajectory |
+| `TECH-003` | technical/github | deferred | Validate high-dimensional model support |
+| `TECH-004` | technical/github | deferred | Reentrancy / OpenMP readiness |
+| `TECH-005` | technical/github | queued when selected | TLTM follow-up validation / compact production evidence |
+| `DOC-001` | github | after cleanup and docs | Release-candidate / funding-facing package |
+| `EXT-001` | external | boundary only | Keep production-comparison and nofb-diagnostics outside this repo's active milestones |
+
 ## Nonblocking / Deferred
 
 - Matrix-free / BiCGStab WV-HMC trajectory wiring.
 - High-dimensional performance validation.
 - Reentrancy/context cleanup before OpenMP or library-level parallel claims.
 - Historical runbook/data archive cleanup.
+- Open item / caveat registry reconciliation with this milestone queue.

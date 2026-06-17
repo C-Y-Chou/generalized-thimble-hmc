@@ -87,11 +87,13 @@ run options, and output directory so the analysis can be reproduced.
 - [User Guide](docs/USER_GUIDE.md)
 - [Model Provider](docs/MODEL_PROVIDER.md)
 - [Samplers](docs/SAMPLERS.md)
+- [Validation](docs/VALIDATION.md)
 - [Configuration](docs/CONFIGURATION.md)
 - [Outputs and Restart](docs/OUTPUTS_AND_RESTART.md)
 - [Development](docs/DEVELOPMENT.md)
 - [References](docs/REFERENCES.md)
 - [Reproducibility Records](docs/REPRODUCIBILITY_RECORDS.md)
+- [Changelog](CHANGELOG.md)
 
 For the physics background and citation guidance, start from
 [References](docs/REFERENCES.md).

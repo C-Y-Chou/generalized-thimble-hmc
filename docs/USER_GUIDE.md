@@ -11,6 +11,9 @@
 7. For larger studies, record the source commit, parameter file, run options,
    and output directory.
 
+See [Validation](VALIDATION.md) for the public smoke path, dense WV-HMC claim
+boundary, and required metadata for reproducible validation runs.
+
 ## WV-HMC Example
 
 ```bash

@@ -61,6 +61,9 @@ Current claim level:
   high-dimensional performance optimization are
   roadmap work.
 
+See [Validation](VALIDATION.md) for the public smoke path and reproducibility
+metadata expected for benchmark-style WV-HMC runs.
+
 ## Choosing Parameters
 
 Use this order:
