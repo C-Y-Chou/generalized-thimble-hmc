@@ -43,6 +43,11 @@ make wv-hmc-smoke
 The smoke target writes a manifest and short output under
 `output/product/wv_hmc_smoke`.
 
+## Compact Validation Packets
+
+- [WV-HMC Validation Packet 2026-06-16](WV_HMC_VALIDATION_PACKET_20260616.md)
+  records the dense explicit-J Stephanov `n=6` boundary-policy readback.
+
 ## Stephanov `n=6` Dense WV-HMC Example
 
 Use this command for a small local validation-style run:

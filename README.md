@@ -89,6 +89,7 @@ run options, and output directory so the analysis can be reproduced.
 - [Model Specification Template](model_specs/TEMPLATE.md)
 - [Samplers](docs/SAMPLERS.md)
 - [Validation](docs/VALIDATION.md)
+- [WV-HMC Validation Packet 2026-06-16](docs/WV_HMC_VALIDATION_PACKET_20260616.md)
 - [Configuration](docs/CONFIGURATION.md)
 - [Flow Backend](docs/FLOW_BACKEND.md)
 - [Outputs and Restart](docs/OUTPUTS_AND_RESTART.md)

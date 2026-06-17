@@ -78,9 +78,9 @@ Current result:
 ## Current Next Step
 
 Modernization work is now organized by GitHub-commit milestones.  After
-`GHM-004`, the next public-facing milestone is:
+`GHM-005`, the next required step is:
 
-`GHM-005: Dense WV-HMC Follow-up Validation Packet`
+`CLEAN-002: Full Modernization Cleanup Sprint`
 
 Use `normal_reflect` as the main WV-HMC policy for any subsequent dense
 explicit-J validation.  If comparing policies, compare only:
@@ -99,7 +99,7 @@ specifically targets rejection semantics.
 | `GHM-002` | complete | Model-provider onboarding contract | Public model-provider docs/checklist |
 | `GHM-003` | complete | DOP853 public surface cleanup | Public backend docs and scoped ODEX deletion plan |
 | `GHM-004` | complete | Minimal reproducible examples | Small examples, no large datasets |
-| `GHM-005` | next | Dense WV-HMC follow-up validation packet | Compact readback and reproducibility metadata |
+| `GHM-005` | complete | Dense WV-HMC follow-up validation packet | Compact readback and reproducibility metadata |
 
 Internal workspace cleanup supports these milestones but is not itself a
 public GitHub milestone.  Scheduler ledgers, queue observations, source-pin
@@ -111,13 +111,13 @@ specific milestone requires a compact provenance artifact.
 | id | surface | status | purpose |
 |---|---|---|---|
 | `CLEAN-001` | internal | next before `GHM-001` | Classify current dirty worktree and exclude private artifacts from public commit |
-| `CLEAN-002` | internal/governance | required before release candidate | Reconcile open-item/caveat registries and archive old generated evidence paths |
+| `CLEAN-002` | internal/governance | next before release candidate | Reconcile open-item/caveat registries and archive old generated evidence paths |
 | `TECH-001` | technical/github | queued after `GHM-003` | Finish DOP853 default / legacy ODEX deletion route |
 | `TECH-002` | technical/github | deferred | Implement matrix-free / BiCGStab WV-HMC trajectory |
 | `TECH-003` | technical/github | deferred | Validate high-dimensional model support |
 | `TECH-004` | technical/github | deferred | Reentrancy / OpenMP readiness |
 | `TECH-005` | technical/github | queued when selected | TLTM follow-up validation / compact production evidence |
-| `DOC-001` | github | after cleanup and docs | Release-candidate / funding-facing package |
+| `DOC-001` | github | after `CLEAN-002` | Release-candidate / funding-facing package |
 | `EXT-001` | external | boundary only | Keep production-comparison and nofb-diagnostics outside this repo's active milestones |
 
 ## Nonblocking / Deferred

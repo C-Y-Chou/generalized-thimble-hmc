@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-06-18 - Dense WV-HMC Validation Packet
+
+- Added the compact public readback for the Stephanov `n=6` dense WV-HMC
+  boundary-policy packet.
+- Recorded normal-reflection as the main policy and full-bounce as the
+  optional benchmark policy.
+- Kept raw histories, job-control state, and large generated outputs outside
+  the public packet.
+
 ## 2026-06-18 - Minimal Reproducible Examples
 
 - Added a runnable Stephanov `n=6` WV-HMC smoke example.
