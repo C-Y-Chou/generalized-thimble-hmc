@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-06-18 - Model Provider Onboarding Contract
+
+- Expanded the public model-provider contract for new physics models.
+- Added a model-specification template for action, manual gradient,
+  Hessian-vector product, observables, and small-reference validation.
+- Clarified that model choice stays out of canonical sampler kernels.
+
 ## 2026-06-16 - WV-HMC Public Validation Path
 
 - Set dense WV-HMC public defaults to `normal_reflect` boundary handling.

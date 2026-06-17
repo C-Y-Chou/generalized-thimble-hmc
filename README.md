@@ -86,6 +86,7 @@ run options, and output directory so the analysis can be reproduced.
 - [Install](docs/INSTALL.md)
 - [User Guide](docs/USER_GUIDE.md)
 - [Model Provider](docs/MODEL_PROVIDER.md)
+- [Model Specification Template](model_specs/TEMPLATE.md)
 - [Samplers](docs/SAMPLERS.md)
 - [Validation](docs/VALIDATION.md)
 - [Configuration](docs/CONFIGURATION.md)

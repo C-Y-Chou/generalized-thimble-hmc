@@ -11,6 +11,10 @@ Use this area to draft a model before promoting it into active source:
 - model parameters and couplings
 - validation and smoke-test plan
 
+Start new specifications from:
+
+- `TEMPLATE.md`
+
 Promotion target after review:
 
 - `src/physics/model_<name>.f90` as the active hand-written provider

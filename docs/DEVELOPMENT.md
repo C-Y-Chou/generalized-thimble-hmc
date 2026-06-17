@@ -26,6 +26,8 @@ git diff --check
 
 - Keep sampler logic model-general.
 - Keep model formulas inside the provider.
+- Freeze new model contracts in `model_specs/` before editing active provider
+  source.
 - Preserve ratio-estimator structure when analyzing observables.
 - Keep burn-in decisions explicit in run manifests and readbacks.
 - Record source commit, parameters, run options, and output paths for validation

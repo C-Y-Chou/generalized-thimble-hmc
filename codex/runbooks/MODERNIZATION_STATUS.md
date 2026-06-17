@@ -77,10 +77,10 @@ Current result:
 
 ## Current Next Step
 
-Modernization work is now organized by GitHub-commit milestones.  The next
-public-facing milestone is:
+Modernization work is now organized by GitHub-commit milestones.  After
+`GHM-002`, the next public-facing milestone is:
 
-`GHM-001: Public WV-HMC Validation Path`
+`GHM-003: DOP853 Public Surface Cleanup`
 
 Use `normal_reflect` as the main WV-HMC policy for any subsequent dense
 explicit-J validation.  If comparing policies, compare only:
@@ -95,9 +95,9 @@ specifically targets rejection semantics.
 
 | id | status | purpose | commit boundary |
 |---|---|---|---|
-| `GHM-001` | next | Public WV-HMC validation path | Docs/examples/release note only; no private scheduler state |
-| `GHM-002` | queued | Model-provider onboarding contract | Public model-provider docs/checklist |
-| `GHM-003` | queued | DOP853 public surface cleanup | Public backend docs and scoped ODEX deletion plan |
+| `GHM-001` | complete | Public WV-HMC validation path | Docs/examples/release note only; no private scheduler state |
+| `GHM-002` | complete | Model-provider onboarding contract | Public model-provider docs/checklist |
+| `GHM-003` | next | DOP853 public surface cleanup | Public backend docs and scoped ODEX deletion plan |
 | `GHM-004` | queued | Minimal reproducible examples | Small examples, no large datasets |
 | `GHM-005` | queued after new run | Dense WV-HMC follow-up validation packet | Compact readback and reproducibility metadata |
 
