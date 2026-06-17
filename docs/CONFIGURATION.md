@@ -57,6 +57,9 @@ python3 scripts/run_tltm_product.py wv-hmc --help
 The default flow backend is DOP853. The public wrapper pins this default for
 WV-HMC runs.
 
+See [Flow Backend](FLOW_BACKEND.md) for the public backend contract and the
+scope of remaining legacy backend cleanup.
+
 ## Output Location
 
 Wrapper outputs default to `output/product/`. Use `--output-dir` to select a

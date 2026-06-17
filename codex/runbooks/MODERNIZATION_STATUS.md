@@ -78,9 +78,9 @@ Current result:
 ## Current Next Step
 
 Modernization work is now organized by GitHub-commit milestones.  After
-`GHM-002`, the next public-facing milestone is:
+`GHM-003`, the next public-facing milestone is:
 
-`GHM-003: DOP853 Public Surface Cleanup`
+`GHM-004: Minimal Reproducible Examples`
 
 Use `normal_reflect` as the main WV-HMC policy for any subsequent dense
 explicit-J validation.  If comparing policies, compare only:
@@ -97,8 +97,8 @@ specifically targets rejection semantics.
 |---|---|---|---|
 | `GHM-001` | complete | Public WV-HMC validation path | Docs/examples/release note only; no private scheduler state |
 | `GHM-002` | complete | Model-provider onboarding contract | Public model-provider docs/checklist |
-| `GHM-003` | next | DOP853 public surface cleanup | Public backend docs and scoped ODEX deletion plan |
-| `GHM-004` | queued | Minimal reproducible examples | Small examples, no large datasets |
+| `GHM-003` | complete | DOP853 public surface cleanup | Public backend docs and scoped ODEX deletion plan |
+| `GHM-004` | next | Minimal reproducible examples | Small examples, no large datasets |
 | `GHM-005` | queued after new run | Dense WV-HMC follow-up validation packet | Compact readback and reproducibility metadata |
 
 Internal workspace cleanup supports these milestones but is not itself a
@@ -112,7 +112,7 @@ specific milestone requires a compact provenance artifact.
 |---|---|---|---|
 | `CLEAN-001` | internal | next before `GHM-001` | Classify current dirty worktree and exclude private artifacts from public commit |
 | `CLEAN-002` | internal/governance | required before release candidate | Reconcile open-item/caveat registries and archive old generated evidence paths |
-| `TECH-001` | technical/github | queued | Finish DOP853 default / legacy ODEX deletion route |
+| `TECH-001` | technical/github | queued after `GHM-003` | Finish DOP853 default / legacy ODEX deletion route |
 | `TECH-002` | technical/github | deferred | Implement matrix-free / BiCGStab WV-HMC trajectory |
 | `TECH-003` | technical/github | deferred | Validate high-dimensional model support |
 | `TECH-004` | technical/github | deferred | Reentrancy / OpenMP readiness |

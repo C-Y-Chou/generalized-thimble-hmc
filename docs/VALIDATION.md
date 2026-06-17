@@ -14,6 +14,7 @@ generated datasets.
 - `full_bounce` / `paper_full_flip` is an optional benchmark policy.
 - Matrix-free trajectories, iterative linear solves, and high-dimensional
   WV-HMC performance validation remain future work.
+- DOP853 is the public flow-backend path for wrapper-launched WV-HMC runs.
 
 Do not treat a single run, seed, burn cut, or measurement window as a final
 physics claim.  Production claims should use ratio-preserving uncertainty
@@ -82,6 +83,7 @@ Record these items for any result used beyond a smoke test:
 - parameter file;
 - model name and physical size;
 - sampler and boundary policy;
+- flow backend;
 - `T0`, `D0`, `T1`, `D1`;
 - `W(t)` profile and parameters;
 - step size and number of integration steps;

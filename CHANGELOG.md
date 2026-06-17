@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-06-18 - DOP853 Public Surface Cleanup
+
+- Documented DOP853 as the public flow-backend path.
+- Clarified that legacy ODEX names are implementation and telemetry cleanup
+  surface, not the normal user workflow.
+- Scoped remaining ODEX deletion/quarantine work behind a DOP853-default
+  validation gate.
+
 ## 2026-06-18 - Model Provider Onboarding Contract
 
 - Expanded the public model-provider contract for new physics models.

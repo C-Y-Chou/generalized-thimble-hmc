@@ -203,6 +203,10 @@ Status: queued after `GHM-001` / cleanup reconciliation.
 
 Goal: finish the staged transition from legacy ODEX to DOP853 default.
 
+`GHM-003` completed the public documentation surface.  This technical block is
+the remaining source/diagnostic cleanup and must not delete legacy source until
+the DOP853-default validation gate is accepted.
+
 Completion criteria:
 
 - public docs present DOP853 as the normal backend;
